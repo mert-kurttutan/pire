@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use std::sync::Barrier;
 use std::sync::Arc;
 
+pub mod asm_macro;
+
 
 #[macro_export]
 macro_rules! env_or {
@@ -683,7 +685,7 @@ pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_
 
 pub trait UnaryOp<T> {
     const IS_IDENTITY: bool;
-    fn apply(x: *mut T);
+    unsafe fn apply(x: *mut T);
 }
 
 pub trait GemmGotoPackaPackb<
@@ -764,7 +766,7 @@ Self: GemmPack<A::T, A::U>,
         c: *mut TC,
         c_rs: usize, c_cs: usize,
         ap: *const A::U, bp: *const B::U,
-    );	
+    );
    unsafe fn gemm_packa_packb(
     m: usize, n: usize, k: usize,
     alpha: A::U,

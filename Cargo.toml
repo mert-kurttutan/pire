@@ -1,7 +1,9 @@
 [workspace]
 
 members = [ 
-    "corenum-base",
+    "corenum-base", 
+    "corenum-dev",
+    "corenum-gemm-f32",
 ]
 
 resolver = "2"
