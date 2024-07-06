@@ -249,18 +249,21 @@ pub fn split_range(range_len: usize, unit_len: usize, r_id: usize, r_par: usize)
 }
 
 
-pub trait GemmArray<T,U> {
-    type PackArray;
+pub trait GemmArray {
+    type T;
+    type U: BaseNum;
+    type PackArray: GemmArrayP<Self::T,Self::U>+Copy+Send +Sync+'static;
     fn is_packing_needed() -> bool;
-    fn into_pack_array(self, a: *mut U) -> Self::PackArray;
+    fn into_pack_array(self, a: *mut Self::U) -> Self::PackArray;
     fn get_rs(&self) -> usize;
     fn get_cs(&self) -> usize;
-    fn get_data_ptr(&self) -> *const T;
+    fn get_data_ptr(&self) -> *const Self::T;
     fn transpose(&mut self);
 }
 
 pub trait GemmArrayP<T,U>
 {
+    // type StridedArray;
     unsafe fn packa_dispatch_hw<H:GemmPack<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
     unsafe fn packb_dispatch_hw<H:GemmPack<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
     unsafe fn add_p(&self, offset: usize) -> Self;
@@ -275,22 +278,22 @@ pub trait BaseNum: Copy + Send + 'static + Send + Sync{}
 
 impl<T> BaseNum for T where T: Copy + Send + 'static + Send + Sync{}
 
-fn get_mem_pool_size<TA:BaseNum, TB:BaseNum, TC:BaseNum,
-A: Copy+GemmArray<TA,TA, PackArray = impl GemmArrayP<TA,TA> + Copy+Send +Sync+'static>, 
-B: Copy+GemmArray<TB,TB, PackArray = impl GemmArrayP<TB,TB> + Copy+Send +Sync+'static>,
-HWConfig: GemmGotoPackaPackb<TA,TB,TC,A,B>
+fn get_mem_pool_size<TC:BaseNum,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
+HWConfig: GemmGotoPackaPackb<TC,A,B>
 >(par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
     if A::is_packing_needed() {
         let ap_pool_multiplicity = par.ic_par;
         let ap_pool_size = HWConfig::get_ap_pool_size(par.ic_par);
-        mem_pool_size += ap_pool_size * std::mem::size_of::<TA>() * ap_pool_multiplicity;
+        mem_pool_size += ap_pool_size * std::mem::size_of::<A::U>() * ap_pool_multiplicity;
     }
     if B::is_packing_needed() {
         let bp_pool_multiplicity = par.jc_par;
         let bp_pool_size = HWConfig::get_bp_pool_size(par.jc_par);
-        mem_pool_size += bp_pool_size * std::mem::size_of::<TB>() * bp_pool_multiplicity;
+        mem_pool_size += bp_pool_size * std::mem::size_of::<B::U>() * bp_pool_multiplicity;
     }
     if mem_pool_size == 0 {
         return 0;
@@ -299,17 +302,17 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,A,B>
     mem_pool_size
 }
 
-fn get_mem_pool_size_small_m<TA:BaseNum, TB:BaseNum, TC:BaseNum,
-A: Copy+GemmArray<TA,TA, PackArray = impl GemmArrayP<TA,TA> + Copy+Send +Sync+'static>, 
-B: Copy+GemmArray<TB,TB, PackArray = impl GemmArrayP<TB,TB> + Copy+Send +Sync+'static>,
-HWConfig: GemmSmallM<TA,TB,TC,A,B>
+fn get_mem_pool_size_small_m<TC:BaseNum,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
+HWConfig: GemmSmallM<TC,A,B>
 >(par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
     if A::is_packing_needed() {
         let ap_pool_multiplicity = par.ic_par;
         let ap_pool_size = HWConfig::get_ap_pool_size(par.ic_par);
-        mem_pool_size += ap_pool_size * std::mem::size_of::<TA>() * ap_pool_multiplicity;
+        mem_pool_size += ap_pool_size * std::mem::size_of::<A::U>() * ap_pool_multiplicity;
     }
     if mem_pool_size == 0 {
         return 0;
@@ -318,17 +321,17 @@ HWConfig: GemmSmallM<TA,TB,TC,A,B>
     mem_pool_size
 }
 
-fn get_mem_pool_size_small_n<TA:BaseNum, TB:BaseNum, TC:BaseNum,
-A: Copy+GemmArray<TA,TA, PackArray = impl GemmArrayP<TA,TA> + Copy+Send +Sync+'static>, 
-B: Copy+GemmArray<TB,TB, PackArray = impl GemmArrayP<TB,TB> + Copy+Send +Sync+'static>,
-HWConfig: GemmGotoPackaPackb<TA,TB,TC,A,B>
+fn get_mem_pool_size_small_n<TC:BaseNum,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
+HWConfig: GemmGotoPackaPackb<TC,A,B>
 >(par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
     if B::is_packing_needed() {
         let bp_pool_multiplicity = par.jc_par;
         let bp_pool_size = HWConfig::get_bp_pool_size(par.jc_par);
-        mem_pool_size += bp_pool_size * std::mem::size_of::<TB>() * bp_pool_multiplicity;
+        mem_pool_size += bp_pool_size * std::mem::size_of::<B::U>() * bp_pool_multiplicity;
     }
     if mem_pool_size == 0 {
         return 0;
@@ -347,31 +350,32 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,A,B>
 // imple inside this crate, which is not desirable. We want this crate to be as decoupled as possbile from
 // specific gemm implementation and hardware.
 
-pub fn run_small_m<T,U,A: GemmArray<T,T>, B: GemmArray<U,U>>(m: usize) -> bool {
+pub fn run_small_m<A: GemmArray, B: GemmArray>(m: usize) -> bool {
     B::is_packing_needed() && m < 144
 }
 
-pub fn run_small_n<T,U,A: GemmArray<T,T>, B: GemmArray<U,U>>(n: usize) -> bool {
+pub fn run_small_n<A: GemmArray, B: GemmArray>(n: usize) -> bool {
     A::is_packing_needed() && B::is_packing_needed() && n < 144
 }
 use std::convert::Into;
 pub unsafe fn corenum_gemm<
-TA: BaseNum + Into<TB>, TB: BaseNum, TC: BaseNum,
-InputA: Copy+GemmArray<TA,TA, PackArray = impl GemmArrayP<TA,TA> + Copy+Send +Sync+'static> + Send +Sync+'static, 
-InputB: Copy+GemmArray<TB,TB, PackArray = impl GemmArrayP<TB,TB> + Copy+Send +Sync+'static> + Send +Sync+'static,
-HWConfig: GemmGotoPackaPackb<TA,TB,TC,InputA,InputB> + GemmSmallM<TA,TB,TC,InputA,InputB> + GemmSmallN<TA,TB,TC,InputA,InputB> + Gemv<TA,TB,TC,InputA,InputB> + Gemv<TB, TA, TC, InputB, InputA>,
+TC: BaseNum,
+InputA: Copy+GemmArray + Send +Sync+'static, 
+InputB: Copy+GemmArray + Send +Sync+'static,
+HWConfig: GemmGotoPackaPackb<TC,InputA,InputB> + GemmSmallM<TC,InputA,InputB> + GemmSmallN<TC,InputA,InputB> + Gemv<TC,InputA,InputB> + Gemv<TC, InputB, InputA>,
 >(
 	m: usize, n: usize, k: usize,
-	alpha: TA,
+	alpha: InputA::U,
 	a: InputA,
 	b: InputB,
 	beta: TC,
 	c: StridedMatrixMut<TC>,
 	par: &CorenumPar,
-) 
+)
+where InputA::U: Into<InputB::U>
 {
     if n == 1 {
-        corenum_gemv::<TA,TB,TC,InputA,InputB,HWConfig>(m, k, alpha, a, b, beta, c.data_ptr, c.rs, par);
+        corenum_gemv::<TC,InputA,InputB,HWConfig>(m, k, alpha, a, b, beta, c.data_ptr, c.rs, par);
         return;
     }
     if m == 1 {
@@ -379,11 +383,11 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,InputA,InputB> + GemmSmallM<TA,TB,TC,Input
         a.transpose();
         let mut b = b;
         b.transpose();
-        corenum_gemv::<TB,TA,TC,InputB,InputA,HWConfig>(n, k, alpha.into(), b, a, beta, c.data_ptr, c.cs, par);
+        corenum_gemv::<TC,InputB,InputA,HWConfig>(n, k, alpha.into(), b, a, beta, c.data_ptr, c.cs, par);
         return;
     }
-    if run_small_m::<TA,TB,InputA,InputB>(m) {
-        let mem_pool_size = get_mem_pool_size_small_m::<TA,TB,TC,InputA,InputB,HWConfig>(par);
+    if run_small_m::<InputA,InputB>(m) {
+        let mem_pool_size = get_mem_pool_size_small_m::<TC,InputA,InputB,HWConfig>(par);
         if mem_pool_size == 0 {
             let mut pool_vec = vec![0_u8; 1];
             let pool_buf = pool_vec.as_mut_ptr();
@@ -413,8 +417,8 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,InputA,InputB> + GemmSmallM<TA,TB,TC,Input
         return;
     }
 
-    if run_small_n::<TA,TB,InputA,InputB>(m) {
-        let mem_pool_size = get_mem_pool_size_small_n::<TA,TB,TC,InputA,InputB, HWConfig>(par);
+    if run_small_n::<InputA,InputB>(m) {
+        let mem_pool_size = get_mem_pool_size_small_n::<TC,InputA,InputB, HWConfig>(par);
         if mem_pool_size == 0 {
             let mut pool_vec = vec![0_u8; 1];
             let pool_buf = pool_vec.as_mut_ptr();
@@ -443,7 +447,7 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,InputA,InputB> + GemmSmallM<TA,TB,TC,Input
         extend(pool_vec);
         return;
     }
-    let mem_pool_size = get_mem_pool_size::<TA,TB,TC,InputA,InputB,HWConfig>(par);
+    let mem_pool_size = get_mem_pool_size::<TC,InputA,InputB,HWConfig>(par);
     if mem_pool_size == 0 {
         let mut pool_vec = vec![0_u8; 1];
         let pool_buf = pool_vec.as_mut_ptr();
@@ -474,12 +478,12 @@ HWConfig: GemmGotoPackaPackb<TA,TB,TC,InputA,InputB> + GemmSmallM<TA,TB,TC,Input
 }
 
 pub unsafe fn corenum_gemv<
-TA: BaseNum, TB: BaseNum, TC: BaseNum,
-InputA: Copy+GemmArray<TA,TA>, 
-InputB: Copy+GemmArray<TB,TB>,
-HWConfig: Gemv<TA,TB,TC,InputA,InputB>,
+TC: BaseNum,
+InputA: Copy+GemmArray, 
+InputB: Copy+GemmArray,
+HWConfig: Gemv<TC,InputA,InputB>,
 >(	m: usize, n: usize,
-	alpha: TA,
+	alpha: InputA::U,
 	a: InputA,
 	x: InputB,
 	beta: TC,
@@ -524,12 +528,14 @@ pub struct StridedMatrixP<T,U> {
 unsafe impl<T,U> Send for StridedMatrixP<T,U> {}
 unsafe impl<T,U> Sync for StridedMatrixP<T,U> {}
 
-impl<T,U> GemmArray<T,U> for StridedMatrix<T> {
-    type PackArray = StridedMatrixP<T,U>;
+impl<T:BaseNum> GemmArray for StridedMatrix<T> {
+    type T = T;
+    type U = T;
+    type PackArray = StridedMatrixP<T,T>;
     fn is_packing_needed() -> bool {
         true
     }
-    fn into_pack_array(self, a: *mut U) -> Self::PackArray {
+    fn into_pack_array(self, a: *mut T) -> Self::PackArray {
         StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
     }
 
@@ -552,7 +558,7 @@ impl<T,U> GemmArray<T,U> for StridedMatrix<T> {
     }
 }
 
-impl<T,U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
+impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
     unsafe fn packa_dispatch_hw<H:GemmPack<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U
     {
         if run {
@@ -596,7 +602,9 @@ pub struct PackedMatrix<T> {
 unsafe impl<T> Send for PackedMatrix<T> {}
 unsafe impl<T> Sync for PackedMatrix<T> {}
 
-impl<T> GemmArray<T,T> for PackedMatrix<T> {
+impl<T:BaseNum> GemmArray for PackedMatrix<T> {
+    type T = T;
+    type U = T;
     type PackArray = PackedMatrix<T>;
     fn is_packing_needed() -> bool {
         false
@@ -672,16 +680,13 @@ pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_
 
 
 pub trait GemmGotoPackaPackb<
-TA: BaseNum,
-TB: BaseNum,
 TC: BaseNum,
-A: Copy+GemmArray<TA,TA>, 
-B: Copy+GemmArray<TB,TB>,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
 > 
 where Self: Sized,
-Self: GemmPack<TA,TA> + GemmPack<TB,TB>,
-A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
-B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static
+Self: GemmPack<B::T, B::U>,
+Self: GemmPack<A::T, A::U>,
 {
     const CACHELINE_PAD: usize = 256;
    const MC: usize; const NC: usize; const KC: usize;
@@ -707,30 +712,29 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static
     }
     fn get_ap_pool_size(ic_par: usize) -> usize {
         let mc_eff = Self::get_mc_eff(ic_par);
-        mc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<TA>()
+        mc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<A::U>()
     }
     fn get_bp_pool_size(jc_par: usize) -> usize {
         let nc_eff = Self::get_nc_eff(jc_par);
-        nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<TB>()
+        nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<B::U>()
     }
    unsafe fn packa(
         a: A::PackArray, 
     mc_i: usize, kc_i: usize,
     mc_len: usize, kc_len: usize,
     t_cfg: &CorenumThreadConfig
-    ) -> *const TA {
+    ) -> *const A::U {
         t_cfg.wait_packa();
         let x = a.packa_dispatch_hw::<Self>(mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
         t_cfg.wait_packa();
         x
-        
     }
     unsafe fn packb(
         b: B::PackArray, 
         nc: usize, kc: usize,
         nc_len: usize, kc_len: usize,
         t_cfg: &CorenumThreadConfig
-    ) -> *const TB {
+    ) -> *const B::U {
         t_cfg.wait_packb();
         let x = b.packb_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, t_cfg.run_packb);
         t_cfg.wait_packb();
@@ -738,15 +742,15 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static
     }
    unsafe fn kernel(
        m: usize, n: usize, k: usize,
-       alpha: *const TA,
+       alpha: *const A::U,
        beta: *const TC,
        c: *mut TC,
        c_rs: usize, c_cs: usize,
-       ap: *const TA, bp: *const TB,
+       ap: *const A::U, bp: *const B::U,
    );
    unsafe fn gemm_packa_packb(
     m: usize, n: usize, k: usize,
-    alpha: TA,
+    alpha: A::U,
     a: A,
     b: B,
     beta: TC,
@@ -763,7 +767,7 @@ B: Send+Sync+'static,
     let kc_eff = Self::KC;
     let ap_pool_size = Self::get_ap_pool_size(par.ic_par);
     let bp_pool_size = Self::get_bp_pool_size(par.jc_par);
-    let (ap_ptr, bp_ptr) = get_ap_bp::<TA,TB>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
+    let (ap_ptr, bp_ptr) = get_ap_bp::<A::U,B::U>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
     let ap = a.into_pack_array(ap_ptr);
     let bp = b.into_pack_array(bp_ptr);
     let mut pa_br_vec = Vec::with_capacity(par.ic_par);
@@ -789,7 +793,7 @@ B: Send+Sync+'static,
         let bp_cur = bp.add_p(jc_id*bp_pool_size);
 
         let x = std::thread::spawn(move || {
-                let alpha = &alpha as *const TA;
+                let alpha = &alpha as *const A::U;
                 let beta = &beta as *const TC;
                 Self::gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &mut t_cfg);
             }
@@ -801,7 +805,7 @@ B: Send+Sync+'static,
     {
         let t_id: usize = 0;
         let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-        let alpha = &alpha as *const TA;
+        let alpha = &alpha as *const A::U;
         let beta = &beta as *const TC;
         Self::gemm_packa_packb_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
     }
@@ -812,7 +816,7 @@ B: Send+Sync+'static,
    #[inline]
    unsafe fn gemm_packa_packb_serial(
        m: usize, n: usize, k: usize,
-       alpha: *const TA,
+       alpha: *const A::U,
        a: A::PackArray,
        b: B::PackArray,
        beta: *const TC,
@@ -888,15 +892,12 @@ B: Send+Sync+'static,
 }
 
 pub trait GemmSmallM<
-TA: BaseNum,
-TB: BaseNum,
 TC: BaseNum,
-A: Copy+GemmArray<TA,TA>, 
-B: Copy+GemmArray<TB,TB>,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
 > 
 where Self: Sized,
-Self: GemmPack<TA,TA> + GemmPack<TB,TB>,
-A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
+Self: GemmPack<A::T, A::U>
 {
     const MC: usize; const NC: usize; const KC: usize;
     const MR: usize; const NR: usize;
@@ -917,14 +918,14 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
     }
     fn get_ap_pool_size(ic_par: usize) -> usize {
         let mc_eff = Self::get_mc_eff(ic_par);
-        mc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<TA>()
+        mc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<A::U>()
     }
     unsafe fn packa(
         a: A::PackArray,
         mc: usize, kc: usize,
         mc_len: usize, kc_len: usize,
         t_cfg: &CorenumThreadConfig
-    ) -> *const TA {
+    ) -> *const A::U {
         t_cfg.wait_packa();
          let x = a.packa_dispatch_hw::<Self>(mc, kc, mc_len, kc_len, 0, t_cfg.run_packa);
         t_cfg.wait_packa();
@@ -932,15 +933,15 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
     }
     unsafe fn kernel(
         m: usize, n: usize, k: usize,
-        alpha: *const TA,
+        alpha: *const A::U,
         beta: *const TC,
         b: B, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const TA,
+        ap: *const A::U,
     );
     unsafe fn gemm_small_m(
         m: usize, n: usize, k: usize,
-        alpha: TA,
+        alpha: A::U,
         a: A,
         b: B,
         beta: TC,
@@ -957,7 +958,7 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
         let kc_eff = Self::KC;
         let ap_pool_size = Self::get_ap_pool_size(par.ic_par);
         let align_offset = pack_pool.align_offset(AP_ALIGN);
-        let ap_ptr = (pack_pool.add(align_offset)) as *mut TA;
+        let ap_ptr = (pack_pool.add(align_offset)) as *mut A::U;
         let ap = a.into_pack_array(ap_ptr);
         let mut pa_br_vec = Vec::with_capacity(par.ic_par);
         for _ in 0..par.ic_par {
@@ -980,7 +981,7 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
             let ap_cur = ap.add_p(ic_id*ap_pool_size);
     
             let x = std::thread::spawn(move || {
-                    let alpha = &alpha as *const TA;
+                    let alpha = &alpha as *const A::U;
                     let beta = &beta as *const TC;
                     Self::gemm_small_m_serial(m, n, k, alpha, ap_cur, b, beta, c, &t_cfg);
                 }
@@ -992,7 +993,7 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
         {
             let t_id: usize = 0;
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-            let alpha = &alpha as *const TA;
+            let alpha = &alpha as *const A::U;
             let beta = &beta as *const TC;
             Self::gemm_small_m_serial(m, n, k, alpha, ap, b, beta, c, &t_cfg);
         }
@@ -1003,7 +1004,7 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
     #[inline]
     unsafe fn gemm_small_m_serial(
         m: usize, n: usize, k: usize,
-        alpha: *const TA,
+        alpha: *const A::U,
         a: A::PackArray,
         b: B,
         beta: *const TC,
@@ -1060,15 +1061,12 @@ A::PackArray: GemmArrayP<TA,TA> + Copy+Send +Sync+'static,
  }
 
  pub trait GemmSmallN<
- TA: BaseNum,
-TB: BaseNum,
 TC: BaseNum,
-A: Copy+GemmArray<TA,TA>, 
-B: Copy+GemmArray<TB,TB>,
+A: Copy+GemmArray, 
+B: Copy+GemmArray,
  >
 where Self: Sized,
-Self: GemmPack<TA,TA> + GemmPack<TB,TB>,
-B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
+Self: GemmPack<B::T, B::U>,
  {
     const MC: usize; const NC: usize; const KC: usize;
     const MR: usize; const NR: usize;
@@ -1088,7 +1086,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
     }
     fn get_bp_pool_size(jc_par: usize) -> usize {
         let nc_eff = Self::get_nc_eff(jc_par);
-        nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<TB>()
+        nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<B::U>()
     }
     const ONE: TC;
     unsafe fn packb(
@@ -1096,7 +1094,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
         nc: usize, kc: usize,
         nc_len: usize, kc_len: usize,
         t_cfg: &CorenumThreadConfig
-    ) -> *const TB {
+    ) -> *const B::U {
         t_cfg.wait_packb();
         let x = b.packa_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, 0, t_cfg.run_packb);
         t_cfg.wait_packb();
@@ -1104,15 +1102,15 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
     }
     unsafe fn kernel(
         m: usize, n: usize, k: usize,
-        alpha: *const TA,
+        alpha: *const A::U,
         beta: *const TC,
         a: A, a_rs: usize, a_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const TB,
+        bp: *const B::U,
     );
     unsafe fn gemm_small_n(
         m: usize, n: usize, k: usize,
-        alpha: TA,
+        alpha: A::U,
         a: A,
         b: B,
         beta: TC,
@@ -1129,7 +1127,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
         let kc_eff = Self::KC;
         let ap_pool_size = Self::get_bp_pool_size(par.jc_par);
         let align_offset = pack_pool.align_offset(BP_ALIGN);
-        let bp_ptr = (pack_pool.add(align_offset)) as *mut TB;
+        let bp_ptr = (pack_pool.add(align_offset)) as *mut B::U;
         let mut b = b;
         b.transpose();
         let bp = b.into_pack_array(bp_ptr);
@@ -1154,7 +1152,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
             let bp_cur = bp.add_p(jc_id*ap_pool_size);
     
             let x = std::thread::spawn(move || {
-                    let alpha = &alpha as *const TA;
+                    let alpha = &alpha as *const A::U;
                     let beta = &beta as *const TC;
                     Self::gemm_small_n_serial(m, n, k, alpha, a, bp_cur, beta, c, &t_cfg);
                 }
@@ -1166,7 +1164,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
         {
             let t_id: usize = 0;
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-            let alpha = &alpha as *const TA;
+            let alpha = &alpha as *const A::U;
             let beta = &beta as *const TC;
             Self::gemm_small_n_serial(m, n, k, alpha, a, bp, beta, c, &t_cfg);
         }
@@ -1177,7 +1175,7 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
     #[inline]
     unsafe fn gemm_small_n_serial(
         m: usize, n: usize, k: usize,
-        alpha: *const TA,
+        alpha: *const A::U,
         a: A,
         b: B::PackArray,
         beta: *const TC,
@@ -1257,28 +1255,26 @@ B::PackArray: GemmArrayP<TB,TB> + Copy+Send +Sync+'static,
  
 
 pub trait Gemv<
-TA: BaseNum,
-TB: BaseNum,
 TC: BaseNum,
-InputA: Copy+GemmArray<TA,TA>, 
-InputB: Copy+GemmArray<TB,TB>,
+InputA: Copy+GemmArray, 
+InputB: Copy+GemmArray,
 > {
    unsafe fn gemv(
        m: usize, n: usize,
-       alpha: TA,
+       alpha: InputA::U,
        a: InputA,
        x: InputB,
        beta: TC,
        y: *mut TC, incy: usize,
        par: &CorenumPar
    ) {
-       let alpha = &alpha as *const TA;
+       let alpha = &alpha as *const InputA::U;
        let beta = &beta as *const TC;
        Self::gemv_serial(m, n, alpha, a, x, beta, y, incy);
    }
    unsafe fn gemv_serial(
        m: usize, n: usize,
-       alpha: *const TA,
+       alpha: *const InputA::U,
        a: InputA,
        x: InputB,
        beta: *const TC,
