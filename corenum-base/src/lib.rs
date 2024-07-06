@@ -281,7 +281,8 @@ impl<T> BaseNum for T where T: Copy + Send + 'static + Send + Sync{}
 fn get_mem_pool_size<TC:BaseNum,
 A: Copy+GemmArray, 
 B: Copy+GemmArray,
-HWConfig: GemmGotoPackaPackb<TC,A,B>
+Activation: UnaryOp<TC>,
+HWConfig: GemmGotoPackaPackb<TC,A,B,Activation>
 >(par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
@@ -324,7 +325,8 @@ HWConfig: GemmSmallM<TC,A,B>
 fn get_mem_pool_size_small_n<TC:BaseNum,
 A: Copy+GemmArray, 
 B: Copy+GemmArray,
-HWConfig: GemmGotoPackaPackb<TC,A,B>
+Activation: UnaryOp<TC>,
+HWConfig: GemmGotoPackaPackb<TC,A,B,Activation>
 >(par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
@@ -362,7 +364,8 @@ pub unsafe fn corenum_gemm<
 TC: BaseNum,
 InputA: Copy+GemmArray + Send +Sync+'static, 
 InputB: Copy+GemmArray + Send +Sync+'static,
-HWConfig: GemmGotoPackaPackb<TC,InputA,InputB> + GemmSmallM<TC,InputA,InputB> + GemmSmallN<TC,InputA,InputB> + Gemv<TC,InputA,InputB> + Gemv<TC, InputB, InputA>,
+Activation: UnaryOp<TC>,
+HWConfig: GemmGotoPackaPackb<TC,InputA,InputB,Activation> + GemmSmallM<TC,InputA,InputB> + GemmSmallN<TC,InputA,InputB> + Gemv<TC,InputA,InputB> + Gemv<TC, InputB, InputA>,
 >(
 	m: usize, n: usize, k: usize,
 	alpha: InputA::U,
@@ -418,7 +421,7 @@ where InputA::U: Into<InputB::U>
     }
 
     if run_small_n::<InputA,InputB>(m) {
-        let mem_pool_size = get_mem_pool_size_small_n::<TC,InputA,InputB, HWConfig>(par);
+        let mem_pool_size = get_mem_pool_size_small_n::<TC,InputA,InputB,Activation,HWConfig>(par);
         if mem_pool_size == 0 {
             let mut pool_vec = vec![0_u8; 1];
             let pool_buf = pool_vec.as_mut_ptr();
@@ -447,7 +450,7 @@ where InputA::U: Into<InputB::U>
         extend(pool_vec);
         return;
     }
-    let mem_pool_size = get_mem_pool_size::<TC,InputA,InputB,HWConfig>(par);
+    let mem_pool_size = get_mem_pool_size::<TC,InputA,InputB,Activation,HWConfig>(par);
     if mem_pool_size == 0 {
         let mut pool_vec = vec![0_u8; 1];
         let pool_buf = pool_vec.as_mut_ptr();
@@ -678,11 +681,16 @@ pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_
    (ap, bp)
 }
 
+pub trait UnaryOp<T> {
+    const IS_IDENTITY: bool;
+    fn apply(x: *mut T);
+}
 
 pub trait GemmGotoPackaPackb<
 TC: BaseNum,
 A: Copy+GemmArray, 
 B: Copy+GemmArray,
+Activation: UnaryOp<TC>
 > 
 where Self: Sized,
 Self: GemmPack<B::T, B::U>,
@@ -748,6 +756,15 @@ Self: GemmPack<A::T, A::U>,
        c_rs: usize, c_cs: usize,
        ap: *const A::U, bp: *const B::U,
    );
+
+   unsafe fn kernel_n(
+        m: usize, n: usize, k: usize,
+        alpha: *const A::U,
+        beta: *const TC,
+        c: *mut TC,
+        c_rs: usize, c_cs: usize,
+        ap: *const A::U, bp: *const B::U,
+    );	
    unsafe fn gemm_packa_packb(
     m: usize, n: usize, k: usize,
     alpha: A::U,
@@ -845,6 +862,8 @@ B: Send+Sync+'static,
            let mut kc_i = kc_start;
            while kc_i < kc_end {
                let kc_len = kc.min(kc_end - kc_i);
+               let kc_last = kc_i + kc_len == kc_end;
+               let run_nonlinear = kc_last && Activation::IS_IDENTITY;
                let beta_t = if kc_i == kc_start { beta } else { &one as *const TC};
                let mut nc_i = nc_start;
                let ap = Self::packa(a, mc_i, kc_i, mc_len, kc_len, t_cfg);
@@ -856,10 +875,18 @@ B: Send+Sync+'static,
                    let c_ij = c_i.add((nc_i+nr_start) * c.cs);
                    let bp = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                    let bp = bp.add(nr_start*kc_len);
-                   Self::kernel(
-                       mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c.rs, c.cs,
-                       ap, bp,
-                   );
+                   if run_nonlinear {
+                        Self::kernel(
+                            mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c.rs, c.cs,
+                            ap, bp,
+                        );
+                   } else {
+                        Self::kernel_n(
+                            mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c.rs, c.cs,
+                            ap, bp,
+                        );
+                   }
+
                    nc_i += nc;
                }
                if nc_left {
