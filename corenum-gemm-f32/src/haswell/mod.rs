@@ -55,7 +55,8 @@ pub struct HaswellGemm {}
 impl<
 A: Copy+GemmArray<T=f32,U=f32>, 
 B: Copy+GemmArray<T=f32,U=f32>,
-> Gemv<TC,A,B> for HaswellGemm
+C: Copy+GemmOut<X = f32, Y = f32>,
+> Gemv<A,B,C> for HaswellGemm
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
@@ -63,15 +64,17 @@ B: Copy+GemmArray<T=f32,U=f32>,
        alpha: *const A::U,
        a: A,
        x: B,
-       beta: *const TC,
-       y: *mut TC, incy: usize,
+       beta: *const C::X,
+       y: C,
    ) {
         let a_rs = a.get_rs();
         let a_cs = a.get_cs();
         let a_ptr = a.get_data_ptr();
         let x_ptr = x.get_data_ptr();
         let inc_x = x.get_rs();
-        axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y, incy);
+        let y_ptr   = y.data_ptr();
+        let incy = y.rs();
+        axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy);
    }
 }
 
@@ -137,22 +140,27 @@ pub struct Identity {}
 
 use corenum_base::UnaryOp;
 
-impl UnaryOp<f32> for Identity {
+impl UnaryOp<f32,f32> for Identity {
     const IS_IDENTITY: bool = true;
     #[inline(always)]
-    unsafe fn apply(_x: *mut f32) {
+    unsafe fn apply_inplace(_x: *mut f32) {
+        
+    }
+
+    #[inline(always)]
+    unsafe fn map(_x: *const f32, _y: *mut f32) {
         
     }
 }
 
+use corenum_base::GemmOut;
+
 impl<
 A: Copy+GemmArray<U=f32>, 
 B: Copy+GemmArray<U=f32>,
-> GemmGotoPackaPackb<TC,A,B,Identity> for HaswellGemm
+C: Copy+GemmOut<X = f32, Y = f32>,
+> GemmGotoPackaPackb<A,B,C,Identity> for HaswellGemm
 where 
-// A::U = f32,
-// A::T = f32,
-// B::U = f32,
 HaswellGemm: GemmPack<A::T, A::U> + GemmPack<B::T, B::U>
 {
    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
@@ -178,11 +186,13 @@ HaswellGemm: GemmPack<A::T, A::U> + GemmPack<B::T, B::U>
        m: usize, n: usize, k: usize,
        alpha: *const A::U,
        beta: *const TC,
-       c: *mut TC,
-       c_rs: usize, c_cs: usize,
+       c: C,
        ap: *const A::U, bp: *const B::U,
    ) {
-    kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
+        let c_ptr = c.data_ptr();
+        let c_rs = c.rs();
+        let c_cs = c.cs();
+        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c_ptr, c_rs, c_cs, ap, bp)
     }
 }
 
@@ -248,7 +258,8 @@ use corenum_base::GemmArray;
 impl<
 A: Copy+GemmArray<T=f32,U=f32>, 
 B: Copy+GemmArray + SupM,
-> GemmSmallM<TC,A,B> for HaswellGemm
+C: Copy+GemmOut<X = f32, Y = f32>,
+> GemmSmallM<A,B,C> for HaswellGemm
 where HaswellGemm: GemmPack<A::T, A::U>
 {
    const MC: usize = 192; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
@@ -266,7 +277,6 @@ where HaswellGemm: GemmPack<A::T, A::U>
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const A::U,
    ) {
-    //    kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
     B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
@@ -276,7 +286,8 @@ where HaswellGemm: GemmPack<A::T, A::U>
 impl<
 A: Copy+GemmArray<T=f32,U=f32>+SupN, 
 B: Copy+GemmArray<T=f32,U=f32>,
-> GemmSmallN<TC,A,B> for HaswellGemm
+C: Copy+GemmOut<X = f32, Y = f32>,
+> GemmSmallN<A,B,C> for HaswellGemm
 where 
 HaswellGemm: GemmPack<B::T, B::U>
 {
@@ -295,7 +306,6 @@ HaswellGemm: GemmPack<B::T, B::U>
         c: *mut TC, c_rs: usize, c_cs: usize,
         bp: *const B::U,
    ) {
-    //    kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
     A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
    }
 }

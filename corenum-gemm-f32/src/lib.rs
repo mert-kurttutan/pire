@@ -54,21 +54,22 @@ use haswell::{
 use haswell::Identity;
 
 pub unsafe fn corenum_gemv_f32f32f32<
-A: Copy+GemmArray<T=f32,U=f32> + SupN, 
-B: Copy+GemmArray<T=f32,U=f32> + SupM,
+A: Copy+GemmArray<T=f32,U=f32>, 
+B: Copy+GemmArray<T=f32,U=f32>,
+C: Copy+GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize,
 	alpha: TA,
 	a: A,
 	b: B,
-	beta: TC,
-	c: *mut TC, inc_y: usize,
+	beta: C::X,
+	c: C,
 	par: &CorenumPar,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemv::<TC, A, B, HaswellGemm>(
-				m, n, alpha, a, b, beta, c, inc_y, par
+			corenum_gemv::<A, B, C, HaswellGemm>(
+				m, n, alpha, a, b, beta, c, par
 			);
 		}
 		HWConfig::Reference => {
@@ -98,7 +99,12 @@ pub unsafe fn corenum_sgemv(
 		rs: incx,
 		cs: 1,
 	};
-	corenum_gemv_f32f32f32(m, n, alpha, a, x, beta, y, incy, par);
+	let y = StridedMatrixMut{
+		data_ptr: y,
+		rs: incy,
+		cs: 1,
+	};
+	corenum_gemv_f32f32f32(m, n, alpha, a, x, beta, y, par);
 
 }
 
@@ -124,24 +130,26 @@ use haswell::{
 use corenum_base::{
 	GemmArray,
 	StridedMatrixMut,
+	GemmOut,
 };
 
 
 pub unsafe fn corenum_gemm_f32f32f32<
 A: Copy+GemmArray<T=f32,U=f32> + SupN + Send + Sync+'static, 
 B: Copy+GemmArray<T=f32,U=f32> + SupM + Send + Sync+'static,
+C: Copy+GemmOut<X = f32, Y = f32> + Send + Sync+'static,
 >(
 	m: usize, n: usize, k: usize,
 	alpha: TA,
 	a: A,
 	b: B,
-	beta: TC,
-	c: StridedMatrixMut<f32>,
+	beta: C::X,
+	c: C,
 	par: &CorenumPar,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemm::<TC, A, B, Identity, HaswellGemm>(
+			corenum_gemm::<A, B, C, Identity, HaswellGemm>(
 				m, n, k, alpha, a, b, beta, c, par
 			);
 		}
