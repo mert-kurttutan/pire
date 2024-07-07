@@ -91,39 +91,6 @@ C: Copy+GemmOut<X = f32, Y = f32>,
 // 7 -> n related blocking params
 
 
-
-
-// TODO: try hurdle barrier for workloads that should be taking equal time, see if it gives performance
-// it does not seems to work correctly after all threads are synched and barrier is reused
-// also making sure that workloads requires choosing those that are equal, more complex code
-// for the time being std::sync::barier works fast enough
-// modify this so barrier is not used in the appropriate places, where sync is between threads is not needed
-// #[inline]
-// pub unsafe fn Corenum_wait<const BarrierLoc: u8>(t_id: usize, t_cfg: &CorenumThreadConfig) {
-//     // BARRIER.as_mut().unwrap().clone().wait();
-//     std::sync::Arc::clone(&std::sync::Arc::new(BARRIER.as_ref().unwrap())).wait();
-//     return;
-//     if BarrierLoc == 0 {
-//         if par.ic_par > 1 {
-//             std::sync::Arc::clone(&std::sync::Arc::new(BARRIER.as_ref().unwrap())).wait();
-//         }
-//     } else if BarrierLoc == 1 {
-//         if par.jr_par > 1 {
-//             std::sync::Arc::clone(&std::sync::Arc::new(BARRIER.as_ref().unwrap())).wait();
-//         }
-//     } else if BarrierLoc == 2 {
-//         if par.jr_par > 1 {
-//             std::sync::Arc::clone(&std::sync::Arc::new(BARRIER.as_ref().unwrap())).wait();
-//         }
-//     } else if BarrierLoc == 3 {
-//         if par.ic_par > 1 {
-//             std::sync::Arc::clone(&std::sync::Arc::new(BARRIER.as_ref().unwrap())).wait();
-//         }
-//     }
-  
-// }
-
-
 impl GemmPack<TA,TA> for HaswellGemm {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
