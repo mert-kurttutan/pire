@@ -54,9 +54,9 @@ use haswell::{
 use haswell::Identity;
 
 pub unsafe fn corenum_gemv_f32f32f32<
-A: Copy+GemmArray<T=f32,U=f32>, 
-B: Copy+GemmArray<T=f32,U=f32>,
-C: Copy+GemmOut<X=f32,Y=f32>,
+A: GemmArray<X=f32,Y=f32>, 
+B: GemmArray<X=f32,Y=f32>,
+C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize,
 	alpha: TA,
@@ -135,12 +135,12 @@ use corenum_base::{
 
 
 pub unsafe fn corenum_gemm_f32f32f32<
-A: Copy+GemmArray<T=f32,U=f32> + SupN + Send + Sync+'static, 
-B: Copy+GemmArray<T=f32,U=f32> + SupM + Send + Sync+'static,
-C: Copy+GemmOut<X = f32, Y = f32> + Send + Sync+'static,
+A: GemmArray<X=f32,Y=f32> + SupN, 
+B: GemmArray<X=f32,Y=f32> + SupM,
+C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
-	alpha: TA,
+	alpha: A::X,
 	a: A,
 	b: B,
 	beta: C::X,
