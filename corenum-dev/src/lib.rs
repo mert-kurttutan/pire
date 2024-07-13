@@ -5,7 +5,7 @@
 
 #![allow(unused)]
 
-use libc::{c_float, c_int, c_schar, c_void, c_double};
+use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort};
 
 
 /// Integer type
@@ -174,6 +174,23 @@ extern "C" {
        c: *mut c_float,
        ldc: c_int,
    );
+
+   pub fn cblas_hgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_ushort,
+    a: *const c_ushort,
+    lda: c_int,
+    b: *const c_ushort,
+    ldb: c_int,
+    beta: c_ushort,
+    c: *mut c_ushort,
+    ldc: c_int,
+);
 }
 
 

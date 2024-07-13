@@ -2,7 +2,7 @@
 
 members = [ 
     "corenum-base", 
-    "corenum-dev",
+    "corenum-dev", "corenum-gemm-f16",
     "corenum-gemm-f32",
 ]
 
