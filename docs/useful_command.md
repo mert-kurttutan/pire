@@ -1,0 +1,1 @@
+cargo expand -p corenum-gemm-f32 --lib haswell::microkernel::asm_ukernel::asm_24x4_bbc

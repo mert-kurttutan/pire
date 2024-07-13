@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define arrays of literal values
-nc_array=(192 256 320 320 448)
+nc_array=(192 256 320 320)
 kc_array=(128 192 256 320)
 
 mr=24

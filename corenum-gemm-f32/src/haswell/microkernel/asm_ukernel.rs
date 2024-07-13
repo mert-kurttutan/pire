@@ -1447,9 +1447,28 @@ macro_rules! def_24x4_ukernel_partial_new {
 			k: usize,
 			ldc: usize,
 			ld_arr: [usize; 2],
-			mask: *const u32,
+			// mask: *const u32,
 			m: usize,
 		) {
+			let mask_arr = [
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+			];
+			let mask = mask_arr.as_ptr().add(8-$nr);
 			let k_iter = k / 4;
 			let k_left = k % 4;
 			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
@@ -1830,9 +1849,28 @@ macro_rules! def_16x6_ukernel_partial_new {
 			k: usize,
 			ldc: usize,
 			ld_arr: [usize; 2],
-			mask: *const u32,
+			// mask: *const u32,
 			m: usize
 		) {
+			let mask_arr = [
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+			];
+			let mask = mask_arr.as_ptr().add(8-$nr);
 			let k_iter = k / 4;
 			let k_left = k % 4;
 			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
@@ -2181,9 +2219,28 @@ macro_rules! def_8x6_ukernel_partial_new {
 			k: usize,
 			ldc: usize,
 			ld_arr: [usize; 2],
-			mask: *const u32,
+			// mask: *const u32,
 			m: usize
 		) {
+			let mask_arr = [
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+			];
+			let mask = mask_arr.as_ptr().add(8-$nr);
 			let k_iter = k / 4;
 			let k_left = k % 4;
 			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
@@ -2293,10 +2350,10 @@ macro_rules! def_8x6_ukernel_partial_new {
 				x1 = out(reg) _,
 				x2 = out(reg) _,
 				x3 = out(reg) _,
-				out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-				out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-				out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-				out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+				out("ymm0") _, out("ymm1") _, out("ymm2") _, out("ymm3") _,
+				out("ymm4") _, out("ymm5") _, out("ymm6") _, out("ymm7") _,
+				out("ymm8") _, out("ymm9") _, out("ymm10") _, out("ymm11") _,
+				out("ymm12") _, out("ymm13") _, out("ymm14") _, out("ymm15") _,
 				options(att_syntax)
 			);
 		}
@@ -2600,139 +2657,3 @@ group_def_ukernel!(8, 1, 6, F, B, B, bb_partial, def_8x6_ukernel_partial);
 group_def_ukernel!(8, 1, 4, T, B, C, rb_t_partial, def_8x6_ukernel_partial_new);
 group_def_ukernel!(8, 1, 4, T, B, R, cb_t_partial, def_8x6_ukernel_partial_new);
 
-
-
-use std::arch::x86_64::*;
-
-
-#[target_feature(enable = "avx,fma")]
-pub unsafe fn ukernel_24x4_bb_new(
-	a: *const TA, b: *const TB, c: *mut TC,
-	alpha: *const TA, beta: *const TB,
-	k: usize,
-	ldc: usize,
-	ld_arr: [usize; 2]
-) {
-    let mut a = a;
-    let mut b = b;
-    unsafe {
-        let mut r00 = _mm256_setzero_ps();
-        let mut r10 = _mm256_setzero_ps();
-		let mut r20 = _mm256_setzero_ps();
-		let mut r01 = _mm256_setzero_ps();
-		let mut r11 = _mm256_setzero_ps();
-		let mut r21 = _mm256_setzero_ps();
-		let mut r02 = _mm256_setzero_ps();
-		let mut r12 = _mm256_setzero_ps();
-		let mut r22 = _mm256_setzero_ps();
-		let mut r03 = _mm256_setzero_ps();
-		let mut r13 = _mm256_setzero_ps();
-		let mut r23 = _mm256_setzero_ps();
-        _mm_prefetch(c as *mut i8, 3);
-        _mm_prefetch(c.add(16) as *mut i8, 3);
-        _mm_prefetch(c.add(ldc) as *mut i8, 3);
-        _mm_prefetch(c.add(16+ldc) as *mut i8, 3);
-        _mm_prefetch(c.add(ldc*2) as *mut i8, 3);
-        _mm_prefetch(c.add(16+ldc*2) as *mut i8, 3);
-        _mm_prefetch(c.add(ldc*3) as *mut i8, 3);
-        _mm_prefetch(c.add(16+ldc*3) as *mut i8, 3);
-        for i in 0..(k / 4) {
-            for _ in 0..4 {
-            asm!(
-                "prefetcht0 [{y} + 4*4*8]",
-                "vmovups ymm0, [{x}]",
-                "vmovups [{y}], ymm0",
-                "vmovups ymm1, [{x} + 32]",
-                "vmovups [{y} + 32], ymm1",
-                "vmovups ymm2, [{x} + 64]",
-                "vmovups [{y} + 64], ymm2",
-                "vbroadcastss ymm3, [{y}]",
-				"vfmadd231ps ymm4, ymm3, ymm0",
-				"vfmadd231ps ymm5, ymm3, ymm1",
-				"vfmadd231ps ymm6, ymm3, ymm2",
-				"vbroadcastss ymm3, [{y} + 4]",
-				"vfmadd231ps ymm7, ymm3, ymm0",
-				"vfmadd231ps ymm8, ymm3, ymm1",
-				"vfmadd231ps ymm9, ymm3, ymm2",
-				"vbroadcastss ymm3, [{y} + 8]",
-				"vfmadd231ps ymm10, ymm3, ymm0",
-				"vfmadd231ps ymm11, ymm3, ymm1",
-				"vfmadd231ps ymm12, ymm3, ymm2",
-				"vbroadcastss ymm3, [{y} + 12]",
-				"vfmadd231ps ymm13, ymm3, ymm0",
-				"vfmadd231ps ymm14, ymm3, ymm1",
-				"vfmadd231ps ymm15, ymm3, ymm2",
-                x = in(reg) a,
-                y = in(reg) b,
-                out("ymm0") _,
-                out("ymm1") _,
-                out("ymm2") _,
-                inout("ymm4") r00,
-				inout("ymm5") r10,
-				inout("ymm6") r20,
-				inout("ymm7") r01,
-				inout("ymm8") r11,
-				inout("ymm9") r21,
-				inout("ymm10") r02,
-				inout("ymm11") r12,
-				inout("ymm12") r22,
-				inout("ymm13") r03,
-				inout("ymm14") r13,
-				inout("ymm15") r23,
-
-                options(nostack, preserves_flags)
-            );
-            a = a.add(24);
-            b = b.add(4);
-            }
-        }
-
-		let alpha_v = _mm256_broadcast_ss(&*alpha);
-		// alpha_scale
-		r00 = _mm256_mul_ps(r00, alpha_v);
-		r10 = _mm256_mul_ps(r10, alpha_v);
-		r20 = _mm256_mul_ps(r20, alpha_v);
-		r01 = _mm256_mul_ps(r01, alpha_v);
-		r11 = _mm256_mul_ps(r11, alpha_v);
-		r21 = _mm256_mul_ps(r21, alpha_v);
-		r02 = _mm256_mul_ps(r02, alpha_v);
-		r12 = _mm256_mul_ps(r12, alpha_v);
-		r22 = _mm256_mul_ps(r22, alpha_v);
-		r03 = _mm256_mul_ps(r03, alpha_v);
-		r13 = _mm256_mul_ps(r13, alpha_v);
-		r23 = _mm256_mul_ps(r23, alpha_v);
-
-        if *beta != 0.0 {
-		    let beta_v = _mm256_broadcast_ss(&*c);
-			r00 = _mm256_fmadd_ps(r00, beta_v, _mm256_loadu_ps(c));
-			r10 = _mm256_fmadd_ps(r10, beta_v, _mm256_loadu_ps(c.add(8)));
-			r20 = _mm256_fmadd_ps(r20, beta_v, _mm256_loadu_ps(c.add(16)));
-			r01 = _mm256_fmadd_ps(r01, beta_v, _mm256_loadu_ps(c.add(ldc)));
-			r11 = _mm256_fmadd_ps(r11, beta_v, _mm256_loadu_ps(c.add(ldc+8)));
-			r21 = _mm256_fmadd_ps(r21, beta_v, _mm256_loadu_ps(c.add(ldc+16)));
-			r02 = _mm256_fmadd_ps(r02, beta_v, _mm256_loadu_ps(c.add(ldc*2)));
-			r12 = _mm256_fmadd_ps(r12, beta_v, _mm256_loadu_ps(c.add(ldc*2+8)));
-			r22 = _mm256_fmadd_ps(r22, beta_v, _mm256_loadu_ps(c.add(ldc*2+16)));
-			r03 = _mm256_fmadd_ps(r03, beta_v, _mm256_loadu_ps(c.add(ldc*3)));
-			r13 = _mm256_fmadd_ps(r13, beta_v, _mm256_loadu_ps(c.add(ldc*3+8)));
-			r23 = _mm256_fmadd_ps(r23, beta_v, _mm256_loadu_ps(c.add(ldc*3+16)));
-
-        }
-		
-        // store c
-        _mm256_storeu_ps(c, r00);
-        _mm256_storeu_ps(c.add(8), r10);
-        _mm256_storeu_ps(c.add(16), r20);
-        _mm256_storeu_ps(c.add(ldc), r01);
-        _mm256_storeu_ps(c.add(ldc+8), r11);
-        _mm256_storeu_ps(c.add(ldc+16), r21);
-        _mm256_storeu_ps(c.add(ldc*2), r02);
-        _mm256_storeu_ps(c.add(ldc*2+8), r12);
-        _mm256_storeu_ps(c.add(ldc*2+16), r22);
-        _mm256_storeu_ps(c.add(ldc*3), r03);
-        _mm256_storeu_ps(c.add(ldc*3+8), r13);
-        _mm256_storeu_ps(c.add(ldc*3+16), r23);
-
-
-    }
-}

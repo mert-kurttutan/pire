@@ -1,4 +1,5 @@
-pub mod asm_ukernel;
+// pub mod asm_ukernel;
+pub mod new_asm_ukernel;
 pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
 use seq_macro::seq;
@@ -7,7 +8,8 @@ use paste::paste;
 
 
 
-pub(crate) use asm_ukernel::*;
+// pub(crate) use asm_ukernel::*;
+pub(crate) use new_asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
     pack_panel_24,
     pack_panel_16,
@@ -35,7 +37,7 @@ pub unsafe fn axpy(
        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
        return;
    }
-   if a_rs == 1 && incx == 1 {
+   if a_rs == 1 && incy == 1 {
        axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
        return;
    }
@@ -203,6 +205,10 @@ macro_rules! def_milikernel {
                         return;
                     }
                 )*
+
+                std::arch::asm!(
+                    "vzeroupper",
+                );
             }        
         }});
     };
@@ -458,26 +464,6 @@ pub unsafe fn kernel_sup_n_r(
    let mut n_iter = (n / NR) as u64;
    let n_left = (n % NR) as u64;
    let ld_arr = [0, lda * 4];
-   let mask: [u32; 16] = [
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-   ];
-   let mask_offset = 8 - m_left as usize;
-   let mask_ptr = mask.as_ptr().add(mask_offset);
    while n_iter > 0 {
        let mut m_iter = m_iter0;
        let mut a_cur = a;
@@ -490,15 +476,15 @@ pub unsafe fn kernel_sup_n_r(
        }
        if m_left == 1 {
            ukernel_24x1_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        } else if m_left == 2 {
            ukernel_24x2_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        } else if m_left == 3 {
            ukernel_24x3_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        }
        n_iter -= 1;
@@ -506,7 +492,6 @@ pub unsafe fn kernel_sup_n_r(
        c_cur0 = c_cur0.add(NR * ldc);
    }
    if n_left > (24 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -521,14 +506,12 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_24x1_rb_t_partial(
                bp_cur,
@@ -539,7 +522,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -552,7 +534,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -565,7 +546,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
       
@@ -573,7 +553,6 @@ pub unsafe fn kernel_sup_n_r(
        return;
    }
    if n_left > (16 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -588,14 +567,12 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_16x1_rb_t_partial(
                bp_cur,
@@ -606,7 +583,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -619,7 +595,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -632,18 +607,13 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        }
        return;
    }
 
-
-
-
    if n_left > (8 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -658,14 +628,12 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_8x1_rb_t_partial(
                bp_cur,
@@ -676,7 +644,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -689,7 +656,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -702,7 +668,6 @@ pub unsafe fn kernel_sup_n_r(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        }
@@ -737,26 +702,6 @@ pub unsafe fn kernel_sup_n_c(
    let mut n_iter = (n / NR) as u64;
    let n_left = (n % NR) as u64;
    let ld_arr = [0, lda * 4];
-   let mask: [u32; 16] = [
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       u32::MAX,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-       0,
-   ];
-   let mask_offset = 8 - m_left as usize;
-   let mask_ptr = mask.as_ptr().add(mask_offset);
    while n_iter > 0 {
        let mut m_iter = m_iter0;
        let mut a_cur = a;
@@ -767,19 +712,17 @@ pub unsafe fn kernel_sup_n_c(
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-
-
        if m_left == 1 {
            ukernel_24x1_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        } else if m_left == 2 {
            ukernel_24x2_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        } else if m_left == 3 {
            ukernel_24x3_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr, 8,
+               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
            );
        }
        n_iter -= 1;
@@ -788,7 +731,6 @@ pub unsafe fn kernel_sup_n_c(
    }
    
    if n_left > (24 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -803,14 +745,12 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_24x1_cb_t_partial(
                bp_cur,
@@ -821,7 +761,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -834,7 +773,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -847,14 +785,12 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        }
        return;
    }
    if n_left > (16 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -869,14 +805,12 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_16x1_cb_t_partial(
                bp_cur,
@@ -887,7 +821,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -900,7 +833,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -913,7 +845,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        }
@@ -922,7 +853,6 @@ pub unsafe fn kernel_sup_n_c(
 
 
    if n_left > (8 - 8) {
-       let mask_ptr = mask.as_ptr().add(0);
        let mut m_iter = m_iter0;
        let mut a_cur = a;
        let mut c_cur1 = c_cur0;
@@ -937,14 +867,12 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
            m_iter -= 1;
            a_cur = a_cur.add(MR * a_rs);
            c_cur1 = c_cur1.add(MR);
        }
-       let mask_ptr = mask.as_ptr().add(mask_offset);
        if m_left == 1 {
            ukernel_8x1_cb_t_partial(
                bp_cur,
@@ -955,7 +883,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 2 {
@@ -968,7 +895,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        } else if m_left == 3 {
@@ -981,7 +907,6 @@ pub unsafe fn kernel_sup_n_c(
                k,
                ldc,
                ld_arr,
-               mask_ptr,
                n_left as usize,
            );
        }

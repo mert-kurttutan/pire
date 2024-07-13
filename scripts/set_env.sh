@@ -1,7 +1,7 @@
 #!/bin/bash
 
-export CORENUM_MKL_PATH=/tmp/corenum/.env/lib
-export CORENUM_BLIS_PATH=/opt/blis/lib
+export CORENUM_MKL_PATH=/home/ubuntu/.env/lib
+export CORENUM_BLIS_PATH=/home/ubuntu/blis/lib/haswell
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CORENUM_MKL_PATH:$CORENUM_BLIS_PATH
 # export CORENUM_SGEMM_NC=
 # export CORENUM_SGEMM_KC=

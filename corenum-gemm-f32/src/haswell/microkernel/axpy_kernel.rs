@@ -85,8 +85,8 @@ pub(crate) unsafe fn axpy_v(
        if beta == 0.0 {
            let mut row = 0usize;
            while row < m_lane {
-               let dst_ptr = y.wrapping_add(row);
-               let lhs = _mm256_loadu_ps(lhs.wrapping_add(row));
+               let dst_ptr = y.add(row);
+               let lhs = _mm256_loadu_ps(lhs.add(row));
                _mm256_storeu_ps(
                    dst_ptr,
                    _mm256_mul_ps(lhs, rhs)
@@ -96,19 +96,19 @@ pub(crate) unsafe fn axpy_v(
 
 
            if m_left != 0 {
-               let lhs = load_f(lhs.wrapping_add(row), m_left);
-               store_f(y.wrapping_add(row), _mm256_mul_ps(lhs, rhs), m_left);
+               let lhs = load_f(lhs.add(row), m_left);
+               store_f(y.add(row), _mm256_mul_ps(lhs, rhs), m_left);
            }
        } else {
            let mut row = 0usize;
            while row < m_lane {
-               let dst_ptr = y.wrapping_add(row);
+               let dst_ptr = y.add(row);
                let dst_v = if beta == 1.0 {
                    _mm256_loadu_ps(dst_ptr)
                } else {
                    _mm256_mul_ps(beta_v, _mm256_loadu_ps(dst_ptr))
                };
-               let lhs = _mm256_loadu_ps(lhs.wrapping_add(row));
+               let lhs = _mm256_loadu_ps(lhs.add(row));
 
 
                _mm256_storeu_ps(
@@ -119,14 +119,14 @@ pub(crate) unsafe fn axpy_v(
            }
            if m_left != 0 {
                let dst_v = if beta == 1.0 {
-                   load_f(y.wrapping_add(row), m_left)
+                   load_f(y.add(row), m_left)
                } else {
-                   _mm256_mul_ps(beta_v, load_f(y.wrapping_add(row), m_left))
+                   _mm256_mul_ps(beta_v, load_f(y.add(row), m_left))
                };
 
 
-               let lhs = load_f(lhs.wrapping_add(row), m_left);
-               store_f(y.wrapping_add(row), _mm256_fmadd_ps(lhs, rhs, dst_v), m_left);
+               let lhs = load_f(lhs.add(row), m_left);
+               store_f(y.add(row), _mm256_fmadd_ps(lhs, rhs, dst_v), m_left);
            }
        }
        beta = 1.0;
