@@ -68,7 +68,7 @@ C: GemmOut<X=f32,Y=f32>,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemv::<TA,TB,A, B, C, HaswellGemm>(
+			corenum_gemv::<TA,TB,A, B, C, HaswellGemm::<4800,320,192,24,4>>(
 				m, n, alpha, a, b, beta, c, par
 			);
 		}
@@ -148,7 +148,7 @@ C: GemmOut<X=f32,Y=f32>,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm>(
+			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm::<4800,320,192,24,4>>(
 				m, n, k, alpha, a, b, beta, c, par
 			);
 		}

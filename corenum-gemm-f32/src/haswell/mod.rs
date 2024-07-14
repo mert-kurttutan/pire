@@ -25,14 +25,14 @@ use crate::{
 };
 
 
-pub const GOTO_MC: usize = env_or!("CORENUM_SGEMM_MC", 4800);
-// could be either 320 or 320 based experiments on comet lake local machine
-pub const GOTO_NC: usize = env_or!("CORENUM_SGEMM_NC", 320);
-// KC should be nice multiple of 4 (multiple of 64 is OK)
-// on comet lake it gives optimal perf when KC == 192 or 256
-pub const GOTO_KC: usize = env_or!("CORENUM_SGEMM_KC", 192);
-pub const GOTO_MR: usize = env_or!("CORENUM_SGEMM_MR", 24);
-pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
+// pub const GOTO_MC: usize = env_or!("CORENUM_SGEMM_MC", 4800);
+// // could be either 320 or 320 based experiments on comet lake local machine
+// pub const GOTO_NC: usize = env_or!("CORENUM_SGEMM_NC", 320);
+// // KC should be nice multiple of 4 (multiple of 64 is OK)
+// // on comet lake it gives optimal perf when KC == 192 or 256
+// pub const GOTO_KC: usize = env_or!("CORENUM_SGEMM_KC", 192);
+// pub const GOTO_MR: usize = env_or!("CORENUM_SGEMM_MR", 24);
+// pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
 
 
 // 24x4 is better than 16x6 for haswell/coffe lake etc
@@ -48,15 +48,26 @@ pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
 // pub const SN_MR: usize = env_or!("CORENUM_SGEMM_MR_SA", 24);
 // pub const SN_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 4);
 
-pub struct HaswellGemm {}
+pub struct HaswellGemm<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+> {}
 
 
 
 impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
 A: GemmArray<f32, X=f32>, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
-> Gemv<TA,TB,A,B,C> for HaswellGemm
+> Gemv<TA,TB,A,B,C> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
@@ -90,7 +101,13 @@ C: GemmOut<X=f32,Y=f32>,
 // 7 -> n related blocking params
 
 
-impl GemmPack<TA,TA> for HaswellGemm {
+impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+> GemmPack<TA,TA> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
@@ -102,7 +119,13 @@ impl GemmPack<TA,TA> for HaswellGemm {
     }
 }
 
-impl GemmPack<u16,TA> for HaswellGemm {
+impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+> GemmPack<u16,TA> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
@@ -135,12 +158,17 @@ impl UnaryOp<f32,f32> for Identity {
 use corenum_base::GemmOut;
 
 impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmGotoPackaPackb<TA,TB,A,B,C,Identity> for HaswellGemm
+> GemmGotoPackaPackb<TA,TB,A,B,C,Identity> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>
 where 
-HaswellGemm: GemmPack<A::X, TA> + GemmPack<B::X, TB>
+HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
 {
    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
@@ -235,11 +263,16 @@ impl SupN for StridedMatrix<f32>{
 use corenum_base::GemmArray;
 
 impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32> + SupM,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallM<TA,TB,A,B,C> for HaswellGemm
-where HaswellGemm: GemmPack<A::X, TA>
+> GemmSmallM<TA,TB,A,B,C> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>
+where HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
 {
    const MC: usize = 192; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
@@ -263,12 +296,17 @@ where HaswellGemm: GemmPack<A::X, TA>
 
 
 impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
 A: GemmArray<f32>+SupN, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallN<TA,TB,A,B,C> for HaswellGemm
+> GemmSmallN<TA,TB,A,B,C> for HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>
 where 
-HaswellGemm: GemmPack<B::X, TB>
+HaswellGemm<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
 {
    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_NR; const NR: usize = GOTO_MR;
