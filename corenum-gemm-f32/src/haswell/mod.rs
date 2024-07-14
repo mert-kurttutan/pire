@@ -53,15 +53,15 @@ pub struct HaswellGemm {}
 
 
 impl<
-A: GemmArray<X=f32,Y=f32>, 
-B: GemmArray<X=f32,Y=f32>,
+A: GemmArray<f32, X=f32>, 
+B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
-> Gemv<A,B,C> for HaswellGemm
+> Gemv<TA,TB,A,B,C> for HaswellGemm
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
        m: usize, n: usize,
-       alpha: *const A::Y,
+       alpha: *const TA,
        a: A,
        x: B,
        beta: *const C::X,
@@ -77,7 +77,6 @@ C: GemmOut<X=f32,Y=f32>,
         axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy);
    }
 }
-
 
 
 
@@ -103,6 +102,19 @@ impl GemmPack<TA,TA> for HaswellGemm {
     }
 }
 
+impl GemmPack<u16,TA> for HaswellGemm {
+    #[target_feature(enable = "avx,fma")]
+    unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+        // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+    }
+
+    #[target_feature(enable = "avx,fma")]
+    unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+        // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
+    }
+}
+
+
 pub struct Identity {}
 
 use corenum_base::UnaryOp;
@@ -123,12 +135,12 @@ impl UnaryOp<f32,f32> for Identity {
 use corenum_base::GemmOut;
 
 impl<
-A: GemmArray<Y=f32>, 
-B: GemmArray<Y=f32>,
+A: GemmArray<f32>, 
+B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmGotoPackaPackb<A,B,C,Identity> for HaswellGemm
+> GemmGotoPackaPackb<TA,TB,A,B,C,Identity> for HaswellGemm
 where 
-HaswellGemm: GemmPack<A::X, A::Y> + GemmPack<B::X, B::Y>
+HaswellGemm: GemmPack<A::X, TA> + GemmPack<B::X, TB>
 {
    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
@@ -139,11 +151,11 @@ HaswellGemm: GemmPack<A::X, A::Y> + GemmPack<B::X, B::Y>
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
        m: usize, n: usize, k: usize,
-       alpha: *const A::Y,
+       alpha: *const TA,
        beta: *const TC,
        c: *mut TC,
        c_rs: usize, c_cs: usize,
-       ap: *const A::Y, bp: *const B::Y,
+       ap: *const TA, bp: *const TB,
    ) {
        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
    }
@@ -151,10 +163,10 @@ HaswellGemm: GemmPack<A::X, A::Y> + GemmPack<B::X, B::Y>
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel_n(
        m: usize, n: usize, k: usize,
-       alpha: *const A::Y,
+       alpha: *const TA,
        beta: *const TC,
        c: C,
-       ap: *const A::Y, bp: *const B::Y,
+       ap: *const TA, bp: *const TB,
    ) {
         let c_ptr = c.data_ptr();
         let c_rs = c.rs();
@@ -223,11 +235,11 @@ impl SupN for StridedMatrix<f32>{
 use corenum_base::GemmArray;
 
 impl<
-A: GemmArray<X=f32,Y=f32>, 
-B: GemmArray + SupM,
-C: GemmOut<X=f32, Y=f32>,
-> GemmSmallM<A,B,C> for HaswellGemm
-where HaswellGemm: GemmPack<A::X, A::Y>
+A: GemmArray<f32>, 
+B: GemmArray<f32> + SupM,
+C: GemmOut<X=f32,Y=f32>,
+> GemmSmallM<TA,TB,A,B,C> for HaswellGemm
+where HaswellGemm: GemmPack<A::X, TA>
 {
    const MC: usize = 192; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
@@ -238,11 +250,11 @@ where HaswellGemm: GemmPack<A::X, A::Y>
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
-        alpha: *const A::Y,
+        alpha: *const TA,
         beta: *const TC,
         b: B, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const A::Y,
+        ap: *const TA,
    ) {
     B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
@@ -251,12 +263,12 @@ where HaswellGemm: GemmPack<A::X, A::Y>
 
 
 impl<
-A: GemmArray<X=f32,Y=f32>+SupN, 
-B: GemmArray<X=f32,Y=f32>,
+A: GemmArray<f32>+SupN, 
+B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallN<A,B,C> for HaswellGemm
+> GemmSmallN<TA,TB,A,B,C> for HaswellGemm
 where 
-HaswellGemm: GemmPack<B::X, B::Y>
+HaswellGemm: GemmPack<B::X, TB>
 {
    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
    const MR: usize = GOTO_NR; const NR: usize = GOTO_MR;
@@ -267,11 +279,11 @@ HaswellGemm: GemmPack<B::X, B::Y>
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
-        alpha: *const A::Y,
+        alpha: *const TA,
         beta: *const TC,
         a: A, a_rs: usize, a_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const B::Y,
+        bp: *const TB,
    ) {
     A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
    }

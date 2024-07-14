@@ -54,8 +54,8 @@ use haswell::{
 use haswell::Identity;
 
 pub unsafe fn corenum_gemv_f32f32f32<
-A: GemmArray<X=f32,Y=f32>, 
-B: GemmArray<X=f32,Y=f32>,
+A: GemmArray<f32,X=f32>, 
+B: GemmArray<f32,X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize,
@@ -68,7 +68,7 @@ C: GemmOut<X=f32,Y=f32>,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemv::<A, B, C, HaswellGemm>(
+			corenum_gemv::<TA,TB,A, B, C, HaswellGemm>(
 				m, n, alpha, a, b, beta, c, par
 			);
 		}
@@ -134,8 +134,8 @@ use corenum_base::{
 
 
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<X=f32,Y=f32> + SupN, 
-B: GemmArray<X=f32,Y=f32> + SupM,
+A: GemmArray<f32,X=f32> + SupN, 
+B: GemmArray<f32,X=f32> + SupM,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -148,7 +148,7 @@ C: GemmOut<X=f32,Y=f32>,
 ){	
 	match *RUNTIME_HW_CONFIG {
 		HWConfig::Haswell => {
-			corenum_gemm::<A, B, C, Identity, HaswellGemm>(
+			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm>(
 				m, n, k, alpha, a, b, beta, c, par
 			);
 		}
@@ -159,6 +159,35 @@ C: GemmOut<X=f32,Y=f32>,
 		}
 	}
 }
+
+
+
+// pub unsafe fn corenum_gemm_f16f16f32<
+// A: GemmArray<f32,X=u16> + SupN, 
+// B: GemmArray<f32,X=u16> + SupM,
+// C: GemmOut<X=f32,Y=f32>,
+// >(
+// 	m: usize, n: usize, k: usize,
+// 	alpha: f32,
+// 	a: A,
+// 	b: B,
+// 	beta: C::X,
+// 	c: C,
+// 	par: &CorenumPar,
+// ){	
+// 	match *RUNTIME_HW_CONFIG {
+// 		HWConfig::Haswell => {
+// 			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm>(
+// 				m, n, k, alpha, a, b, beta, c, par
+// 			);
+// 		}
+// 		HWConfig::Reference => {
+// 			// corenum_gemm::<TA, TB, TC, InputA, InputB, ReferenceGemm>(
+// 			// 	m, n, k, alpha, a, b, beta, c, c_rs, c_cs, par
+// 			// );
+// 		}
+// 	}
+// }
 
 pub unsafe fn packa_f32(
 	m: usize, k: usize,
