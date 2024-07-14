@@ -439,7 +439,7 @@ where A::Y: Into<B::Y>
         return;
     }
 
-    if run_small_n::<A,B>(m) {
+    if run_small_n::<A,B>(n) {
         let mem_pool_size = get_mem_pool_size_small_n::<A,B,C,Activation,HWConfig>(par);
         if mem_pool_size == 0 {
             let mut pool_vec = vec![0_u8; 1];
@@ -469,6 +469,7 @@ where A::Y: Into<B::Y>
         extend(pool_vec);
         return;
     }
+    
     let mem_pool_size = get_mem_pool_size::<A,B,C,Activation,HWConfig>(par);
     if mem_pool_size == 0 {
         let mut pool_vec = vec![0_u8; 1];

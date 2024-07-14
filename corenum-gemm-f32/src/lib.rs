@@ -105,7 +105,6 @@ pub unsafe fn corenum_sgemv(
 		cs: 1,
 	};
 	corenum_gemv_f32f32f32(m, n, alpha, a, x, beta, y, par);
-
 }
 
 pub unsafe fn corenum_sdot(
