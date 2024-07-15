@@ -12,6 +12,7 @@ use corenum_base::{
     GemmGotoPackaPackb,
 	GemmSmallM,
 	GemmSmallN,
+	GemmCache,
 	Gemv,
 	corenum_gemv,
 };

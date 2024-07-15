@@ -61,14 +61,6 @@ fn detect_hw_config() -> HWConfig {
             hw_model: HWModel::Reference,
         };
     }
-    // // Fall to Generic Unless Specified
-    // HWConfig {
-    //     avx: false,
-    //     avx2: false,
-    //     fma: false,
-    //     fma4: false,
-    //     hw_model: HWModel::Reference,
-    // }
 }
 
 
@@ -134,6 +126,22 @@ pub struct CorenumThreadConfig {
    pub par: CorenumPar,
    pub packa_barrier: Arc<Vec<Arc<Barrier>>>,
    pub packb_barrier: Arc<Vec<Arc<Barrier>>>,
+}
+
+pub(crate) fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
+    let mut packa_barrier = vec![];
+    for _ in 0..par.ic_par {
+        let barrier = Arc::new(Barrier::new(par.jc_par * par.pc_par * par.ir_par * par.jr_par));
+        packa_barrier.push(barrier);
+    }
+
+    let mut packb_barrier = vec![];
+    for _ in 0..par.jc_par {
+        let barrier = Arc::new(Barrier::new(par.ic_par * par.pc_par * par.ir_par * par.jr_par));
+        packb_barrier.push(barrier);
+    }
+
+    (Arc::new(packa_barrier), Arc::new(packb_barrier))
 }
 
 
@@ -780,23 +788,14 @@ pub trait UnaryOp<X,Y> {
     unsafe fn map(x: *const X, y: *mut Y);
 }
 
-pub trait GemmGotoPackaPackb<
-AP: BaseNum,
-BP: BaseNum,
-A: GemmArray<AP>, 
-B: GemmArray<BP>,
-C: GemmOut,
-Activation: UnaryOp<C::X,C::Y>
-> 
-where Self: Sized,
-Self: GemmPack<B::X, BP>,
-Self: GemmPack<A::X, AP>,
-{
+pub trait GemmCache<
+AP,
+BP,
+> {
     const CACHELINE_PAD: usize = 256;
    const MC: usize; const NC: usize; const KC: usize;
    const MR: usize; const NR: usize;
-   const ONE: C::X;
-   const IS_L3_SHARED: bool;
+    const IS_L3_SHARED: bool;
    const IS_L2_SHARED: bool;
     const IS_L1_SHARED: bool;
 
@@ -822,6 +821,22 @@ Self: GemmPack<A::X, AP>,
         let nc_eff = Self::get_nc_eff(jc_par);
         nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
     }
+}
+
+pub trait GemmGotoPackaPackb<
+AP: BaseNum,
+BP: BaseNum,
+A: GemmArray<AP>, 
+B: GemmArray<BP>,
+C: GemmOut,
+Activation: UnaryOp<C::X,C::Y>
+> 
+where Self: Sized + GemmCache<AP,BP>,
+Self: GemmPack<B::X, BP>,
+Self: GemmPack<A::X, AP>,
+{
+    const ONE: C::X;
+
    unsafe fn packa(
         a: A::PackArray, 
     mc_i: usize, kc_i: usize,
@@ -879,17 +894,7 @@ Self: GemmPack<A::X, AP>,
     let (ap_ptr, bp_ptr) = get_ap_bp::<AP,BP>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
     let ap = a.into_pack_array(ap_ptr);
     let bp = b.into_pack_array(bp_ptr);
-    let mut pa_br_vec = Vec::with_capacity(par.ic_par);
-    for _ in 0..par.ic_par {
-        pa_br_vec.push(Arc::new(Barrier::new(par.jc_par*par.jr_par*par.ir_par)));
-    }
-
-    let mut pb_br_vec = Vec::with_capacity(par.jc_par);
-    for _ in 0..par.jc_par {
-        pb_br_vec.push(Arc::new(Barrier::new(par.ic_par*par.ir_par*par.jr_par)));
-    }
-    let pa_br_vec_ref = Arc::new(pa_br_vec);
-    let pb_br_vec_ref = Arc::new(pb_br_vec);
+    let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
 
     let mut handle_vec = Vec::with_capacity(par.num_threads-1);
 
@@ -1021,30 +1026,10 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 > 
-where Self: Sized,
+where Self: Sized + GemmCache<AP,BP>,
 Self: GemmPack<A::X, AP>
 {
-    const MC: usize; const NC: usize; const KC: usize;
-    const MR: usize; const NR: usize;
     const ONE: C::X;
-    const IS_L3_SHARED: bool;
-    const IS_L2_SHARED: bool;
-    const IS_L1_SHARED: bool;
-    const CACHELINE_PAD: usize = 256;
-    fn get_mc_eff(par: usize) -> usize {
-        Self::MC
-    }
-    fn get_nc_eff(par: usize) -> usize {
-        if Self::IS_L2_SHARED {
-            Self::NC / par
-        } else {
-            Self::NC
-        }
-    }
-    fn get_ap_pool_size(ic_par: usize) -> usize {
-        let mc_eff = Self::get_mc_eff(ic_par);
-        mc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
-    }
     unsafe fn packa(
         a: A::PackArray,
         mc: usize, kc: usize,
@@ -1082,17 +1067,7 @@ Self: GemmPack<A::X, AP>
         let align_offset = pack_pool.align_offset(AP_ALIGN);
         let ap_ptr = (pack_pool.add(align_offset)) as *mut AP;
         let ap = a.into_pack_array(ap_ptr);
-        let mut pa_br_vec = Vec::with_capacity(par.ic_par);
-        for _ in 0..par.ic_par {
-            pa_br_vec.push(Arc::new(Barrier::new(par.jc_par*par.jr_par*par.ir_par)));
-        }
-    
-        let mut pb_br_vec = Vec::with_capacity(par.jc_par);
-        for _ in 0..par.jc_par {
-            pb_br_vec.push(Arc::new(Barrier::new(par.ic_par*par.ir_par*par.jr_par)));
-        }
-        let pa_br_vec_ref = Arc::new(pa_br_vec);
-        let pb_br_vec_ref = Arc::new(pb_br_vec);
+        let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
         let mut handle_vec = Vec::with_capacity(par.num_threads-1);
     
@@ -1192,29 +1167,9 @@ Self: GemmPack<A::X, AP>
  B: GemmArray<BP>,
 C: GemmOut,
  >
-where Self: Sized,
+where Self: Sized + GemmCache<AP,BP>,
 Self: GemmPack<B::X, BP>,
  {
-    const MC: usize; const NC: usize; const KC: usize;
-    const MR: usize; const NR: usize;
-    const IS_L3_SHARED: bool;
-    const IS_L2_SHARED: bool;
-    const IS_L1_SHARED: bool;
-    const CACHELINE_PAD: usize = 256;
-    fn get_mc_eff(par: usize) -> usize {
-        Self::MC
-    }
-    fn get_nc_eff(par: usize) -> usize {
-        if Self::IS_L2_SHARED {
-            (Self::NC / (par*24))*24
-        } else {
-            Self::NC
-        }
-    }
-    fn get_bp_pool_size(jc_par: usize) -> usize {
-        let nc_eff = Self::get_nc_eff(jc_par);
-        nc_eff * Self::KC + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
-    }
     const ONE: C::X;
     unsafe fn packb(
         b: B::PackArray, 
@@ -1255,17 +1210,7 @@ Self: GemmPack<B::X, BP>,
         let mut b = b;
         b.transpose();
         let bp = b.into_pack_array(bp_ptr);
-        let mut pa_br_vec = Vec::with_capacity(par.ic_par);
-        for _ in 0..par.ic_par {
-            pa_br_vec.push(Arc::new(Barrier::new(par.jc_par*par.jr_par*par.ir_par)));
-        }
-    
-        let mut pb_br_vec = Vec::with_capacity(par.jc_par);
-        for _ in 0..par.jc_par {
-            pb_br_vec.push(Arc::new(Barrier::new(par.ic_par*par.ir_par*par.jr_par)));
-        }
-        let pa_br_vec_ref = Arc::new(pa_br_vec);
-        let pb_br_vec_ref = Arc::new(pb_br_vec);
+        let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
         let mut handle_vec = Vec::with_capacity(par.num_threads-1);
     

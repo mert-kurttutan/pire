@@ -21,7 +21,8 @@ use corenum_base::{
 
 
 use crate::{
-   GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC
+   GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC,
+   GemmCache,
 };
 
 
@@ -149,6 +150,30 @@ const IS_L3_SHARED: bool,
     }
 }
 
+impl<
+const GOTO_MC: usize,
+const GOTO_NC: usize,
+const GOTO_KC: usize,
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+const IS_L1_SHARED: bool,
+const IS_L2_SHARED: bool,
+const IS_L3_SHARED: bool,
+AP, BP
+> GemmCache<AP,BP> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED> {
+    const CACHELINE_PAD: usize = 256;
+   const MC: usize = GOTO_MC;
+   const NC: usize = GOTO_NC;
+   const KC: usize = GOTO_KC;
+   const MR: usize = GOTO_MR;
+   const NR: usize = GOTO_NR;
+    const IS_L3_SHARED: bool = IS_L3_SHARED;
+   const IS_L2_SHARED: bool = IS_L2_SHARED;
+    const IS_L1_SHARED: bool = IS_L1_SHARED;
+}
+
+
+
 
 pub struct Identity {}
 
@@ -185,12 +210,7 @@ C: GemmOut<X=f32,Y=f32>,
 where 
 AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
 {
-   const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
-   const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
    const ONE: TC = 1.0;
-   const IS_L3_SHARED: bool = IS_L3_SHARED;
-   const IS_L2_SHARED: bool = IS_L2_SHARED;
-   const IS_L1_SHARED: bool = IS_L1_SHARED;
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
        m: usize, n: usize, k: usize,
@@ -292,12 +312,7 @@ C: GemmOut<X=f32,Y=f32>,
 > GemmSmallM<TA,TB,A,B,C> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>
 where AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<A::X, TA>
 {
-    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
-    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
     const ONE: TC = 1.0;
-    const IS_L3_SHARED: bool = IS_L3_SHARED;
-    const IS_L2_SHARED: bool = IS_L2_SHARED;
-    const IS_L1_SHARED: bool = IS_L1_SHARED;
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
@@ -329,12 +344,7 @@ C: GemmOut<X=f32,Y=f32>,
 where 
 AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<B::X, TB>
 {
-    const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
-    const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
     const ONE: TC = 1.0;
-    const IS_L3_SHARED: bool = IS_L3_SHARED;
-    const IS_L2_SHARED: bool = IS_L2_SHARED;
-    const IS_L1_SHARED: bool = IS_L1_SHARED;
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
