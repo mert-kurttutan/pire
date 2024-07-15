@@ -69,14 +69,13 @@ C: GemmOut<X=f32,Y=f32>,
 	par: &CorenumPar,
 ){	
 	let avx = (*RUNTIME_HW_CONFIG).avx;
-	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
 	if avx && fma {
 
 		match model {
 			_ => {
-				corenum_gemv::<TA,TB,A, B, C, AvxFma::<4800,320,192,24,4,false,true,false>>(
+				corenum_gemv::<TA,TB,A, B, C, AvxFma::<24,4>>(
 					m, n, alpha, a, b, beta, c, par
 				);
 			}
@@ -158,11 +157,15 @@ C: GemmOut<X=f32,Y=f32>,
 	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	let hw_config = AvxFma::<24,4>{
+		goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+		is_l1_shared: false, is_l2_shared: true, is_l3_shared: false
+	};
 	if avx && fma {
 		match model {
 			_ => {
-				corenum_gemm::<TA,TB,A, B, C, Identity, AvxFma::<4800,320,192,24,4,false,true,false>>(
-					m, n, k, alpha, a, b, beta, c, par
+				corenum_gemm(
+					&hw_config, m, n, k, alpha, a, b, beta, c, par
 				);
 			}
 		}

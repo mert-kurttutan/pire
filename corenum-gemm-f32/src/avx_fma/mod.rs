@@ -50,31 +50,26 @@ use crate::{
 // pub const SN_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 4);
 
 pub struct AvxFma<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
-> {}
+> {
+    pub goto_mc: usize,
+    pub goto_nc: usize,
+    pub goto_kc: usize,
+    pub is_l1_shared: bool,
+    pub is_l2_shared: bool,
+    pub is_l3_shared: bool,
+}
 
 
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
 A: GemmArray<f32, X=f32>, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
-> Gemv<TA,TB,A,B,C> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>
+> Gemv<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
@@ -109,15 +104,9 @@ C: GemmOut<X=f32,Y=f32>,
 
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
-> GemmPack<TA,TA> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED> {
+> GemmPack<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
@@ -130,15 +119,9 @@ const IS_L3_SHARED: bool,
 }
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
-> GemmPack<u16,TA> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED> {
+> GemmPack<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
@@ -151,25 +134,28 @@ const IS_L3_SHARED: bool,
 }
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
 AP, BP
-> GemmCache<AP,BP> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED> {
+> GemmCache<AP,BP> for AvxFma<GOTO_MR,GOTO_NR> {
     const CACHELINE_PAD: usize = 256;
-   const MC: usize = GOTO_MC;
-   const NC: usize = GOTO_NC;
-   const KC: usize = GOTO_KC;
-   const MR: usize = GOTO_MR;
-   const NR: usize = GOTO_NR;
-    const IS_L3_SHARED: bool = IS_L3_SHARED;
-   const IS_L2_SHARED: bool = IS_L2_SHARED;
-    const IS_L1_SHARED: bool = IS_L1_SHARED;
+    const MR: usize = GOTO_MR;
+    const NR: usize = GOTO_NR;
+    fn get_kc_eff(&self) -> usize {self.goto_kc}
+    fn get_mc_eff(&self, par: usize) -> usize {
+        if self.is_l3_shared {
+            self.goto_mc / par
+        } else {
+            self.goto_mc
+        }
+    }
+    fn get_nc_eff(&self, par: usize) -> usize {
+        if self.is_l2_shared {
+            self.goto_nc / par
+        } else {
+            self.goto_nc
+        }
+    }
 }
 
 
@@ -195,20 +181,14 @@ impl UnaryOp<f32,f32> for Identity {
 use corenum_base::GemmOut;
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
 A: GemmArray<f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmGotoPackaPackb<TA,TB,A,B,C,Identity> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>
+> GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where 
-AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
+AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
 {
    const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -219,23 +199,11 @@ AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_S
        c: *mut TC,
        c_rs: usize, c_cs: usize,
        ap: *const TA, bp: *const TB,
+       _kc_last: bool
    ) {
        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
    }
 
-   #[target_feature(enable = "avx,fma")]
-   unsafe fn kernel_n(
-       m: usize, n: usize, k: usize,
-       alpha: *const TA,
-       beta: *const TC,
-       c: C,
-       ap: *const TA, bp: *const TB,
-   ) {
-        let c_ptr = c.data_ptr();
-        let c_rs = c.rs();
-        let c_cs = c.cs();
-        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c_ptr, c_rs, c_cs, ap, bp)
-    }
 }
 
 
@@ -298,19 +266,13 @@ impl SupN for StridedMatrix<f32>{
 use corenum_base::GemmArray;
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
 A: GemmArray<f32>, 
 B: GemmArray<f32> + SupM,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallM<TA,TB,A,B,C> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>
-where AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<A::X, TA>
+> GemmSmallM<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
+where AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -329,20 +291,14 @@ where AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,I
 
 
 impl<
-const GOTO_MC: usize,
-const GOTO_NC: usize,
-const GOTO_KC: usize,
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-const IS_L1_SHARED: bool,
-const IS_L2_SHARED: bool,
-const IS_L3_SHARED: bool,
 A: GemmArray<f32>+SupN, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallN<TA,TB,A,B,C> for AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>
+> GemmSmallN<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where 
-AvxFma<GOTO_MC,GOTO_NC,GOTO_KC,GOTO_MR,GOTO_NR,IS_L1_SHARED,IS_L2_SHARED,IS_L3_SHARED>: GemmPack<B::X, TB>
+AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]

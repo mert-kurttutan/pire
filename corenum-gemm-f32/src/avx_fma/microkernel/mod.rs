@@ -1,5 +1,5 @@
-// pub mod asm_ukernel;
-pub mod new_asm_ukernel;
+pub mod asm_ukernel;
+// pub mod new_asm_ukernel;
 pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
 use seq_macro::seq;
@@ -8,8 +8,8 @@ use paste::paste;
 
 
 
-// pub(crate) use asm_ukernel::*;
-pub(crate) use new_asm_ukernel::*;
+pub(crate) use asm_ukernel::*;
+// pub(crate) use new_asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
     pack_panel_24,
     pack_panel_16,
@@ -206,9 +206,9 @@ macro_rules! def_milikernel {
                     }
                 )*
 
-                std::arch::asm!(
-                    "vzeroupper",
-                );
+                // std::arch::asm!(
+                //     "vzeroupper",
+                // );
             }        
         }});
     };
