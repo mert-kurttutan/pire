@@ -1,4 +1,4 @@
-pub(crate) mod haswell;
+pub(crate) mod avx_fma;
 pub(crate) mod reference;
 
 pub(crate) type TA = f32;
@@ -16,8 +16,8 @@ use corenum_base::{
 	corenum_gemv,
 };
 pub use corenum_base::CorenumPar;
-use haswell::{
-	HaswellGemm,
+use avx_fma::{
+	AvxFma,
 	// HaswellGemv,
 };
 
@@ -51,7 +51,8 @@ use haswell::{
 // 	std::ptr::copy_nonoverlapping(leftover_vec.as_ptr(), a, n_left);
 // }
 
-use haswell::Identity;
+use avx_fma::Identity;
+use corenum_base::HWModel;
 
 pub unsafe fn corenum_gemv_f32f32f32<
 A: GemmArray<f32,X=f32>, 
@@ -66,17 +67,23 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	match *RUNTIME_HW_CONFIG {
-		HWConfig::Haswell => {
-			corenum_gemv::<TA,TB,A, B, C, HaswellGemm::<4800,320,192,24,4>>(
-				m, n, alpha, a, b, beta, c, par
-			);
+	let avx = (*RUNTIME_HW_CONFIG).avx;
+	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
+	let fma = (*RUNTIME_HW_CONFIG).fma;
+	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	if avx && fma {
+
+		match model {
+			_ => {
+				corenum_gemv::<TA,TB,A, B, C, AvxFma::<4800,320,192,24,4,false,true,false>>(
+					m, n, alpha, a, b, beta, c, par
+				);
+			}
 		}
-		HWConfig::Reference => {
-			// corenum_gemm::<TA, TB, TC, InputA, InputB, ReferenceGemm>(
-			// 	m, n, k, alpha, a, b, beta, c, c_rs, c_cs, par
-			// );
-		}
+	} else {
+		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
+		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
+		// );
 	}
 }
 
@@ -122,7 +129,7 @@ pub unsafe fn corenum_sdot(
 use corenum_base::corenum_gemm;
 
 
-use haswell::{
+use avx_fma::{
 	SupM, SupN,
 };
 
@@ -146,17 +153,22 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	match *RUNTIME_HW_CONFIG {
-		HWConfig::Haswell => {
-			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm::<4800,320,192,24,4>>(
-				m, n, k, alpha, a, b, beta, c, par
-			);
+	let avx = (*RUNTIME_HW_CONFIG).avx;
+	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
+	let fma = (*RUNTIME_HW_CONFIG).fma;
+	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	if avx && fma {
+		match model {
+			_ => {
+				corenum_gemm::<TA,TB,A, B, C, Identity, AvxFma::<4800,320,192,24,4,false,true,false>>(
+					m, n, k, alpha, a, b, beta, c, par
+				);
+			}
 		}
-		HWConfig::Reference => {
-			// corenum_gemm::<TA, TB, TC, InputA, InputB, ReferenceGemm>(
-			// 	m, n, k, alpha, a, b, beta, c, c_rs, c_cs, par
-			// );
-		}
+	} else {
+		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
+		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
+		// );
 	}
 }
 
@@ -177,7 +189,7 @@ C: GemmOut<X=f32,Y=f32>,
 // ){	
 // 	match *RUNTIME_HW_CONFIG {
 // 		HWConfig::Haswell => {
-// 			corenum_gemm::<TA,TB,A, B, C, Identity, HaswellGemm>(
+// 			corenum_gemm::<TA,TB,A, B, C, Identity, AvxFma>(
 // 				m, n, k, alpha, a, b, beta, c, par
 // 			);
 // 		}
@@ -195,24 +207,24 @@ pub unsafe fn packa_f32(
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) {
-	match *RUNTIME_HW_CONFIG {
-		HWConfig::Haswell => {
-			let mut ap = ap;
-			for i in (0..m).step_by(4800) {
-				let mc_len = if m >= (i + 4800) {4800} else {m - i};
-				let mc_len_eff = (mc_len + 23) / 24 * 24;
-				for p in (0..k).step_by(192) {
-					let kc_len = if k >= (p + 192) {192} else {k - p};
-					haswell::pack_panel::<24>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-					ap = ap.add(mc_len_eff*kc_len);	
-				}
-			}
-		}
-		HWConfig::Reference => {
-			// ReferencePackA::packa(m, k, a)
-			unimplemented!()
-		}
-	}
+	// match *RUNTIME_HW_CONFIG {
+	// 	HWConfig::Haswell => {
+	// 		let mut ap = ap;
+	// 		for i in (0..m).step_by(4800) {
+	// 			let mc_len = if m >= (i + 4800) {4800} else {m - i};
+	// 			let mc_len_eff = (mc_len + 23) / 24 * 24;
+	// 			for p in (0..k).step_by(192) {
+	// 				let kc_len = if k >= (p + 192) {192} else {k - p};
+	// 				haswell::pack_panel::<24>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+	// 				ap = ap.add(mc_len_eff*kc_len);	
+	// 			}
+	// 		}
+	// 	}
+	// 	HWConfig::Reference => {
+	// 		// ReferencePackA::packa(m, k, a)
+	// 		unimplemented!()
+	// 	}
+	// }
 }
 
 pub unsafe fn corenum_sgemm(

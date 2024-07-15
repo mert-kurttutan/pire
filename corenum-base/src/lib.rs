@@ -17,10 +17,19 @@ macro_rules! env_or {
 	};
  }
 
-
-pub enum HWConfig {
+pub struct HWConfig {
+    pub avx: bool,
+    pub avx2: bool,
+    pub fma: bool,
+    pub fma4: bool,
+    pub hw_model: HWModel,
+}
+#[derive(Copy,Clone)]
+pub enum HWModel {
     Reference,
     Haswell,
+    Zen1,
+    Zen2,
 }
 
 
@@ -37,14 +46,29 @@ fn detect_hw_config() -> HWConfig {
     {
         let cpuid = raw_cpuid::CpuId::new();
         let feature_info = cpuid.get_feature_info().unwrap();
+        let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
+        let avx = feature_info.has_avx();
+        let fma = feature_info.has_fma();
+        let avx2  = extended_feature_info.has_avx2();
+
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        if feature_info.has_avx() && feature_info.has_fma() && !extended_prcoessor_info.has_fma4() {
-            // Default for hw that has avx and fma is haswell
-            return HWConfig::Haswell;
-        }
+        let fma4 = extended_prcoessor_info.has_fma4();
+        return HWConfig {
+            avx,
+            avx2,
+            fma,
+            fma4,
+            hw_model: HWModel::Reference,
+        };
     }
-    // Fall to Generic Unless Specified
-    HWConfig::Reference
+    // // Fall to Generic Unless Specified
+    // HWConfig {
+    //     avx: false,
+    //     avx2: false,
+    //     fma: false,
+    //     fma4: false,
+    //     hw_model: HWModel::Reference,
+    // }
 }
 
 
