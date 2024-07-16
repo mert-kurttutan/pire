@@ -4,6 +4,9 @@
 pub(crate) mod microkernel;
 
 
+use corenum_base::GemmArrayP;
+use corenum_base::PackedMatrix;
+use corenum_base::StridedMatrixMut;
 pub(crate) use microkernel::{
    pack_panel,
    kernel,
@@ -66,7 +69,7 @@ const GOTO_NR: usize,
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-A: GemmArray<f32, X=f32>, 
+A: GemmArray<f32, X=f32> + Axpy, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > Gemv<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
@@ -87,7 +90,11 @@ C: GemmOut<X=f32,Y=f32>,
         let inc_x = x.get_rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy);
+        // axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy);
+
+        // B::kernel_sup_m(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
+        A::axpy(m, n, alpha, a, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy)
+
    }
 }
 
@@ -136,8 +143,10 @@ const GOTO_NR: usize,
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-AP, BP
-> GemmCache<AP,BP> for AvxFma<GOTO_MR,GOTO_NR> {
+AP, BP,
+A: GemmArray<AP>,
+B: GemmArray<BP>,
+> GemmCache<AP,BP,A,B> for AvxFma<GOTO_MR,GOTO_NR> {
     const CACHELINE_PAD: usize = 256;
     const MR: usize = GOTO_MR;
     const NR: usize = GOTO_NR;
@@ -218,6 +227,90 @@ pub trait SupM {
     );
 }
 
+pub trait Axpy {
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: Self, a_rs: usize, a_cs: usize,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    );
+}
+
+impl Axpy for StridedMatrix<f32>{
+    #[target_feature(enable = "avx,fma")]
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: StridedMatrix<f32>, a_rs: usize, a_cs: usize,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    ) {
+        // let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
+        let a_ptr = a.data_ptr;
+        axpy(m, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, y, inc_y);
+    }
+}
+
+impl Axpy for PackedMatrix<f32>{
+    #[target_feature(enable = "avx,fma")]
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: PackedMatrix<f32>, a_rs: usize, a_cs: usize,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    ) {
+        if m == 1 || n == 1 {
+            let a_ptr = a.data_ptr;
+            axpy(m, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, y, inc_y);
+            return;
+        }
+
+        let mut mc = 0;
+        let mc_end = m;
+        let mc_eff = a.mc;
+        let kc_eff = a.kc;
+        let one = 1_f32;
+        let c_rs = inc_y;
+        let c_cs = 1;
+        while mc < mc_end {
+            let mc_len = mc_eff.min(mc_end - mc);
+ 
+            let c_i = y.add(inc_y*mc);
+            let mut kc = 0;
+            let kc_end = n;
+            // axpy(mc_len, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, c_i, inc_y);
+            while kc < n {
+                let kc_len = kc_eff.min(kc_end - kc);
+                let beta_t = if kc == 0 { beta } else { &one as *const TC};
+                let ap = a.packa_dispatch_hw::<AvxFma::<24,4>>(mc, kc, mc_len, kc_len, 0, false);
+                let mut mr = 0;
+                while mr < mc_len {
+                    let mr_len = 24.min(mc_len - mr);
+                    let c_i = c_i.add(mr*inc_y);
+                    let nr = kc_len;
+                    let a_cs = {
+                        if mr_len > 16 {
+                            24
+                        } else if mr_len > 8  {
+                            16
+                        } else {
+                            8
+                        }
+                    };
+                    axpy(mr_len, kc_len, alpha, ap.add(mr*kc_len), 1, a_cs, x.add(inc_x*kc), inc_x, beta_t, c_i, inc_y);
+                    mr += 24;
+                }
+                kc += kc_eff;
+            }
+            mc += mc_eff;
+        }
+    }
+}
 
 pub trait SupN {
     unsafe fn kernel_sup_n(
@@ -259,8 +352,23 @@ impl SupN for StridedMatrix<f32>{
         let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
         kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.rs, a.cs, c, c_rs, c_cs, bp);
     }
-
 }
+
+impl SupN for PackedMatrix<f32>{
+    #[target_feature(enable = "avx,fma")]
+    unsafe fn kernel_sup_n(
+        m: usize, n: usize, k: usize,
+        alpha: *const TA,
+        beta: *const TC,
+        a: PackedMatrix<f32>, a_rs: usize, a_cs: usize,
+        c: *mut TC, c_rs: usize, c_cs: usize,
+        bp: *const TB,
+    ) {
+        let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
+        kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.rs, a.cs, c, c_rs, c_cs, bp);
+    }
+}
+
 
 
 use corenum_base::GemmArray;

@@ -260,10 +260,18 @@ impl CorenumPar {
 pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) -> (usize, usize, bool) {
    let chunk_len = (m / (mr*ic_par)) * mr;
    let rem = m % (mr*ic_par);
+   if ic_id == 0 {
+        return (m - chunk_len - (rem%mr), m, false);
+    }
+    let ic_id = ic_id - 1;
+    let m0 = (m / mr) * mr;
+   let rem = m0 % (mr*ic_par);
    let start_delta =  rem.min(ic_id*mr);
    let end_delta = rem.min((ic_id + 1)*mr);
-   let is_m_boundary = (chunk_len + end_delta - start_delta ) % mc == 0;
-   let mc_left = is_m_boundary && rem != 0 && end_delta == start_delta;
+//    let is_m_boundary = (chunk_len + end_delta - start_delta ) % mc == 0;
+   let mc_coeff = (chunk_len + end_delta - start_delta + mc -1) / mc;
+   let mc_left = mc_coeff * mc < m;
+//    let mc_left = is_m_boundary && rem != 0 && end_delta == start_delta;
    (chunk_len * ic_id + start_delta, chunk_len * (ic_id + 1) + end_delta, mc_left)
 }
 
@@ -334,16 +342,12 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 >(hw_config: &HWConfig, par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
-    if A::is_packing_needed() {
-        let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
-        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
-    }
-    if B::is_packing_needed() {
-        let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
-        mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
-    }
+    let ap_pool_multiplicity = par.ic_par;
+    let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
+    mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
+    let bp_pool_multiplicity = par.jc_par;
+    let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
+    mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
     if mem_pool_size == 0 {
         return 0;
     }
@@ -695,6 +699,7 @@ pub struct PackedMatrix<T> {
     pub data_ptr : *const T,
     pub mc: usize,
     pub kc: usize,
+    pub mr: usize,
     pub k: usize,
     pub m: usize,
     pub rs: usize,
@@ -736,10 +741,12 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
 impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
     unsafe fn packa_dispatch_hw<H>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const T
     {
-        let mc_block = mc / self.mc;
-        let kc_block = kc / self.kc;
-        let m_eff = ((mc_len.min(self.mc)+23) / 24) * 24;
-        self.data_ptr.add(mc_block*self.k*self.mc + kc_block*m_eff*self.kc)
+        let ib = mc / self.mc;
+        let jb = kc / self.kc;
+        let mr_block = (mc % self.mc) / self.mr;
+        let m_eff = ((self.m.min(self.mc)+self.mr-1) / self.mr) * self.mr;
+
+        self.data_ptr.add(ib*self.k*self.mc + jb*m_eff*self.kc + mr_block * kc_len*self.mr)
     }
     unsafe fn packb_dispatch_hw<H>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const T
     {
@@ -750,9 +757,10 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
 
     unsafe fn add_p(&self, offset: usize) -> Self {
         Self {
-            data_ptr: self.data_ptr.add(offset),
+            data_ptr: self.data_ptr.add(offset*0),
             mc: self.mc,
             kc: self.kc,
+            mr: self.mr,
             k: self.k,
             m: self.m,
             rs: self.rs,
@@ -789,6 +797,8 @@ pub trait UnaryOp<X,Y> {
 pub trait GemmCache<
 AP,
 BP,
+A: GemmArray<AP>,
+B: GemmArray<BP>,
 > {
     const CACHELINE_PAD: usize = 256;
     const MR: usize; const NR: usize;
@@ -797,14 +807,22 @@ BP,
     fn get_kc_eff(&self) -> usize;
     fn get_nc_eff(&self,par: usize) -> usize;
     fn get_ap_pool_size(&self,ic_par: usize) -> usize {
-        let mc_eff = self.get_mc_eff(ic_par);
-        let kc_eff = self.get_kc_eff();
-        mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
+        if A::is_packing_needed() {
+            let mc_eff = self.get_mc_eff(ic_par);
+            let kc_eff = self.get_kc_eff();
+            mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
+        } else {
+            0
+        }
     }
     fn get_bp_pool_size(&self,jc_par: usize) -> usize {
-        let nc_eff = self.get_nc_eff(jc_par);
-        let kc_eff = self.get_kc_eff();
-        nc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
+        if B::is_packing_needed() {
+            let nc_eff = self.get_nc_eff(jc_par);
+            let kc_eff = self.get_kc_eff();
+            nc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
+        } else {
+            0
+        }
     }
 }
 
@@ -815,7 +833,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 > 
-where Self: Sized + GemmCache<AP,BP>,
+where Self: Sized + GemmCache<AP,BP,A,B>,
 Self: GemmPack<B::X, BP>,
 Self: GemmPack<A::X, AP>,
 {
@@ -878,7 +896,7 @@ Self: GemmPack<A::X, AP>,
 
     // let c 
     for t_id in 1..par.num_threads {
-        let mut t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+        let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
         let ic_id = t_cfg.ic_id;
         let jc_id = t_cfg.jc_id;
         let ap_cur = ap.add_p(ic_id*ap_pool_size);
@@ -887,7 +905,7 @@ Self: GemmPack<A::X, AP>,
         let x = std::thread::spawn(move || {
                 let alpha = &alpha as *const AP;
                 let beta = &beta as *const C::X;
-                Self::gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &mut t_cfg);
+                Self::gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
             }
         );
 
@@ -996,7 +1014,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 > 
-where Self: Sized + GemmCache<AP,BP> + Send + Sync,
+where Self: Sized + GemmCache<AP,BP,A,B> + Send + Sync,
 Self: GemmPack<A::X, AP>
 {
     const ONE: C::X;
@@ -1139,7 +1157,7 @@ Self: GemmPack<A::X, AP>
  B: GemmArray<BP>,
 C: GemmOut,
  >
-where Self: Sized + GemmCache<AP,BP>,
+where Self: Sized + GemmCache<AP,BP,A,B>,
 Self: GemmPack<B::X, BP>,
  {
     const ONE: C::X;
@@ -1328,4 +1346,20 @@ C: GemmOut,
        beta: *const C::X,
        y: C
    );
+}
+
+mod test {
+    // test split_c_range
+    #[test]
+    fn test_split_c_range() {
+        let m = 143;
+        let mc = 4800;
+        let mr = 24;
+        let ic_par = 4;
+        for ic_id in 0..ic_par {
+            let (mc_start, mc_end, mc_left) = super::split_c_range(m, mc, mr, ic_id, ic_par);
+            println!("mc_start: {}, mc_end: {}, mc_left: {}", mc_start, mc_end, mc_left);
+        }
+        assert!(false);
+    }
 }

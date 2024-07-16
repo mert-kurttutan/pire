@@ -56,7 +56,7 @@ use avx_fma::Identity;
 use corenum_base::HWModel;
 
 pub unsafe fn corenum_gemv_f32f32f32<
-A: GemmArray<f32,X=f32>, 
+A: GemmArray<f32,X=f32> + Axpy, 
 B: GemmArray<f32,X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 >(
@@ -139,10 +139,10 @@ use corenum_base::{
 	GemmOut,
 };
 
-
+use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + SupN, 
-B: GemmArray<f32,X=f32> + SupM,
+A: GemmArray<f32,X=f32> + SupN + Axpy, 
+B: GemmArray<f32,X=f32> + SupM + Axpy,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -157,13 +157,15 @@ C: GemmOut<X=f32,Y=f32>,
 	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
-	let hw_config = AvxFma::<24,4>{
-		goto_mc: 4800, goto_nc: 320, goto_kc: 192,
-		is_l1_shared: false, is_l2_shared: true, is_l3_shared: false
-	};
 	if avx && fma {
 		match model {
 			_ => {
+				const MR: usize = 24;
+				const NR: usize = 4;
+				let hw_config = AvxFma::<MR,NR>{
+					goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+					is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+				};
 				corenum_gemm(
 					&hw_config, m, n, k, alpha, a, b, beta, c, par
 				);
@@ -211,24 +213,41 @@ pub unsafe fn packa_f32(
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) {
-	// match *RUNTIME_HW_CONFIG {
-	// 	HWConfig::Haswell => {
-	// 		let mut ap = ap;
-	// 		for i in (0..m).step_by(4800) {
-	// 			let mc_len = if m >= (i + 4800) {4800} else {m - i};
-	// 			let mc_len_eff = (mc_len + 23) / 24 * 24;
-	// 			for p in (0..k).step_by(192) {
-	// 				let kc_len = if k >= (p + 192) {192} else {k - p};
-	// 				haswell::pack_panel::<24>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-	// 				ap = ap.add(mc_len_eff*kc_len);	
-	// 			}
-	// 		}
-	// 	}
-	// 	HWConfig::Reference => {
-	// 		// ReferencePackA::packa(m, k, a)
-	// 		unimplemented!()
-	// 	}
-	// }
+	let avx = (*RUNTIME_HW_CONFIG).avx;
+	let fma = (*RUNTIME_HW_CONFIG).fma;
+	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	let align_offset = ap.align_offset(256);
+	let mut ap = ap.add(align_offset);
+	if m == 1 || k == 1 {
+		for i in 0..m {
+			for j in 0..k {
+				*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
+			}
+		}
+		return;
+	}
+	if avx && fma {
+		match model {
+			_ => {
+				const MC: usize = 4800;
+				const MR: usize = 24;
+				const KC: usize = 192;
+				for i in (0..m).step_by(MC) {
+					let mc_len = if m >= (i + MC) {MC} else {m - i};
+					let mc_len_eff = (mc_len + MR-1) / MR * MR;
+					for p in (0..k).step_by(KC) {
+						let kc_len = if k >= (p + KC) {KC} else {k - p};
+						avx_fma::pack_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+						ap = ap.add(mc_len_eff*kc_len);	
+					}
+				}
+			}
+		}
+	} else {
+		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
+		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
+		// );
+	}
 }
 
 pub unsafe fn corenum_sgemm(
@@ -298,7 +317,6 @@ mod tests {
         	Layout::TT => (k, 1, n, 1, 1, m),
     	}
 	}
-
 	fn test_gemm(layout: &Layout) {
     	let d_par = CorenumPar::new(
         	4, 2, 1, 2, 1, 1
@@ -353,6 +371,86 @@ mod tests {
     	}
 	}
 
+	fn test_gemm_ap(layout: &Layout) {
+    	let d_par = CorenumPar::new(
+        	4, 2, 1, 2, 1, 1
+    	);
+    	for m in M_ARR {
+        	for n in N_ARR {
+            	let mut c = vec![0.0; m * n];
+            	let mut c_ref = vec![0.0; m * n];
+            	for k in K_ARR {
+                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
+                	let mut a = vec![0.0; m * k];
+                	let mut b = vec![0.0; k * n];
+					let mut ap = vec![0_f32; m*k + 10000];
+					let ap_offset = ap.as_ptr().align_offset(256);
+                	for alpha in ALPHA_ARR {
+                    	for beta in ALPHA_ARR {
+                        	random_matrix(m, k, &mut a, m);
+                        	random_matrix(k, n, &mut b, k);
+                        	random_matrix(m, n, &mut c, m);
+                        	c_ref.copy_from_slice(&c);
+							unsafe {
+								packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr());
+							}
+							let ap_matrix = corenum_base::PackedMatrix{
+								data_ptr: unsafe{ap.as_mut_ptr().add(ap_offset)},
+								mc: 4800,
+								kc: 192,
+								mr: 24,
+								k,
+								m,
+								rs: a_rs,
+								cs: a_cs,
+							};
+							let b_matrix = StridedMatrix{
+								data_ptr: b.as_ptr(),
+								rs: b_rs, cs: b_cs,
+							};
+							let c_matrix = StridedMatrixMut{
+								data_ptr: c.as_mut_ptr(),
+								rs: c_rs, cs: c_cs,
+							};
+                        	unsafe {
+                            	corenum_gemm_f32f32f32(
+                                	m, n, k,
+                                	alpha,
+                                	ap_matrix,
+                                	b_matrix,
+                                	beta,
+                                	c_matrix,
+                                	&d_par,
+                            	);
+                        	}
+                        	let diff_max = unsafe { 
+								check_gemm_f32(
+									m, n, k,
+									alpha,
+									a.as_ptr(), a_rs, a_cs,
+									b.as_ptr(), b_rs, b_cs,
+									beta,
+									&mut c, c_rs, c_cs,
+									&mut c_ref,
+								)
+							};
+                        	if diff_max >= EPS {
+                            	println!("a: {:?}", a);
+                            	println!("b: {:?}", b);
+                            	println!("c:     {:?}", c);
+                            	println!("c_ref: {:?}", c_ref);
+                        	}
+                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
+                    	}
+                	}
+            	}
+        	}
+    	}
+	}
+	#[test]
+	fn test_nn_col_ap() {
+    	test_gemm_ap(&Layout::NN);
+	}
 	#[test]
 	fn test_nn_col() {
     	test_gemm(&Layout::NN);
