@@ -210,7 +210,6 @@ macro_rules! def_milikernel {
     };
 }
 def_milikernel!(24, 4, 24, 16, 8);
-
 def_milikernel!(16, 6, 16, 8);
 
 
@@ -306,11 +305,10 @@ macro_rules! def_milikernel_strided {
 }
 
 def_milikernel_strided!(24, 4, 24, 16, 8);
-
 def_milikernel_strided!(16, 6, 16, 8);
 
 
-
+// TODO: Check if implementing br_partial is worth the performance gain/code complexity tradeoff
 macro_rules! def_milikernel_blocked {
     ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
@@ -395,12 +393,100 @@ macro_rules! def_milikernel_blocked {
     };
 }
 def_milikernel_blocked!(24, 4, true, r, br, 24, 16, 8);
-
 def_milikernel_blocked!(24, 4, false, c, bc, 24, 16, 8);
 
 // def_milikernel_blocked!(16, 6, true, rc, br, 16, 8);
 
 // def_milikernel_blocked!(16, 6, false, cc, bc, 16, 8);
+
+macro_rules! def_milikernel_blocked2 {
+    ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($nr_left:tt),*) => {
+        seq!( mr_left in 2..$MR { paste! {
+            #[target_feature(enable = "avx,fma")]
+            pub unsafe fn [<kernel_sup_n_$layout1>](
+                m: usize, n: usize, k: usize,
+                alpha: *const TA,
+                beta: *const TC,
+                a: *const TB, lda: usize,
+                c: *mut TC, ldc: usize,
+                bp: *const TA,
+            ) {
+                const MR: usize = $MR;
+                const NR: usize = $NR;
+                let m_iter0 = (m / MR) as u64;
+                let m_left = m % MR;
+                let mut c_cur0 = c;
+                let a_rs = if $is_b_row { lda } else { 1 };
+                let mut bp_cur = bp;
+                let mut n_iter = (n / NR) as u64;
+                let n_left = (n % NR) as u64;
+                let ld_arr = [0, lda * 4];
+                // use blocking since rrc kernel is hard to implement to current macro choices
+                while n_iter > 0 {
+                    let mut m_iter = m_iter0;
+                    let mut a_cur = a;
+                    let mut c_cur1 = c_cur0;
+                    while m_iter > 0 {
+                        [<ukernel_$NR x $MR _$layout2>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        m_iter -= 1;
+                        a_cur = a_cur.add(MR * a_rs);
+                        c_cur1 = c_cur1.add(MR);
+                    }
+                    if m_left == 1 {
+                        [<ukernel_$NR x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8);
+                    }
+                    #(
+                        else if m_left == mr_left {
+                            [<ukernel_$NR x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8);
+                        }
+                    )*
+                    n_iter -= 1;
+                    bp_cur = bp_cur.add(NR*k);
+                    c_cur0 = c_cur0.add(NR*ldc);
+                }
+
+
+                $(
+                    if n_left > ($nr_left - 8) {
+                        let mut m_iter = m_iter0;
+                        let mut a_cur = a;
+                        let mut c_cur1 = c_cur0;
+                        const MR_LEFT: usize = $nr_left;
+                        let mut c_temp_buf = [0_f32; MR_LEFT*NR];
+                        let ct = c_temp_buf.as_mut_ptr();
+                        let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
+                        while m_iter > 0 {
+                            // load_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$nr_left x $MR _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
+                            // store_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            m_iter -= 1;
+                            a_cur = a_cur.add(MR*a_rs);
+                            c_cur1 = c_cur1.add(MR);
+                        }
+                        if m_left == 1 {
+                            // load_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$nr_left x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
+                            // store_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                        }
+                        #(
+                        else if m_left == mr_left {
+                            // load_c::<MR_LEFT,mr_left>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$nr_left x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
+                            // store_c::<MR_LEFT,mr_left>(c_cur1, ct, m_left, ldc);
+                        }
+                        )*
+                        return;
+                    }
+                )*
+            }        
+        }});
+    };
+}
+
+def_milikernel_blocked2!(4, 24, true, r, rb_t, 24, 16, 8);
+def_milikernel_blocked2!(4, 24, false, c, cb_t, 24, 16, 8);
+
+
 
 pub(crate) unsafe fn kernel_sup_m(
     m: usize, n: usize, k: usize,
@@ -434,483 +520,6 @@ pub(crate) unsafe fn kernel_sup_m(
 
 }
 
-
-
-
-#[target_feature(enable = "avx,fma")]
-pub unsafe fn kernel_sup_n_r(
-   m: usize,
-   n: usize,
-   k: usize,
-   alpha: *const TA,
-   beta: *const TC,
-   a: *const TB,
-   lda: usize,
-   c: *mut TC,
-   ldc: usize,
-   bp: *const TA,
-) {
-   const MR: usize = 4;
-   const NR: usize = 24;
-   let m_iter0 = (m / MR) as u64;
-   let m_left = m % MR;
-   let mut c_cur0 = c;
-   let a_rs = if true { lda } else { 1 };
-   let mut bp_cur = bp;
-   let mut n_iter = (n / NR) as u64;
-   let n_left = (n % NR) as u64;
-   let ld_arr = [0, lda * 4];
-   while n_iter > 0 {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       while m_iter > 0 {
-           ukernel_24x4_rb_t(bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_24x1_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       } else if m_left == 2 {
-           ukernel_24x2_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       } else if m_left == 3 {
-           ukernel_24x3_rb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       }
-       n_iter -= 1;
-       bp_cur = bp_cur.add(NR * k);
-       c_cur0 = c_cur0.add(NR * ldc);
-   }
-   if n_left > (24 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_24x4_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_24x1_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_24x2_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_24x3_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-      
-       }
-       return;
-   }
-   if n_left > (16 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_16x4_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_16x1_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_16x2_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_16x3_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       }
-       return;
-   }
-
-   if n_left > (8 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_8x4_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_8x1_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_8x2_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_8x3_rb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       }
-       return;
-   }
-}
-
-
-
-
-
-#[target_feature(enable = "avx,fma")]
-pub unsafe fn kernel_sup_n_c(
-   m: usize,
-   n: usize,
-   k: usize,
-   alpha: *const TA,
-   beta: *const TC,
-   a: *const TB,
-   lda: usize,
-   c: *mut TC,
-   ldc: usize,
-   bp: *const TA,
-) {
-   const MR: usize = 4;
-   const NR: usize = 24;
-   let m_iter0 = (m / MR) as u64;
-   let m_left = m % MR;
-   let mut c_cur0 = c;
-   let a_rs = if false { lda } else { 1 };
-   let mut bp_cur = bp;
-   let mut n_iter = (n / NR) as u64;
-   let n_left = (n % NR) as u64;
-   let ld_arr = [0, lda * 4];
-   while n_iter > 0 {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       while m_iter > 0 {
-           ukernel_24x4_cb_t(bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_24x1_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       } else if m_left == 2 {
-           ukernel_24x2_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       } else if m_left == 3 {
-           ukernel_24x3_cb_t_partial(
-               bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8,
-           );
-       }
-       n_iter -= 1;
-       bp_cur = bp_cur.add(NR * k);
-       c_cur0 = c_cur0.add(NR * ldc);
-   }
-   
-   if n_left > (24 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_24x4_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_24x1_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_24x2_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_24x3_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       }
-       return;
-   }
-   if n_left > (16 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_16x4_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_16x1_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_16x2_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_16x3_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       }
-       return;
-   }
-
-
-   if n_left > (8 - 8) {
-       let mut m_iter = m_iter0;
-       let mut a_cur = a;
-       let mut c_cur1 = c_cur0;
-       let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-       while m_iter > 0 {
-           ukernel_8x4_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-           m_iter -= 1;
-           a_cur = a_cur.add(MR * a_rs);
-           c_cur1 = c_cur1.add(MR);
-       }
-       if m_left == 1 {
-           ukernel_8x1_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 2 {
-           ukernel_8x2_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       } else if m_left == 3 {
-           ukernel_8x3_cb_t_partial(
-               bp_cur,
-               a_cur,
-               c_cur1,
-               alpha,
-               beta,
-               k,
-               ldc,
-               ld_arr,
-               n_left as usize,
-           );
-       }
-       return;
-   }
-
-
-}
 
 #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn kernel_sup_n(
