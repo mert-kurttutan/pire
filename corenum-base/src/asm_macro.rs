@@ -70,6 +70,13 @@ macro_rules! vmovps {
             loadps_unit!(8, $layout, mem!($m0, "0x40"), $r3), "\n",
         )
     };
+    (24, $layout:tt, $m0:expr) => {
+        concat!(
+            loadps_unit!(8, $layout, $m0, 0), "\n",
+            loadps_unit!(8, $layout, mem!($m0, "0x20"), 1), "\n",
+            loadps_unit!(8, $layout, mem!($m0, "0x40"), 2), "\n",
+        )
+    };
     (20, $layout:tt, $m0:expr,  $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
             loadps_unit!(8, $layout, $m0, $r1), "\n",
@@ -83,15 +90,26 @@ macro_rules! vmovps {
             loadps_unit!(8, $layout, mem!($m0, "0x20"), $r2), "\n",
         )
     };
+    (16, $layout:tt, $m0:expr) => {
+        concat!(
+            loadps_unit!(8, $layout, $m0, 0), "\n",
+            loadps_unit!(8, $layout, mem!($m0, "0x20"), 1), "\n",
+        )
+    };
     (12, $layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            loadps_unit!(8, $layout, $m0, $r1), "\n",
-            loadps_unit!(4, $layout, mem!($m0, "0x20"), $r2), "\n",
+            loadps_unit!(8, $layout, $m0, 0), "\n",
+            loadps_unit!(4, $layout, mem!($m0, "0x20"), 1), "\n",
         )
     };
     ($N:tt, $layout:tt, $m0:expr, $r1:expr) => {
         concat!(
             loadps_unit!($N, $layout, $m0, $r1),
+        )
+    };
+    ($N:tt, $layout:tt, $m0:expr) => {
+        concat!(
+            loadps_unit!($N, $layout, $m0, 0),
         )
     };
  }

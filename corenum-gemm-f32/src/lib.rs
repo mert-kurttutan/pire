@@ -297,11 +297,11 @@ mod tests {
 
 	const EPS: f64 = 2e-2;
 
-	static M_ARR: [usize; 21] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144];
-	static N_ARR: [usize; 21] = M_ARR;
+	static M_ARR: [usize; 25] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
+	static N_ARR: [usize; 21] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
-	static ALPHA_ARR: [f32; 4] = [1.0, 0.0, -1.0, 3.1415];
-	static BETA_ARR: [f32; 4] = ALPHA_ARR;	
+	static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
+	static BETA_ARR: [f32; 3] = [1.0, 0.0, 3.1415];
 	enum Layout {
     	NN,
     	NT,
@@ -330,7 +330,7 @@ mod tests {
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
                 	for alpha in ALPHA_ARR {
-                    	for beta in ALPHA_ARR {
+                    	for beta in BETA_ARR {
                         	random_matrix(m, k, &mut a, m);
                         	random_matrix(k, n, &mut b, k);
                         	random_matrix(m, n, &mut c, m);

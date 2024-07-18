@@ -191,39 +191,6 @@ macro_rules! asm_vzeroall {
 	(VER8,1) => {vzeroall!(7,7)};
 }
 
-
-macro_rules! prefetch {
-	// distance = 0 => no prefetch
-	($mr:tt, $a_layout:tt, $m0:tt, 0, $k_i:tt) => {
-    	""
-	};
-	($mr:tt, C, $m0:tt, $pf_dist:tt, $k_i:tt) => {
-		""
-	};
-	($mr:tt, R, $m0:tt, $pf_dist:tt, $k_i:tt) => {
-		""
-	};
-	(4, $layout:tt, $m0:tt, $pf_dist:tt, 1) => {
-    	""
-	};
-	(3, $layout:tt, $m0:tt, $pf_dist:tt, 1) => {
-    	""
-	};
-	(2, $layout:tt, $m0:tt, $pf_dist:tt, 1) => {
-    	""
-	};
-	(1, $layout:tt, $m0:tt, $pf_dist:tt, 1) => {
-    	""
-	};
-
-	($mr:tt, B, $m0:tt, $pf_dist:tt, $k_i:tt) => {
-    	concat!(
-    	"prefetcht0 ", $pf_dist, "*", $mr, "*4+", $k_i, "*64(", $m0, ")", "\n",
-    	)
-	};
-}
-
-
 macro_rules! inc_a {
 	(C) => {
     	"add {x1}, {ax}"
@@ -1029,23 +996,11 @@ macro_rules! load_b {
 
 
 macro_rules! load_a {
-	(24, B, $K:tt) => {
-    	loadps!(24, B, concat!("96*",$K,"({ax})"), 0, 1, 2)
+	($mr:tt, B, $K:tt) => {
+    	loadps!($mr, B, concat!($mr,"*4*",$K,"({ax})"))
 	};
-	(24, C, $K:tt) => {
-    	loadps!($mr, C, "0({ax})", 0, 1, 2)
-	};
-	(16, B, $K:tt) => {
-    	loadps!(16, B, concat!("64*",$K,"({ax})"), 0, 1)
-	};
-	(16, C, $K:tt) => {
-    	loadps!($mr, C, "0({ax})", $r1, $r2)
-	};
-	(8, B, $K:tt) => {
-    	loadps!(8, B, concat!("32*",$K,"({ax})"), 0)
-	};
-	(8, C, $K:tt) => {
-    	loadps!($mr, C, "0({ax})", 0)
+	($mr:tt, C, $K:tt) => {
+    	loadps!($mr, C, "0({ax})")
 	};
 }
 
@@ -1112,300 +1067,6 @@ macro_rules! asm_24x4_step {
     	)
 	};
 }
-
-
-
-
-macro_rules! def_24x4_ukernel_partial {
-	(
-    	$mr:tt, $nr:tt, $transpose:tt,
-    	$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-    	$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-    	pub(crate) unsafe fn $func_name(
-        	a: *const TA, b: *const TB, c: *mut TC,
-        	alpha: *const TA, beta: *const TB,
-        	k: usize,
-        	ldc: usize,
-			ld_arr: [usize; 2],
-			mask: *const u32,
-    	) {
-        	let k_iter = k / 4;
-        	let k_left = k % 4;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-        	asm!(
-            	asm_vzeroall!(VER24,$nr),
-   	 
-            	asm_init_ab!(VER24,$a_layout,$b_layout),
-           	 
-            	// 3 -> CONSIDKLEFT
-            	"je 3f",
-           	 
-            	// 2 -> KITER
-            	"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0), "\n",
-            	// iter 0
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-            	asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 1
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 1), "\n",
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2), "\n",
-            	asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 1),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 2
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 3), "\n",
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 4), "\n",
-            	asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 2),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 3
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 5), "\n",
-            	asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 3),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-
-            	inc_a_k_unroll!($a_layout, $mr, 4),
-            	inc_b_k_unroll!($b_layout, $nr, 4),
-   	 
-            	"dec {x0}",
-            	// 2 -> KITER
-            	"jne 2b",
-
-            	// 3 -> CONSIDKLEFT
-            	"3:",
-            	"mov 32({int_arrx}),{x0}",
-            	"test {x0},{x0}",
-
-            	// 5 -> POSTACCUM
-            	"je 5f",
-   	 
-            	// 4 -> KLEFT
-            	"4:",
-            	asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-            	inc_a_k_unroll!($a_layout, $mr, 1),
-            	inc_b_k_unroll!($b_layout, $nr, 1),
-
-            	"dec {x0}",
-   	 
-            	// 4 -> KLEFT
-            	"jne 4b",
-   	 
-            	// 5 -> POSTACCUM
-            	"5:",
-            	asm_c_load!($nr),
-            	// scale by alpha
-            	asm_alpha_scale!(VER24, $nr),
-				"vmovdqu ({maskx}), %ymm1",
-
-            	"vbroadcastss ({betax}), %ymm0",
-            	"vxorps %ymm3,%ymm3,%ymm3",
-            	"vucomiss %xmm3,%xmm0",
-
-            	// 6 -> BETAZERO
-            	"je 6f",
-            	asm_24x4_acc!($mr,$nr,M,$transpose),
-
-            	// 6 -> BETAZERO
-            	"6:",
-            	asm_24x4_store!($mr,$nr,M,$transpose),
-   	 
-            	// 7 -> DDONE
-            	"7:",
-            	ax = inout(reg) a => _,
-            	bx = inout(reg) b => _,
-            	cx = inout(reg) cf => _,
-            	int_arrx = inout(reg) u64_ptr => _,
-            	alphax = inout(reg) alpha => _,
-            	betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-            	x0 = out(reg) _,
-            	x1 = out(reg) _,
-            	x2 = out(reg) _,
-            	x3 = out(reg) _,
-            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-            	options(att_syntax)
-        	);
-    	}
-	};
-}
-
-
-
-macro_rules! def_24x4_ukernel_partial_new {
-	(
-		$mr:tt, $nr:tt,
-		$transpose:tt,
-		$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-		$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-		pub(crate) unsafe fn $func_name(
-			a: *const TA, b: *const TB, c: *mut TC,
-			alpha: *const TA, beta: *const TB,
-			k: usize,
-			ldc: usize,
-			ld_arr: [usize; 2],
-			// mask: *const u32,
-			m: usize,
-		) {
-			let mask_arr = [
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-			];
-			let mask = mask_arr.as_ptr().add(8-$nr);
-			let k_iter = k / 4;
-			let k_left = k % 4;
-			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-			let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-			asm!(
-				asm_vzeroall!(VER24,$nr),
-	
-				asm_init_ab!(VER24,$a_layout,$b_layout),
-			
-				// 3 -> CONSIDKLEFT
-				"je 3f",
-			
-				// 2 -> KITER
-				"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0), "\n",
-				// iter 0
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-				asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 1
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 1), "\n",
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2), "\n",
-				asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 1),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 2
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 3), "\n",
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 4), "\n",
-				asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 2),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 3
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 5), "\n",
-				asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 3),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
- 
- 
-				inc_a_k_unroll!($a_layout, $mr, 4),
-				inc_b_k_unroll!($b_layout, $nr, 4),
-	
-				"dec {x0}",
-				// 2 -> KITER
-				"jne 2b",
- 
- 
-				// 3 -> CONSIDKLEFT
-				"3:",
-				"mov 32({int_arrx}),{x0}",
-				"test {x0},{x0}",
- 
- 
-				// 5 -> POSTACCUM
-				"je 5f",
-	
-				// 4 -> KLEFT
-				"4:",
-				asm_24x4_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-				inc_a_k_unroll!($a_layout, $mr, 1),
-				inc_b_k_unroll!($b_layout, $nr, 1),
- 
- 
-				"dec {x0}",
-	
-				// 4 -> KLEFT
-				"jne 4b",
-	
-				// 5 -> POSTACCUM
-				"5:",
-				asm_c_load!($nr),
-				// scale by alpha
-				asm_alpha_scale!(VER24, $nr),
- 
- 
-				// transpose 24x4 -> 4x24
-				transpose!($transpose, 24, 4),
-				"vbroadcastss ({betax}), %ymm0",
-				"vmovdqu ({maskx}), %ymm1",
- 
- 
-				"vxorps %ymm3,%ymm3,%ymm3",
-				"vucomiss %xmm3,%xmm0",
- 
- 
-				// 6 -> BETAZERO
-				"je 6f",
-				asm_24x4_acc!($mr,$nr,M,$transpose),
-
-				// 6 -> BETAZERO
-				"6:",
-				asm_24x4_store!($mr,$nr,M,$transpose),
-	
-				// 7 -> DDONE
-				"7:",
-				ax = inout(reg) a => _,
-				bx = inout(reg) b => _,
-				cx = inout(reg) cf => _,
-				int_arrx = inout(reg) u64_ptr => _,
-				alphax = inout(reg) alpha => _,
-				betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-				m = inout(reg) m => _,
-				x0 = out(reg) _,
-				x1 = out(reg) _,
-				x2 = out(reg) _,
-				x3 = out(reg) _,
-				out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-				out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-				out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-				out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-				options(att_syntax)
-			);
-		}
-	};
- } 
-
 
 // ***************************** 16x6 ******************************* //
 
@@ -1516,293 +1177,6 @@ macro_rules! asm_16x6_step {
 	};
 }
 
-macro_rules! def_16x6_ukernel_partial {
-	(
-    	$mr:tt, $nr:tt, $transpose:tt,
-    	$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-    	$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-    	pub(crate) unsafe fn $func_name(
-        	a: *const TA, b: *const TB, c: *mut TC,
-        	alpha: *const TA, beta: *const TB,
-        	k: usize,
-        	ldc: usize,
-			ld_arr: [usize; 2],
-			mask: *const u32
-    	) {
-        	let k_iter = k / 4;
-        	let k_left = k % 4;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-        	asm!(
-            	asm_vzeroall!(VER16,$nr),
-   	 
-            	asm_init_ab!(VER16,$a_layout,$b_layout),
-           	 
-            	// 3 -> CONSIDKLEFT
-            	"je 3f",
-           	 
-            	// 2 -> KITER
-            	"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0),
-            	// iter 0
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-            	asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 1
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 1), "\n",
-            	asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 1),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 2
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2), "\n",
-            	asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 2),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 1),
-   	 
-            	// iter 3
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 3), "\n",
-            	asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 3),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-
-            	inc_a_k_unroll!($a_layout, $mr, 4),
-            	inc_b_k_unroll!($b_layout, $nr, 4),
-   	 
-            	"dec {x0}",
-            	// 2 -> KITER
-            	"jne 2b",
-
-            	// 3 -> CONSIDKLEFT
-            	"3:",
-            	"mov 32({int_arrx}),{x0}",
-            	"test {x0},{x0}",
-
-            	// 5 -> POSTACCUM
-            	"je 5f",
-   	 
-            	// 4 -> KLEFT
-            	"4:",
-            	asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-            	inc_a_k_unroll!($a_layout, $mr, 1),
-            	inc_b_k_unroll!($b_layout, $nr, 1),
-
-            	"dec {x0}",
-   	 
-            	// 4 -> KLEFT
-            	"jne 4b",
-   	 
-            	// 5 -> POSTACCUM
-            	"5:",
-            	asm_c_load!($nr),
-            	// scale by alpha
-            	asm_alpha_scale!(VER16, $nr),
-				"vmovdqu ({maskx}), %ymm1",
-
-            	"vbroadcastss ({betax}), %ymm0",
-            	"vxorps %ymm3,%ymm3,%ymm3",
-            	"vucomiss %xmm3,%xmm0",
-
-
-            	// 6 -> BETAZERO
-            	"je 6f",
-            	asm_16x6_acc!($mr,$nr,M,$transpose),
-
-            	// 6 -> BETAZERO
-            	"6:",
-            	asm_16x6_store!($mr,$nr,M,$transpose),
-   	 
-            	// 7 -> DDONE
-            	"7:",
-            	ax = inout(reg) a => _,
-            	bx = inout(reg) b => _,
-            	cx = inout(reg) cf => _,
-            	int_arrx = inout(reg) u64_ptr => _,
-            	alphax = inout(reg) alpha => _,
-            	betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-            	x0 = out(reg) _,
-            	x1 = out(reg) _,
-            	x2 = out(reg) _,
-            	x3 = out(reg) _,
-            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-            	options(att_syntax)
-        	);
-    	}
-	};
-}
-
-
-macro_rules! def_16x6_ukernel_partial_new {
-	(
-		$mr:tt, $nr:tt, $transpose:tt,
-		$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-		$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-		pub(crate) unsafe fn $func_name(
-			a: *const TA, b: *const TB, c: *mut TC,
-			alpha: *const TA, beta: *const TB,
-			k: usize,
-			ldc: usize,
-			ld_arr: [usize; 2],
-			// mask: *const u32,
-			m: usize
-		) {
-			let mask_arr = [
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-			];
-			let mask = mask_arr.as_ptr().add(8-$nr);
-			let k_iter = k / 4;
-			let k_left = k % 4;
-			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-			let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-			asm!(
-				asm_vzeroall!(VER16,$nr),
-	
-				asm_init_ab!(VER16,$a_layout,$b_layout),
-			
-				// 3 -> CONSIDKLEFT
-				"je 3f",
-			
-				// 2 -> KITER
-				"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0),
-				// iter 0
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-				asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 1
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 1), "\n",
-				asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 1),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 2
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2), "\n",
-				asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 2),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
- 
- 
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 1),
-	
-				// iter 3
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 3), "\n",
-				asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 3),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
- 
- 
-				inc_a_k_unroll!($a_layout, $mr, 4),
-				inc_b_k_unroll!($b_layout, $nr, 4),
-	
-				"dec {x0}",
-				// 2 -> KITER
-				"jne 2b",
- 
- 
-				// 3 -> CONSIDKLEFT
-				"3:",
-				"mov 32({int_arrx}),{x0}",
-				"test {x0},{x0}",
- 
- 
-				// 5 -> POSTACCUM
-				"je 5f",
-	
-				// 4 -> KLEFT
-				"4:",
-				asm_16x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-				inc_a_k_unroll!($a_layout, $mr, 1),
-				inc_b_k_unroll!($b_layout, $nr, 1),
- 
- 
-				"dec {x0}",
-	
-				// 4 -> KLEFT
-				"jne 4b",
-	
-				// 5 -> POSTACCUM
-				"5:",
-				asm_c_load!($nr),
-				// scale by alpha
-				asm_alpha_scale!(VER16, $nr),
-				transpose!(T, 16, 4),
-				"vbroadcastss ({betax}), %ymm0",
-				"vmovdqu ({maskx}), %ymm1",
-				"vxorps %ymm3,%ymm3,%ymm3",
-				"vucomiss %xmm3,%xmm0",
- 
-				// 6 -> BETAZERO
-				"je 6f",
-				asm_16x6_acc!($mr,$nr,M,T),
- 
- 
-				// 6 -> BETAZERO
-				"6:",
-				asm_16x6_store!($mr,$nr,M,T),
-	
-				// 7 -> DDONE
-				"7:",
-				ax = inout(reg) a => _,
-				bx = inout(reg) b => _,
-				cx = inout(reg) cf => _,
-				int_arrx = inout(reg) u64_ptr => _,
-				alphax = inout(reg) alpha => _,
-				betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-				m = inout(reg) m => _,
-				x0 = out(reg) _,
-				x1 = out(reg) _,
-				x2 = out(reg) _,
-				x3 = out(reg) _,
-				out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-				out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-				out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-				out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-				options(att_syntax)
-			);
-		}
-	};
- }
-  
-
-
 // ***************************** 8x6 ******************************* //
 
 macro_rules! asm_8x6_step {
@@ -1880,293 +1254,6 @@ macro_rules! asm_8x6_step {
 	};
 }
 
-
-
-
-
-
-macro_rules! def_8x6_ukernel_partial {
-	(
-    	$mr:tt, $nr:tt, $transpose:tt,
-    	$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-    	$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-    	pub(crate) unsafe fn $func_name(
-        	a: *const TA, b: *const TB, c: *mut TC,
-        	alpha: *const TA, beta: *const TB,
-        	k: usize,
-        	ldc: usize,
-			ld_arr: [usize; 2],
-			mask: *const u32
-    	) {
-        	let k_iter = k / 4;
-        	let k_left = k % 4;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-        	asm!(
-            	asm_vzeroall!(VER8,$nr),
-   	 
-            	asm_init_ab!(VER8,$a_layout,$b_layout),
-           	 
-            	// 3 -> CONSIDKLEFT
-            	"je 3f",
-           	 
-            	// 2 -> KITER
-            	"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0),
-            	// iter 0
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-            	asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 1
-            	asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 1),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-   	 
-            	// iter 2
-            	prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2),
-            	asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 2),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 1),
-   	 
-            	// iter 3
-            	asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 3),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-
-            	inc_a_k_unroll!($a_layout, $mr, 4),
-            	inc_b_k_unroll!($b_layout, $nr, 4),
-   	 
-            	"dec {x0}",
-            	// 2 -> KITER
-            	"jne 2b",
-
-            	// 3 -> CONSIDKLEFT
-            	"3:",
-            	"mov 32({int_arrx}),{x0}",
-            	"test {x0},{x0}",
-
-            	// 5 -> POSTACCUM
-            	"je 5f",
-   	 
-            	// 4 -> KLEFT
-            	"4:",
-            	asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a!($a_layout),
-            	inc_b!($b_layout,$nr),
-            	inc_a_k_unroll!($a_layout, $mr, 1),
-            	inc_b_k_unroll!($b_layout, $nr, 1),
-
-            	"dec {x0}",
-   	 
-            	// 4 -> KLEFT
-            	"jne 4b",
-   	 
-            	// 5 -> POSTACCUM
-            	"5:",
-            	asm_c_load!($nr),
-            	// scale by alpha
-            	asm_alpha_scale!(VER8, $nr),
-				"vmovdqu ({maskx}), %ymm1",
-
-            	"vbroadcastss ({betax}), %ymm0",
-            	"vxorps %ymm3,%ymm3,%ymm3",
-            	"vucomiss %xmm3,%xmm0",
-
-            	// 6 -> BETAZERO
-            	"je 6f",
-            	asm_8x6_acc!($mr,$nr,M),
-
-            	// 6 -> BETAZERO
-            	"6:",
-            	asm_8x6_store!($mr,$nr,M),
-   	 
-            	// 7 -> DDONE
-            	"7:",
-            	ax = inout(reg) a => _,
-            	bx = inout(reg) b => _,
-            	cx = inout(reg) cf => _,
-            	int_arrx = inout(reg) u64_ptr => _,
-            	alphax = inout(reg) alpha => _,
-            	betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-            	x0 = out(reg) _,
-            	x1 = out(reg) _,
-            	x2 = out(reg) _,
-            	x3 = out(reg) _,
-            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-            	options(att_syntax)
-        	);
-    	}
-	};
-}
-
-
-
-
-macro_rules! def_8x6_ukernel_partial_new {
-	(
-		$mr:tt, $nr:tt, $transpose:tt,
-		$a_layout:tt, $b_layout:tt,
-		$pfa_dist:tt, $pfb_dist:tt,
-		$func_name:ident
-	) => {
-		#[target_feature(enable = "avx,fma")]
-		pub(crate) unsafe fn $func_name(
-			a: *const TA, b: *const TB, c: *mut TC,
-			alpha: *const TA, beta: *const TB,
-			k: usize,
-			ldc: usize,
-			ld_arr: [usize; 2],
-			// mask: *const u32,
-			m: usize
-		) {
-			let mask_arr = [
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				u32::MAX,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-			];
-			let mask = mask_arr.as_ptr().add(8-$nr);
-			let k_iter = k / 4;
-			let k_left = k % 4;
-			let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-			let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
-			asm!(
-				asm_vzeroall!(VER8,$nr),
-	
-				asm_init_ab!(VER8,$a_layout,$b_layout),
-			
-				// 3 -> CONSIDKLEFT
-				"je 3f",
-			
-				// 2 -> KITER
-				"2:",
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 0),
-				// iter 0
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 0), "\n",
-				asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 1
-				asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 1),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-	
-				// iter 2
-				prefetch!($mr, $a_layout, "{ax}", $pfa_dist, 2),
-				asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 2),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
- 
- 
-				prefetch!($nr, $b_layout, "{bx}", $pfb_dist, 1),
-	
-				// iter 3
-				asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 3),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
- 
- 
-				inc_a_k_unroll!($a_layout, $mr, 4),
-				inc_b_k_unroll!($b_layout, $nr, 4),
-	
-				"dec {x0}",
-				// 2 -> KITER
-				"jne 2b",
- 
- 
-				// 3 -> CONSIDKLEFT
-				"3:",
-				"mov 32({int_arrx}),{x0}",
-				"test {x0},{x0}",
- 
- 
-				// 5 -> POSTACCUM
-				"je 5f",
-	
-				// 4 -> KLEFT
-				"4:",
-				asm_8x6_step!($mr, $nr, $a_layout, $b_layout, 0),
-				inc_a!($a_layout),
-				inc_b!($b_layout,$nr),
-				inc_a_k_unroll!($a_layout, $mr, 1),
-				inc_b_k_unroll!($b_layout, $nr, 1),
- 
- 
-				"dec {x0}",
-	
-				// 4 -> KLEFT
-				"jne 4b",
-	
-				// 5 -> POSTACCUM
-				"5:",
-				asm_c_load!($nr),
-				// scale by alpha
-				asm_alpha_scale!(VER8, $nr),
-				transpose!(T, 8, 4),
-				"vbroadcastss ({betax}), %ymm0",
-				"vmovdqu ({maskx}), %ymm1",
- 
-				"vxorps %ymm3,%ymm3,%ymm3",
-				"vucomiss %xmm3,%xmm0",
- 
-				// 6 -> BETAZERO
-				"je 6f",
-				asm_8x6_acc!($mr,$nr,M,T),
- 
- 
-				// 6 -> BETAZERO
-				"6:",
-				asm_8x6_store!($mr,$nr,M,T),
-	
-				// 7 -> DDONE
-				"7:",
-				ax = inout(reg) a => _,
-				bx = inout(reg) b => _,
-				cx = inout(reg) cf => _,
-				int_arrx = inout(reg) u64_ptr => _,
-				alphax = inout(reg) alpha => _,
-				betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
-				m = inout(reg) m => _,
-				x0 = out(reg) _,
-				x1 = out(reg) _,
-				x2 = out(reg) _,
-				x3 = out(reg) _,
-				out("ymm0") _, out("ymm1") _, out("ymm2") _, out("ymm3") _,
-				out("ymm4") _, out("ymm5") _, out("ymm6") _, out("ymm7") _,
-				out("ymm8") _, out("ymm9") _, out("ymm10") _, out("ymm11") _,
-				out("ymm12") _, out("ymm13") _, out("ymm14") _, out("ymm15") _,
-				options(att_syntax)
-			);
-		}
-	};
- }
 
 macro_rules! prefetch_0 {
 	($dist:tt, $reg:tt, $k_i:tt) => {
@@ -2281,7 +1368,8 @@ macro_rules! prefetch_c {
         });
     }
 }
- macro_rules! def_ukernel {
+ 
+macro_rules! def_ukernel {
 	(
 		$VER:tt,
 		$asm_step_macro:tt,
@@ -2402,29 +1490,277 @@ macro_rules! prefetch_c {
 	};
 }
 
-macro_rules! group_def_ukernel {
+macro_rules! def_ukernel_partial {
 	(
-    	$mr:tt,
-    	$n0:tt, $n1:tt,
-		$transpose:tt,
+		$VER:tt,
+		$asm_step_macro:tt,
+		$asm_acc_macro:tt,
+		$asm_store_macro:tt,
+    	$mr:tt, $nr:tt, $transpose:tt,
     	$a_layout:tt, $b_layout:tt,
-    	$func_name:ident, $def_macro:tt
+		$pfa_dist:tt, $pfb_dist:tt,
+		$unroll:tt,
+    	$func_name:ident
 	) => {
-		seq!(nr in $n0..=$n1 {
-			paste! {
-				[<$def_macro>]!(
-					$mr, nr, $transpose,
-					$a_layout, $b_layout,
-					0, 8,
-					[<ukernel_ $mr x nr _ $func_name>]
-				);
-			}
-		});
+		#[target_feature(enable = "avx,fma")]
+    	pub(crate) unsafe fn $func_name(
+        	a: *const TA, b: *const TB, c: *mut TC,
+        	alpha: *const TA, beta: *const TB,
+        	k: usize,
+        	ldc: usize,
+			ld_arr: [usize; 2],
+			mask: *const u32
+    	) {
+        	let k_iter = k / $unroll;
+        	let k_left = k % $unroll;
+            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
+        	let u64_ptr = u64_arr.as_ptr();
+			let cf = c;
+			// prefetch for c
+			use std::arch::x86_64::_mm_prefetch;
+			prefetch_c!($mr,$nr,c,ldc);
+        	asm!(
+            	asm_vzeroall!($VER,$nr),
+   	 
+            	asm_init_ab!($VER,$a_layout,$b_layout),
+           	 
+            	// 3 -> CONSIDKLEFT
+            	"je 3f",
+           	 
+            	// 2 -> KITER
+            	"2:",
+				seq!( i in 0..$unroll{
+					concat!(
+						#(
+							prefetch_a!($mr, $a_layout, $pfa_dist, $unroll, i), "\n",
+							prefetch_b!($nr, $b_layout, $pfb_dist, $unroll, i), "\n",
+							$asm_step_macro!($mr, $nr, $a_layout, $b_layout, i), "\n",
+							inc_a!($a_layout), "\n",
+							inc_b!($b_layout,$nr),  "\n",
+						)*
+					)
+				}),
+
+            	inc_a_k_unroll!($a_layout, $mr, $unroll),
+            	inc_b_k_unroll!($b_layout, $nr, $unroll),
+   	 
+            	"dec {x0}",
+            	// 2 -> KITER
+            	"jne 2b",
+
+            	// 3 -> CONSIDKLEFT
+            	"3:",
+            	"mov 32({int_arrx}),{x0}",
+            	"test {x0},{x0}",
+
+            	// 5 -> POSTACCUM
+            	"je 5f",
+   	 
+            	// 4 -> KLEFT
+            	"4:",
+            	$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),
+            	inc_a!($a_layout),
+            	inc_b!($b_layout,$nr),
+            	inc_a_k_unroll!($a_layout, $mr, 1),
+            	inc_b_k_unroll!($b_layout, $nr, 1),
+
+            	"dec {x0}",
+   	 
+            	// 4 -> KLEFT
+            	"jne 4b",
+   	 
+            	// 5 -> POSTACCUM
+            	"5:",
+            	asm_c_load!($nr),
+            	// scale by alpha
+            	asm_alpha_scale!($VER, $nr),
+
+				transpose!($transpose, $mr, $nr),
+
+            	"vbroadcastss ({betax}), %ymm0",
+
+            	"vxorps %ymm3,%ymm3,%ymm3",
+            	"vucomiss %xmm3,%xmm0",
+				"vmovdqu ({maskx}), %ymm1",
+				// "/* {maskx}*/",
+
+            	// 6 -> BETAZERO
+            	"je 6f",
+            	$asm_acc_macro!($mr,$nr,M,$transpose),
+
+            	// 6 -> BETAZERO
+            	"6:",
+            	$asm_store_macro!($mr,$nr,M,$transpose),
+   	 
+            	// 7 -> DDONE
+            	"7:",
+            	ax = inout(reg) a => _,
+            	bx = inout(reg) b => _,
+            	cx = inout(reg) cf => _,
+            	int_arrx = inout(reg) u64_ptr => _,
+            	alphax = inout(reg) alpha => _,
+            	betax = inout(reg) beta => _,
+				maskx = inout(reg) mask => _,
+            	x0 = out(reg) _,
+            	x1 = out(reg) _,
+            	x2 = out(reg) _,
+            	x3 = out(reg) _,
+            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+            	options(att_syntax)
+        	);
+    	}
 	};
 }
 
+macro_rules! def_ukernel_partial_new {
+	(
+		$VER:tt,
+		$asm_step_macro:tt,
+		$asm_acc_macro:tt,
+		$asm_store_macro:tt,
+    	$mr:tt, $nr:tt, $transpose:tt,
+    	$a_layout:tt, $b_layout:tt,
+		$pfa_dist:tt, $pfb_dist:tt,
+		$unroll:tt,
+    	$func_name:ident
+	) => {
+		#[target_feature(enable = "avx,fma")]
+    	pub(crate) unsafe fn $func_name(
+        	a: *const TA, b: *const TB, c: *mut TC,
+        	alpha: *const TA, beta: *const TB,
+        	k: usize,
+        	ldc: usize,
+			ld_arr: [usize; 2],
+			// mask: *const u32,
+			m: usize
+    	) {
+        	let k_iter = k / $unroll;
+        	let k_left = k % $unroll;
+            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
+        	let u64_ptr = u64_arr.as_ptr();
+			let cf = c;
+			let mask_arr = [
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				u32::MAX,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+			];
+			let mask = mask_arr.as_ptr().add(8-$nr);
+			// prefetch for c
+			use std::arch::x86_64::_mm_prefetch;
+			prefetch_c!($mr,$nr,c,ldc);
+        	asm!(
+            	asm_vzeroall!($VER,$nr),
+   	 
+            	asm_init_ab!($VER,$a_layout,$b_layout),
+           	 
+            	// 3 -> CONSIDKLEFT
+            	"je 3f",
+           	 
+            	// 2 -> KITER
+            	"2:",
+				seq!( i in 0..$unroll{
+					concat!(
+						#(
+							prefetch_a!($mr, $a_layout, $pfa_dist, $unroll, i), "\n",
+							prefetch_b!($nr, $b_layout, $pfb_dist, $unroll, i), "\n",
+							$asm_step_macro!($mr, $nr, $a_layout, $b_layout, i), "\n",
+							inc_a!($a_layout), "\n",
+							inc_b!($b_layout,$nr),  "\n",
+						)*
+					)
+				}),
 
-macro_rules! group_def_ukernel2 {
+            	inc_a_k_unroll!($a_layout, $mr, $unroll),
+            	inc_b_k_unroll!($b_layout, $nr, $unroll),
+   	 
+            	"dec {x0}",
+            	// 2 -> KITER
+            	"jne 2b",
+
+            	// 3 -> CONSIDKLEFT
+            	"3:",
+            	"mov 32({int_arrx}),{x0}",
+            	"test {x0},{x0}",
+
+            	// 5 -> POSTACCUM
+            	"je 5f",
+   	 
+            	// 4 -> KLEFT
+            	"4:",
+            	$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),
+            	inc_a!($a_layout),
+            	inc_b!($b_layout,$nr),
+            	inc_a_k_unroll!($a_layout, $mr, 1),
+            	inc_b_k_unroll!($b_layout, $nr, 1),
+
+            	"dec {x0}",
+   	 
+            	// 4 -> KLEFT
+            	"jne 4b",
+   	 
+            	// 5 -> POSTACCUM
+            	"5:",
+            	asm_c_load!($nr),
+            	// scale by alpha
+            	asm_alpha_scale!($VER, $nr),
+
+				transpose!($transpose, $mr, $nr),
+
+            	"vbroadcastss ({betax}), %ymm0",
+
+            	"vxorps %ymm3,%ymm3,%ymm3",
+            	"vucomiss %xmm3,%xmm0",
+				"vmovdqu ({maskx}), %ymm1",
+
+            	// 6 -> BETAZERO
+            	"je 6f",
+            	$asm_acc_macro!($mr,$nr,M,$transpose),
+
+            	// 6 -> BETAZERO
+            	"6:",
+            	$asm_store_macro!($mr,$nr,M,$transpose),
+   	 
+            	// 7 -> DDONE
+            	"7:",
+            	ax = inout(reg) a => _,
+            	bx = inout(reg) b => _,
+            	cx = inout(reg) cf => _,
+            	int_arrx = inout(reg) u64_ptr => _,
+            	alphax = inout(reg) alpha => _,
+            	betax = inout(reg) beta => _,
+				maskx = inout(reg) mask => _,
+				m = inout(reg) m => _,
+            	x0 = out(reg) _,
+            	x1 = out(reg) _,
+            	x2 = out(reg) _,
+            	x3 = out(reg) _,
+            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+            	options(att_syntax)
+        	);
+    	}
+	};
+}
+
+macro_rules! group_def_ukernel {
 	(
     	$mr:tt,
     	$n0:tt, $n1:tt,
@@ -2454,34 +1790,26 @@ macro_rules! group_def_ukernel2 {
 	};
 }
 
-group_def_ukernel2!(24, 1, 4, F, B, B, bb, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel2!(24, 1, 4, F, B, R, br, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel2!(24, 1, 4, F, B, C, bc, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel2!(24, 4, 4, T, B, C, rb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel2!(24, 4, 4, T, B, R, cb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-// group_def_ukernel!(24, 1, 4, F, B, R, br, def_24x4_ukernel);
-// group_def_ukernel!(24, 1, 4, F, B, C, bc, def_24x4_ukernel);
-group_def_ukernel!(24, 1, 4, F, B, B, bb_partial, def_24x4_ukernel_partial);
-// group_def_ukernel!(24, 4, 4, T, B, C, rb_t, def_24x4_ukernel);
-// group_def_ukernel!(24, 4, 4, T, B, R, cb_t, def_24x4_ukernel);
-group_def_ukernel!(24, 1, 4, T, B, C, rb_t_partial, def_24x4_ukernel_partial_new);
-group_def_ukernel!(24, 1, 4, T, B, R, cb_t_partial, def_24x4_ukernel_partial_new);
+group_def_ukernel!(24, 1, 4, F, B, B, bb, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, F, B, R, br, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, F, B, C, bc, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 4, 4, T, B, C, rb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 4, 4, T, B, R, cb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, F, B, B, bb_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 
-group_def_ukernel2!(16, 1, 6, F, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel2!(16, 1, 4, F, B, R, br, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel2!(16, 1, 4, F, B, C, bc, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-// group_def_ukernel!(16, 1, 4, F, B, R, br, def_16x6_ukernel);
-// group_def_ukernel!(16, 1, 4, F, B, C, bc, def_16x6_ukernel);
-group_def_ukernel!(16, 1, 6, F, B, B, bb_partial, def_16x6_ukernel_partial);
-// group_def_ukernel!(16, 4, 4, T, B, C, rb_t, def_16x6_ukernel);
-// group_def_ukernel!(16, 4, 4, T, B, R, cb_t, def_16x6_ukernel);
-group_def_ukernel!(16, 1, 4, T, B, C, rb_t_partial, def_16x6_ukernel_partial_new);
-group_def_ukernel!(16, 1, 4, T, B, R, cb_t_partial, def_16x6_ukernel_partial_new);
+group_def_ukernel!(16, 1, 6, F, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 4, F, B, R, br, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 4, F, B, C, bc, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 6, F, B, B, bb_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 
-group_def_ukernel2!(8, 1, 6, F, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel2!(8, 1, 4, F, B, R, br, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel2!(8, 1, 4, F, B, C, bc, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel!(8, 1, 6, F, B, B, bb_partial, def_8x6_ukernel_partial);
-group_def_ukernel!(8, 1, 4, T, B, C, rb_t_partial, def_8x6_ukernel_partial_new);
-group_def_ukernel!(8, 1, 4, T, B, R, cb_t_partial, def_8x6_ukernel_partial_new);
+group_def_ukernel!(8, 1, 6, F, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 4, F, B, R, br, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 4, F, B, C, bc, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 6, F, B, B, bb_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 

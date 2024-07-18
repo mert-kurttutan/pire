@@ -205,10 +205,6 @@ macro_rules! def_milikernel {
                         return;
                     }
                 )*
-
-                // std::arch::asm!(
-                //     "vzeroupper",
-                // );
             }        
         }});
     };

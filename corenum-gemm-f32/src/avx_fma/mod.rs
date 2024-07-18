@@ -1,6 +1,4 @@
 
-// #![allow(unused)]
-
 pub(crate) mod microkernel;
 
 
@@ -19,7 +17,7 @@ pub(crate) use microkernel::{
 const VS: usize = 8; // vector size in float, __m256
 
 use corenum_base::{
-   env_or, StridedMatrix, GemmPack
+   StridedMatrix, GemmPack
 };
 
 
@@ -83,17 +81,11 @@ C: GemmOut<X=f32,Y=f32>,
        beta: *const C::X,
        y: C,
    ) {
-        let a_rs = a.get_rs();
-        let a_cs = a.get_cs();
-        let a_ptr = a.get_data_ptr();
         let x_ptr = x.get_data_ptr();
         let inc_x = x.get_rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        // axpy(m, n, alpha, a_ptr, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy);
-
-        // B::kernel_sup_m(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
-        A::axpy(m, n, alpha, a, a_rs, a_cs, x_ptr, inc_x, beta, y_ptr, incy)
+        A::axpy(m, n, alpha, a, x_ptr, inc_x, beta, y_ptr, incy)
 
    }
 }
@@ -231,7 +223,7 @@ pub trait Axpy {
     unsafe fn axpy(
         m: usize, n: usize,
         alpha: *const TA,
-        a: Self, a_rs: usize, a_cs: usize,
+        a: Self,
         x: *const TB, inc_x: usize,
         beta: *const TC,
         y: *mut TC, inc_y: usize,
@@ -243,12 +235,11 @@ impl Axpy for StridedMatrix<f32>{
     unsafe fn axpy(
         m: usize, n: usize,
         alpha: *const TA,
-        a: StridedMatrix<f32>, a_rs: usize, a_cs: usize,
+        a: StridedMatrix<f32>,
         x: *const TB, inc_x: usize,
         beta: *const TC,
         y: *mut TC, inc_y: usize,
     ) {
-        // let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
         let a_ptr = a.data_ptr;
         axpy(m, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, y, inc_y);
     }
@@ -259,7 +250,7 @@ impl Axpy for PackedMatrix<f32>{
     unsafe fn axpy(
         m: usize, n: usize,
         alpha: *const TA,
-        a: PackedMatrix<f32>, a_rs: usize, a_cs: usize,
+        a: PackedMatrix<f32>,
         x: *const TB, inc_x: usize,
         beta: *const TC,
         y: *mut TC, inc_y: usize,
@@ -275,8 +266,6 @@ impl Axpy for PackedMatrix<f32>{
         let mc_eff = a.mc;
         let kc_eff = a.kc;
         let one = 1_f32;
-        let c_rs = inc_y;
-        let c_cs = 1;
         while mc < mc_end {
             let mc_len = mc_eff.min(mc_end - mc);
  
@@ -292,7 +281,6 @@ impl Axpy for PackedMatrix<f32>{
                 while mr < mc_len {
                     let mr_len = 24.min(mc_len - mr);
                     let c_i = c_i.add(mr*inc_y);
-                    let nr = kc_len;
                     let a_cs = {
                         if mr_len > 16 {
                             24
