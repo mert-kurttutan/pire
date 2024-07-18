@@ -3,9 +3,6 @@ use std::sync::Mutex;
 use std::sync::Barrier;
 use std::sync::Arc;
 
-pub mod asm_macro;
-
-
 #[macro_export]
 macro_rules! env_or {
 	($name:expr, $default:expr) => {
