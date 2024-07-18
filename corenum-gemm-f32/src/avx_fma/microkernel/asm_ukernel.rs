@@ -21,13 +21,15 @@ x4 -> bx + 3*cs_b
 macro_rules! asm_init_ab {
 	($KER:tt,B,B) => {
     	concat!(
+			"/* {x3} */", "\n",
+			"/* {x2} */", "\n",
+			"/* {x1} */", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
 	};
 	($KER:tt,C,R) => {
     	concat!(
-        	"dec {x3}", "\n",
         	// mov cs_a to reg
         	"mov ({int_arrx}), {x1}", "\n",
         	// mov cs_b to reg
@@ -38,6 +40,8 @@ macro_rules! asm_init_ab {
 	};
 	($KER:tt,B,R) => {
     	concat!(
+			"/* {x3} */", "\n",
+			"/* {x1} */", "\n",
         	// mov cs_b to reg
         	"mov 8({int_arrx}), {x2}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
@@ -87,9 +91,9 @@ macro_rules! asm_init_ab {
     	concat!(
         	// mov cs_b to reg
         	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -98,9 +102,9 @@ macro_rules! asm_init_ab {
     	concat!(
         	// mov cs_b to reg
         	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -109,199 +113,11 @@ macro_rules! asm_init_ab {
     	concat!(
         	// mov cs_b to reg
         	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
-    	)
-	};
-}
-
-
-macro_rules! unit_prefetch_c {
-	(6, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",1)", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",2)", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,",",$cs,",1)", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,",",$cs,",2)", "\n",
-    	)
-	};
-
-	(5, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",1)", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",2)", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,",",$cs,",1)", "\n",
-    	)
-	};
-
-	(4, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",1)", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",2)", "\n",
-        	"prefetcht0 ",$m0,"(",$c2,")", "\n",
-    	)
-	};
-
-	(3, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",1)", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",2)", "\n",
-    	)
-	};
-
-	(2, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-        	"prefetcht0 ",$m0,"(",$c1,",",$cs,",1)", "\n",
-    	)
-	};
-
-	(1, $c1:tt, $c2:tt, $c3:tt, $cs:tt, $m0:tt) => {
-    	concat!(
-        	"prefetcht0 ",$m0,"(",$c1,")", "\n",
-    	)
-	};
-}
-
-
-macro_rules! asm_prefetch_c {
-	(1, $nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 4),
-    	)
-	};
-	(2, $nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 8),
-    	)
-	};
-	(4, $nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 16),
-    	)
-	};
-	(8,$nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 32),
-    	)
-	};
-
-	(12,$nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 48),
-    	)
-	};
-
-	(16,$nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	"lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 12),
-
-        	// unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 32),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 48),
-    	)
-	};
-
-	(20,$nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	// "lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 48),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 76),
-    	)
-	};
-
-	(24,$nr:tt) => {
-    	concat!(
-        	// prefetch c
-        	"mov 16({int_arrx}),{x1}", "\n",
-        	"lea (,{x1}, 4), {x1}", "\n",
-    
-        	"lea ({x1}, {x1}, 2), {x2}", "\n",
-        	"lea ({cx}, {x2}, 1), {x2}", "\n",
-        	// "lea ({x2}, {x1}, 2), {x3}", "\n",
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 0),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 48),
-
-        	unit_prefetch_c!($nr, "{cx}", "{x2}", "{x3}", "{x1}", 92),
     	)
 	};
 }
@@ -1322,9 +1138,7 @@ macro_rules! def_24x4_ukernel_partial {
         	let u64_ptr = u64_arr.as_ptr();
 			let cf = c;
         	asm!(
-            	"dec {x3}",
             	asm_vzeroall!(VER24,$nr),
-            	asm_prefetch_c!($mr,$nr),
    	 
             	asm_init_ab!(VER24,$a_layout,$b_layout),
            	 
@@ -1475,9 +1289,7 @@ macro_rules! def_24x4_ukernel_partial_new {
 			let u64_ptr = u64_arr.as_ptr();
 			let cf = c;
 			asm!(
-				"dec {x3}",
 				asm_vzeroall!(VER24,$nr),
-				asm_prefetch_c!($mr,$nr),
 	
 				asm_init_ab!(VER24,$a_layout,$b_layout),
 			
@@ -1727,7 +1539,6 @@ macro_rules! def_16x6_ukernel_partial {
 			let cf = c;
         	asm!(
             	asm_vzeroall!(VER16,$nr),
-            	asm_prefetch_c!($mr,$nr),
    	 
             	asm_init_ab!(VER16,$a_layout,$b_layout),
            	 
@@ -1878,7 +1689,6 @@ macro_rules! def_16x6_ukernel_partial_new {
 			let cf = c;
 			asm!(
 				asm_vzeroall!(VER16,$nr),
-				asm_prefetch_c!($mr,$nr),
 	
 				asm_init_ab!(VER16,$a_layout,$b_layout),
 			
@@ -2098,7 +1908,6 @@ macro_rules! def_8x6_ukernel_partial {
 			let cf = c;
         	asm!(
             	asm_vzeroall!(VER8,$nr),
-            	asm_prefetch_c!($mr,$nr),
    	 
             	asm_init_ab!(VER8,$a_layout,$b_layout),
            	 
@@ -2248,7 +2057,6 @@ macro_rules! def_8x6_ukernel_partial_new {
 			let cf = c;
 			asm!(
 				asm_vzeroall!(VER8,$nr),
-				asm_prefetch_c!($mr,$nr),
 	
 				asm_init_ab!(VER8,$a_layout,$b_layout),
 			
@@ -2454,6 +2262,25 @@ macro_rules! prefetch_b {
 	};
 }
 
+macro_rules! prefetch_c {
+    (24, $nr:tt, $c:tt, $ldc:tt) => {
+        seq!(j in 0..$nr {
+            _mm_prefetch($c.add(0+j*$ldc) as *const i8, 3);
+            _mm_prefetch($c.add(12+j*$ldc) as *const i8, 3);
+			_mm_prefetch($c.add(23+j*$ldc) as *const i8, 3);
+        });
+    };
+    (16, $nr:tt, $c:tt, $ldc:tt) => {
+        seq!(j in 0..$nr {
+            _mm_prefetch($c.add(16+j*$ldc) as *const i8, 3);
+        });
+    };
+    (8, $nr:tt, $c:tt, $ldc:tt) => {
+        seq!(j in 0..$nr {
+            _mm_prefetch($c.add(8+j*$ldc) as *const i8, 3);
+        });
+    }
+}
  macro_rules! def_ukernel {
 	(
 		$VER:tt,
@@ -2479,10 +2306,11 @@ macro_rules! prefetch_b {
             let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
         	let u64_ptr = u64_arr.as_ptr();
 			let cf = c;
+			// prefetch for c
+			use std::arch::x86_64::_mm_prefetch;
+			prefetch_c!($mr,$nr,c,ldc);
         	asm!(
-            	"dec {x3}",
             	asm_vzeroall!($VER,$nr),
-            	asm_prefetch_c!($mr,$nr),
    	 
             	asm_init_ab!($VER,$a_layout,$b_layout),
            	 
@@ -2618,7 +2446,7 @@ macro_rules! group_def_ukernel2 {
 					$mr, nr, $transpose,
 					$a_layout, $b_layout,
 					0, 128,
-					8,
+					4,
 					[<ukernel_ $mr x nr _ $func_name>]
 				);
 			}
