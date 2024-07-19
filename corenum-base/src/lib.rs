@@ -17,6 +17,7 @@ macro_rules! env_or {
 pub struct HWConfig {
     pub avx: bool,
     pub avx2: bool,
+    pub avx512f: bool,
     pub fma: bool,
     pub fma4: bool,
     pub hw_model: HWModel,
@@ -47,12 +48,14 @@ fn detect_hw_config() -> HWConfig {
         let avx = feature_info.has_avx();
         let fma = feature_info.has_fma();
         let avx2  = extended_feature_info.has_avx2();
+        let avx512f = extended_feature_info.has_avx512f();
 
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
         return HWConfig {
             avx,
             avx2,
+            avx512f,
             fma,
             fma4,
             hw_model: HWModel::Reference,

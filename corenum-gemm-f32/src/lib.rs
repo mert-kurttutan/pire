@@ -1,4 +1,5 @@
 pub(crate) mod avx_fma;
+// pub(crate) mod avx512f;
 pub(crate) mod reference;
 
 pub(crate) type TA = f32;
@@ -134,8 +135,8 @@ use corenum_base::{
 
 use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + Axpy, 
-B: GemmArray<f32,X=f32> + Axpy,
+A: GemmArray<f32,X=f32> + Axpy,// + avx512f::Axpy, 
+B: GemmArray<f32,X=f32> + Axpy,// + avx512f::Axpy,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -147,9 +148,26 @@ C: GemmOut<X=f32,Y=f32>,
 	par: &CorenumPar,
 ){	
 	let avx = (*RUNTIME_HW_CONFIG).avx;
+	let avx512f = (*RUNTIME_HW_CONFIG).avx512f;
 	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	// if avx512f {
+	// 	match model {
+	// 		_ => {
+	// 			const MR: usize = 48;
+	// 			const NR: usize = 8;
+	// 			let hw_config = avx512f::AvxFma::<MR,NR>{
+	// 				goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+	// 				is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+	// 			};
+	// 			corenum_gemm(
+	// 				&hw_config, m, n, k, alpha, a, b, beta, c, par
+	// 			);
+	// 		}
+	// 	}
+	// 	return;
+	// }
 	if avx && fma {
 		match model {
 			_ => {
@@ -164,10 +182,7 @@ C: GemmOut<X=f32,Y=f32>,
 				);
 			}
 		}
-	} else {
-		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
-		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
-		// );
+		return;
 	}
 }
 
