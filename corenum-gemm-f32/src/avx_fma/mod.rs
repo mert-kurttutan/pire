@@ -87,7 +87,6 @@ C: GemmOut<X=f32,Y=f32>,
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
         A::axpy(m, n, alpha, a, x_ptr, inc_x, beta, y_ptr, incy)
-
    }
 }
 
@@ -208,18 +207,6 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
 
 }
 
-
-pub trait SupM {
-    unsafe fn kernel_sup_m(
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        b: Self, b_rs: usize, b_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const TA,
-    );
-}
-
 pub trait Axpy {
     unsafe fn axpy(
         m: usize, n: usize,
@@ -301,64 +288,6 @@ impl Axpy for PackedMatrix<f32>{
     }
 }
 
-pub trait SupN {
-    unsafe fn kernel_sup_n(
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        a: Self, a_rs: usize, a_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const TB,
-    );
-}
-
-impl SupM for StridedMatrix<f32>{
-    #[target_feature(enable = "avx,fma")]
-    unsafe fn kernel_sup_m(
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        b: StridedMatrix<f32>, b_rs: usize, b_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const TA,
-    ) {
-        let b_ptr = b.data_ptr.add(b_rs*b.rs+b_cs*b.cs);
-        kernel_sup_m(m, n, k, alpha, beta, b_ptr, b.rs, b.cs, c, c_rs, c_cs, ap);
-    }
-
-}
-
-impl SupN for StridedMatrix<f32>{
-    #[target_feature(enable = "avx,fma")]
-    unsafe fn kernel_sup_n(
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        a: StridedMatrix<f32>, a_rs: usize, a_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const TB,
-    ) {
-        let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
-        kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.rs, a.cs, c, c_rs, c_cs, bp);
-    }
-}
-
-impl SupN for PackedMatrix<f32>{
-    #[target_feature(enable = "avx,fma")]
-    unsafe fn kernel_sup_n(
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        a: PackedMatrix<f32>, a_rs: usize, a_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const TB,
-    ) {
-        let a_ptr = a.data_ptr.add(a_rs*a.rs+a_cs*a.cs);
-        kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.rs, a.cs, c, c_rs, c_cs, bp);
-    }
-}
-
-
 
 use corenum_base::GemmArray;
 
@@ -366,7 +295,7 @@ impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
 A: GemmArray<f32>, 
-B: GemmArray<f32> + SupM,
+B: GemmArray<f32, X = f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmSmallM<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
@@ -381,7 +310,9 @@ where AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const TA,
    ) {
-    B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
+    let b_ptr = b.get_data_ptr().add(b_rs*b.get_rs()+b_cs*b.get_cs());
+    kernel_sup_m(m, n, k, alpha, beta, b_ptr, b.get_rs(), b.get_cs(), c, c_rs, c_cs, ap);
+    // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
 
@@ -390,7 +321,7 @@ where AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-A: GemmArray<f32>+SupN, 
+A: GemmArray<f32, X = f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmSmallN<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
@@ -407,6 +338,8 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
         c: *mut TC, c_rs: usize, c_cs: usize,
         bp: *const TB,
    ) {
-    A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
+    // A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
+    let a_ptr = a.get_data_ptr().add(a_rs*a.get_rs()+a_cs*a.get_cs());
+    kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.get_rs(), a.get_cs(), c, c_rs, c_cs, bp);
    }
 }

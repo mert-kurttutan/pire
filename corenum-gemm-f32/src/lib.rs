@@ -52,8 +52,6 @@ use avx_fma::{
 // 	std::ptr::copy_nonoverlapping(leftover_vec.as_ptr(), a, n_left);
 // }
 
-use avx_fma::Identity;
-use corenum_base::HWModel;
 
 pub unsafe fn corenum_gemv_f32f32f32<
 A: GemmArray<f32,X=f32> + Axpy, 
@@ -128,11 +126,6 @@ pub unsafe fn corenum_sdot(
 
 use corenum_base::corenum_gemm;
 
-
-use avx_fma::{
-	SupM, SupN,
-};
-
 use corenum_base::{
 	GemmArray,
 	StridedMatrixMut,
@@ -141,8 +134,8 @@ use corenum_base::{
 
 use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + SupN + Axpy, 
-B: GemmArray<f32,X=f32> + SupM + Axpy,
+A: GemmArray<f32,X=f32> + Axpy, 
+B: GemmArray<f32,X=f32> + Axpy,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
