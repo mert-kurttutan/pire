@@ -209,6 +209,7 @@ macro_rules! def_milikernel {
         }});
     };
 }
+
 def_milikernel!(24, 4, 24, 16, 8);
 def_milikernel!(16, 6, 16, 8);
 
@@ -392,6 +393,7 @@ macro_rules! def_milikernel_blocked {
         }});
     };
 }
+
 def_milikernel_blocked!(24, 4, true, r, br, 24, 16, 8);
 def_milikernel_blocked!(24, 4, false, c, bc, 24, 16, 8);
 

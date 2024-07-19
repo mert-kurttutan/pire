@@ -113,7 +113,7 @@ const GOTO_NR: usize,
 
     #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
+        pack_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
     }
 }
 
