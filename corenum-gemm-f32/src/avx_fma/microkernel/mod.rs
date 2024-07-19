@@ -11,10 +11,10 @@ use paste::paste;
 pub(crate) use asm_ukernel::*;
 // pub(crate) use new_asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
-    pack_panel_24,
-    pack_panel_16,
-    pack_panel_6,
-    pack_panel_4,
+    packa_panel_24,
+    packa_panel_16,
+    packb_panel_6,
+    packb_panel_4,
 };
 pub(crate) use axpy_kernel::*;
 
@@ -584,20 +584,32 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize>(
 }
 
 #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn pack_panel<const MR: usize>(
+pub(crate) unsafe fn packa_panel<const MR: usize>(
     m: usize, k: usize,
     a: *const TB, a_rs: usize, a_cs: usize,
     ap: *mut TB,
 ){
     if MR == 24 {
-        pack_panel_24(m, k, a, a_rs, a_cs, ap)
+        packa_panel_24(m, k, a, a_rs, a_cs, ap)
     } else if MR == 16 {
-        pack_panel_16(m, k, a, a_rs, a_cs, ap)
-    } else if MR == 6 {
-        pack_panel_6(m, k, a, a_rs, a_cs, ap)
-    } else if MR == 4 {
-        pack_panel_4(m, k, a, a_rs, a_cs, ap)
+        packa_panel_16(m, k, a, a_rs, a_cs, ap)
     } else  {
         panic!("Packing for MR = {} not implemented", MR);
+    }
+}
+
+
+#[target_feature(enable = "avx,fma")]
+pub(crate) unsafe fn packb_panel<const NR: usize>(
+    m: usize, k: usize,
+    a: *const TB, a_rs: usize, a_cs: usize,
+    ap: *mut TB,
+){
+    if NR == 6 {
+        packb_panel_6(m, k, a, a_rs, a_cs, ap)
+    } else if NR == 4 {
+        packb_panel_4(m, k, a, a_rs, a_cs, ap)
+    } else  {
+        panic!("Packing for MR = {} not implemented", NR);
     }
 }

@@ -1116,7 +1116,7 @@ macro_rules! def_packb {
        seq!(NL in 1..$nr {
            paste! {
             #[target_feature(enable = "avx,fma")]
-            pub(crate) unsafe fn [<pack_panel_$nr>](
+            pub(crate) unsafe fn [<packb_panel_$nr>](
                    n: usize, k: usize,
                    b: *const TB, b_rs: usize, b_cs: usize,
                    bp: *mut TB,
@@ -1197,7 +1197,7 @@ macro_rules! def_packa {
     ($mr:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx,fma")]
-            pub(crate) unsafe fn [<pack_panel_$mr>](
+            pub(crate) unsafe fn [<packa_panel_$mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
                 ap: *mut TA,

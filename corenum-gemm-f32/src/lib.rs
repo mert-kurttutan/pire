@@ -237,7 +237,7 @@ pub unsafe fn packa_f32(
 					let mc_len_eff = (mc_len + MR-1) / MR * MR;
 					for p in (0..k).step_by(KC) {
 						let kc_len = if k >= (p + KC) {KC} else {k - p};
-						avx_fma::pack_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+						avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
 						ap = ap.add(mc_len_eff*kc_len);	
 					}
 				}

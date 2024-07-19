@@ -6,7 +6,8 @@ use corenum_base::GemmArrayP;
 use corenum_base::PackedMatrix;
 use corenum_base::StridedMatrixMut;
 pub(crate) use microkernel::{
-   pack_panel,
+   packa_panel,
+   packb_panel,
    kernel,
    kernel_sup_m,
    kernel_sup_n,
@@ -108,12 +109,12 @@ const GOTO_NR: usize,
 > GemmPack<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+        packa_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
 
     #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        pack_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+        packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
     }
 }
 
