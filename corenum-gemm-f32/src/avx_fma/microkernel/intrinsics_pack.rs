@@ -97,7 +97,7 @@ pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f32, b: *mut f32) {
 
 
 #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn pack_k_v0<const M: usize>(
+pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
@@ -108,23 +108,15 @@ pub(crate) unsafe fn pack_k_v0<const M: usize>(
     while k_i < k_iter {
         // use vector intrinscs
         copy_packed::<M>(a, ap);
-        
-        copy_packed::<M>(a.add(lda), ap.add(8));
+        copy_packed::<M>(a.add(lda), ap.add(MR));
+        copy_packed::<M>(a.add(lda*2), ap.add(MR*2));
+        copy_packed::<M>(a.add(lda*3), ap.add(MR*3));
+        copy_packed::<M>(a.add(lda*4), ap.add(MR*4));
+        copy_packed::<M>(a.add(lda*5), ap.add(MR*5));
+        copy_packed::<M>(a.add(lda*6), ap.add(MR*6));
+        copy_packed::<M>(a.add(lda*7), ap.add(MR*7));
 
-        copy_packed::<M>(a.add(lda*2), ap.add(16));
-
-        copy_packed::<M>(a.add(lda*3), ap.add(24));
-
-        copy_packed::<M>(a.add(lda*4), ap.add(32));
-
-        copy_packed::<M>(a.add(lda*5), ap.add(40));
-
-        copy_packed::<M>(a.add(lda*6), ap.add(48));
-
-        copy_packed::<M>(a.add(lda*7), ap.add(56));
-
-
-        ap = ap.add(64);
+        ap = ap.add(MR*8);
         a = a.add(8*lda);
 
         k_i += 1;
@@ -135,7 +127,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize>(
     while k_i < k_left {
         copy_packed::<M>(a, ap);
 
-        ap = ap.add(8);
+        ap = ap.add(MR);
         a = a.add(lda);
         k_i += 1;
     }
@@ -301,63 +293,6 @@ pub(crate) unsafe fn pack_kx16_v0(
         k_i += 1;
     }
 }
-
-
-#[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn pack_kx8_v0(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    while k_i < k_iter {
-        // use vector intrinscs
-        let a0 = _mm256_loadu_ps(a);
-        _mm256_store_ps(ap, a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda));
-        _mm256_store_ps(ap.add(8), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*2));
-        _mm256_store_ps(ap.add(16), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*3));
-        _mm256_store_ps(ap.add(24), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*4));
-        _mm256_store_ps(ap.add(32), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*5));
-        _mm256_store_ps(ap.add(40), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*6));
-        _mm256_store_ps(ap.add(48), a0);
-
-        let a0 = _mm256_loadu_ps(a.add(lda*7));
-        _mm256_store_ps(ap.add(56), a0);
-
-        ap = ap.add(64);
-        a = a.add(8*lda);
-
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i < k_left {
-        let a0 = _mm256_loadu_ps(a);
-        _mm256_store_ps(ap, a0);
-
-        ap = ap.add(8);
-        a = a.add(lda);
-        k_i += 1;
-    }
-
-}
-
-
 
 #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn pack_kx6_v0(
@@ -689,9 +624,9 @@ pub(crate) unsafe fn pack_kx6_v1(
     let mut bp = bp;
 
     let mut k_i = 0;
-    const M: usize = 5;
+    const M: usize = 6;
     const M1: usize = 4;
-    const M2: usize = 1;
+    const M2: usize = 2;
     while k_i < k_iter {
         let a0 = _mm256_loadu_ps(b);
         let a1 = _mm256_loadu_ps(b.add(ldb));
@@ -726,8 +661,8 @@ pub(crate) unsafe fn pack_kx6_v1(
         storeu_ps::<M1>(x3_h, bp.add(3*M+M*4));
 
 
-
         let a0 = _mm256_loadu_ps(b.add(ldb*4));
+        let a1 = _mm256_loadu_ps(b.add(ldb*5));
 
         // transpose
         let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
@@ -736,26 +671,26 @@ pub(crate) unsafe fn pack_kx6_v1(
         let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
         let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
 
-        storeu_ps::<M2>(x0, bp);
-        storeu_ps::<M2>(x0_h, bp.add(M*4));
+        storeu_ps::<M2>(x0, bp.add(4));
+        storeu_ps::<M2>(x0_h, bp.add(M*4+4));
 
         let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
         let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M2>(x1, bp.add(M));
-        storeu_ps::<M2>(x1_h, bp.add(M+M*4));
+        storeu_ps::<M2>(x1, bp.add(M+4));
+        storeu_ps::<M2>(x1_h, bp.add(M+M*4+4));
 
         let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
         let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M2>(x2, bp.add(2*M));
-        storeu_ps::<M2>(x2_h, bp.add(2*M+M*4));
+        storeu_ps::<M2>(x2, bp.add(2*M+4));
+        storeu_ps::<M2>(x2_h, bp.add(2*M+M*4+4));
 
         let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
         let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M2>(x3, bp.add(3*M));
-        storeu_ps::<M2>(x3_h, bp.add(3*M+M*4));
+        storeu_ps::<M2>(x3, bp.add(3*M+4));
+        storeu_ps::<M2>(x3_h, bp.add(3*M+M*4+4));
 
         b = b.add(8);
-        bp = bp.add(M2*8);
+        bp = bp.add(M*8);
         k_i += 1;
     }
 
@@ -766,6 +701,8 @@ pub(crate) unsafe fn pack_kx6_v1(
         copy_packed::<1>(b.add(ldb), bp.add(1));
         copy_packed::<1>(b.add(ldb*2), bp.add(2));
         copy_packed::<1>(b.add(ldb*3), bp.add(3));
+        copy_packed::<1>(b.add(ldb*4), bp.add(4));
+        copy_packed::<1>(b.add(ldb*5), bp.add(5));
         b = b.add(1);
         bp = bp.add(M);
         k_i += 1;
@@ -829,26 +766,26 @@ pub(crate) unsafe fn pack_kx5_v1(
         let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
         let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
 
-        storeu_ps::<M2>(x0, bp);
-        storeu_ps::<M2>(x0_h, bp.add(M*4));
+        storeu_ps::<M2>(x0, bp.add(4));
+        storeu_ps::<M2>(x0_h, bp.add(M*4+4));
 
         let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
         let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M2>(x1, bp.add(M));
-        storeu_ps::<M2>(x1_h, bp.add(M+M*4));
+        storeu_ps::<M2>(x1, bp.add(M+4));
+        storeu_ps::<M2>(x1_h, bp.add(M+M*4+4));
 
         let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
         let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M2>(x2, bp.add(2*M));
-        storeu_ps::<M2>(x2_h, bp.add(2*M+M*4));
+        storeu_ps::<M2>(x2, bp.add(2*M+4));
+        storeu_ps::<M2>(x2_h, bp.add(2*M+M*4+4));
 
         let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
         let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M2>(x3, bp.add(3*M));
-        storeu_ps::<M2>(x3_h, bp.add(3*M+M*4));
+        storeu_ps::<M2>(x3, bp.add(3*M+4));
+        storeu_ps::<M2>(x3_h, bp.add(3*M+M*4+4));
 
         b = b.add(8);
-        bp = bp.add(M2*8);
+        bp = bp.add(M*8);
         k_i += 1;
     }
 
@@ -859,6 +796,7 @@ pub(crate) unsafe fn pack_kx5_v1(
         copy_packed::<1>(b.add(ldb), bp.add(1));
         copy_packed::<1>(b.add(ldb*2), bp.add(2));
         copy_packed::<1>(b.add(ldb*3), bp.add(3));
+        copy_packed::<1>(b.add(ldb*4), bp.add(4));
         b = b.add(1);
         bp = bp.add(M);
         k_i += 1;
@@ -1170,18 +1108,29 @@ def_packb!(4);
 def_packb!(6);
 
 
-macro_rules! map_mr_left {
-    (24) => { 16 };
-    (16) => { 8 };
-    (8) => { 4 };
-    (4) => { 2 };
-}
-
 macro_rules! mul8 {
     (24) => { 24 };
+    (23) => { 24 };
+    (22) => { 24 };
+    (21) => { 24 };
+    (20) => { 24 };
+    (19) => { 24 };
+    (18) => { 24 };
+    (17) => { 24 };
     (16) => { 16 };
+    (15) => { 16 };
+    (14) => { 16 };
+    (13) => { 16 };
+    (12) => { 16 };
+    (11) => { 16 };
+    (10) => { 16 };
+    (9) => { 16 };
     (8) => { 8 };
+    (7) => { 8 };
+    (6) => { 8 };
+    (5) => { 8 };
     (4) => { 8 };
+    (3) => { 8 };
     (2) => { 8 };
     (1) => { 8 };
 }
@@ -1204,8 +1153,8 @@ macro_rules! def_packa {
             ) {
                 let mut ap = ap;
                 let mut a = a;
-                const MR: usize = 24;
-                const MR_LAST_STEP: usize = 24;
+                const MR: usize = $mr;
+                const MR_LAST_STEP: usize = $mr;
                 let mut m_idx = 0;
                 if a_rs == 1 {
                     let lda = a_cs;
@@ -1218,31 +1167,13 @@ macro_rules! def_packa {
                         a = a.add(MR);
                     }
                     let m_left = m_left - m_idx;
-                    $(
-                        if m_left > map_mr_left!($mr_left) {
-                            let k_iter = (k - 1) / 8;
-                            let k_left = (k - 1) % 8;
-                            [<pack_kx$mr_left _v0>](k_iter, k_left, a, lda, ap);
-                            ap.add((k-1)*mul8!($mr_left)).copy_from_nonoverlapping(a.add(lda*(k-1)), m_left);
+                    seq!(mr_left in 1..$mr {
+                        if m_left == mr_left {
+                            pack_k_v0::<mr_left, {mul8!(mr_left)}>(k_iter, k_left, a, lda, ap);
                             return;
                         }
-                    )*
-                    if m_left > 2 {
-                        let k_iter = (k - 1) / 8;
-                        let k_left = (k - 1) % 8;
-                        [<pack_kx8 _v0>](k_iter, k_left, a, lda, ap);
-                        ap.add((k - 1) * 8)
-                            .copy_from_nonoverlapping(a.add(lda * (k - 1)), m_left);
-                        return;
-                    }
-                    if m_left > 1 {
-                        pack_k_v0::<2>(k_iter, k_left, a, lda, ap);
-                        return;
-                    }
-                    if m_left > 0 {
-                        pack_k_v0::<1>(k_iter, k_left, a, lda, ap);
-                        return;
-                    }
+                    });
+
                 } else if a_cs == 1 {
                     let lda = a_rs;
                     let k_iter = k / 8;

@@ -135,8 +135,8 @@ use corenum_base::{
 
 use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + Axpy,// + avx512f::Axpy, 
-B: GemmArray<f32,X=f32> + Axpy,// + avx512f::Axpy,
+A: GemmArray<f32,X=f32> + Axpy, //+ avx512f::Axpy, 
+B: GemmArray<f32,X=f32> + Axpy, // + avx512f::Axpy,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -306,7 +306,7 @@ mod tests {
 	const EPS: f64 = 2e-2;
 
 	static M_ARR: [usize; 25] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
-	static N_ARR: [usize; 21] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960];
+	static N_ARR: [usize; 25] = [1, 2, 3, 4, 5, 6, 7, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
 	static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
 	static BETA_ARR: [f32; 3] = [1.0, 0.0, 3.1415];
