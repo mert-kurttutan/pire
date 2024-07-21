@@ -16,3 +16,15 @@ Small dim opt + packed:
 small m: pack a + no pack b => sup_m
 small m + prepacked a => no change still use sup_m
 small_m + prepacked b => can go with packed api of goto (no sup_m)
+
+
+split_c_range
+
+m = cr * mr + mr_left
+
+cr = ic_par * cr_ic + cr_left
+
+m = cr_ic * (mr*ic_par) + cr_left*mr + mr_left
+
+
+d_mi = cr_ic * mr + mr

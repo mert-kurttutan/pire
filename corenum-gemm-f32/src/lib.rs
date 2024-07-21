@@ -1,5 +1,5 @@
 pub(crate) mod avx_fma;
-// pub(crate) mod avx512f;
+pub(crate) mod avx512f;
 pub(crate) mod reference;
 
 pub(crate) type TA = f32;
@@ -135,8 +135,8 @@ use corenum_base::{
 
 use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + Axpy, //+ avx512f::Axpy, 
-B: GemmArray<f32,X=f32> + Axpy, // + avx512f::Axpy,
+A: GemmArray<f32,X=f32> + Axpy + avx512f::Axpy, 
+B: GemmArray<f32,X=f32> + Axpy + avx512f::Axpy,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -152,22 +152,22 @@ C: GemmOut<X=f32,Y=f32>,
 	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
-	// if avx512f {
-	// 	match model {
-	// 		_ => {
-	// 			const MR: usize = 48;
-	// 			const NR: usize = 8;
-	// 			let hw_config = avx512f::AvxFma::<MR,NR>{
-	// 				goto_mc: 4800, goto_nc: 320, goto_kc: 192,
-	// 				is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-	// 			};
-	// 			corenum_gemm(
-	// 				&hw_config, m, n, k, alpha, a, b, beta, c, par
-	// 			);
-	// 		}
-	// 	}
-	// 	return;
-	// }
+	if avx512f {
+		match model {
+			_ => {
+				const MR: usize = 48;
+				const NR: usize = 8;
+				let hw_config = avx512f::AvxFma::<MR,NR>{
+					goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+					is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+				};
+				corenum_gemm(
+					&hw_config, m, n, k, alpha, a, b, beta, c, par
+				);
+			}
+		}
+		return;
+	}
 	if avx && fma {
 		match model {
 			_ => {
@@ -305,8 +305,8 @@ mod tests {
 
 	const EPS: f64 = 2e-2;
 
-	static M_ARR: [usize; 25] = [1, 2, 3, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
-	static N_ARR: [usize; 25] = [1, 2, 3, 4, 5, 6, 7, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960];
+	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
+	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
 	static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
 	static BETA_ARR: [f32; 3] = [1.0, 0.0, 3.1415];

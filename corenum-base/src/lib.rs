@@ -261,7 +261,9 @@ pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize
    let chunk_len = (m / (mr*ic_par)) * mr;
    let rem = m % (mr*ic_par);
    if ic_id == 0 {
-        return (m - chunk_len - (rem%mr), m, false);
+        let x = chunk_len + rem%mr;
+        let mc_left = ((x+mc-1) / mc ) * mc < m;
+        return (m - chunk_len - (rem%mr), m, mc_left);
     }
     let ic_id = ic_id - 1;
     let m0 = (m / mr) * mr;
@@ -771,8 +773,8 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
 
 
 
-const AP_ALIGN: usize = 256;
-const BP_ALIGN: usize = 256;
+const AP_ALIGN: usize = 1024;
+const BP_ALIGN: usize = 1024;
 
 
 #[inline]
@@ -989,12 +991,13 @@ Self: GemmPack<A::X, AP>,
        if mc_left {
         let mut kc_i = kc_start;
         while kc_i < kc_end {
+            let kc_len = kc.min(kc_end - kc_i);
             t_cfg.wait_packa();
             t_cfg.wait_packa();
             let mut nc_i = nc_start;
             while nc_i < nc_end {
-             t_cfg.wait_packb();
-             t_cfg.wait_packb();
+                let nc_len = nc.min(nc_end - nc_i);
+                let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                 nc_i += nc;
             }
             if nc_left{
