@@ -1,3 +1,4 @@
+Blasfeo paper and blis paper
 Use GemmArray with associated type
 SInce GemmArray is uniquely implemented for each struct
 e.g. 
