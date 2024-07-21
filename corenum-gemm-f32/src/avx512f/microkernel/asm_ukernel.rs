@@ -264,6 +264,7 @@ macro_rules! asm_init_ab {
         	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
         	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"lea ({x3}, {x1}, 1), {x1}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -275,6 +276,7 @@ macro_rules! asm_init_ab {
         	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
         	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"lea ({x3}, {x1}, 1), {x1}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -286,6 +288,7 @@ macro_rules! asm_init_ab {
         	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
         	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"lea ({x3}, {x1}, 1), {x1}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -471,6 +474,7 @@ macro_rules! inc_b_k_unroll {
     	concat!(
         	"add $4*", $K, ",{bx}", "\n",
         	"add $4*", $K, ",{x3}", "\n",
+			"add $4*", $K, ",{x1}", "\n",
     	)
 	};
 	(R, $X:tt, $K:tt) => {
@@ -1323,11 +1327,21 @@ macro_rules! load_b {
         	"vbroadcastss ", $K, "*4({x3},{x2},2),%zmm", $r, "\n",
     	)
 	};
-	(C, $N:tt, $K:tt, $X:tt, $r:expr) => {
+	(C, 6, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-        	"vbroadcastss ", $K, "*4({x3},{x2},2),%zmm", $r, "\n",
+        	"vbroadcastss ", $K, "*4({x1}),%zmm", $r, "\n",
     	)
 	};
+	(C, 7, $K:tt, $X:tt, $r:expr) => {
+		concat!(
+			"vbroadcastss ", $K, "*4({x1},{x2},1),%zmm", $r, "\n",
+		)
+	};
+	// (C, $N:tt, $K:tt, $X:tt, $r:expr) => {
+    // 	concat!(
+    //     	"vbroadcastss ", $K, "*4({x3},{x2},2),%zmm", $r, "\n",
+    // 	)
+	// };
 	(R, $N:tt, $K:tt, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ", $N, "*4({bx}),%zmm", $r, "\n",

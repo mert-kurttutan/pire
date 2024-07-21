@@ -276,7 +276,7 @@ macro_rules! def_milikernel_strided {
 
 
                 $(
-                    if m_left > ($mr_left - 8) {
+                    if m_left > ($mr_left - 16) {
                         let mut n_iter = n_iter0;
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
@@ -363,7 +363,7 @@ macro_rules! def_milikernel_blocked {
 
 
                 $(
-                    if m_left > ($mr_left - 8) {
+                    if m_left > ($mr_left - 16) {
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
@@ -439,11 +439,11 @@ macro_rules! def_milikernel_blocked2 {
                         c_cur1 = c_cur1.add(MR);
                     }
                     if m_left == 1 {
-                        [<ukernel_$NR x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8);
+                        [<ukernel_$NR x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 16);
                     }
                     #(
                         else if m_left == mr_left {
-                            [<ukernel_$NR x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 8);
+                            [<ukernel_$NR x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 16);
                         }
                     )*
                     n_iter -= 1;
@@ -453,7 +453,7 @@ macro_rules! def_milikernel_blocked2 {
 
 
                 $(
-                    if n_left > ($nr_left - 8) {
+                    if n_left > ($nr_left - 16) {
                         let mut m_iter = m_iter0;
                         let mut a_cur = a;
                         let mut c_cur1 = c_cur0;
