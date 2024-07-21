@@ -157,8 +157,12 @@ C: GemmOut<X=f32,Y=f32>,
 			_ => {
 				const MR: usize = 48;
 				const NR: usize = 8;
+				// let kc = std::env::var("KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+				// let nc = std::env::var("NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+				let kc = 512;
+				let nc = 192;
 				let hw_config = avx512f::AvxFma::<MR,NR>{
-					goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+					goto_mc: 4800, goto_nc: nc, goto_kc: kc,
 					is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
 				};
 				corenum_gemm(

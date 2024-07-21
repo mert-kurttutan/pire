@@ -2177,7 +2177,7 @@ macro_rules! group_def_ukernel {
 					$asm_store_macro,
 					$mr, nr, $transpose,
 					$a_layout, $b_layout,
-					0, 128,
+					0, 256,
 					4,
 					[<ukernel_ $mr x nr _ $func_name>]
 				);
