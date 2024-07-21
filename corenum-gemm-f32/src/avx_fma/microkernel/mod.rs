@@ -308,8 +308,6 @@ macro_rules! def_milikernel_strided {
 def_milikernel_strided!(24, 4, 24, 16, 8);
 def_milikernel_strided!(16, 6, 16, 8);
 
-
-// TODO: Check if implementing br_partial is worth the performance gain/code complexity tradeoff
 macro_rules! def_milikernel_blocked {
     ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
@@ -318,7 +316,7 @@ macro_rules! def_milikernel_blocked {
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
-                b: *const TB, ldb: usize,
+                b: *const TB, b_rs: usize, b_cs: usize,
                 c: *mut TC, ldc: usize,
                 ap_cur: *const TA,
             ) {
@@ -327,12 +325,11 @@ macro_rules! def_milikernel_blocked {
                 let mut m_iter = (m / MR) as u64;
                 let m_left = m % MR;
                 let mut c_cur0 = c;
-                let b_cs = if $is_b_row {1} else {ldb};
                 let mut ap_cur = ap_cur;
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, ldb*4];
+                let ld_arr = [b_rs*4, b_cs*4];
                 // use blocking since rrc kernel is hard to implement to current macro choices
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -394,12 +391,7 @@ macro_rules! def_milikernel_blocked {
     };
 }
 
-def_milikernel_blocked!(24, 4, true, r, br, 24, 16, 8);
-def_milikernel_blocked!(24, 4, false, c, bc, 24, 16, 8);
-
-// def_milikernel_blocked!(16, 6, true, rc, br, 16, 8);
-
-// def_milikernel_blocked!(16, 6, false, cc, bc, 16, 8);
+def_milikernel_blocked!(24, 4, true, s, bs, 24, 16, 8);
 
 macro_rules! def_milikernel_blocked2 {
     ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($nr_left:tt),*) => {
@@ -498,28 +490,13 @@ pub(crate) unsafe fn kernel_sup_m(
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
 ) {  
-    if c_rs == 1 {
-        if b_cs == 1 {
-            kernel_sup_m_r(
-                m, n, k,
-                alpha, beta,
-                b, b_rs,
-                c, c_cs,
-                ap
-            );
-        } else {
-            kernel_sup_m_c(
-                m, n, k,
-                alpha, beta,
-                b, b_cs,
-                c, c_cs,
-                ap
-            );
-        }
-    } else {
-        panic!("Strided C is not supported yet");
-    }
-
+    kernel_sup_m_s(
+        m, n, k,
+        alpha, beta,
+        b, b_rs, b_cs,
+        c, c_cs,
+        ap
+    );
 }
 
 

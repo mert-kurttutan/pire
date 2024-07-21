@@ -295,6 +295,18 @@ macro_rules! asm_init_ab {
         	"test {x0},{x0}", "\n",
     	)
 	};
+	(VER24,B,S) => {
+    	concat!(
+        	// mov cs_b to reg
+        	"mov 8({int_arrx}), {x2}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
+
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"mov ({int_arrx}), {x1}", "\n",
+        	"mov 24({int_arrx}),{x0}", "\n",
+        	"test {x0},{x0}", "\n",
+    	)
+	};
 	(VER24,B,C) => {
     	concat!(
         	// mov cs_b to reg
@@ -324,6 +336,30 @@ macro_rules! asm_init_ab {
         	"lea ({x2}, {x2}, 2), {x1}", "\n",
 
         	"lea ({bx}, {x1}, 1), {x3}", "\n",
+        	"mov 24({int_arrx}),{x0}", "\n",
+        	"test {x0},{x0}", "\n",
+    	)
+	};
+	(VER16,B,S) => {
+    	concat!(
+        	// mov cs_b to reg
+        	"mov 8({int_arrx}), {x2}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
+
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"mov ({int_arrx}), {x1}", "\n",
+        	"mov 24({int_arrx}),{x0}", "\n",
+        	"test {x0},{x0}", "\n",
+    	)
+	};
+	(VER8,B,S) => {
+    	concat!(
+        	// mov cs_b to reg
+        	"mov 8({int_arrx}), {x2}", "\n",
+        	"lea ({x2}, {x2}, 2), {x1}", "\n",
+
+        	"lea ({bx}, {x1}, 1), {x3}", "\n",
+			"mov ({int_arrx}), {x1}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -412,6 +448,9 @@ macro_rules! inc_b {
 	(C,$nr:tt) => {
     	""
 	};
+	(S,$nr:tt) => {
+    	"add {x1},{bx} \n add {x1},{x3} \n"
+	};
 	(R,$nr:tt) => {
     	"add {x2},{bx} \n"
 	};
@@ -437,6 +476,9 @@ macro_rules! inc_b_k_unroll {
         	"add $4*", $K, ",{bx}", "\n",
         	"add $4*", $K, ",{x3}", "\n",
     	)
+	};
+	(S, $X:tt, $K:tt) => {
+    	""
 	};
 	(R, $X:tt, $K:tt) => {
     	""
@@ -1178,6 +1220,36 @@ macro_rules! load_b {
         	"vbroadcastss ", $K, "*4({x3},{x2},2),%ymm", $r, "\n",
     	)
 	};
+	(S, 0, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({bx}),%ymm", $r, "\n",
+    	)
+	};
+	(S, 1, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({bx},{x2},1),%ymm", $r, "\n",
+    	)
+	};
+	(S, 2, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({bx},{x2},2),%ymm", $r, "\n",
+    	)
+	};
+	(S, 3, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({x3}),%ymm", $r, "\n",
+    	)
+	};
+	(S, 4, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({x3},{x2},1),%ymm", $r, "\n",
+    	)
+	};
+	(S, 5, $K:tt, $X:tt, $r:expr) => {
+    	concat!(
+        	"vbroadcastss ({x3},{x2},2),%ymm", $r, "\n",
+    	)
+	};
 	(R, $N:tt, $K:tt, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ", $N, "*4({bx}),%ymm", $r, "\n",
@@ -1447,6 +1519,9 @@ macro_rules! prefetch_a {
 macro_rules! prefetch_b {
 	($nr:tt, R, $dist:tt, $unroll:tt, $i:tt) => {
 		prefetch_0!(0, "{bx},{x2},8", 0)
+	};
+	($nr:tt, S, $dist:tt, $unroll:tt, $i:tt) => {
+		prefetch_0!(0, "{bx},{x1},8", 0)
 	};
 	($nr:tt, $layout:tt, $dist:tt, $unroll:tt, 0) => {
 		prefetch_0!($dist, "{bx}", 0)
@@ -1902,8 +1977,9 @@ macro_rules! group_def_ukernel {
 }
 
 group_def_ukernel!(24, 1, 4, F, B, B, bb, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel!(24, 1, 4, F, B, R, br, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel!(24, 1, 4, F, B, C, bc, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+// group_def_ukernel!(24, 1, 4, F, B, R, br, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+// group_def_ukernel!(24, 1, 4, F, B, C, bc, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, F, B, S, bs, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 group_def_ukernel!(24, 4, 4, T, B, C, rb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 group_def_ukernel!(24, 4, 4, T, B, R, cb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 group_def_ukernel!(24, 1, 4, F, B, B, bb_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
@@ -1911,15 +1987,17 @@ group_def_ukernel!(24, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm
 group_def_ukernel!(24, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 
 group_def_ukernel!(16, 1, 6, F, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel!(16, 1, 4, F, B, R, br, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel!(16, 1, 4, F, B, C, bc, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+// group_def_ukernel!(16, 1, 4, F, B, R, br, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+// group_def_ukernel!(16, 1, 4, F, B, C, bc, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+group_def_ukernel!(16, 1, 4, F, B, S, bs, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 6, F, B, B, bb_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 
 group_def_ukernel!(8, 1, 6, F, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel!(8, 1, 4, F, B, R, br, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel!(8, 1, 4, F, B, C, bc, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+// group_def_ukernel!(8, 1, 4, F, B, R, br, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+// group_def_ukernel!(8, 1, 4, F, B, C, bc, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+group_def_ukernel!(8, 1, 4, F, B, S, bs, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 group_def_ukernel!(8, 1, 6, F, B, B, bb_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 group_def_ukernel!(8, 1, 4, T, B, C, rb_t_partial, def_ukernel_partial_new, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 group_def_ukernel!(8, 1, 4, T, B, R, cb_t_partial, def_ukernel_partial_new, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
