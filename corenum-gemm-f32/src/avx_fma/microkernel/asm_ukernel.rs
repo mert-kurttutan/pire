@@ -690,7 +690,6 @@ macro_rules! asm_24x4_acc {
 			concat!(
 				#(
 					asm_24x4_acc_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -821,7 +820,6 @@ macro_rules! asm_24x4_store {
 			concat!(
 				#(
 					asm_24x4_store_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -887,7 +885,6 @@ macro_rules! asm_16x6_acc {
 			concat!(
 				#(
 					asm_16x6_acc_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -967,7 +964,6 @@ macro_rules! asm_16x6_store {
 			concat!(
 				#(
 					asm_16x6_store_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -1012,7 +1008,6 @@ macro_rules! asm_8x6_acc {
 			concat!(
 				#(
 					asm_8x6_acc_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -1022,7 +1017,6 @@ macro_rules! asm_8x6_acc {
 			concat!(
 				#(
 					asm_8x6_acc_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -1093,7 +1087,6 @@ macro_rules! asm_8x6_store {
 			concat!(
 				#(
 					asm_8x6_store_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
@@ -1103,7 +1096,6 @@ macro_rules! asm_8x6_store {
 			concat!(
 				#(
 					asm_8x6_store_seq!($mr, n, $layout), 
-					"\n",
 				)*
 			)
 		})
