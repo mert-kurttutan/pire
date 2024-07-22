@@ -236,130 +236,14 @@ macro_rules! asm_init_ab {
         	"test {x0},{x0}", "\n",
     	)
 	};
-	($KER:tt,C,R) => {
-    	concat!(
-        	// mov cs_a to reg
-        	"mov ({int_arrx}), {x1}", "\n",
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	($KER:tt,B,R) => {
-    	concat!(
-			"/* {x3} */", "\n",
-			"/* {x1} */", "\n",
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER24,C,C) => {
-    	concat!(
-        	// mov cs_a to reg
-        	"mov ({int_arrx}), {x1}", "\n",
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
-
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER16,C,C) => {
-    	concat!(
-        	// mov cs_a to reg
-        	"mov ({int_arrx}), {x1}", "\n",
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
-
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER8,C,C) => {
-    	concat!(
-        	// mov cs_a to reg
-        	"mov ({int_arrx}), {x1}", "\n",
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x0}", "\n",
-
-        	"lea ({bx}, {x0}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER24,B,S) => {
+	($ker:tt,B,S) => {
     	concat!(
         	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
-
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
 			"mov ({int_arrx}), {x1}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER24,B,C) => {
-    	concat!(
-        	// mov cs_b to reg
         	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
+        	"lea ({x2}, {x2}, 2), {x3}", "\n",
+        	"lea ({bx}, {x3}, 1), {x3}", "\n",
 
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER16,B,C) => {
-    	concat!(
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
-
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER8,B,C) => {
-    	concat!(
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
-
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER16,B,S) => {
-    	concat!(
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
-
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
-			"mov ({int_arrx}), {x1}", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
-        	"test {x0},{x0}", "\n",
-    	)
-	};
-	(VER8,B,S) => {
-    	concat!(
-        	// mov cs_b to reg
-        	"mov 8({int_arrx}), {x2}", "\n",
-        	"lea ({x2}, {x2}, 2), {x1}", "\n",
-
-        	"lea ({bx}, {x1}, 1), {x3}", "\n",
-			"mov ({int_arrx}), {x1}", "\n",
         	"mov 24({int_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
@@ -445,14 +329,23 @@ macro_rules! inc_a {
 }
 
 macro_rules! inc_b {
-	(C,$nr:tt) => {
-    	""
-	};
-	(S,$nr:tt) => {
+	(S,6) => {
     	"add {x1},{bx} \n add {x1},{x3} \n"
 	};
-	(R,$nr:tt) => {
-    	"add {x2},{bx} \n"
+	(S,5) => {
+    	"add {x1},{bx} \n add {x1},{x3} \n"
+	};
+	(S,4) => {
+    	"add {x1},{bx} \n add {x1},{x3} \n"
+	};
+	(S,3) => {
+    	"add {x1},{bx} \n"
+	};
+	(S,2) => {
+    	"add {x1},{bx} \n"
+	};
+	(S,1) => {
+    	"add {x1},{bx} \n"
 	};
 	(B,$nr:tt) => {
     	""
@@ -471,16 +364,7 @@ macro_rules! inc_a_k_unroll {
 }
 
 macro_rules! inc_b_k_unroll {
-	(C, $X:tt, $K:tt ) => {
-    	concat!(
-        	"add $4*", $K, ",{bx}", "\n",
-        	"add $4*", $K, ",{x3}", "\n",
-    	)
-	};
 	(S, $X:tt, $K:tt) => {
-    	""
-	};
-	(R, $X:tt, $K:tt) => {
     	""
 	};
 	(B, $X:tt, $K:tt) => {
@@ -1190,36 +1074,6 @@ macro_rules! transpose {
  }
 
 macro_rules! load_b {
-	(C, 0, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({bx}),%ymm", $r, "\n",
-    	)
-	};
-	(C, 1, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({bx},{x2},1),%ymm", $r, "\n",
-    	)
-	};
-	(C, 2, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({bx},{x2},2),%ymm", $r, "\n",
-    	)
-	};
-	(C, 3, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({x3}),%ymm", $r, "\n",
-    	)
-	};
-	(C, 4, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({x3},{x2},1),%ymm", $r, "\n",
-    	)
-	};
-	(C, 5, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $K, "*4({x3},{x2},2),%ymm", $r, "\n",
-    	)
-	};
 	(S, 0, $K:tt, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({bx}),%ymm", $r, "\n",
@@ -1248,11 +1102,6 @@ macro_rules! load_b {
 	(S, 5, $K:tt, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x3},{x2},2),%ymm", $r, "\n",
-    	)
-	};
-	(R, $N:tt, $K:tt, $X:tt, $r:expr) => {
-    	concat!(
-        	"vbroadcastss ", $N, "*4({bx}),%ymm", $r, "\n",
     	)
 	};
 	(B, $N:tt, $K:tt, $X:tt, $r:expr) => {
@@ -1515,22 +1364,17 @@ macro_rules! prefetch_a {
 	};
 }
 
-// Only R layout has prefetch for eack k_i
 macro_rules! prefetch_b {
-	($nr:tt, R, $dist:tt, $unroll:tt, $i:tt) => {
-		prefetch_0!(0, "{bx},{x2},8", 0)
-	};
 	($nr:tt, S, $dist:tt, $unroll:tt, $i:tt) => {
 		prefetch_0!(0, "{bx},{x1},8", 0)
 	};
-	($nr:tt, $layout:tt, $dist:tt, $unroll:tt, 0) => {
+	($nr:tt, B, $dist:tt, $unroll:tt, 0) => {
 		prefetch_0!($dist, "{bx}", 0)
 	};
-	($nr:tt, $layout:tt, $dist:tt, $unroll:tt, 4) => {
+	($nr:tt, B, $dist:tt, $unroll:tt, 4) => {
 		prefetch_0!($dist, "{bx}", 1)
 	};
-
-	($nr:tt, $layout:tt, $dist:tt, $unroll:tt, $k_i:tt) => {
+	($nr:tt, B, $dist:tt, $unroll:tt, $k_i:tt) => {
 		""
 	};
 }
@@ -1981,7 +1825,6 @@ group_def_ukernel!(24, 1, 4, F, B, S, bs, def_ukernel, asm_24x4_step, asm_24x4_a
 group_def_ukernel!(24, 4, 4, T, B, S, sb_t, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 group_def_ukernel!(24, 1, 4, F, B, B, bb_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 group_def_ukernel!(24, 1, 4, T, B, S, sb_t_partial, def_ukernel_partial_new, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-
 
 group_def_ukernel!(16, 1, 6, F, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 4, F, B, S, bs, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
