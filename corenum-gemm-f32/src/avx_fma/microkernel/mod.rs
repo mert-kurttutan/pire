@@ -401,7 +401,7 @@ macro_rules! def_milikernel_blocked2 {
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
-                a: *const TB, lda: usize,
+                a: *const TB, a_rs: usize, a_cs: usize,
                 c: *mut TC, ldc: usize,
                 bp: *const TA,
             ) {
@@ -410,11 +410,10 @@ macro_rules! def_milikernel_blocked2 {
                 let m_iter0 = (m / MR) as u64;
                 let m_left = m % MR;
                 let mut c_cur0 = c;
-                let a_rs = if $is_b_row { lda } else { 1 };
                 let mut bp_cur = bp;
                 let mut n_iter = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, lda * 4];
+                let ld_arr = [a_cs*4, a_rs * 4];
                 // use blocking since rrc kernel is hard to implement to current macro choices
                 while n_iter > 0 {
                     let mut m_iter = m_iter0;
@@ -477,8 +476,7 @@ macro_rules! def_milikernel_blocked2 {
     };
 }
 
-def_milikernel_blocked2!(4, 24, true, r, rb_t, 24, 16, 8);
-def_milikernel_blocked2!(4, 24, false, c, cb_t, 24, 16, 8);
+def_milikernel_blocked2!(4, 24, true, s, sb_t, 24, 16, 8);
 
 
 
@@ -509,28 +507,13 @@ pub(crate) unsafe fn kernel_sup_n(
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
  ) { 
-    if c_rs == 1 {
-        if b_cs == 1 {
-            kernel_sup_n_r(
-                m, n, k,
-                alpha, beta,
-                b, b_rs,
-                c, c_cs,
-                ap
-            );
-        } else {
-            kernel_sup_n_c(
-                m, n, k,
-                alpha, beta,
-                b, b_cs,
-                c, c_cs,
-                ap
-            );
-        }
-    } else {
-        panic!("Strided C is not implemented");
-    }
-
+    kernel_sup_n_s(
+        m, n, k,
+        alpha, beta,
+        b, b_rs, b_cs,
+        c, c_cs,
+        ap
+    );
  } 
 
 

@@ -1110,8 +1110,8 @@ Self: GemmPack<A::X, AP>
         let mc_eff = t_cfg.mc_eff;
         let nc_eff = t_cfg.nc_eff;
         let kc_eff = t_cfg.kc_eff;
-        let (mc_start, mc_end, _) = split_c_range(m, mc_eff, Self::MR, ic_id, par.ic_par);
-        let (nc_start, nc_end, _) = split_c_range(n, nc_eff, Self::NR, jc_id, par.jc_par);
+        let (mc_start, mc_end, mc_left) = split_c_range(m, mc_eff, Self::MR, ic_id, par.ic_par);
+        let (nc_start, nc_end, nc_left) = split_c_range(n, nc_eff, Self::NR, jc_id, par.jc_par);
         let (kc_start, kc_end) = (0, k);
         let one = Self::ONE;
 
@@ -1150,6 +1150,15 @@ Self: GemmPack<A::X, AP>
             }
             mc += mc_eff;
         }
+
+        if mc_left {
+            let mut kc_i = kc_start;
+            while kc_i < kc_end {
+                t_cfg.wait_packa();
+                t_cfg.wait_packa();
+                kc_i += kc_eff;
+            }
+           }
     }
  }
 
@@ -1302,21 +1311,22 @@ Self: GemmPack<B::X, BP>,
             mc += mc_eff;
         }
         if mc_left {
-            let mut kc = kc_start;
-            while kc < kc_end {
-                let mut nc = nc_start;
-                while nc < nc_end {
-                    t_cfg.wait_packb();
-                    t_cfg.wait_packb();
-                    nc += nc_eff;
+            let mut kc_i = kc_start;
+            while kc_i < kc_end {
+                let kc_len = kc_eff.min(kc_end - kc_i);
+                let mut nc_i = nc_start;
+                while nc_i < nc_end {
+                    let nc_len = nc_eff.min(nc_end - nc_i);
+                    let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                    nc_i += nc_eff;
                 }
-                if nc_left {
+                if nc_left{
                     t_cfg.wait_packb();
                     t_cfg.wait_packb();
                 }
-                kc += kc_eff;
+                kc_i += kc_eff;
             }
-        }
+           }
     }
  }
  
