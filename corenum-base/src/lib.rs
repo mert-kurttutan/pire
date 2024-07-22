@@ -1337,8 +1337,7 @@ Self: GemmPack<B::X, BP>,
                 let mut nc_i = nc_start;
                 while nc_i < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc_i);
-                    t_cfg.wait_packb();
-                    t_cfg.wait_packb();
+                    let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                     nc_i += nc_eff;
                 }
                 if nc_left{
