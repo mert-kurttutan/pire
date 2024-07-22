@@ -29,3 +29,9 @@ m = cr_ic * (mr*ic_par) + cr_left*mr + mr_left
 
 
 d_mi = cr_ic * mr + mr
+
+
+sup_n: use libshalom, 
+- better benchmark than blasfeo's approach (even for x86 hw, even though paper studies only arm hardware)
+- simpler inline assembly code and more compatible with packing api
+https://jianbinfang.github.io/files/2021-06-22-sc.pdf

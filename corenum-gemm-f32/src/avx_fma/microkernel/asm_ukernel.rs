@@ -455,20 +455,119 @@ macro_rules! asm_24x4_acc_seq {
 	};
 }
 
+macro_rules! asm_24x4_store_seq {
+	($mr:tt, 0, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx})", 4, 5, 6)
+	};
+	($mr:tt, 1, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0})", 7, 8, 9)
+	};
+	($mr:tt, 2, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0}, 2)",  10, 11, 12)
+	}; 
+	($mr:tt, 3, $layout:tt) => {
+		storeps!($mr, $layout, "0({x1})",  13, 14, 15)
+	};
+}
+
+macro_rules! asm_16x6_acc_seq {
+	($mr:tt, 0, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx})", 4, 5)
+	};
+	($mr:tt, 1, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx}, {x0})", 6, 7)
+	};
+	($mr:tt, 2, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx}, {x0}, 2)", 8, 9)
+	}; 
+	($mr:tt, 3, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({x1})", 10, 11)
+	};
+	($mr:tt, 4, $layout:tt) => {
+        acc_ps!($mr, $layout, "0({x1}, {x0})", 12, 13)
+	};
+	($mr:tt, 5, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({x1}, {x0}, 2)", 14, 15)
+	};
+}
+
+macro_rules! asm_16x6_store_seq {
+	($mr:tt, 0, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx})", 4, 5)
+	};
+	($mr:tt, 1, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0})", 6, 7)
+	};
+	($mr:tt, 2, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0}, 2)", 8, 9)
+	}; 
+	($mr:tt, 3, $layout:tt) => {
+		storeps!($mr, $layout, "0({x1})", 10, 11)
+	};
+	($mr:tt, 4, $layout:tt) => {
+    	storeps!($mr, $layout, "0({x1}, {x0})", 12, 13)
+	};
+	($mr:tt, 5, $layout:tt) => {
+		storeps!($mr, $layout, "0({x1}, {x0}, 2)", 14, 15)
+	};
+}
+
+macro_rules! asm_8x6_acc_seq {
+	($mr:tt, 0, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx})", 7)
+	};
+	($mr:tt, 1, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx}, {x0})", 8)
+	};
+	($mr:tt, 2, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({cx}, {x0}, 2)", 9)
+	}; 
+	($mr:tt, 3, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({x1})", 10)
+	};
+	($mr:tt, 4, $layout:tt) => {
+        acc_ps!($mr, $layout, "0({x1}, {x0})", 11)
+	};
+	($mr:tt, 5, $layout:tt) => {
+		acc_ps!($mr, $layout, "0({x1}, {x0}, 2)", 12)
+	};
+}
+
+macro_rules! asm_8x6_store_seq {
+	($mr:tt, 0, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx})", 7)
+	};
+	($mr:tt, 1, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0})", 8)
+	};
+	($mr:tt, 2, $layout:tt) => {
+		storeps!($mr, $layout, "0({cx}, {x0}, 2)", 9)
+	}; 
+	($mr:tt, 3, $layout:tt) => {
+		storeps!($mr, $layout, "0({x1})", 10)
+	};
+	($mr:tt, 4, $layout:tt) => {
+        storeps!($mr, $layout, "0({x1}, {x0})", 11)
+	};
+	($mr:tt, 5, $layout:tt) => {
+		storeps!($mr, $layout, "0({x1}, {x0}, 2)", 12)
+	};
+}
+
 macro_rules! acc_ps_t {
 	($r0:tt,T) => {
 		concat!(
 			"vmaskmovps 0({cx}), %xmm1, %xmm3", "\n",
 			"vmaskmovps 0({cx}, {x0}, 4), %xmm1, %xmm2", "\n",
 			"vinsertf128 $1, %xmm2, %ymm3, %ymm3", "\n",
-			"vfmadd231ps %ymm3, %ymm0, %ymm", $r0, "\n",
+			vfmadd231ps!(3,0,$r0),
 		)
 	};
 	($r0:tt,F) => {
 		concat!(
 			"vmovups 0({cx}) , %xmm3", "\n",
 			"vinsertf128 $1, 0({cx}, {x0}, 4), %ymm3, %ymm3", "\n",
-			"vfmadd231ps %ymm3, %ymm0, %ymm", $r0, "\n",
+			vfmadd231ps!(3,0,$r0),
 		)
 	}
 }
@@ -515,7 +614,7 @@ macro_rules! acc_ps_t3 {
 
 
 macro_rules! store_t_4x4 {
-	($r0:tt, $r1:tt, $r2:tt, $r3:tt) => {
+	($r0:tt, $r1:tt, $r2:tt, $r3:tt, C) => {
 		concat!(
 			"vmovups %xmm", $r0, ", 0({cx})", "\n",
 			"vmovups %xmm", $r1, ", 0({cx}, {x0})", "\n",
@@ -537,7 +636,7 @@ macro_rules! store_t_4x4 {
 		)
 	};
 
-	($r0:tt, $r1:tt, $r2:tt, $r3:tt, T) => {
+	($r0:tt, $r1:tt, $r2:tt, $r3:tt, M) => {
 		concat!(
 			"vmaskmovps %xmm", $r0, ", %xmm1, ({cx})",  "\n",
 			"vextractf128 $1, %ymm", $r0, ", %xmm", $r0, "\n",
@@ -564,7 +663,7 @@ macro_rules! store_t_4x4 {
 }
 
 macro_rules! store_t_4x4_2 {
-	($r0:tt, $r1:tt, $r2:tt, $r3:tt) => {
+	($r0:tt, $r1:tt, $r2:tt, $r3:tt,M) => {
 		concat!(
 			"vmaskmovps %xmm", $r0, ", %xmm1, 0({cx})", "\n",
 			"cmp $2, {m}", "\n",
@@ -607,7 +706,28 @@ macro_rules! store_t_4x4_2 {
 			"vextractf128 $1, %ymm", $r3, ", %xmm", $r3, "\n",
 			"vmaskmovps %xmm", $r3, ", %xmm1, 0({cx})", "\n",
 		)
-	}
+	};
+	($r0:tt, $r1:tt, $r2:tt, $r3:tt, C) => {
+		concat!(
+			"vmovups %xmm", $r0, ", 0({cx})", "\n",
+			"vmovups %xmm", $r1, ", 0({cx}, {x0})", "\n",
+			"vmovups %xmm", $r2, ", 0({cx}, {x0}, 2)", "\n",
+			"vmovups %xmm", $r3, ", 0({x1})", "\n",
+ 
+			"lea ({cx}, {x0}, 4), {cx}", "\n",
+			"lea ({x1}, {x0}, 4), {x1}", "\n",
+ 
+			"vextractf128 $1, %ymm", $r0, ", %xmm", $r0, "\n",
+			"vmovups %xmm", $r0, ", 0({cx})", "\n",
+			"vextractf128 $1, %ymm", $r1, ", %xmm", $r1, "\n",
+			"vmovups %xmm", $r1, ", 0({cx}, {x0})", "\n",
+			"vextractf128 $1, %ymm", $r2, ", %xmm", $r2, "\n",
+			"vmovups %xmm", $r2, ", 0({cx}, {x0}, 2)", "\n",
+			"vextractf128 $1, %ymm", $r3, ", %xmm", $r3, "\n",
+			"vmovups %xmm", $r3, ", 0({x1})", "\n",
+ 
+		)
+	};
 }
 
 macro_rules! asm_24x4_acc {
@@ -724,22 +844,6 @@ macro_rules! asm_24x4_acc {
 }
 
 
-macro_rules! asm_24x4_store_seq {
-	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx})", 4, 5, 6)
-	};
-	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0})", 7, 8, 9)
-	};
-	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0}, 2)",  10, 11, 12)
-	}; 
-	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "0({x1})",  13, 14, 15)
-	};
-}
-
-
 macro_rules! asm_24x4_store {
 	($mr:tt, $nr:tt, $layout:tt, F) => {
 		seq!(n in 0..$nr {
@@ -750,60 +854,25 @@ macro_rules! asm_24x4_store {
 			)
 		})
 	};
-	(24, $nr:tt, C, T) => {
+	(24, $nr:tt, $layout:tt, T) => {
 		concat!(
 
-			store_t_4x4!(4,7,10,13),
+			store_t_4x4!(4,7,10,13,$layout),
  
 			"lea ({cx}, {x0}, 4), {cx}", "\n",
 			"lea ({x1}, {x0}, 4), {x1}", "\n",
  
-			store_t_4x4!(5,8,11,14),
+			store_t_4x4!(5,8,11,14,$layout),
  
 			"lea ({cx}, {x0}, 4), {cx}", "\n",
 			"lea ({x1}, {x0}, 4), {x1}", "\n",
  
-			store_t_4x4!(6,9,12,15),
+			store_t_4x4_2!(6,9,12,15,$layout),
 		)
 	};
-	(24, $nr:tt, M, T) => {
-		concat!(
-
-			store_t_4x4!(4,7,10,13,T),
-
-			"lea ({cx}, {x0}, 4), {cx}", "\n",
- 
-			store_t_4x4!(5,8,11,14,T),
-
-			"lea ({cx}, {x0}, 4), {cx}", "\n",
-
-			store_t_4x4_2!(6,9,12,15),
-		)
-	};
-  
 }
 
 
-macro_rules! asm_16x6_acc_seq {
-	($mr:tt, 0, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx})", 4, 5)
-	};
-	($mr:tt, 1, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx}, {x0})", 6, 7)
-	};
-	($mr:tt, 2, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx}, {x0}, 2)", 8, 9)
-	}; 
-	($mr:tt, 3, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({x1})", 10, 11)
-	};
-	($mr:tt, 4, $layout:tt) => {
-        acc_ps!($mr, $layout, "0({x1}, {x0})", 12, 13)
-	};
-	($mr:tt, 5, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({x1}, {x0}, 2)", 14, 15)
-	};
-}
 
 macro_rules! asm_16x6_acc {
 	($mr:tt, $nr:tt, $layout:tt,F) => {
@@ -863,27 +932,6 @@ macro_rules! asm_16x6_acc {
  
 }
 
-macro_rules! asm_16x6_store_seq {
-	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx})", 4, 5)
-	};
-	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0})", 6, 7)
-	};
-	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0}, 2)", 8, 9)
-	}; 
-	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "0({x1})", 10, 11)
-	};
-	($mr:tt, 4, $layout:tt) => {
-    	storeps!($mr, $layout, "0({x1}, {x0})", 12, 13)
-	};
-	($mr:tt, 5, $layout:tt) => {
-		storeps!($mr, $layout, "0({x1}, {x0}, 2)", 14, 15)
-	};
-}
-
 macro_rules! asm_16x6_store {
 	($mr:tt, $nr:tt, $layout:tt,F) => {
 		seq!(n in 0..$nr {
@@ -897,47 +945,18 @@ macro_rules! asm_16x6_store {
 	(16, $nr:tt, M, T) => {
 		concat!(
 
-			store_t_4x4!(4,6,8,10,T),
+			store_t_4x4!(4,6,8,10,M),
 
 			"lea ({cx}, {x0}, 4), {cx}", "\n",
  
-			store_t_4x4_2!(5,7,9,11),
+			store_t_4x4_2!(5,7,9,11,M),
  
 		)
 	}; 
 }
 
-macro_rules! asm_8x6_acc_seq {
-	($mr:tt, 0, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx})", 7)
-	};
-	($mr:tt, 1, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx}, {x0})", 8)
-	};
-	($mr:tt, 2, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({cx}, {x0}, 2)", 9)
-	}; 
-	($mr:tt, 3, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({x1})", 10)
-	};
-	($mr:tt, 4, $layout:tt) => {
-        acc_ps!($mr, $layout, "0({x1}, {x0})", 11)
-	};
-	($mr:tt, 5, $layout:tt) => {
-		acc_ps!($mr, $layout, "0({x1}, {x0}, 2)", 12)
-	};
-}
 
 macro_rules! asm_8x6_acc {
-	($mr:tt, $nr:tt, $layout:tt) => {
-		seq!(n in 0..$nr {
-			concat!(
-				#(
-					asm_8x6_acc_seq!($mr, n, $layout), 
-				)*
-			)
-		})
-	};
 	($mr:tt, $nr:tt, $layout:tt, F) => {
 		seq!(n in 0..$nr {
 			concat!(
@@ -986,37 +1005,7 @@ macro_rules! asm_8x6_acc {
 }
 
 
-macro_rules! asm_8x6_store_seq {
-	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx})", 7)
-	};
-	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0})", 8)
-	};
-	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "0({cx}, {x0}, 2)", 9)
-	}; 
-	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "0({x1})", 10)
-	};
-	($mr:tt, 4, $layout:tt) => {
-        storeps!($mr, $layout, "0({x1}, {x0})", 11)
-	};
-	($mr:tt, 5, $layout:tt) => {
-		storeps!($mr, $layout, "0({x1}, {x0}, 2)", 12)
-	};
-}
-
 macro_rules! asm_8x6_store {
-	($mr:tt, $nr:tt, $layout:tt) => {
-		seq!(n in 0..$nr {
-			concat!(
-				#(
-					asm_8x6_store_seq!($mr, n, $layout), 
-				)*
-			)
-		})
-	};
 	($mr:tt, $nr:tt, $layout:tt, F) => {
 		seq!(n in 0..$nr {
 			concat!(
@@ -1028,7 +1017,7 @@ macro_rules! asm_8x6_store {
 	};
 	(8, $nr:tt, M, T) => {
 		concat!(
-			store_t_4x4_2!(7,8,9,10),
+			store_t_4x4_2!(7,8,9,10,M),
 		)
 	}; 
 }
