@@ -337,8 +337,14 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
         a: A, b: *const f32,
         c: *mut TC, c_rs: usize, c_cs: usize,
    ) {
-    // A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
-    // let a_ptr = a.get_data_ptr().add(a_rs*a.get_rs()+a_cs*a.get_cs());
-    // kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.get_rs(), a.get_cs(), c, c_rs, c_cs, bp);
+        let a_ptr = a.get_data_ptr();
+        let a_ptr_rs = a.get_rs();
+        let a_ptr_cs = a.get_cs();
+        kernel_sup_n(
+            m, n, k, alpha, beta, 
+            a_ptr, a_ptr_rs, a_ptr_cs, 
+            b,
+            c, c_rs, c_cs
+        );
    }
 }

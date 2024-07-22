@@ -13,7 +13,6 @@ pub(crate) use asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
     packa_panel_48,
     packa_panel_32,
-    // packa_panel_16,
     packb_panel_12,
     packb_panel_8,
 };
@@ -156,7 +155,6 @@ macro_rules! def_milikernel {
                 
                 
                 while m_iter > 0 {
-                    // println!("m_iter: {}", m_iter);
                     let mut n_iter = n_iter0;
                     let mut bp_cur = bp;
                     let mut c_cur1 = c_cur0;
@@ -312,8 +310,6 @@ macro_rules! def_milikernel_strided {
 def_milikernel_strided!(48, 8, 48, 32, 16);
 def_milikernel_strided!(32, 12, 32, 16);
 
-
-// TODO: Check if implementing br_partial is worth the performance gain/code complexity tradeoff
 macro_rules! def_milikernel_blocked {
     ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
@@ -322,7 +318,7 @@ macro_rules! def_milikernel_blocked {
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
-                b: *const TB, ldb: usize,
+                b: *const TB, b_rs: usize, b_cs: usize,
                 c: *mut TC, ldc: usize,
                 ap_cur: *const TA,
             ) {
@@ -331,12 +327,11 @@ macro_rules! def_milikernel_blocked {
                 let mut m_iter = (m / MR) as u64;
                 let m_left = m % MR;
                 let mut c_cur0 = c;
-                let b_cs = if $is_b_row {1} else {ldb};
                 let mut ap_cur = ap_cur;
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, ldb*4];
+                let ld_arr = [b_rs*4, b_cs*4];
                 // use blocking since rrc kernel is hard to implement to current macro choices
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -398,87 +393,103 @@ macro_rules! def_milikernel_blocked {
     };
 }
 
-def_milikernel_blocked!(48, 8, true, r, br, 48, 32, 16);
-def_milikernel_blocked!(48, 8, false, c, bc, 48, 32, 16);
+def_milikernel_blocked!(48, 8, true, s, bs, 48, 32, 16);
 
-// def_milikernel_blocked!(16, 6, true, rc, br, 16, 8);
+pub(crate) unsafe fn kernel_sup_m(
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    b: *const TB, b_rs: usize, b_cs: usize,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+    ap: *const TA,
+) {  
+    kernel_sup_m_s(
+        m, n, k,
+        alpha, beta,
+        b, b_rs, b_cs,
+        c, c_cs,
+        ap
+    );
+}
 
-// def_milikernel_blocked!(16, 6, false, cc, bc, 16, 8);
-
-macro_rules! def_milikernel_blocked2 {
-    ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($nr_left:tt),*) => {
-        seq!( mr_left in 2..$MR { paste! {
+macro_rules! def_milikernel_blocked {
+    ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
+        seq!( nr_left in 2..$NR { paste! {
             #[target_feature(enable = "avx,fma")]
-            pub unsafe fn [<kernel_sup_n_$layout1>](
+            pub unsafe fn [<kernel_sup_n_s>](
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
-                a: *const TB, lda: usize,
+                a: *const TB, a_rs: usize, a_cs: usize,
+                b: *const TA,
                 c: *mut TC, ldc: usize,
-                bp: *const TA,
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
-                let m_iter0 = (m / MR) as u64;
+                let mut m_iter = (m / MR) as u64;
                 let m_left = m % MR;
                 let mut c_cur0 = c;
-                let a_rs = if $is_b_row { lda } else { 1 };
-                let mut bp_cur = bp;
-                let mut n_iter = (n / NR) as u64;
+                let mut a_cur = a;
+                
+                let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, lda * 4];
+                let ld_arr = [0*4, 0*4];
+                let mut ap_buf = [0_f32; MR * 512+1000];
+                let ap_buf_offset = ap_buf.as_ptr().align_offset(256);
+                let ap_cur = ap_buf.as_mut_ptr().add(ap_buf_offset);
                 // use blocking since rrc kernel is hard to implement to current macro choices
-                while n_iter > 0 {
-                    let mut m_iter = m_iter0;
-                    let mut a_cur = a;
+                while m_iter > 0 {
+                    let mut n_iter = n_iter0;
+                    let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
-                    while m_iter > 0 {
-                        [<ukernel_$NR x $MR _$layout2>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
-                        m_iter -= 1;
-                        a_cur = a_cur.add(MR * a_rs);
-                        c_cur1 = c_cur1.add(MR);
+                    packa_panel_48(MR, k, a_cur, a_rs, a_cs, ap_cur);
+                    while n_iter > 0 {
+                        [<ukernel_$MR x $NR _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        n_iter -= 1;
+                        b_cur = b_cur.add(NR*k);
+                        c_cur1 = c_cur1.add(NR*ldc);
                     }
-                    if m_left == 1 {
-                        [<ukernel_$NR x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 16);
+                    if n_left == 1 {
+                        [<ukernel_$MR x1_$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                     }
                     #(
-                        else if m_left == mr_left {
-                            [<ukernel_$NR x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, 16);
+                        else if n_left == nr_left {
+                            [<ukernel_$MR x~nr_left _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                     )*
-                    n_iter -= 1;
-                    bp_cur = bp_cur.add(NR*k);
-                    c_cur0 = c_cur0.add(NR*ldc);
+                    m_iter -= 1;
+                    a_cur = a_cur.add(MR*a_rs);
+                    c_cur0 = c_cur0.add(MR);
                 }
 
 
                 $(
-                    if n_left > ($nr_left - 16) {
-                        let mut m_iter = m_iter0;
-                        let mut a_cur = a;
+                    if m_left > ($mr_left - 16) {
+                        packa_panel_48(m_left, k, a_cur, a_rs, a_cs, ap_cur);
+                        let mut n_iter = n_iter0;
+                        let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
-                        const MR_LEFT: usize = $nr_left;
+                        const MR_LEFT: usize = $mr_left;
                         let mut c_temp_buf = [0_f32; MR_LEFT*NR];
                         let ct = c_temp_buf.as_mut_ptr();
-                        let n_left = if n_left % 8 == 0 { 8 } else { n_left % 8 };
-                        while m_iter > 0 {
-                            // load_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$nr_left x $MR _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
-                            // store_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
-                            m_iter -= 1;
-                            a_cur = a_cur.add(MR*a_rs);
-                            c_cur1 = c_cur1.add(MR);
+                        while n_iter > 0 {
+                            load_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x $NR _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
+                            store_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            n_iter -= 1;
+                            b_cur = b_cur.add(NR*k);
+                            c_cur1 = c_cur1.add(NR*ldc);
                         }
-                        if m_left == 1 {
-                            // load_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$nr_left x1_$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
-                            // store_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                        if n_left == 1 {
+                            load_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x1_$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
+                            store_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
                         }
                         #(
-                        else if m_left == mr_left {
-                            // load_c::<MR_LEFT,mr_left>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$nr_left x~mr_left _$layout2 _partial>](bp_cur, a_cur, c_cur1, alpha, beta, k, ldc, ld_arr, n_left as usize);
-                            // store_c::<MR_LEFT,mr_left>(c_cur1, ct, m_left, ldc);
+                        else if n_left == nr_left {
+                            load_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x~nr_left _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
+                            store_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
                         }
                         )*
                         return;
@@ -489,42 +500,7 @@ macro_rules! def_milikernel_blocked2 {
     };
 }
 
-def_milikernel_blocked2!(8, 48, true, r, rb_t, 48, 32, 16);
-def_milikernel_blocked2!(8, 48, false, c, cb_t, 48, 32, 16);
-
-
-
-pub(crate) unsafe fn kernel_sup_m(
-    m: usize, n: usize, k: usize,
-    alpha: *const TA,
-    beta: *const TC,
-    b: *const TB, b_rs: usize, b_cs: usize,
-    c: *mut TC, c_rs: usize, c_cs: usize,
-    ap: *const TA,
-) {  
-    if c_rs == 1 {
-        if b_cs == 1 {
-            kernel_sup_m_r(
-                m, n, k,
-                alpha, beta,
-                b, b_rs,
-                c, c_cs,
-                ap
-            );
-        } else {
-            kernel_sup_m_c(
-                m, n, k,
-                alpha, beta,
-                b, b_cs,
-                c, c_cs,
-                ap
-            );
-        }
-    } else {
-        panic!("Strided C is not supported yet");
-    }
-
-}
+def_milikernel_blocked!(48, 8, true, b, bb, 48, 32, 16);
 
 
 #[target_feature(enable = "avx,fma")]
@@ -532,32 +508,17 @@ pub(crate) unsafe fn kernel_sup_n(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
-    b: *const TB, b_rs: usize, b_cs: usize,
+    a: *const TB, a_rs: usize, a_cs: usize,
+    b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
-    ap: *const TA,
  ) { 
-    if c_rs == 1 {
-        if b_cs == 1 {
-            kernel_sup_n_r(
-                m, n, k,
-                alpha, beta,
-                b, b_rs,
-                c, c_cs,
-                ap
-            );
-        } else {
-            kernel_sup_n_c(
-                m, n, k,
-                alpha, beta,
-                b, b_cs,
-                c, c_cs,
-                ap
-            );
-        }
-    } else {
-        panic!("Strided C is not implemented");
-    }
-
+    kernel_sup_n_s(
+        m, n, k,
+        alpha, beta,
+        a, a_rs, a_cs,
+        b,
+        c, c_cs,
+    );
  } 
 
 
@@ -614,7 +575,7 @@ pub(crate) unsafe fn packb_panel<const NR: usize>(
     if NR == 8 {
         packb_panel_8(m, k, a, a_rs, a_cs, ap);
         return;
-    } 
+    }
     if NR == 12 {
         packb_panel_12(m, k, a, a_rs, a_cs, ap);
         return;
