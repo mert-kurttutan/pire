@@ -322,7 +322,7 @@ impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
 A: GemmArray<f32, X = f32>, 
-B: GemmArray<f32>,
+B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmSmallN<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where 
@@ -334,12 +334,18 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A, a_rs: usize, a_cs: usize,
+        a: A, b: *const TB,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        bp: *const TB,
    ) {
     // A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
-    let a_ptr = a.get_data_ptr().add(a_rs*a.get_rs()+a_cs*a.get_cs());
-    kernel_sup_n(m, n, k, alpha, beta, a_ptr, a.get_rs(), a.get_cs(), c, c_rs, c_cs, bp);
+    let a_ptr = a.get_data_ptr();
+    let a_ptr_rs = a.get_rs();
+    let a_ptr_cs = a.get_cs();
+    kernel_sup_n(
+        m, n, k, alpha, beta, 
+        a_ptr, a_ptr_rs, a_ptr_cs, 
+        b,
+        c, c_rs, c_cs
+    );
    }
 }

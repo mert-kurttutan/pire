@@ -302,6 +302,7 @@ pub trait GemmArray<Y>: Copy + Send + 'static{
     fn get_cs(&self) -> usize;
     fn get_data_ptr(&self) -> *const Self::X;
     fn transpose(&mut self);
+    fn add_2d(&self, i: usize, j: usize) -> Self;
 }
 
 pub trait GemmArrayP<T,U>
@@ -664,6 +665,16 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
         self.rs = self.cs;
         self.cs = temp;
     }
+
+    fn add_2d(&self, i: usize, j: usize) -> Self {
+        Self {
+            // TODO: fix this unsafe later
+            data_ptr: unsafe {self.data_ptr.add(i*self.rs + j*self.cs)},
+            rs: self.rs,
+            cs: self.cs,
+        }
+    
+    }
 }
 
 impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
@@ -737,6 +748,19 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
         let temp = self.rs;
         self.rs = self.cs;
         self.cs = temp;
+    }
+
+    fn add_2d(&self, i: usize, j: usize) -> Self {
+        Self {
+            data_ptr: unsafe{self.data_ptr.add(i*self.mc + j*self.kc)},
+            mc: self.mc,
+            kc: self.kc,
+            mr: self.mr,
+            k: self.k,
+            m: self.m,
+            rs: self.rs,
+            cs: self.cs,
+        }
     }
 }
 
@@ -1174,13 +1198,13 @@ Self: GemmPack<B::X, BP>,
  {
     const ONE: C::X;
     unsafe fn packb(
-        b: B::PackArray, 
+        b: B::PackArray,
         nc: usize, kc: usize,
         nc_len: usize, kc_len: usize,
         t_cfg: &CorenumThreadConfig
     ) -> *const BP {
         t_cfg.wait_packb();
-        let x = b.packa_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, 0, t_cfg.run_packb);
+        let x = b.packb_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, t_cfg.run_packb);
         t_cfg.wait_packb();
         x
     }
@@ -1188,9 +1212,8 @@ Self: GemmPack<B::X, BP>,
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         beta: *const C::X,
-        a: A, a_rs: usize, a_cs: usize,
+        a: A, b: *const BP,
         c: *mut C::X, c_rs: usize, c_cs: usize,
-        bp: *const BP,
     );
     unsafe fn gemm_small_n(
         self: &Self,
@@ -1207,11 +1230,10 @@ Self: GemmPack<B::X, BP>,
         let mc_eff = self.get_mc_eff(par.ic_par);
         let nc_eff = self.get_nc_eff(par.jc_par);
         let kc_eff = self.get_kc_eff();
-        let ap_pool_size = self.get_bp_pool_size(par.jc_par);
+        let bp_pool_size = self.get_bp_pool_size(par.jc_par);
         let align_offset = pack_pool.align_offset(BP_ALIGN);
         let bp_ptr = (pack_pool.add(align_offset)) as *mut BP;
-        let mut b = b;
-        b.transpose();
+        let b = b;
         let bp = b.into_pack_array(bp_ptr);
         let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
@@ -1221,8 +1243,7 @@ Self: GemmPack<B::X, BP>,
         for t_id in 1..par.num_threads {
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
             let jc_id = t_cfg.jc_id;
-            let bp_cur = bp.add_p(jc_id*ap_pool_size);
-    
+            let bp_cur = bp.add_p(jc_id*bp_pool_size);
             let x = std::thread::spawn(move || {
                     let alpha = &alpha as *const AP;
                     let beta = &beta as *const C::X;
@@ -1284,20 +1305,19 @@ Self: GemmPack<B::X, BP>,
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == kc_start { beta } else { &one as *const C::X};
- 
+                let a_cur = a.add_2d(mr_start+mc, kc);
                 let mut nc = nc_start;
  
                 while nc < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc);
                     let (nr_start, nr_end) = split_range(nc_len, Self::NR, jr_id, jr_par);
                     let nr_len = nr_end - nr_start;
-                    let bp = Self::packb(b, nc, kc, nc_len, kc_len, t_cfg).add(nr_start*kc_len);
+                    let b_cur = Self::packb(b, nc, kc, nc_len, kc_len, t_cfg);
                     let c_ij = c_i.add((nc + nr_start) * c_cs);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, 
-                        a, mc+mr_start, kc,
+                        a_cur, b_cur,
                         c_ij, c_rs, c_cs,
-                        bp
                     );
                     nc += nc_eff;
                 }
@@ -1317,7 +1337,8 @@ Self: GemmPack<B::X, BP>,
                 let mut nc_i = nc_start;
                 while nc_i < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc_i);
-                    let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                    t_cfg.wait_packb();
+                    t_cfg.wait_packb();
                     nc_i += nc_eff;
                 }
                 if nc_left{
