@@ -228,6 +228,7 @@ pub unsafe fn packa_f32(
 	let avx = (*RUNTIME_HW_CONFIG).avx;
 	let fma = (*RUNTIME_HW_CONFIG).fma;
 	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	let avx512f = (*RUNTIME_HW_CONFIG).avx512f;
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
 	if m == 1 || k == 1 {
@@ -237,6 +238,27 @@ pub unsafe fn packa_f32(
 			}
 		}
 		return;
+	}
+
+	if avx512f {
+		match model {
+			_ => {
+				const MC: usize = 4800;
+				const MR: usize = 48;
+				const KC: usize = 512;
+				for i in (0..m).step_by(MC) {
+					let mc_len = if m >= (i + MC) {MC} else {m - i};
+					let mc_len_eff = (mc_len + MR-1) / MR * MR;
+					for p in (0..k).step_by(KC) {
+						let kc_len = if k >= (p + KC) {KC} else {k - p};
+						avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+						ap = ap.add(mc_len_eff*kc_len);	
+					}
+				}
+			}
+		}
+		return;
+	
 	}
 	if avx && fma {
 		match model {
@@ -255,10 +277,7 @@ pub unsafe fn packa_f32(
 				}
 			}
 		}
-	} else {
-		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
-		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
-		// );
+		return;
 	}
 }
 
@@ -369,12 +388,12 @@ mod tests {
 									&mut c_ref,
 								)
 							};
-                        	if diff_max >= EPS {
-                            	println!("a: {:?}", a);
-                            	println!("b: {:?}", b);
-                            	println!("c: {:?}", c);
-                            	println!("c_ref: {:?}", c_ref);
-                        	}
+                        	// if diff_max >= EPS {
+                            // 	println!("a: {:?}", a);
+                            // 	println!("b: {:?}", b);
+                            // 	println!("c: {:?}", c);
+                            // 	println!("c_ref: {:?}", c_ref);
+                        	// }
                         	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
                     	}
                 	}
@@ -446,12 +465,12 @@ mod tests {
 									&mut c_ref,
 								)
 							};
-                        	if diff_max >= EPS {
-                            	println!("a: {:?}", a);
-                            	println!("b: {:?}", b);
-                            	println!("c:     {:?}", c);
-                            	println!("c_ref: {:?}", c_ref);
-                        	}
+                        	// if diff_max >= EPS {
+                            // 	println!("a: {:?}", a);
+                            // 	println!("b: {:?}", b);
+                            // 	println!("c:     {:?}", c);
+                            // 	println!("c_ref: {:?}", c_ref);
+                        	// }
                         	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
                     	}
                 	}

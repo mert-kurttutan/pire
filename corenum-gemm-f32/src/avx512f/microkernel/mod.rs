@@ -423,6 +423,7 @@ macro_rules! def_milikernel_blocked {
                 a: *const TB, a_rs: usize, a_cs: usize,
                 b: *const TA,
                 c: *mut TC, ldc: usize,
+                ap_buf: *mut TA,
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
@@ -434,10 +435,7 @@ macro_rules! def_milikernel_blocked {
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [0*4, 0*4];
-                let mut ap_buf = [0_f32; MR * 512+1000];
-                let ap_buf_offset = ap_buf.as_ptr().align_offset(256);
-                let ap_cur = ap_buf.as_mut_ptr().add(ap_buf_offset);
-                // use blocking since rrc kernel is hard to implement to current macro choices
+                let ap_cur = ap_buf;
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
@@ -511,6 +509,7 @@ pub(crate) unsafe fn kernel_sup_n(
     a: *const TB, a_rs: usize, a_cs: usize,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
+    ap_buf: *mut TA,
  ) { 
     kernel_sup_n_s(
         m, n, k,
@@ -518,6 +517,7 @@ pub(crate) unsafe fn kernel_sup_n(
         a, a_rs, a_cs,
         b,
         c, c_cs,
+        ap_buf
     );
  } 
 

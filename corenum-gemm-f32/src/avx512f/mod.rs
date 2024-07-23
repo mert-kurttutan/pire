@@ -139,7 +139,7 @@ AP, BP,
 A: GemmArray<AP>,
 B: GemmArray<BP>,
 > GemmCache<AP,BP,A,B> for AvxFma<GOTO_MR,GOTO_NR> {
-    const CACHELINE_PAD: usize = 256;
+    // const CACHELINE_PAD: usize = 256;
     const MR: usize = GOTO_MR;
     const NR: usize = GOTO_NR;
     fn get_kc_eff(&self) -> usize {self.goto_kc}
@@ -334,17 +334,20 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A, b: *const f32,
+        a: A::PackArray, b: *const f32,
         c: *mut TC, c_rs: usize, c_cs: usize,
+        // ap_buf: *mut TA,
    ) {
         let a_ptr = a.get_data_ptr();
         let a_ptr_rs = a.get_rs();
         let a_ptr_cs = a.get_cs();
+        let ap_buf = a.get_data_p_ptr();
         kernel_sup_n(
             m, n, k, alpha, beta, 
             a_ptr, a_ptr_rs, a_ptr_cs, 
             b,
-            c, c_rs, c_cs
+            c, c_rs, c_cs,
+            ap_buf
         );
    }
 }

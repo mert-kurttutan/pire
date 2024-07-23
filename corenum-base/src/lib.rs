@@ -311,6 +311,11 @@ pub trait GemmArrayP<T,U>
     unsafe fn packa_dispatch_hw<H:GemmPack<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
     unsafe fn packb_dispatch_hw<H:GemmPack<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
     unsafe fn add_p(&self, offset: usize) -> Self;
+    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self;
+    unsafe fn get_data_p_ptr(&self) -> *mut U;
+    fn get_rs(&self) -> usize;
+    fn get_cs(&self) -> usize;
+    fn get_data_ptr(&self) -> *const T;
 }
 
 pub trait GemmOut: Copy+Send+'static {
@@ -390,6 +395,11 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 >(hw_config: &HWConfig, par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
+    if A::is_packing_needed() {
+        let ap_pool_multiplicity = par.num_threads;
+        let ap_pool_size = hw_config.get_ap_pool_size2();
+        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
+    }
     if B::is_packing_needed() {
         let bp_pool_multiplicity = par.jc_par;
         let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
@@ -704,6 +714,31 @@ impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
             data_p_ptr: self.data_p_ptr.add(offset),
         }
     }
+
+    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self {
+        Self {
+            data_ptr: self.data_ptr.add(i*self.rs + j*self.cs),
+            rs: self.rs,
+            cs: self.cs,
+            data_p_ptr: self.data_p_ptr,
+        }
+    }
+
+    unsafe fn get_data_p_ptr(&self) -> *mut U {
+        self.data_p_ptr
+    }
+
+    fn get_rs(&self) -> usize {
+        self.rs
+    }
+
+    fn get_cs(&self) -> usize {
+        self.cs
+    }
+
+    fn get_data_ptr(&self) -> *const T {
+        self.data_ptr
+    }
 }
 
 
@@ -793,6 +828,35 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
             cs: self.cs,
         }
     }
+
+    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self {
+        Self {
+            data_ptr: self.data_ptr.add(i*self.mc + j*self.kc),
+            mc: self.mc,
+            kc: self.kc,
+            mr: self.mr,
+            k: self.k,
+            m: self.m,
+            rs: self.rs,
+            cs: self.cs,
+        }
+    }
+
+    unsafe fn get_data_p_ptr(&self) -> *mut T {
+        self.data_ptr as *mut T
+    }
+
+    fn get_rs(&self) -> usize {
+        self.rs
+    }
+
+    fn get_cs(&self) -> usize {
+        self.cs
+    }
+
+    fn get_data_ptr(&self) -> *const T {
+        self.data_ptr
+    }
 }
 
 
@@ -826,7 +890,7 @@ BP,
 A: GemmArray<AP>,
 B: GemmArray<BP>,
 > {
-    const CACHELINE_PAD: usize = 256;
+    const CACHELINE_PAD: usize = 4096;
     const MR: usize; const NR: usize;
 
     fn get_mc_eff(&self,par: usize) -> usize;
@@ -837,6 +901,14 @@ B: GemmArray<BP>,
             let mc_eff = self.get_mc_eff(ic_par);
             let kc_eff = self.get_kc_eff();
             mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
+        } else {
+            0
+        }
+    }
+    fn get_ap_pool_size2(&self) -> usize {
+        if A::is_packing_needed() {
+            let kc_eff = self.get_kc_eff();
+            Self::MR * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
         } else {
             0
         }
@@ -1212,7 +1284,7 @@ Self: GemmPack<B::X, BP>,
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         beta: *const C::X,
-        a: A, b: *const BP,
+        a: A::PackArray, b: *const BP,
         c: *mut C::X, c_rs: usize, c_cs: usize,
     );
     unsafe fn gemm_small_n(
@@ -1230,11 +1302,12 @@ Self: GemmPack<B::X, BP>,
         let mc_eff = self.get_mc_eff(par.ic_par);
         let nc_eff = self.get_nc_eff(par.jc_par);
         let kc_eff = self.get_kc_eff();
+        let ap_pool_size = self.get_ap_pool_size2();
         let bp_pool_size = self.get_bp_pool_size(par.jc_par);
-        let align_offset = pack_pool.align_offset(BP_ALIGN);
-        let bp_ptr = (pack_pool.add(align_offset)) as *mut BP;
+        let (ap_ptr, bp_ptr) = get_ap_bp::<AP,BP>(pack_pool, ap_pool_size, bp_pool_size, par.num_threads, par.jc_par);
         let b = b;
         let bp = b.into_pack_array(bp_ptr);
+        let ap = a.into_pack_array(ap_ptr);
         let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
         let mut handle_vec = Vec::with_capacity(par.num_threads-1);
@@ -1243,11 +1316,12 @@ Self: GemmPack<B::X, BP>,
         for t_id in 1..par.num_threads {
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
             let jc_id = t_cfg.jc_id;
+            let ap_cur = ap.add_p(t_id*ap_pool_size);
             let bp_cur = bp.add_p(jc_id*bp_pool_size);
             let x = std::thread::spawn(move || {
                     let alpha = &alpha as *const AP;
                     let beta = &beta as *const C::X;
-                    Self::gemm_small_n_serial(m, n, k, alpha, a, bp_cur, beta, c, &t_cfg);
+                    Self::gemm_small_n_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
                 }
             );
     
@@ -1259,7 +1333,7 @@ Self: GemmPack<B::X, BP>,
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
             let alpha = &alpha as *const AP;
             let beta = &beta as *const C::X;
-            Self::gemm_small_n_serial(m, n, k, alpha, a, bp, beta, c, &t_cfg);
+            Self::gemm_small_n_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
         }
         for handle in handle_vec {
             handle.join().unwrap();
@@ -1269,7 +1343,7 @@ Self: GemmPack<B::X, BP>,
     unsafe fn gemm_small_n_serial(
         m: usize, n: usize, k: usize,
         alpha: *const AP,
-        a: A,
+        a: A::PackArray,
         b: B::PackArray,
         beta: *const C::X,
         c: C,
@@ -1305,7 +1379,7 @@ Self: GemmPack<B::X, BP>,
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == kc_start { beta } else { &one as *const C::X};
-                let a_cur = a.add_2d(mr_start+mc, kc);
+                let a_cur = a.add_p_2d(mr_start+mc, kc);
                 let mut nc = nc_start;
  
                 while nc < nc_end {

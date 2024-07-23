@@ -334,18 +334,21 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A, b: *const TB,
+        a: A::PackArray, b: *const TB,
         c: *mut TC, c_rs: usize, c_cs: usize,
+        // ap_buf: *mut TA,
    ) {
-    // A::kernel_sup_n(m, n, k, alpha, beta, a, a_rs, a_cs, c, c_rs, c_cs, bp);
     let a_ptr = a.get_data_ptr();
     let a_ptr_rs = a.get_rs();
     let a_ptr_cs = a.get_cs();
+    let ap_buf = a.get_data_p_ptr();
+
     kernel_sup_n(
         m, n, k, alpha, beta, 
         a_ptr, a_ptr_rs, a_ptr_cs, 
         b,
-        c, c_rs, c_cs
+        c, c_rs, c_cs,
+        ap_buf
     );
    }
 }
