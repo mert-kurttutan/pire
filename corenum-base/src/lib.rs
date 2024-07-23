@@ -308,8 +308,8 @@ pub trait GemmArray<Y>: Copy + Send + 'static{
 pub trait GemmArrayP<T,U>
 {
     // type StridedArray;
-    unsafe fn packa_dispatch_hw<H:GemmPack<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
-    unsafe fn packb_dispatch_hw<H:GemmPack<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
+    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
+    unsafe fn packb_dispatch_hw<H:GemmPackB<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
     unsafe fn add_p(&self, offset: usize) -> Self;
     unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self;
     unsafe fn get_data_p_ptr(&self) -> *mut U;
@@ -331,16 +331,66 @@ pub trait GemmOut: Copy+Send+'static {
     fn transpose(&mut self);
 }
 
-pub trait GemmPack<T,U> {
-    unsafe fn packa_fn(a: *const T, b: *mut U, m: usize, k: usize, a_rs: usize, a_cs: usize);
-    unsafe fn packb_fn(a: *const T, b: *mut U, m: usize, k: usize, b_rs: usize, b_cs: usize);
+pub trait GemmPackA<AX,AY> 
+where Self: Sized
+{
+    unsafe fn packa_fn(a: *const AX, b: *mut AY, m: usize, k: usize, a_rs: usize, a_cs: usize);
+    unsafe fn packa<A: GemmArray<AY,X=AX>>(
+        a: A::PackArray, 
+    mc_i: usize, kc_i: usize,
+    mc_len: usize, kc_len: usize,
+    t_cfg: &CorenumThreadConfig
+    ) -> *const AY {
+        t_cfg.wait_packa();
+        let x = a.packa_dispatch_hw::<Self>(mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
+        t_cfg.wait_packa();
+        x
+    }
 }
+
+
+pub trait GemmPackB<BX,BY> 
+where Self: Sized
+{
+    unsafe fn packb_fn(a: *const BX, b: *mut BY, m: usize, k: usize, b_rs: usize, b_cs: usize);
+    unsafe fn packb<B: GemmArray<BY,X=BX>>(
+        b: B::PackArray, 
+        nc: usize, kc: usize,
+        nc_len: usize, kc_len: usize,
+        t_cfg: &CorenumThreadConfig
+    ) -> *const BY {
+        t_cfg.wait_packb();
+        let x = b.packb_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, t_cfg.run_packb);
+        t_cfg.wait_packb();
+        x
+    }
+}
+
 
 pub trait BaseNum: Copy + 'static + Send {}
 
 impl<T> BaseNum for T where T: Copy + 'static + Send {}
 
+
 fn get_mem_pool_size<
+AP: BaseNum,
+BP: BaseNum,
+A: GemmArray<AP>,
+B: GemmArray<BP>,
+C: GemmOut,
+HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN<AP,BP,A,B,C>
+>(hw_config: &HWConfig, par: &CorenumPar, m: usize, n: usize) -> usize
+{
+    if run_small_m::<BP,B>(m) {
+        return get_mem_pool_size_small_m(hw_config, par);
+    }
+    if run_small_n::<AP,A>(n) {
+        return get_mem_pool_size_small_n(hw_config, par);
+    }
+    get_mem_pool_size_goto(hw_config, par)
+}
+
+fn get_mem_pool_size_goto<
 AP: BaseNum,
 BP: BaseNum,
 A: GemmArray<AP>, 
@@ -473,53 +523,15 @@ where AP: Into<BP>
         corenum_gemv::<BP,AP,B,A,C,HWConfig>(n, k, alpha.into(), b, a, beta, c, par);
         return;
     }
-    if run_small_m::<BP,B>(m) {
-        let mem_pool_size = get_mem_pool_size_small_m::<AP,BP,A,B,C,HWConfig>(hw_config, par);
-        // run goto algo
-        {
-            let pool_guard = PACK_POOL.buffer.read().unwrap();
-            let y = acquire(&pool_guard, mem_pool_size);
-            if let Some(mut pool_vec) = y {
-                let pool_buf = pool_vec.as_mut_ptr();
-                hw_config.gemm_small_m(
-                    m, n, k, alpha, a, b, beta, c, par, pool_buf
-                );
-                return;
-            }
-        }
-        let mut pool_vec = vec![0_u8; mem_pool_size];
-        let pool_buf = pool_vec.as_mut_ptr();
-        hw_config.gemm_small_m(
-            m, n, k, alpha, a, b, beta, c, par, pool_buf
-        );
-        extend(pool_vec);
-        return;
-    }
-
-    if run_small_n::<AP,A>(n) {
-        let mem_pool_size = get_mem_pool_size_small_n::<AP,BP,A,B,C,HWConfig>(hw_config, par);
-        // run goto algo
-        {
-            let pool_guard = PACK_POOL.buffer.read().unwrap();
-            let y = acquire(&pool_guard, mem_pool_size);
-            if let Some(mut pool_vec) = y {
-                let pool_buf = pool_vec.as_mut_ptr();
-                hw_config.gemm_small_n(
-                    m, n, k, alpha, a, b, beta, c, par, pool_buf
-                );
-                return;
-            }
-        }
-        let mut pool_vec = vec![0_u8; mem_pool_size];
-        let pool_buf = pool_vec.as_mut_ptr();
-        hw_config.gemm_small_n(
-            m, n, k, alpha, a, b, beta, c, par, pool_buf
-        );
-        extend(pool_vec);
-        return;
-    }
+    let gemm_fun = if run_small_m::<BP,B>(m) {
+        HWConfig::gemm_small_m
+    } else if run_small_n::<AP,A>(n) {
+        HWConfig::gemm_small_n
+    } else {
+        HWConfig::gemm_packa_packb
+    };
     
-    let mem_pool_size = get_mem_pool_size::<AP,BP,A,B,C,HWConfig>(hw_config, par);
+    let mem_pool_size = get_mem_pool_size::<AP,BP,A,B,C,HWConfig>(hw_config, par, m, n);
     if mem_pool_size == 0 {
         let mut pool_vec = vec![0_u8; 1];
         let pool_buf = pool_vec.as_mut_ptr();
@@ -534,16 +546,16 @@ where AP: Into<BP>
 		let y = acquire(&pool_guard, mem_pool_size);
 		if let Some(mut pool_vec) = y {
             let pool_buf = pool_vec.as_mut_ptr();
-            hw_config.gemm_packa_packb(
-                m, n, k, alpha, a, b, beta, c, par, pool_buf
+            gemm_fun( 
+                hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf
             );
 			return;
 		}
 	}
     let mut pool_vec = vec![0_u8; mem_pool_size];
     let pool_buf = pool_vec.as_mut_ptr();
-    hw_config.gemm_packa_packb(
-        m, n, k, alpha, a, b, beta, c, par, pool_buf
+    gemm_fun( 
+        hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf
     );
 	extend(pool_vec);
 
@@ -672,7 +684,7 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
 }
 
 impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
-    unsafe fn packa_dispatch_hw<H:GemmPack<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U
+    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U
     {
         if run {
             let a = self.data_ptr.add(mc*self.rs + kc*self.cs);
@@ -680,7 +692,7 @@ impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
         }
         self.data_p_ptr
     }
-    unsafe fn packb_dispatch_hw<H:GemmPack<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U
+    unsafe fn packb_dispatch_hw<H:GemmPackB<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U
     {
         if run {
             let a = self.data_ptr.add(kc*self.rs + nc*self.cs);
@@ -916,33 +928,10 @@ B: GemmArray<BP>,
 C: GemmOut,
 > 
 where Self: Sized + GemmCache<AP,BP,A,B>,
-Self: GemmPack<B::X, BP>,
-Self: GemmPack<A::X, AP>,
+Self: GemmPackB<B::X, BP>,
+Self: GemmPackA<A::X, AP>,
 {
     const ONE: C::X;
-
-   unsafe fn packa(
-        a: A::PackArray, 
-    mc_i: usize, kc_i: usize,
-    mc_len: usize, kc_len: usize,
-    t_cfg: &CorenumThreadConfig
-    ) -> *const AP {
-        t_cfg.wait_packa();
-        let x = a.packa_dispatch_hw::<Self>(mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
-        t_cfg.wait_packa();
-        x
-    }
-    unsafe fn packb(
-        b: B::PackArray, 
-        nc: usize, kc: usize,
-        nc_len: usize, kc_len: usize,
-        t_cfg: &CorenumThreadConfig
-    ) -> *const BP {
-        t_cfg.wait_packb();
-        let x = b.packb_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, t_cfg.run_packb);
-        t_cfg.wait_packb();
-        x
-    }
    unsafe fn kernel(
        m: usize, n: usize, k: usize,
        alpha: *const AP,
@@ -1043,14 +1032,14 @@ Self: GemmPack<A::X, AP>,
                let kc_last = kc_i + kc_len == kc_end;
                let beta_t = if kc_i == kc_start { beta } else { &one as *const C::X};
                let mut nc_i = nc_start;
-               let ap = Self::packa(a, mc_i, kc_i, mc_len, kc_len, t_cfg);
+               let ap = Self::packa::<A>(a, mc_i, kc_i, mc_len, kc_len, t_cfg);
                let ap = ap.add(mr_start*kc_len);
                while nc_i < nc_end {
                    let nc_len = nc.min(nc_end - nc_i);
                    let (nr_start, nr_end) = split_range(nc_len, Self::NR, jr_id, jr_par);
                    let nr_len = nr_end - nr_start;
                    let c_ij = c_i.add((nc_i+nr_start) * c_cs);
-                   let bp = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                   let bp = Self::packb::<B>(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                    let bp = bp.add(nr_start*kc_len);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
@@ -1077,7 +1066,7 @@ Self: GemmPack<A::X, AP>,
             let mut nc_i = nc_start;
             while nc_i < nc_end {
                 let nc_len = nc.min(nc_end - nc_i);
-                let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                let _ = Self::packb::<B>(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                 nc_i += nc;
             }
             if nc_left{
@@ -1098,20 +1087,9 @@ B: GemmArray<BP>,
 C: GemmOut,
 > 
 where Self: Sized + GemmCache<AP,BP,A,B> + Send + Sync,
-Self: GemmPack<A::X, AP>
+Self: GemmPackA<A::X, AP>
 {
     const ONE: C::X;
-    unsafe fn packa(
-        a: A::PackArray,
-        mc: usize, kc: usize,
-        mc_len: usize, kc_len: usize,
-        t_cfg: &CorenumThreadConfig
-    ) -> *const AP {
-        t_cfg.wait_packa();
-         let x = a.packa_dispatch_hw::<Self>(mc, kc, mc_len, kc_len, 0, t_cfg.run_packa);
-        t_cfg.wait_packa();
-        x
-    }
     unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const AP,
@@ -1211,7 +1189,7 @@ Self: GemmPack<A::X, AP>
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == kc_start { beta } else { &one as *const C::X};
                 let mut nc = nc_start;
-                let ap = Self::packa(a, mc, kc, mc_len, kc_len, t_cfg);
+                let ap = Self::packa::<A>(a, mc, kc, mc_len, kc_len, t_cfg);
                 let ap = ap.add(mr_start*kc_len);
                 while nc < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc);
@@ -1250,20 +1228,9 @@ Self: GemmPack<A::X, AP>
 C: GemmOut,
  >
 where Self: Sized + GemmCache<AP,BP,A,B>,
-Self: GemmPack<B::X, BP>,
+Self: GemmPackB<B::X, BP>,
  {
     const ONE: C::X;
-    unsafe fn packb(
-        b: B::PackArray,
-        nc: usize, kc: usize,
-        nc_len: usize, kc_len: usize,
-        t_cfg: &CorenumThreadConfig
-    ) -> *const BP {
-        t_cfg.wait_packb();
-        let x = b.packb_dispatch_hw::<Self>(nc, kc, nc_len, kc_len, t_cfg.run_packb);
-        t_cfg.wait_packb();
-        x
-    }
     unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const AP,
@@ -1370,7 +1337,7 @@ Self: GemmPack<B::X, BP>,
                     let nc_len = nc_eff.min(nc_end - nc);
                     let (nr_start, nr_end) = split_range(nc_len, Self::NR, jr_id, jr_par);
                     let nr_len = nr_end - nr_start;
-                    let b_cur = Self::packb(b, nc, kc, nc_len, kc_len, t_cfg);
+                    let b_cur = Self::packb::<B>(b, nc, kc, nc_len, kc_len, t_cfg);
                     let c_ij = c_i.add((nc + nr_start) * c_cs);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, 
@@ -1395,7 +1362,7 @@ Self: GemmPack<B::X, BP>,
                 let mut nc_i = nc_start;
                 while nc_i < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc_i);
-                    let _ = Self::packb(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                    let _ = Self::packb::<B>(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                     nc_i += nc_eff;
                 }
                 if nc_left{

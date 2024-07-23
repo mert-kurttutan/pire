@@ -18,7 +18,7 @@ pub(crate) use microkernel::{
 const VS: usize = 8; // vector size in float, __m256
 
 use corenum_base::{
-   StridedMatrix, GemmPack
+   StridedMatrix, GemmPackA, GemmPackB
 };
 
 
@@ -105,12 +105,17 @@ C: GemmOut<X=f32,Y=f32>,
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-> GemmPack<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
+> GemmPackA<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         packa_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
 
+}
+impl<
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+> GemmPackB<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
@@ -120,12 +125,17 @@ const GOTO_NR: usize,
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-> GemmPack<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
+> GemmPackA<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
 
+}
+impl<
+const GOTO_MR: usize,
+const GOTO_NR: usize,
+> GemmPackB<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
@@ -189,7 +199,7 @@ B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where 
-AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA> + GemmPack<B::X, TB>
+AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -298,7 +308,7 @@ A: GemmArray<f32>,
 B: GemmArray<f32, X = f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmSmallM<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
-where AvxFma<GOTO_MR,GOTO_NR>: GemmPack<A::X, TA>
+where AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -326,7 +336,7 @@ B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > GemmSmallN<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 where 
-AvxFma<GOTO_MR,GOTO_NR>: GemmPack<B::X, TB>
+AvxFma<GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
