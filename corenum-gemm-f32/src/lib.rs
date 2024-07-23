@@ -9,7 +9,10 @@ pub(crate) type TC = f32;
 
 use corenum_base::StridedMatrix;
 use corenum_base::{
-	HWConfig, RUNTIME_HW_CONFIG,
+	hw_avx,
+	hw_avx512f,
+	hw_fma,
+	hw_model,
     GemmGotoPackaPackb,
 	GemmSmallM,
 	GemmSmallN,
@@ -67,9 +70,9 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	let avx = (*RUNTIME_HW_CONFIG).avx;
-	let fma = (*RUNTIME_HW_CONFIG).fma;
-	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	let avx = hw_avx();
+	let fma = hw_fma();
+	let model = hw_model();
 	if avx && fma {
 
 		match model {
@@ -147,11 +150,11 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	let avx = (*RUNTIME_HW_CONFIG).avx;
-	let avx512f = (*RUNTIME_HW_CONFIG).avx512f;
+	let avx = hw_avx();
+	let avx512f = hw_avx512f();
 	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
-	let fma = (*RUNTIME_HW_CONFIG).fma;
-	let model = (*RUNTIME_HW_CONFIG).hw_model;
+	let fma = hw_fma();
+	let model = hw_model();
 	if avx512f {
 		match model {
 			_ => {
@@ -225,10 +228,10 @@ pub unsafe fn packa_f32(
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) {
-	let avx = (*RUNTIME_HW_CONFIG).avx;
-	let fma = (*RUNTIME_HW_CONFIG).fma;
-	let model = (*RUNTIME_HW_CONFIG).hw_model;
-	let avx512f = (*RUNTIME_HW_CONFIG).avx512f;
+	let avx = hw_avx();
+	let fma = hw_fma();
+	let model = hw_model();
+	let avx512f = hw_avx512f();
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
 	if m == 1 || k == 1 {

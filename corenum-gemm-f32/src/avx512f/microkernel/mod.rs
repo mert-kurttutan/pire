@@ -176,14 +176,7 @@ macro_rules! def_milikernel {
                     ap_cur = ap_cur.add(MR*k);
                     c_cur0 = c_cur0.add(MR);
                 }
-                const U: u16 = 0xFFFF;
-                let mask: [u16; 32] = [
-                    U, U, U, U, U, U, U, U, U, U, U, U, U, U, U, U,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                ];
-                let mask_offset = if m_left % 16 == 0 { 0 } else { 16 - (m_left %16)};
                 let x: u16 = if m_left % 16 == 0 && m_left > 0 { 0xFFFF } else { (1 << (m_left % 16)) - 1 };
-                let mask_ptr = mask.as_ptr().add(mask_offset);
                 let mask_ptr = (&x) as *const u16;
                 $(
                     if m_left > ($mr_left - 16) {
@@ -403,13 +396,17 @@ pub(crate) unsafe fn kernel_sup_m(
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
 ) {  
-    kernel_sup_m_s(
-        m, n, k,
-        alpha, beta,
-        b, b_rs, b_cs,
-        c, c_cs,
-        ap
-    );
+    if c_rs == 1 {
+        kernel_sup_m_s(
+            m, n, k,
+            alpha, beta,
+            b, b_rs, b_cs,
+            c, c_cs,
+            ap
+        );
+        return;
+    }
+
 }
 
 macro_rules! def_milikernel_blocked {
@@ -511,14 +508,18 @@ pub(crate) unsafe fn kernel_sup_n(
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap_buf: *mut TA,
  ) { 
-    kernel_sup_n_s(
-        m, n, k,
-        alpha, beta,
-        a, a_rs, a_cs,
-        b,
-        c, c_cs,
-        ap_buf
-    );
+    if c_rs == 1 {
+        kernel_sup_n_s(
+            m, n, k,
+            alpha, beta,
+            a, a_rs, a_cs,
+            b,
+            c, c_cs,
+            ap_buf
+        );
+        return;
+    }
+
  } 
 
 

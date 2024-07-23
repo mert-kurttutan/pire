@@ -3,8 +3,8 @@ pub(crate) mod microkernel;
 
 
 use corenum_base::GemmArrayP;
+use corenum_base::Tensor2D;
 use corenum_base::PackedMatrix;
-use corenum_base::StridedMatrixMut;
 pub(crate) use microkernel::{
    packa_panel,
    packb_panel,
@@ -83,7 +83,7 @@ C: GemmOut<X=f32,Y=f32>,
        y: C,
    ) {
         let x_ptr = x.get_data_ptr();
-        let inc_x = x.get_rs();
+        let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
         A::axpy(m, n, alpha, a, x_ptr, inc_x, beta, y_ptr, incy)
@@ -123,24 +123,24 @@ const GOTO_NR: usize,
 }
 
 
-impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
-> GemmPackA<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-    #[target_feature(enable = "avx,fma")]
-    unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-    }
-}
-impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
-> GemmPackB<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-    #[target_feature(enable = "avx,fma")]
-    unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
-    }
-}
+// impl<
+// const GOTO_MR: usize,
+// const GOTO_NR: usize,
+// > GemmPackA<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
+//     #[target_feature(enable = "avx,fma")]
+//     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+//         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+//     }
+// }
+// impl<
+// const GOTO_MR: usize,
+// const GOTO_NR: usize,
+// > GemmPackB<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
+//     #[target_feature(enable = "avx,fma")]
+//     unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+//         // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
+//     }
+// }
 
 impl<
 const GOTO_MR: usize,
@@ -172,22 +172,6 @@ B: GemmArray<BP>,
 
 
 
-pub struct Identity {}
-
-use corenum_base::UnaryOp;
-
-impl UnaryOp<f32,f32> for Identity {
-    const IS_IDENTITY: bool = true;
-    #[inline(always)]
-    unsafe fn apply_inplace(_x: *mut f32) {
-        
-    }
-
-    #[inline(always)]
-    unsafe fn map(_x: *const f32, _y: *mut f32) {
-        
-    }
-}
 
 use corenum_base::GemmOut;
 
@@ -316,12 +300,12 @@ where AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        b: B, b_rs: usize, b_cs: usize,
+        b: B, //b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const TA,
    ) {
-    let b_ptr = b.get_data_ptr().add(b_rs*b.get_rs()+b_cs*b.get_cs());
-    kernel_sup_m(m, n, k, alpha, beta, b_ptr, b.get_rs(), b.get_cs(), c, c_rs, c_cs, ap);
+    let b_ptr = b.get_data_ptr();//.add(b_rs*b.get_rs()+b_cs*b.get_cs());
+    kernel_sup_m(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
     // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
@@ -349,8 +333,8 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
         // ap_buf: *mut TA,
    ) {
         let a_ptr = a.get_data_ptr();
-        let a_ptr_rs = a.get_rs();
-        let a_ptr_cs = a.get_cs();
+        let a_ptr_rs = a.rs();
+        let a_ptr_cs = a.cs();
         let ap_buf = a.get_data_p_ptr();
         kernel_sup_n(
             m, n, k, alpha, beta, 

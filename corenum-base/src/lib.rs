@@ -1,7 +1,10 @@
-
-use std::sync::Mutex;
-use std::sync::Barrier;
-use std::sync::Arc;
+use std::sync::{
+    Arc,Barrier,Mutex,
+    RwLock,RwLockReadGuard, MutexGuard
+};
+use std::convert::Into;
+// Consider Once Cell
+use once_cell::sync::Lazy;
 
 #[macro_export]
 macro_rules! env_or {
@@ -14,13 +17,13 @@ macro_rules! env_or {
 	};
  }
 
-pub struct HWConfig {
-    pub avx: bool,
-    pub avx2: bool,
-    pub avx512f: bool,
-    pub fma: bool,
-    pub fma4: bool,
-    pub hw_model: HWModel,
+struct HWConfig {
+    avx: bool,
+    avx2: bool,
+    avx512f: bool,
+    fma: bool,
+    fma4: bool,
+    hw_model: HWModel,
 }
 #[derive(Copy,Clone)]
 pub enum HWModel {
@@ -29,10 +32,6 @@ pub enum HWModel {
     Zen1,
     Zen2,
 }
-
-
-// Consider Once Cell
-use once_cell::sync::Lazy;
 
 // Use family and model id instead of cache size parameters
 // since the relation between optimal parameters (based on performance) and cache size parameters  can be non-trivial
@@ -64,26 +63,41 @@ fn detect_hw_config() -> HWConfig {
 }
 
 
-pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
+static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
     detect_hw_config()
 });
 
-
-
-// Consider Replacing with UnsafeCell
-// Mutex so that external multithreading is safe and working
-use std::sync::RwLock;
-
-pub struct PackPool {
-    pub buffer: RwLock<Vec<Mutex<Vec<u8>>>>
+pub fn hw_avx() -> bool {
+    RUNTIME_HW_CONFIG.avx
 }
 
-pub static PACK_POOL: PackPool = PackPool {
+pub fn hw_fma() -> bool {
+    RUNTIME_HW_CONFIG.fma
+}
+
+pub fn hw_avx2() -> bool {
+    RUNTIME_HW_CONFIG.avx2
+}
+
+pub fn hw_avx512f() -> bool {
+    RUNTIME_HW_CONFIG.avx512f
+}
+
+pub fn hw_model() -> HWModel {
+    RUNTIME_HW_CONFIG.hw_model
+}
+
+pub fn hw_fma4() -> bool {
+    RUNTIME_HW_CONFIG.fma4
+}
+
+struct PackPool {
+    buffer: RwLock<Vec<Mutex<Vec<u8>>>>
+}
+
+static PACK_POOL: PackPool = PackPool {
     buffer: RwLock::new(vec![])
 };
-use std::sync::RwLockReadGuard;
-use std::sync::MutexGuard;
-
 
 pub fn acquire<'a>(pool_guard: &'a RwLockReadGuard<'a, Vec<Mutex<Vec<u8>>>>, pack_size: usize) -> Option<MutexGuard<'a, Vec<u8>>> {
     // find the first free buffer with enough size
@@ -123,12 +137,12 @@ pub struct CorenumThreadConfig {
     kc_eff: usize,
     run_packa: bool,
     run_packb: bool,
-   pub par: CorenumPar,
-   pub packa_barrier: Arc<Vec<Arc<Barrier>>>,
-   pub packb_barrier: Arc<Vec<Arc<Barrier>>>,
+   par: CorenumPar,
+   packa_barrier: Arc<Vec<Arc<Barrier>>>,
+   packb_barrier: Arc<Vec<Arc<Barrier>>>,
 }
 
-pub(crate) fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
+fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
     let mut packa_barrier = vec![];
     for _ in 0..par.ic_par {
         let barrier = Arc::new(Barrier::new(par.jc_par * par.pc_par * par.ir_par * par.jr_par));
@@ -146,7 +160,7 @@ pub(crate) fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc
 
 
 impl<'a> CorenumThreadConfig {
-   pub fn new(par: CorenumPar, packa_barrier: Arc<Vec<Arc<Barrier>>>, packb_barrier: Arc<Vec<Arc<Barrier>>>, t_id: usize, mc_eff: usize, nc_eff: usize, kc_eff: usize) -> Self {
+   fn new(par: CorenumPar, packa_barrier: Arc<Vec<Arc<Barrier>>>, packb_barrier: Arc<Vec<Arc<Barrier>>>, t_id: usize, mc_eff: usize, nc_eff: usize, kc_eff: usize) -> Self {
          let ic_id = par.get_ic_id(t_id);
             // let pc_id = par.get_pc_id(t_id);
             let jc_id = par.get_jc_id(t_id);
@@ -171,14 +185,14 @@ impl<'a> CorenumThreadConfig {
        }
    }
    #[inline]
-   pub fn wait_packa(&self) {
+   fn wait_packa(&self) {
     if self.par.jc_par * self.par.pc_par * self.par.ir_par * self.par.jr_par  > 1 {
         self.packa_barrier[self.ic_id].wait();
     }
    }
 
     #[inline]
-    pub fn wait_packb(&self) {
+    fn wait_packb(&self) {
         if self.par.ic_par * self.par.pc_par * self.par.ir_par * self.par.jr_par > 1 {
             self.packb_barrier[self.jc_id].wait();
         }
@@ -188,12 +202,12 @@ impl<'a> CorenumThreadConfig {
 
 #[derive(Copy,Clone)]
 pub struct CorenumPar {
-   pub num_threads: usize,
-   pub ic_par: usize,
-   pub pc_par: usize,
-   pub jc_par: usize,
-   pub ir_par: usize,
-   pub jr_par: usize,
+   num_threads: usize,
+   ic_par: usize,
+   pc_par: usize,
+   jc_par: usize,
+   ir_par: usize,
+   jr_par: usize,
 }
 
 
@@ -232,32 +246,30 @@ impl CorenumPar {
        }
    }
    #[inline]
-   pub fn get_ic_id(&self, t_id: usize) -> usize {
+   fn get_ic_id(&self, t_id: usize) -> usize {
        (t_id / (self.pc_par*self.jc_par*self.ir_par*self.jr_par)) % self.ic_par
    }
 
+//    #[inline]
+//    fn get_pc_id(&self, t_id: usize) -> usize {
+//        (t_id / (self.jr_par*self.ir_par*self.ic_par)) % self.pc_par
+//    }
    #[inline]
-   pub fn get_pc_id(&self, t_id: usize) -> usize {
-       (t_id / (self.jr_par*self.ir_par*self.ic_par)) % self.pc_par
-   }
-   #[inline]
-   pub fn get_jc_id(&self, t_id: usize) -> usize {
+   fn get_jc_id(&self, t_id: usize) -> usize {
        (t_id / (self.jr_par*self.ir_par)) % self.jc_par
    }
    #[inline]
-   pub fn get_jr_id(&self, t_id: usize) -> usize {
+   fn get_jr_id(&self, t_id: usize) -> usize {
        (t_id / self.ir_par) % self.jr_par
    }
    #[inline]
-   pub fn get_ir_id(&self, t_id: usize) -> usize {
+   fn get_ir_id(&self, t_id: usize) -> usize {
        t_id % self.ir_par
    }
 }
 
-
-
 #[inline]
-pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) -> (usize, usize, bool) {
+fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) -> (usize, usize, bool) {
    let chunk_len = (m / (mr*ic_par)) * mr;
    let rem = m % (mr*ic_par);
    if ic_id == 0 {
@@ -278,7 +290,7 @@ pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize
 }
 
 #[inline]
-pub fn split_range(range_len: usize, unit_len: usize, r_id: usize, r_par: usize) -> (usize, usize) {
+fn split_range(range_len: usize, unit_len: usize, r_id: usize, r_par: usize) -> (usize, usize) {
    let chunk_start = (range_len / (unit_len*r_par)) * unit_len * r_id;
    let chunk_end = (range_len / (unit_len*r_par)) * unit_len * (r_id + 1);
    let rem = range_len % (unit_len*r_par);
@@ -291,30 +303,29 @@ pub fn split_range(range_len: usize, unit_len: usize, r_id: usize, r_par: usize)
    (chunk_start + rem_start, chunk_end + rem_end)
 }
 
+pub trait Tensor2D {
+    fn rs(&self) -> usize;
+    fn cs(&self) -> usize;
+    unsafe fn at(&self, i: usize, j: usize) -> Self;
+}
 
-pub trait GemmArray<Y>: Copy + Send + 'static{
+pub trait GemmArray<Y>: Copy + Send + 'static + Tensor2D{
     type X;
     // type Y: BaseNum;
     type PackArray: GemmArrayP<Self::X,Y>+Copy+Send;
     fn is_packing_needed() -> bool;
     fn into_pack_array(self, a: *mut Y) -> Self::PackArray;
-    fn get_rs(&self) -> usize;
-    fn get_cs(&self) -> usize;
     fn get_data_ptr(&self) -> *const Self::X;
     fn transpose(&mut self);
-    fn add_2d(&self, i: usize, j: usize) -> Self;
 }
 
-pub trait GemmArrayP<T,U>
+pub trait GemmArrayP<T,U>: Tensor2D
 {
     // type StridedArray;
     unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
     unsafe fn packb_dispatch_hw<H:GemmPackB<T,U>>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
     unsafe fn add_p(&self, offset: usize) -> Self;
-    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self;
     unsafe fn get_data_p_ptr(&self) -> *mut U;
-    fn get_rs(&self) -> usize;
-    fn get_cs(&self) -> usize;
     fn get_data_ptr(&self) -> *const T;
 }
 
@@ -466,9 +477,6 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
     mem_pool_size
 }
 
-
-
-
 // Choose ap_size, bp_size as arguments since they are specific to Gemm implementation,
 // It is determined by hardware, gemm implementation (e.g. f64, f32, f16),
 // Otherwise, this base crate would include code coupled with other gemm crates,
@@ -476,20 +484,14 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 // imple inside this crate, which is not desirable. We want this crate to be as decoupled as possbile from
 // specific gemm implementation and hardware.
 
-pub fn run_small_m<
-BP,
-B: GemmArray<BP>,
->(m: usize) -> bool {
+fn run_small_m<BP, B: GemmArray<BP>>(m: usize) -> bool {
     B::is_packing_needed() && m < 144
 }
 
-pub fn run_small_n<
-AP,
-A: GemmArray<AP>, 
->(n: usize) -> bool {
+fn run_small_n<AP, A: GemmArray<AP>>(n: usize) -> bool {
     A::is_packing_needed() && n < 144
 }
-use std::convert::Into;
+
 pub unsafe fn corenum_gemm<
 AP: BaseNum,
 BP: BaseNum,
@@ -581,8 +583,6 @@ HWConfig: Gemv<AP,BP,A,B,C>,
     );
 }
 
-
-
 #[derive(Clone, Copy)]
 pub struct StridedMatrix<T> {
     pub data_ptr : *const T,
@@ -592,6 +592,22 @@ pub struct StridedMatrix<T> {
 
 unsafe impl<T> Send for StridedMatrix<T> {}
 // unsafe impl<T> Sync for StridedMatrix<T> {}
+
+impl<T> Tensor2D for StridedMatrix<T> {
+    fn rs(&self) -> usize {
+        self.rs
+    }
+    fn cs(&self) -> usize {
+        self.cs
+    }
+    unsafe fn at(&self, i: usize, j: usize) -> Self {
+        Self {
+            data_ptr: self.data_ptr.add(i*self.rs + j*self.cs),
+            rs: self.rs,
+            cs: self.cs,
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrixMut<T> {
@@ -654,14 +670,6 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
         StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
     }
 
-    fn get_rs(&self) -> usize {
-        self.rs
-    }
-
-    fn get_cs(&self) -> usize {
-        self.cs
-    }
-
     fn get_data_ptr(&self) -> *const T {
         self.data_ptr
     }
@@ -671,17 +679,26 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
         self.rs = self.cs;
         self.cs = temp;
     }
+}
 
-    fn add_2d(&self, i: usize, j: usize) -> Self {
+impl<T,U> Tensor2D for StridedMatrixP<T,U> {
+    fn rs(&self) -> usize {
+        self.rs
+    }
+    fn cs(&self) -> usize {
+        self.cs
+    }
+    unsafe fn at(&self, i: usize, j: usize) -> Self {
         Self {
-            // TODO: fix this unsafe later
-            data_ptr: unsafe {self.data_ptr.add(i*self.rs + j*self.cs)},
+            data_ptr: self.data_ptr.add(i*self.rs + j*self.cs),
             rs: self.rs,
             cs: self.cs,
+            data_p_ptr: self.data_p_ptr,
         }
-    
     }
 }
+
+
 
 impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
     unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U
@@ -711,25 +728,8 @@ impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
         }
     }
 
-    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self {
-        Self {
-            data_ptr: self.data_ptr.add(i*self.rs + j*self.cs),
-            rs: self.rs,
-            cs: self.cs,
-            data_p_ptr: self.data_p_ptr,
-        }
-    }
-
     unsafe fn get_data_p_ptr(&self) -> *mut U {
         self.data_p_ptr
-    }
-
-    fn get_rs(&self) -> usize {
-        self.rs
-    }
-
-    fn get_cs(&self) -> usize {
-        self.cs
     }
 
     fn get_data_ptr(&self) -> *const T {
@@ -764,13 +764,6 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
         self
     }
 
-    fn get_rs(&self) -> usize {
-        self.rs
-    }
-    fn get_cs(&self) -> usize {
-        self.cs
-    }
-
     fn get_data_ptr(&self) -> *const T {
         self.data_ptr
     }
@@ -780,10 +773,18 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
         self.rs = self.cs;
         self.cs = temp;
     }
+}
 
-    fn add_2d(&self, i: usize, j: usize) -> Self {
+impl<T> Tensor2D for PackedMatrix<T> {
+    fn rs(&self) -> usize {
+        self.rs
+    }
+    fn cs(&self) -> usize {
+        self.cs
+    }
+    unsafe fn at(&self, _i: usize, _j: usize) -> Self {
         Self {
-            data_ptr: unsafe{self.data_ptr.add(i*self.mc + j*self.kc)},
+            data_ptr: self.data_ptr,
             mc: self.mc,
             kc: self.kc,
             mr: self.mr,
@@ -796,7 +797,7 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
 }
 
 impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
-    unsafe fn packa_dispatch_hw<H>(&self, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const T
+    unsafe fn packa_dispatch_hw<H>(&self, mc: usize, kc: usize, _mc_len: usize, kc_len: usize, _mc_i: usize, _run: bool) -> *const T
     {
         let ib = mc / self.mc;
         let jb = kc / self.kc;
@@ -805,11 +806,14 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
 
         self.data_ptr.add(ib*self.k*self.mc + jb*m_eff*self.kc + mr_block * kc_len*self.mr)
     }
-    unsafe fn packb_dispatch_hw<H>(&self, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const T
+    unsafe fn packb_dispatch_hw<H>(&self, nc: usize, kc: usize, _nc_len: usize, kc_len: usize, _run: bool) -> *const T
     {
-        let i_block = kc / self.kc;
-        let j_block = kc / self.kc;
-        self.data_ptr.add((i_block*self.k + j_block*self.kc)*self.mc)
+        let ib = nc / self.mc;
+        let jb = kc / self.kc;
+        let nr_block = (nc % self.mc) / self.mr;
+
+        self.data_ptr.add(ib*self.k*self.mc + jb*self.m*self.kc + nr_block * kc_len*self.mr)
+
     }
 
     unsafe fn add_p(&self, offset: usize) -> Self {
@@ -825,29 +829,8 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
         }
     }
 
-    unsafe fn add_p_2d(&self, i: usize, j: usize) -> Self {
-        Self {
-            data_ptr: self.data_ptr.add(i*self.mc + j*self.kc),
-            mc: self.mc,
-            kc: self.kc,
-            mr: self.mr,
-            k: self.k,
-            m: self.m,
-            rs: self.rs,
-            cs: self.cs,
-        }
-    }
-
     unsafe fn get_data_p_ptr(&self) -> *mut T {
         self.data_ptr as *mut T
-    }
-
-    fn get_rs(&self) -> usize {
-        self.rs
-    }
-
-    fn get_cs(&self) -> usize {
-        self.cs
     }
 
     fn get_data_ptr(&self) -> *const T {
@@ -862,7 +845,7 @@ const BP_ALIGN: usize = 1024;
 
 
 #[inline]
-pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_size: usize, ic_mul: usize, _jc_mul: usize) -> (*mut TA, *mut TB) {
+unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_size: usize, ic_mul: usize, _jc_mul: usize) -> (*mut TA, *mut TB) {
    let align_offset = mem_pool.align_offset(AP_ALIGN);
    let mem_pool_aligned = mem_pool.add(align_offset);
    let ap = mem_pool_aligned as *mut TA;
@@ -872,12 +855,6 @@ pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_
     let mem_pool_2_aligned = mem_pool_2.add(align_offset);
     let bp = mem_pool_2_aligned as *mut TB;
    (ap, bp)
-}
-
-pub trait UnaryOp<X,Y> {
-    const IS_IDENTITY: bool;
-    unsafe fn apply_inplace(x: *mut X);
-    unsafe fn map(x: *const X, y: *mut Y);
 }
 
 pub trait GemmCache<
@@ -1094,7 +1071,7 @@ Self: GemmPackA<A::X, AP>
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         beta: *const C::X,
-        b: B, b_rs: usize, b_cs: usize,
+        b: B,
         c: *mut C::X, c_rs: usize, c_cs: usize,
         ap: *const AP,
     );
@@ -1169,7 +1146,7 @@ Self: GemmPackA<A::X, AP>
         let nc_eff = t_cfg.nc_eff;
         let kc_eff = t_cfg.kc_eff;
         let (mc_start, mc_end, mc_left) = split_c_range(m, mc_eff, Self::MR, ic_id, par.ic_par);
-        let (nc_start, nc_end, nc_left) = split_c_range(n, nc_eff, Self::NR, jc_id, par.jc_par);
+        let (nc_start, nc_end, _) = split_c_range(n, nc_eff, Self::NR, jc_id, par.jc_par);
         let (kc_start, kc_end) = (0, k);
         let one = Self::ONE;
 
@@ -1196,9 +1173,10 @@ Self: GemmPackA<A::X, AP>
                     let (nr_start, nr_end) = split_range(nc_len, Self::NR, jr_id, jr_par);
                     let nr_len = nr_end - nr_start;
                     let c_ij = c_i.add((nc + nr_start) * c_cs);
+                    let b_cur = b.at(kc, nc+nr_start);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, 
-                        b, kc, nc+nr_start,
+                        b_cur,
                         c_ij, c_rs, c_cs,
                         ap
                     );
@@ -1330,7 +1308,7 @@ Self: GemmPackB<B::X, BP>,
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == kc_start { beta } else { &one as *const C::X};
-                let a_cur = a.add_p_2d(mr_start+mc, kc);
+                let a_cur = a.at(mr_start+mc, kc);
                 let mut nc = nc_start;
  
                 while nc < nc_end {
@@ -1390,7 +1368,7 @@ C: GemmOut,
        x: B,
        beta: C::X,
        y: C,
-       par: &CorenumPar
+       _par: &CorenumPar
    ) {
        let alpha = &alpha as *const AP;
        let beta = &beta as *const C::X;
