@@ -350,12 +350,16 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 >(hw_config: &HWConfig, par: &CorenumPar) -> usize
 {
     let mut mem_pool_size = 0;
-    let ap_pool_multiplicity = par.ic_par;
-    let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
-    mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
-    let bp_pool_multiplicity = par.jc_par;
-    let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
-    mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
+    if A::is_packing_needed() {
+        let ap_pool_multiplicity = par.num_threads;
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
+        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
+    }
+    if B::is_packing_needed() {
+        let bp_pool_multiplicity = par.jc_par;
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
+        mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
+    }
     if mem_pool_size == 0 {
         return 0;
     }
@@ -423,9 +427,7 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 // specific gemm implementation and hardware.
 
 pub fn run_small_m<
-AP,
 BP,
-A: GemmArray<AP>, 
 B: GemmArray<BP>,
 >(m: usize) -> bool {
     B::is_packing_needed() && m < 144
@@ -433,9 +435,7 @@ B: GemmArray<BP>,
 
 pub fn run_small_n<
 AP,
-BP,
 A: GemmArray<AP>, 
-B: GemmArray<BP>,
 >(n: usize) -> bool {
     A::is_packing_needed() && n < 144
 }
@@ -473,7 +473,7 @@ where AP: Into<BP>
         corenum_gemv::<BP,AP,B,A,C,HWConfig>(n, k, alpha.into(), b, a, beta, c, par);
         return;
     }
-    if run_small_m::<AP,BP,A,B>(m) {
+    if run_small_m::<BP,B>(m) {
         let mem_pool_size = get_mem_pool_size_small_m::<AP,BP,A,B,C,HWConfig>(hw_config, par);
         // run goto algo
         {
@@ -496,7 +496,7 @@ where AP: Into<BP>
         return;
     }
 
-    if run_small_n::<AP,BP,A,B>(n) {
+    if run_small_n::<AP,A>(n) {
         let mem_pool_size = get_mem_pool_size_small_n::<AP,BP,A,B,C,HWConfig>(hw_config, par);
         // run goto algo
         {
