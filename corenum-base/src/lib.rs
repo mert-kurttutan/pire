@@ -437,7 +437,7 @@ BP,
 A: GemmArray<AP>, 
 B: GemmArray<BP>,
 >(n: usize) -> bool {
-    A::is_packing_needed() && B::is_packing_needed() && n < 144
+    A::is_packing_needed() && n < 144
 }
 use std::convert::Into;
 pub unsafe fn corenum_gemm<
@@ -475,14 +475,6 @@ where AP: Into<BP>
     }
     if run_small_m::<AP,BP,A,B>(m) {
         let mem_pool_size = get_mem_pool_size_small_m::<AP,BP,A,B,C,HWConfig>(hw_config, par);
-        if mem_pool_size == 0 {
-            let mut pool_vec = vec![0_u8; 1];
-            let pool_buf = pool_vec.as_mut_ptr();
-            hw_config.gemm_small_m(
-                m, n, k, alpha, a, b, beta, c, par, pool_buf
-            );
-            return;
-        }
         // run goto algo
         {
             let pool_guard = PACK_POOL.buffer.read().unwrap();
@@ -506,14 +498,6 @@ where AP: Into<BP>
 
     if run_small_n::<AP,BP,A,B>(n) {
         let mem_pool_size = get_mem_pool_size_small_n::<AP,BP,A,B,C,HWConfig>(hw_config, par);
-        if mem_pool_size == 0 {
-            let mut pool_vec = vec![0_u8; 1];
-            let pool_buf = pool_vec.as_mut_ptr();
-            hw_config.gemm_small_n(
-                m, n, k, alpha, a, b, beta, c, par, pool_buf
-            );
-            return;
-        }
         // run goto algo
         {
             let pool_guard = PACK_POOL.buffer.read().unwrap();
