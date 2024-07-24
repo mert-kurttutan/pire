@@ -9,8 +9,8 @@ pub(crate) use microkernel::{
    packa_panel,
    packb_panel,
    kernel,
-   kernel_sup_m,
-   kernel_sup_n,
+   kernel_bs,
+   kernel_sb,
    axpy,
 };
 
@@ -305,7 +305,7 @@ where AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
         ap: *const TA,
    ) {
     let b_ptr = b.get_data_ptr();//.add(b_rs*b.get_rs()+b_cs*b.get_cs());
-    kernel_sup_m(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
+    kernel_bs(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
     // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
@@ -336,7 +336,7 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
         let a_ptr_rs = a.rs();
         let a_ptr_cs = a.cs();
         let ap_buf = a.get_data_p_ptr();
-        kernel_sup_n(
+        kernel_sb(
             m, n, k, alpha, beta, 
             a_ptr, a_ptr_rs, a_ptr_cs, 
             b,

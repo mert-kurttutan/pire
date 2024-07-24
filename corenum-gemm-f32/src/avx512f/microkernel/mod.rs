@@ -2,11 +2,6 @@ pub mod asm_ukernel;
 // pub mod new_asm_ukernel;
 pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
-use seq_macro::seq;
-use paste::paste;
-
-
-
 
 pub(crate) use asm_ukernel::*;
 // pub(crate) use new_asm_ukernel::*;
@@ -18,11 +13,12 @@ pub(crate) use intrinsics_pack::{
 };
 pub(crate) use axpy_kernel::*;
 
-
+use seq_macro::seq;
+use paste::paste;
 
 use crate::{TA,TB,TC};
 
-
+const VS: usize = 16;
 
 #[target_feature(enable = "avx,fma")]
 pub unsafe fn axpy(
@@ -69,40 +65,12 @@ pub unsafe fn axpy(
    }
 }
 
-
-
-
-
-#[target_feature(enable = "avx,fma")]
-pub unsafe fn load_c<const MR: usize, const NR: usize>(
-    c: *const TC, ct: *mut TC,
-    m: usize,
-    ldc: usize,
-) {
-    for i in 0..NR {
-        ct.add(MR*i).copy_from_nonoverlapping(c.add(i*ldc), m);
-    }
-}
-
-#[target_feature(enable = "avx,fma")]
-pub unsafe fn store_c<const MR: usize, const NR: usize>(
-    c: *mut TC, ct: *const TC,
-    m: usize,
-    ldc: usize,
-) {
-    for i in 0..NR {
-        c.add(i*ldc).copy_from_nonoverlapping(ct.add(i*MR), m);
-    }
-}
-
-
 #[target_feature(enable = "avx,fma")]
 pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
     c: *const TC, ct: *mut TC,
     m: usize,
     c_rs: usize, c_cs: usize,
 ) {
-
     for i in 0..NR {
         for j in 0..m {
             *ct.add(MR*i+j) = *c.add(i*c_cs + j*c_rs);
@@ -123,14 +91,7 @@ pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
     }
 }
 
-
-// Maybe use macro_rules to make code more uniform ??
-// At the moment it does not seem to be problematic, as the codebase scales, it might
-// become cumbersome to manage it manually
-
-
-
-macro_rules! def_milikernel {
+macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
             #[target_feature(enable = "avx,fma")]
@@ -148,11 +109,9 @@ macro_rules! def_milikernel {
                 let mut ap_cur = ap;
                 let mut c_cur0 = c;
                 
-                
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [0, 0];
-                
                 
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -176,10 +135,10 @@ macro_rules! def_milikernel {
                     ap_cur = ap_cur.add(MR*k);
                     c_cur0 = c_cur0.add(MR);
                 }
-                let x: u16 = if m_left % 16 == 0 && m_left > 0 { 0xFFFF } else { (1 << (m_left % 16)) - 1 };
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
                 let mask_ptr = (&x) as *const u16;
                 $(
-                    if m_left > ($mr_left - 16) {
+                    if m_left > ($mr_left - VS) {
                         let mut n_iter = n_iter0;
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
@@ -205,12 +164,10 @@ macro_rules! def_milikernel {
     };
 }
 
-def_milikernel!(48, 8, 48, 32, 16);
-def_milikernel!(32, 12, 32, 16);
+def_kernel_bb!(48, 8, 48, 32, 16);
+def_kernel_bb!(32, 12, 32, 16);
 
-
-
-macro_rules! def_milikernel_strided {
+macro_rules! def_kernel_bb_strided {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
             #[target_feature(enable = "avx,fma")]
@@ -267,7 +224,7 @@ macro_rules! def_milikernel_strided {
 
 
                 $(
-                    if m_left > ($mr_left - 16) {
+                    if m_left > ($mr_left - VS) {
                         let mut n_iter = n_iter0;
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
@@ -300,14 +257,14 @@ macro_rules! def_milikernel_strided {
     };
 }
 
-def_milikernel_strided!(48, 8, 48, 32, 16);
-def_milikernel_strided!(32, 12, 32, 16);
+def_kernel_bb_strided!(48, 8, 48, 32, 16);
+def_kernel_bb_strided!(32, 12, 32, 16);
 
-macro_rules! def_milikernel_blocked {
-    ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
+macro_rules! def_kernel_bs {
+    ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
             #[target_feature(enable = "avx,fma")]
-            pub unsafe fn [<kernel_sup_m_$layout1>](
+            pub unsafe fn [<kernel_bs _v0>](
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -331,17 +288,17 @@ macro_rules! def_milikernel_blocked {
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        [<ukernel_$MR x $NR _bs>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*b_cs);
                         c_cur1 = c_cur1.add(NR*ldc);
                     }
                     if n_left == 1 {
-                        [<ukernel_$MR x1_$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        [<ukernel_$MR x1_bs>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                     }
                     #(
                         else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                            [<ukernel_$MR x~nr_left _bs>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                     )*
                     m_iter -= 1;
@@ -349,33 +306,25 @@ macro_rules! def_milikernel_blocked {
                     c_cur0 = c_cur0.add(MR);
                 }
 
-
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u16;
                 $(
-                    if m_left > ($mr_left - 16) {
+                    if m_left > ($mr_left - VS) {
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
-                        const MR_LEFT: usize = $mr_left;
-                        let mut c_temp_buf = [0_f32; MR_LEFT*NR];
-                        let ct = c_temp_buf.as_mut_ptr();
                         while n_iter > 0 {
-                            load_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x $NR _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x $NR _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*b_cs);
                             c_cur1 = c_cur1.add(NR*ldc);
                         }
                         if n_left == 1 {
-                            load_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x1_$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x1_bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                         }
                         #(
                         else if n_left == nr_left {
-                            load_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x~nr_left _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x~nr_left _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                         }
                         )*
                         return;
@@ -386,9 +335,9 @@ macro_rules! def_milikernel_blocked {
     };
 }
 
-def_milikernel_blocked!(48, 8, true, s, bs, 48, 32, 16);
+def_kernel_bs!(48, 8, 48, 32, 16);
 
-pub(crate) unsafe fn kernel_sup_m(
+pub(crate) unsafe fn kernel_bs(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -397,7 +346,7 @@ pub(crate) unsafe fn kernel_sup_m(
     ap: *const TA,
 ) {  
     if c_rs == 1 {
-        kernel_sup_m_s(
+        kernel_bs_v0(
             m, n, k,
             alpha, beta,
             b, b_rs, b_cs,
@@ -409,11 +358,11 @@ pub(crate) unsafe fn kernel_sup_m(
 
 }
 
-macro_rules! def_milikernel_blocked {
-    ($MR:tt, $NR:tt, $is_b_row:tt, $layout1:tt, $layout2:tt, $($mr_left:tt),*) => {
+macro_rules! def_kernel_sb {
+    ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
             #[target_feature(enable = "avx,fma")]
-            pub unsafe fn [<kernel_sup_n_s>](
+            pub unsafe fn [<kernel_sb_v0>](
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -437,19 +386,19 @@ macro_rules! def_milikernel_blocked {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
-                    packa_panel_48(MR, k, a_cur, a_rs, a_cs, ap_cur);
+                    [<packa_panel_ $MR>](MR, k, a_cur, a_rs, a_cs, ap_cur);
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        [<ukernel_$MR x $NR _bb>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*ldc);
                     }
                     if n_left == 1 {
-                        [<ukernel_$MR x1_$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        [<ukernel_$MR x1_bb>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                     }
                     #(
                         else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _$layout2>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                            [<ukernel_$MR x~nr_left _bb>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                     )*
                     m_iter -= 1;
@@ -457,34 +406,26 @@ macro_rules! def_milikernel_blocked {
                     c_cur0 = c_cur0.add(MR);
                 }
 
-
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u16;
                 $(
-                    if m_left > ($mr_left - 16) {
-                        packa_panel_48(m_left, k, a_cur, a_rs, a_cs, ap_cur);
+                    if m_left > ($mr_left - VS) {
+                        [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap_cur);
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
-                        const MR_LEFT: usize = $mr_left;
-                        let mut c_temp_buf = [0_f32; MR_LEFT*NR];
-                        let ct = c_temp_buf.as_mut_ptr();
                         while n_iter > 0 {
-                            load_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x $NR _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,NR>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*ldc);
                         }
                         if n_left == 1 {
-                            load_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x1_$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,1>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                         }
                         #(
                         else if n_left == nr_left {
-                            load_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
-                            [<ukernel_$mr_left x~nr_left _$layout2>](ap_cur, b_cur, ct, alpha, beta, k, MR_LEFT, ld_arr);
-                            store_c::<MR_LEFT,nr_left>(c_cur1, ct, m_left, ldc);
+                            [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
                         }
                         )*
                         return;
@@ -495,11 +436,10 @@ macro_rules! def_milikernel_blocked {
     };
 }
 
-def_milikernel_blocked!(48, 8, true, b, bb, 48, 32, 16);
-
+def_kernel_sb!(48, 8, 48, 32, 16);
 
 #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel_sup_n(
+pub(crate) unsafe fn kernel_sb(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -509,7 +449,7 @@ pub(crate) unsafe fn kernel_sup_n(
     ap_buf: *mut TA,
  ) { 
     if c_rs == 1 {
-        kernel_sup_n_s(
+        kernel_sb_v0(
             m, n, k,
             alpha, beta,
             a, a_rs, a_cs,
@@ -519,7 +459,6 @@ pub(crate) unsafe fn kernel_sup_n(
         );
         return;
     }
-
  } 
 
 
@@ -538,15 +477,17 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize>(
         } else {
             kernel_48x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
         }
-   } else if MR == 32 && NR == 12 {
-    if c_rs == 1 {
-        kernel_32x12(m, n, k, alpha, beta, c, c_cs, ap, bp)
-    } else {
-        kernel_32x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
+        return;
+   }
+   if MR == 32 && NR == 12 {
+        if c_rs == 1 {
+            kernel_32x12(m, n, k, alpha, beta, c, c_cs, ap, bp)
+        } else {
+            kernel_32x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
+        }
+        return;
     }
-    } else {
-        unimplemented!()
-    }
+    panic!("Kernel for MR = {} and NR = {} not implemented", MR, NR);
 }
 
 #[target_feature(enable = "avx,fma")]
