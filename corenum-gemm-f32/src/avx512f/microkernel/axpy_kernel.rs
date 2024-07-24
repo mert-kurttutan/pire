@@ -6,7 +6,8 @@ use std::{arch::x86_64::*, ptr::copy_nonoverlapping};
 use crate::{TA,TB,TC};
 
 
-use super::super::VS;
+// use super::super::VS;
+const VS: usize = 8;
 
 
 const K_UNROLL: usize = 4;

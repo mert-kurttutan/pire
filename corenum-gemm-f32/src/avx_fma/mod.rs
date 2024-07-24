@@ -296,13 +296,12 @@ where AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        b: B, //b_rs: usize, b_cs: usize,
+        b: B,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const TA,
    ) {
-    let b_ptr = b.get_data_ptr();//.add(b_rs*b.get_rs()+b_cs*b.get_cs());
+    let b_ptr = b.get_data_ptr();
     kernel_bs(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
-    // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
 
@@ -324,9 +323,9 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A::PackArray, b: *const TB,
+        a: A::PackArray, 
+        b: *const TB,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        // ap_buf: *mut TA,
    ) {
     let a_ptr = a.get_data_ptr();
     let a_ptr_rs = a.rs();

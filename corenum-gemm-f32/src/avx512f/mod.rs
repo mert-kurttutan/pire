@@ -258,7 +258,7 @@ impl Axpy for PackedMatrix<f32>{
             while kc < n {
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == 0 { beta } else { &one as *const TC};
-                let ap = a.packa_dispatch_hw::<AvxFma::<24,4>>(mc, kc, mc_len, kc_len, 0, false);
+                let ap = a.packa_dispatch_hw::<AvxFma::<48,4>>(mc, kc, mc_len, kc_len, 0, false);
                 let mut mr = 0;
                 while mr < mc_len {
                     let mr_len = 24.min(mc_len - mr);

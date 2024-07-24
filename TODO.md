@@ -1,0 +1,2 @@
+- Move definition of mask_ptr inside ukernel, use m as input instead of mask_ptr, test if this has any perf cost
+- This api is more convenient since api of ukernel will be the same across isa (since different isa(-extensiosn) have different ways to define/use mask_ptr)

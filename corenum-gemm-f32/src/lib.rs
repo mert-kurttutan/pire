@@ -386,8 +386,10 @@ mod tests {
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
-					let mut ap = vec![0_f32; (m+100)*k+256];
-					let ap_offset = ap.as_ptr().align_offset(256);
+					let mut ap = vec![0_f32; (m+100)*k+512];
+					let ap_offset = ap.as_ptr().align_offset(512);
+					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
+					let ap_ptr = ap_mut_ptr as *const f32;
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
                         	random_matrix(m, k, &mut a, m);
@@ -395,13 +397,13 @@ mod tests {
                         	random_matrix(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
 							unsafe {
-								packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr());
+								packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr);
 							}
 							let ap_matrix = corenum_base::PackedMatrix{
-								data_ptr: unsafe{ap.as_mut_ptr().add(ap_offset)},
+								data_ptr: ap_ptr,
 								mc: 4800,
-								kc: 192,
-								mr: 24,
+								kc: 512,
+								mr: 48,
 								k,
 								m,
 								rs: a_rs,

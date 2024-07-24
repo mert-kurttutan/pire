@@ -537,8 +537,8 @@ where AP: Into<BP>
     if mem_pool_size == 0 {
         let mut pool_vec = vec![0_u8; 1];
         let pool_buf = pool_vec.as_mut_ptr();
-        hw_config.gemm_packa_packb(
-            m, n, k, alpha, a, b, beta, c, par, pool_buf
+        gemm_fun(
+            hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf
         );
         return;
     }
