@@ -26,37 +26,6 @@ use avx_fma::{
 	// HaswellGemv,
 };
 
-// use reference::{
-// 	// ReferenceGemm,
-// 	ReferenceGemv,
-// };
-
-// use haswell::microkernel::gelu;
-
-// pub unsafe fn gelu_f32(a: *mut f32, n: usize) {
-// 	use std::arch::x86_64::*;
-// 	const VS: usize = 8;
-// 	let n_iter = n / VS;
-// 	let n_left = n % VS;
-// 	let mut p = 0;
-// 	while p < n_iter {
-//     	let a_vec = _mm256_loadu_ps(a.add(p*VS));
-//     	let a_vec = gelu(a_vec);
-//     	_mm256_storeu_ps(a.add(p*VS), a_vec);
-//     	p += 1;
-// 	}
-// 	let mut leftover_vec = [0.0; VS];
-// 	let a = a.add(n_iter*VS);
-// 	// load leftover to leftover_vec
-// 	std::ptr::copy_nonoverlapping(a, leftover_vec.as_mut_ptr(), n_left);
-// 	let a_vec = _mm256_loadu_ps(leftover_vec.as_ptr());
-// 	let a_vec = gelu(a_vec);
-// 	_mm256_storeu_ps(leftover_vec.as_mut_ptr(), a_vec);
-// 	// store leftover_vec back to a
-// 	std::ptr::copy_nonoverlapping(leftover_vec.as_ptr(), a, n_left);
-// }
-
-
 pub unsafe fn corenum_gemv_f32f32f32<
 A: GemmArray<f32,X=f32> + Axpy, 
 B: GemmArray<f32,X=f32>,
@@ -417,7 +386,7 @@ mod tests {
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
-					let mut ap = vec![0_f32; m*k + 10000];
+					let mut ap = vec![0_f32; (m+100)*k+256];
 					let ap_offset = ap.as_ptr().align_offset(256);
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
