@@ -1,18 +1,32 @@
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod avx_fma;
+#[cfg(target_arch = "x86_64")]
 pub(crate) mod avx512f;
+
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod armv8;
+
 pub(crate) mod reference;
 
 pub(crate) type TA = f32;
 pub(crate) type TB = f32;
 pub(crate) type TC = f32;
 
-
-use corenum_base::StridedMatrix;
+#[cfg(target_arch = "x86_64")]
 use corenum_base::{
 	hw_avx,
 	hw_avx512f,
 	hw_fma,
 	hw_model,
+};
+
+#[cfg(target_arch = "x86_64")]
+use avx_fma::AvxFma;
+#[cfg(target_arch = "x86_64")]
+use avx512f::AvxFma as Avx512f;
+
+use corenum_base::StridedMatrix;
+use corenum_base::{
     GemmGotoPackaPackb,
 	GemmSmallM,
 	GemmSmallN,
@@ -21,13 +35,9 @@ use corenum_base::{
 	corenum_gemv,
 };
 pub use corenum_base::CorenumPar;
-use avx_fma::{
-	AvxFma,
-	// HaswellGemv,
-};
 
 pub unsafe fn corenum_gemv_f32f32f32<
-A: GemmArray<f32,X=f32> + Axpy, 
+A: GemmArray<f32,X=f32>, 
 B: GemmArray<f32,X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 >(
@@ -39,22 +49,22 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	let avx = hw_avx();
-	let fma = hw_fma();
-	let model = hw_model();
-	if avx && fma {
-
-		match model {
-			_ => {
-				corenum_gemv::<TA,TB,A, B, C, AvxFma::<24,4>>(
-					m, n, alpha, a, b, beta, c, par
-				);
+	#[cfg(target_arch = "x86_64")]
+	{
+		let avx = hw_avx();
+		let fma = hw_fma();
+		let model = hw_model();
+		if avx && fma {
+	
+			match model {
+				_ => {
+					corenum_gemv::<TA,TB,A, B, C, AvxFma::<24,4>>(
+						m, n, alpha, a, b, beta, c, par
+					);
+				}
 			}
+			return;
 		}
-	} else {
-		// corenum_gemv::<TA, TB, TC, InputA, InputB, ReferenceGemv>(
-		// 	m, n, alpha, a, b, beta, c, c_rs, c_cs, par
-		// );
 	}
 }
 
@@ -105,10 +115,9 @@ use corenum_base::{
 	GemmOut,
 };
 
-use avx_fma::Axpy;
 pub unsafe fn corenum_gemm_f32f32f32<
-A: GemmArray<f32,X=f32> + Axpy + avx512f::Axpy, 
-B: GemmArray<f32,X=f32> + Axpy + avx512f::Axpy,
+A: GemmArray<f32,X=f32>, 
+B: GemmArray<f32,X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 >(
 	m: usize, n: usize, k: usize,
@@ -119,46 +128,49 @@ C: GemmOut<X=f32,Y=f32>,
 	c: C,
 	par: &CorenumPar,
 ){	
-	let avx = hw_avx();
-	let avx512f = hw_avx512f();
-	// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
-	let fma = hw_fma();
-	let model = hw_model();
-	if avx512f {
-		match model {
-			_ => {
-				const MR: usize = 48;
-				const NR: usize = 8;
-				// let kc = std::env::var("KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
-				// let nc = std::env::var("NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
-				let kc = 512;
-				let nc = 192;
-				let hw_config = avx512f::AvxFma::<MR,NR>{
-					goto_mc: 4800, goto_nc: nc, goto_kc: kc,
-					is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-				};
-				corenum_gemm(
-					&hw_config, m, n, k, alpha, a, b, beta, c, par
-				);
+	#[cfg(target_arch = "x86_64")]
+	{
+		let avx = hw_avx();
+		let avx512f = hw_avx512f();
+		// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
+		let fma = hw_fma();
+		let model = hw_model();
+		if avx512f {
+			match model {
+				_ => {
+					const MR: usize = 48;
+					const NR: usize = 8;
+					// let kc = std::env::var("KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+					// let nc = std::env::var("NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+					let kc = 512;
+					let nc = 192;
+					let hw_config = Avx512f::<MR,NR>{
+						goto_mc: 4800, goto_nc: nc, goto_kc: kc,
+						is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+					};
+					corenum_gemm(
+						&hw_config, m, n, k, alpha, a, b, beta, c, par
+					);
+				}
 			}
+			return;
 		}
-		return;
-	}
-	if avx && fma {
-		match model {
-			_ => {
-				const MR: usize = 24;
-				const NR: usize = 4;
-				let hw_config = AvxFma::<MR,NR>{
-					goto_mc: 4800, goto_nc: 320, goto_kc: 192,
-					is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-				};
-				corenum_gemm(
-					&hw_config, m, n, k, alpha, a, b, beta, c, par
-				);
+		if avx && fma {
+			match model {
+				_ => {
+					const MR: usize = 24;
+					const NR: usize = 4;
+					let hw_config = AvxFma::<MR,NR>{
+						goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+						is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+					};
+					corenum_gemm(
+						&hw_config, m, n, k, alpha, a, b, beta, c, par
+					);
+				}
 			}
+			return;
 		}
-		return;
 	}
 }
 
@@ -197,10 +209,6 @@ pub unsafe fn packa_f32(
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) {
-	let avx = hw_avx();
-	let fma = hw_fma();
-	let model = hw_model();
-	let avx512f = hw_avx512f();
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
 	if m == 1 || k == 1 {
@@ -212,45 +220,53 @@ pub unsafe fn packa_f32(
 		return;
 	}
 
-	if avx512f {
-		match model {
-			_ => {
-				const MC: usize = 4800;
-				const MR: usize = 48;
-				const KC: usize = 512;
-				for i in (0..m).step_by(MC) {
-					let mc_len = if m >= (i + MC) {MC} else {m - i};
-					let mc_len_eff = (mc_len + MR-1) / MR * MR;
-					for p in (0..k).step_by(KC) {
-						let kc_len = if k >= (p + KC) {KC} else {k - p};
-						avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-						ap = ap.add(mc_len_eff*kc_len);	
+	#[cfg(target_arch = "x86_64")]
+	{
+		let avx = hw_avx();
+		let fma = hw_fma();
+		let model = hw_model();
+		let avx512f = hw_avx512f();
+		if avx512f {
+			match model {
+				_ => {
+					const MC: usize = 4800;
+					const MR: usize = 48;
+					const KC: usize = 512;
+					for i in (0..m).step_by(MC) {
+						let mc_len = if m >= (i + MC) {MC} else {m - i};
+						let mc_len_eff = (mc_len + MR-1) / MR * MR;
+						for p in (0..k).step_by(KC) {
+							let kc_len = if k >= (p + KC) {KC} else {k - p};
+							avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+							ap = ap.add(mc_len_eff*kc_len);	
+						}
 					}
 				}
 			}
+			return;
+		
 		}
-		return;
-	
-	}
-	if avx && fma {
-		match model {
-			_ => {
-				const MC: usize = 4800;
-				const MR: usize = 24;
-				const KC: usize = 192;
-				for i in (0..m).step_by(MC) {
-					let mc_len = if m >= (i + MC) {MC} else {m - i};
-					let mc_len_eff = (mc_len + MR-1) / MR * MR;
-					for p in (0..k).step_by(KC) {
-						let kc_len = if k >= (p + KC) {KC} else {k - p};
-						avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-						ap = ap.add(mc_len_eff*kc_len);	
+		if avx && fma {
+			match model {
+				_ => {
+					const MC: usize = 4800;
+					const MR: usize = 24;
+					const KC: usize = 192;
+					for i in (0..m).step_by(MC) {
+						let mc_len = if m >= (i + MC) {MC} else {m - i};
+						let mc_len_eff = (mc_len + MR-1) / MR * MR;
+						for p in (0..k).step_by(KC) {
+							let kc_len = if k >= (p + KC) {KC} else {k - p};
+							avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+							ap = ap.add(mc_len_eff*kc_len);	
+						}
 					}
 				}
 			}
+			return;
 		}
-		return;
 	}
+
 }
 
 pub unsafe fn corenum_sgemm(

@@ -67,12 +67,12 @@ const GOTO_NR: usize,
 impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
-A: GemmArray<f32, X=f32>, 
+A: GemmArray<f32, X=f32> + Axpy, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > Gemv<TA,TB,A,B,C> for AvxFma<GOTO_MR,GOTO_NR>
 {
-    #[target_feature(enable = "avx,fma")]
+    #[target_feature(enable = "neon")]
    unsafe fn gemv_serial(
        m: usize, n: usize,
        alpha: *const TA,
@@ -85,7 +85,7 @@ C: GemmOut<X=f32,Y=f32>,
         let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy);
+        A::axpy(m, n, alpha, a, x_ptr, inc_x, beta, y_ptr, incy)
    }
 }
 
@@ -105,7 +105,7 @@ impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
 > GemmPackA<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-    #[target_feature(enable = "avx,fma")]
+    #[target_feature(enable = "neon")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         packa_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
@@ -115,7 +115,7 @@ impl<
 const GOTO_MR: usize,
 const GOTO_NR: usize,
 > GemmPackB<TA,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-    #[target_feature(enable = "avx,fma")]
+    #[target_feature(enable = "neon")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
     }
@@ -125,7 +125,7 @@ const GOTO_NR: usize,
 // const GOTO_MR: usize,
 // const GOTO_NR: usize,
 // > GemmPackA<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-//     #[target_feature(enable = "avx,fma")]
+//     #[target_feature(enable = "neon")]
 //     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
 //         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
 //     }
@@ -135,7 +135,7 @@ const GOTO_NR: usize,
 // const GOTO_MR: usize,
 // const GOTO_NR: usize,
 // > GemmPackB<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-//     #[target_feature(enable = "avx,fma")]
+//     #[target_feature(enable = "neon")]
 //     unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
 //         // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
 //     }
@@ -182,7 +182,7 @@ where
 AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
+   #[target_feature(enable = "neon")]
    unsafe fn kernel(
        m: usize, n: usize, k: usize,
        alpha: *const TA,
@@ -194,7 +194,90 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
    ) {
        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
    }
+
 }
+
+pub trait Axpy {
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: Self,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    );
+}
+
+impl Axpy for StridedMatrix<f32>{
+    #[target_feature(enable = "neon")]
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: StridedMatrix<f32>,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    ) {
+        let a_ptr = a.data_ptr;
+        axpy(m, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, y, inc_y);
+    }
+}
+
+impl Axpy for PackedMatrix<f32>{
+    #[target_feature(enable = "neon")]
+    unsafe fn axpy(
+        m: usize, n: usize,
+        alpha: *const TA,
+        a: PackedMatrix<f32>,
+        x: *const TB, inc_x: usize,
+        beta: *const TC,
+        y: *mut TC, inc_y: usize,
+    ) {
+        if m == 1 || n == 1 {
+            let a_ptr = a.data_ptr;
+            axpy(m, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, y, inc_y);
+            return;
+        }
+
+        let mut mc = 0;
+        let mc_end = m;
+        let mc_eff = a.mc;
+        let kc_eff = a.kc;
+        let one = 1_f32;
+        while mc < mc_end {
+            let mc_len = mc_eff.min(mc_end - mc);
+ 
+            let c_i = y.add(inc_y*mc);
+            let mut kc = 0;
+            let kc_end = n;
+            // axpy(mc_len, n, alpha, a_ptr, a.rs, a.cs, x, inc_x, beta, c_i, inc_y);
+            while kc < n {
+                let kc_len = kc_eff.min(kc_end - kc);
+                let beta_t = if kc == 0 { beta } else { &one as *const TC};
+                let ap = a.packa_dispatch_hw::<AvxFma::<24,4>>(mc, kc, mc_len, kc_len, 0, false);
+                let mut mr = 0;
+                while mr < mc_len {
+                    let mr_len = 24.min(mc_len - mr);
+                    let c_i = c_i.add(mr*inc_y);
+                    let a_cs = {
+                        if mr_len > 16 {
+                            24
+                        } else if mr_len > 8  {
+                            16
+                        } else {
+                            8
+                        }
+                    };
+                    axpy(mr_len, kc_len, alpha, ap.add(mr*kc_len), 1, a_cs, x.add(inc_x*kc), inc_x, beta_t, c_i, inc_y);
+                    mr += 24;
+                }
+                kc += kc_eff;
+            }
+            mc += mc_eff;
+        }
+    }
+}
+
 
 use corenum_base::GemmArray;
 
@@ -208,7 +291,7 @@ C: GemmOut<X=f32,Y=f32>,
 where AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
+   #[target_feature(enable = "neon")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,
@@ -235,7 +318,7 @@ where
 AvxFma<GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
+   #[target_feature(enable = "neon")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,

@@ -35,3 +35,23 @@ sup_n: use libshalom,
 - better benchmark than blasfeo's approach (even for x86 hw, even though paper studies only arm hardware)
 - simpler inline assembly code and more compatible with packing api
 https://jianbinfang.github.io/files/2021-06-22-sc.pdf
+
+
+neon:
+
+8x12:
+2x12+2+3
+
+12x8:
+3x8+3+2
+12x9:
+3x9+3+3
+
+16x6:
+4x6+4+2
+
+20x5:
+5x5+5+2
+
+24x4:
+6x4+6+1

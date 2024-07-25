@@ -16,7 +16,7 @@ macro_rules! env_or {
 		}
 	};
  }
-
+#[cfg(target_arch = "x86_64")]
 struct HWConfig {
     avx: bool,
     avx2: bool,
@@ -25,6 +25,12 @@ struct HWConfig {
     fma4: bool,
     hw_model: HWModel,
 }
+
+#[cfg(target_arch = "aarch64")]
+struct HWConfig {
+    neon: bool,
+}
+
 #[derive(Copy,Clone)]
 pub enum HWModel {
     Reference,
@@ -60,36 +66,54 @@ fn detect_hw_config() -> HWConfig {
             hw_model: HWModel::Reference,
         };
     }
+    #[cfg(target_arch = "aarch64")]
+    {
+        return HWConfig {
+            neon: true,
+        };
+    }
 }
 
 
 static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
     detect_hw_config()
 });
-
-pub fn hw_avx() -> bool {
-    RUNTIME_HW_CONFIG.avx
+#[cfg(target_arch = "x86_64")]
+pub(crate) mod cpu_features{
+    use super::RUNTIME_HW_CONFIG;
+    use super::HWModel;
+    pub fn hw_avx() -> bool {
+        RUNTIME_HW_CONFIG.avx
+    }
+    
+    pub fn hw_fma() -> bool {
+        RUNTIME_HW_CONFIG.fma
+    }
+    
+    pub fn hw_avx2() -> bool {
+        RUNTIME_HW_CONFIG.avx2
+    }
+    
+    pub fn hw_avx512f() -> bool {
+        RUNTIME_HW_CONFIG.avx512f
+    }
+    
+    pub fn hw_model() -> HWModel {
+        RUNTIME_HW_CONFIG.hw_model
+    }
+    
+    pub fn hw_fma4() -> bool {
+        RUNTIME_HW_CONFIG.fma4
+    }    
 }
-
-pub fn hw_fma() -> bool {
-    RUNTIME_HW_CONFIG.fma
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod cpu_features{ 
+    use super::RUNTIME_HW_CONFIG;
+    pub fn hw_neon() -> bool {
+        RUNTIME_HW_CONFIG.neon
+    }
 }
-
-pub fn hw_avx2() -> bool {
-    RUNTIME_HW_CONFIG.avx2
-}
-
-pub fn hw_avx512f() -> bool {
-    RUNTIME_HW_CONFIG.avx512f
-}
-
-pub fn hw_model() -> HWModel {
-    RUNTIME_HW_CONFIG.hw_model
-}
-
-pub fn hw_fma4() -> bool {
-    RUNTIME_HW_CONFIG.fma4
-}
+pub use cpu_features::*;
 
 struct PackPool {
     buffer: RwLock<Vec<Mutex<Vec<u8>>>>
