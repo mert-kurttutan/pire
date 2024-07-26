@@ -145,12 +145,12 @@ struct Args {
  
             #[cfg(feature="rustgemm")]
             unsafe {
-                gemm(
+                gemm::gemm(
                     m, n, k,
-                    c.as_mut_ptr(), 1 as isize, m as isize,
+                    c.as_mut_ptr(), c_cs as isize, c_rs as isize,
                     true,
-                    a.as_ptr(), m as isize, 1 as isize,
-                    b.as_ptr(), 1 as isize, n as isize,
+                    a.as_ptr(), a_cs as isize, a_rs as isize,
+                    b.as_ptr(), b_cs as isize, b_rs as isize,
                     alpha, beta,
                     false, false, false,
                     gemm::Parallelism::Rayon(1)

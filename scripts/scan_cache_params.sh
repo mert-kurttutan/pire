@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Define arrays of literal values
-nc_array=(192 256 320 320)
-kc_array=(128 192 256 320)
+nc_array=(128 192 256 320 320 448 512 578 640 768 960)
+kc_array=(128 192 256 320 320 448 512 578 640 768 960)
 
 mr=24
 nr=4
@@ -15,11 +15,13 @@ for n_i in "${nc_array[@]}"; do
     # Inner loop
     for k_i in "${kc_array[@]}"; do
         # Set environment variables x and y
-        export CORENUM_SGEMM_NC=$n_i
-        export CORENUM_SGEMM_KC=$k_i
+        export NC=$n_i
+        export KC=$k_i
         
-        # Echo the concatenated values of x and y
-        cargo build -p corenum-gemm-f32 --release --features "corenum"
-        cp ./target/release/corenum-gemm-f32 ./corenum-bin/corenum-gemm-f32-native-${mr}x${nr}-${n_i}x${k_i}
+        # echo nc and kc to out.txt
+        echo "nc: $NC, kc: $KC" >> out.txt
+        # run ./target/release/corenum-gemm-f32 and output to a out.txt using pipe
+        ./target/release/corenum-gemm-f32 --m 4800 --n 2400 --k 2400 --t-layout nt >> out2.txt
+        sleep 1
     done
 done

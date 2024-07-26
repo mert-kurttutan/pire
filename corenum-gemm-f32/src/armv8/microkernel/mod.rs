@@ -111,7 +111,7 @@ macro_rules! def_kernel_bb {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, 0];
+                let ld_arr = [0, 0, m_left];
                 
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -147,17 +147,17 @@ macro_rules! def_kernel_bb {
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                             n_iter -= 1;
                             bp_cur = bp_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*ldc);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                         #(
                             else if n_left == nr_left {
-                                [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                                [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                             }
                         )*
                         return;
@@ -192,7 +192,7 @@ macro_rules! def_kernel_bb_strided {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0, 0];
+                let ld_arr = [0, 0, m_left];
                 let mut c_temp_buf = [0_f32; MR*NR];
                 let ct = c_temp_buf.as_mut_ptr();
                 
@@ -285,7 +285,7 @@ macro_rules! def_kernel_bs {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [b_rs*4, b_cs*4];
+                let ld_arr = [b_rs*4, b_cs*4, m_left];
                 // use blocking since rrc kernel is hard to implement to current macro choices
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -322,17 +322,17 @@ macro_rules! def_kernel_bs {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x $NR _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*b_cs);
                             c_cur1 = c_cur1.add(NR*ldc);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x1_bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x1_bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                         #(
                         else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x~nr_left _bs_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                         )*
                         return;
@@ -388,7 +388,7 @@ macro_rules! def_kernel_sb {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0*4, 0*4];
+                let ld_arr = [0*4, 0*4, m_left];
                 let ap_cur = ap_buf;
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -427,17 +427,17 @@ macro_rules! def_kernel_sb {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*ldc);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                         #(
                         else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, b_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
                         }
                         )*
                         return;

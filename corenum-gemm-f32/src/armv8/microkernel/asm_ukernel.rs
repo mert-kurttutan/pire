@@ -8,8 +8,8 @@ use paste::paste;
 macro_rules! beta_fmaddps {
     (C, $m0:expr, $r1:expr) => {
         concat!(
-			"ldr q", $r1, ", ", $m0, "\n",
-			"fmla v", $r1, ".4s, v0.4s, v1.4s\n",
+			"ldr q1, ", $m0, "\n",
+			"fmla v", $r1, ".4s, v1.4s, v0.s[0]\n",
         ) 
     };
     (M, $m0:expr, $r1:expr) => {
@@ -40,22 +40,28 @@ macro_rules! vmovps {
     };
  }
  macro_rules! acc_ps {
-    (24, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
+    (24, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr, $r5:expr, $r6:expr) => {
         concat!(
             beta_fmaddps!(C, mem!($m0), $r1),
-            beta_fmaddps!(C, mem!($m0, "0x20"), $r2),
-            beta_fmaddps!($layout, mem!($m0, "0x40"), $r3),
+            beta_fmaddps!(C, mem!($m0, "0x10"), $r2),
+            beta_fmaddps!(C, mem!($m0, "0x20"), $r3),
+			beta_fmaddps!(C, mem!($m0, "0x30"), $r4),
+			beta_fmaddps!(C, mem!($m0, "0x40"), $r5),
+			beta_fmaddps!(C, mem!($m0, "0x50"), $r6),
         )
     };
-    (16, $layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+    (16, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
         concat!(
             beta_fmaddps!(C, mem!($m0), $r1),
-            beta_fmaddps!($layout, mem!($m0, "0x20"), $r2),
+            beta_fmaddps!(C, mem!($m0, "0x10"), $r2),
+            beta_fmaddps!(C, mem!($m0, "0x20"), $r3),
+			beta_fmaddps!(C, mem!($m0, "0x30"), $r4),
         )
     };
-    ($N:tt, $layout:tt, $m0:expr, $r1:expr) => {
+    ($N:tt, $layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            beta_fmaddps!($layout, mem!($m0), $r1),
+            beta_fmaddps!(C, mem!($m0), $r1),
+            beta_fmaddps!(C, mem!($m0, "0x10"), $r2),
         )
     };
  }
@@ -134,22 +140,28 @@ macro_rules! loadps_unit {
     };
 }
 macro_rules! storeps {
-	(24, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
+	(24, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr, $r5:expr, $r6:expr) => {
 		concat!(
 			storeps_unit!(C, $r1, mem!($m0)),
-			storeps_unit!(C, $r2, mem!($m0, "0x20")),
-			storeps_unit!($layout, $r3, mem!($m0, "0x40")),
+			storeps_unit!(C, $r2, mem!($m0, "0x10")),
+			storeps_unit!(C, $r3, mem!($m0, "0x20")),
+			storeps_unit!(C, $r4, mem!($m0, "0x30")),
+			storeps_unit!(C, $r5, mem!($m0, "0x40")),
+			storeps_unit!(C, $r6, mem!($m0, "0x50")),
 		)
 	};
-	(16, $layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+	(16, $layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
 		concat!(
 			storeps_unit!(C, $r1, mem!($m0)),
-			storeps_unit!($layout, $r2, mem!($m0, "0x20")),
+			storeps_unit!(C, $r2, mem!($m0, "0x10")),
+			storeps_unit!(C, $r3, mem!($m0, "0x20")),
+			storeps_unit!(C, $r4, mem!($m0, "0x30")),
 		)
 	};
-	(8, $layout:tt, $m0:expr, $r1:expr) => {
+	(8, $layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
 		concat!(
-			storeps_unit!($layout, $r1, mem!($m0)),
+			storeps_unit!(C, $r1, mem!($m0)),
+			storeps_unit!(C, $r2, mem!($m0, "0x10")),
 		)
 	};
  }
@@ -191,6 +203,17 @@ macro_rules! asm_init_ab {
 			"/* {x2} */", "\n",
 			"/* {x1} */", "\n",
 			"/* {x0} */", "\n",
+
+			"ldr {x1}, [{int_arrx}]", "\n",
+			"ldr {x2}, [{int_arrx}, #8]", "\n",
+
+			// "add {x3}, {x2}, {x2}, lsl #1 \n",
+			// "lsl {x3}, {x2}, #1 \n",
+			"add {x3}, {bx}, {x2} \n",
+			"add {x4}, {x3}, {x2} \n",
+			"add {x5}, {x4}, {x2} \n",
+			"ldr {x0}, [{int_arrx}, #24]", "\n",
+        	"cmp {x0}, #0",
     	)
 	};
 }
@@ -200,7 +223,7 @@ macro_rules! asm_c_load {
 	(6) => {
     	concat!(
 			"ldr {x0}, [{int_arrx}, #16]\n",
-			"lsl {x0}, {x0}, #4\n",
+			"lsl {x0}, {x0}, #2\n",
         	"add {x1}, {cx}, {x0} \n",
 			"add {x2}, {x1}, {x0} \n",
         	"add {x3}, {x2}, {x0} \n",
@@ -209,7 +232,7 @@ macro_rules! asm_c_load {
 	(5) => {
     	concat!(
 			"ldr {x0}, [{int_arrx}, #16]\n",
-			"lsl {x0}, {x0}, #4\n",
+			"lsl {x0}, {x0}, #2\n",
         	"add {x1}, {cx}, {x0} \n",
 			"add {x2}, {x1}, {x0} \n",
         	"add {x3}, {x2}, {x0} \n",
@@ -218,7 +241,7 @@ macro_rules! asm_c_load {
 	(4) => {
     	concat!(
 			"ldr {x0}, [{int_arrx}, #16]\n",
-			"lsl {x0}, {x0}, #4\n",
+			"lsl {x0}, {x0}, #2\n",
         	"add {x1}, {cx}, {x0} \n",
 			"add {x2}, {x1}, {x0} \n",
         	"add {x3}, {x2}, {x0} \n",
@@ -227,7 +250,7 @@ macro_rules! asm_c_load {
 	(3) => {
     	concat!(
 			"ldr {x0}, [{int_arrx}, #16]\n",
-			"lsl {x0}, {x0}, #4\n",
+			"lsl {x0}, {x0}, #2\n",
         	"add {x1}, {cx}, {x0} \n",
 			"add {x2}, {x1}, {x0} \n",
     	)
@@ -235,7 +258,7 @@ macro_rules! asm_c_load {
 	(2) => {
     	concat!(
 			"ldr {x0}, [{int_arrx}, #16]\n",
-			"lsl {x0}, {x0}, #4\n",
+			"lsl {x0}, {x0}, #2\n",
         	"add {x1}, {cx}, {x0} \n",
     	)
 	};
@@ -249,23 +272,23 @@ macro_rules! asm_c_load {
 macro_rules! asm_vzeroall {
 
 	(VER24,4) => {vzeroall!(8,31)};
-	(VER24,3) => {vzeroall!(4,12)};
-	(VER24,2) => {vzeroall!(4,9)};
-	(VER24,1) => {vzeroall!(4,6)};
+	(VER24,3) => {vzeroall!(8,25)};
+	(VER24,2) => {vzeroall!(8,19)};
+	(VER24,1) => {vzeroall!(8,13)};
 
-	(VER16,6) => {vzeroall!(4,15)};
-	(VER16,5) => {vzeroall!(4,13)};
-	(VER16,4) => {vzeroall!(4,11)};
-	(VER16,3) => {vzeroall!(4,9)};
-	(VER16,2) => {vzeroall!(4,7)};
-	(VER16,1) => {vzeroall!(4,5)};
+	(VER16,6) => {vzeroall!(8,31)};
+	(VER16,5) => {vzeroall!(8,27)};
+	(VER16,4) => {vzeroall!(8,23)};
+	(VER16,3) => {vzeroall!(8,19)};
+	(VER16,2) => {vzeroall!(8,15)};
+	(VER16,1) => {vzeroall!(8,11)};
 
-	(VER8,6) => {vzeroall!(7,12)};
-	(VER8,5) => {vzeroall!(7,11)};
-	(VER8,4) => {vzeroall!(7,10)};
-	(VER8,3) => {vzeroall!(7,9)};
-	(VER8,2) => {vzeroall!(7,8)};
-	(VER8,1) => {vzeroall!(7,7)};
+	(VER8,6) => {vzeroall!(20,31)};
+	(VER8,5) => {vzeroall!(20,29)};
+	(VER8,4) => {vzeroall!(20,27)};
+	(VER8,3) => {vzeroall!(20,25)};
+	(VER8,2) => {vzeroall!(20,23)};
+	(VER8,1) => {vzeroall!(20,21)};
 }
 
 macro_rules! inc_a {
@@ -285,13 +308,13 @@ macro_rules! inc_b {
     	"add {bx},{bx},{x1} \n add {x3},{x3},{x1} \n"
 	};
 	(S,4) => {
-    	"add {bx},{bx},{x1} \n add {x3},{x3},{x1} \n"
+    	"add {bx},{bx},{x1} \n add {x3},{x3},{x1} \n add {x4},{x4},{x1} \n add {x5},{x5},{x1} \n"
 	};
 	(S,3) => {
-    	"add {bx},{bx},{x1} \n"
+    	"add {bx},{bx},{x1} \n add {x3},{x3},{x1} \n add {x4},{x4},{x1} \n"
 	};
 	(S,2) => {
-    	"add {bx},{bx},{x1} \n"
+    	"add {bx},{bx},{x1} \n add {x3},{x3},{x1} \n"
 	};
 	(S,1) => {
     	"add {bx},{bx},{x1} \n"
@@ -392,115 +415,115 @@ macro_rules! asm_alpha_scale {
 
 macro_rules! asm_24x4_acc_seq {
 	($mr:tt, 0, $layout:tt) => {
-		acc_ps!($mr, $layout, "{cx}", 4, 5, 6)
+		acc_ps!($mr, $layout, "{cx}", 8, 9, 10, 11, 12, 13)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x1}", 7, 8, 9)
+		acc_ps!($mr, $layout, "{x1}", 14, 15, 16, 17, 18, 19)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x2}",  10, 11, 12)
+		acc_ps!($mr, $layout, "{x2}", 20, 21, 22, 23, 24, 25)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x3}",  13, 14, 15)
+		acc_ps!($mr, $layout, "{x3}", 26, 27, 28, 29, 30, 31)
 	};
 }
 
 macro_rules! asm_24x4_store_seq {
 	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "{cx}", 4, 5, 6)
+		storeps!($mr, $layout, "{cx}", 8, 9, 10, 11, 12, 13)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "{x1}", 7, 8, 9)
+		storeps!($mr, $layout, "{x1}", 14, 15, 16, 17, 18, 19)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "{x2}",  10, 11, 12)
+		storeps!($mr, $layout, "{x2}", 20, 21, 22, 23, 24, 25)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "{x3}",  13, 14, 15)
+		storeps!($mr, $layout, "{x3}", 26, 27, 28, 29, 30, 31)
 	};
 }
 
 macro_rules! asm_16x6_acc_seq {
 	($mr:tt, 0, $layout:tt) => {
-		acc_ps!($mr, $layout, "{cx}", 4, 5)
+		acc_ps!($mr, $layout, "{cx}", 8, 9, 10, 11)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x1}", 6, 7)
+		acc_ps!($mr, $layout, "{x1}", 12, 13, 14, 15)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x2}", 8, 9)
+		acc_ps!($mr, $layout, "{x2}", 16, 17, 18, 19)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x3}", 10, 11)
+		acc_ps!($mr, $layout, "{x3}", 20, 21, 22, 23)
 	};
 	($mr:tt, 4, $layout:tt) => {
-        acc_ps!($mr, $layout, "{x3}", 12, 13)
+        acc_ps!($mr, $layout, "{x3}", 24, 25, 26, 27)
 	};
 	($mr:tt, 5, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x3}", 14, 15)
+		acc_ps!($mr, $layout, "{x3}", 28, 29, 30, 31)
 	};
 }
 
 macro_rules! asm_16x6_store_seq {
 	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "{cx}", 4, 5)
+		storeps!($mr, $layout, "{cx}", 8, 9, 10, 11)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "{x1}", 6, 7)
+		storeps!($mr, $layout, "{x1}", 12, 13, 14, 15)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "{x2}", 8, 9)
+		storeps!($mr, $layout, "{x2}", 16, 17, 18, 19)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "{x3}", 10, 11)
+		storeps!($mr, $layout, "{x3}", 20, 21, 22, 23)
 	};
 	($mr:tt, 4, $layout:tt) => {
-    	storeps!($mr, $layout, "{x3}", 12, 13)
+    	storeps!($mr, $layout, "{x3}", 24, 25, 26, 27)
 	};
 	($mr:tt, 5, $layout:tt) => {
-		storeps!($mr, $layout, "{x3}", 14, 15)
+		storeps!($mr, $layout, "{x3}", 28, 29, 30, 31)
 	};
 }
 
 macro_rules! asm_8x6_acc_seq {
 	($mr:tt, 0, $layout:tt) => {
-		acc_ps!($mr, $layout, "{cx}", 7)
+		acc_ps!($mr, $layout, "{cx}", 20, 21)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x1}", 8)
+		acc_ps!($mr, $layout, "{x1}", 22, 23)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x2}", 9)
+		acc_ps!($mr, $layout, "{x2}", 24, 25)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x3}", 10)
+		acc_ps!($mr, $layout, "{x3}", 26, 27)
 	};
 	($mr:tt, 4, $layout:tt) => {
-        acc_ps!($mr, $layout, "{x3}", 11)
+    	acc_ps!($mr, $layout, "{x3}", 28, 29)
 	};
 	($mr:tt, 5, $layout:tt) => {
-		acc_ps!($mr, $layout, "{x3}", 12)
+		acc_ps!($mr, $layout, "{x3}", 30, 31)
 	};
 }
 
 macro_rules! asm_8x6_store_seq {
 	($mr:tt, 0, $layout:tt) => {
-		storeps!($mr, $layout, "{cx}", 7)
+		storeps!($mr, $layout, "{cx}", 20, 21)
 	};
 	($mr:tt, 1, $layout:tt) => {
-		storeps!($mr, $layout, "{x1}", 8)
+		storeps!($mr, $layout, "{x1}", 22, 23)
 	};
 	($mr:tt, 2, $layout:tt) => {
-		storeps!($mr, $layout, "{x2}", 9)
+		storeps!($mr, $layout, "{x2}", 24, 25)
 	}; 
 	($mr:tt, 3, $layout:tt) => {
-		storeps!($mr, $layout, "{x3}", 10)
+		storeps!($mr, $layout, "{x3}", 26, 27)
 	};
 	($mr:tt, 4, $layout:tt) => {
-        storeps!($mr, $layout, "{x3}", 11)
+    	storeps!($mr, $layout, "{x3}", 28, 29)
 	};
 	($mr:tt, 5, $layout:tt) => {
-		storeps!($mr, $layout, "{x3}", 12)
+		storeps!($mr, $layout, "{x3}", 30, 31)
 	};
 }
 
@@ -583,22 +606,26 @@ macro_rules! asm_8x6_store {
 macro_rules! load_b {
 	(S, 0, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-			"ldr s", $r, ", [{bx}]", "\n",			
+			"ld1 {{v", $r, ".s}}[0], [{bx}] \n",
+			// "ldr s", $r, ", [{bx}]", "\n",	
     	)
 	};
 	(S, 1, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-			"ldr s", $r, ", [{bx},{x2}]", "\n",			
+			// "ldr s", $r, ", [{bx},{x2}]", "\n",	
+			"ld1 {{v", $r, ".s}}[1], [{x3}] \n",
     	)
 	};
 	(S, 2, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-			"ldr s", $r, ", [{bx},{x2}, LSL #2]", "\n",	
+			// "ldr s", $r, ", [{x3}]", "\n",	
+			"ld1 {{v", $r, ".s}}[2], [{x4}] \n",
     	)
 	};
 	(S, 3, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-			"ldr s", $r, ", [{x3}]", "\n",	
+			// "ldr s", $r, ", [{x3},{x2}]", "\n",	
+			"ld1 {{v", $r, ".s}}[3], [{x5}] \n",
     	)
 	};
 	(S, 4, $K:tt, $X:tt, $r:expr) => {
@@ -611,10 +638,13 @@ macro_rules! load_b {
 			"ldr s", $r, ", [{x3},{x2}, LSL #2]", "\n",
     	)
 	};
-	(B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+	(B, 0, $K:tt, $X:tt, $r:expr) => {
     	concat!(
-			"ldr q", $r, ", [{bx}, #", $K, "*", $X, "*4+", $N, "*4]", "\n",
+			"ldr q", $r, ", [{bx}, #", $K, "*", $X, "*4]", "\n",
     	)
+	};
+	(B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+    	""
 	};
 }
 
@@ -674,38 +704,50 @@ macro_rules! fmadd_3v {
 macro_rules! fmadd_2v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 2, 4, 0),
-			vfmadd231ps!(1, 2, 5, 0),
+			vfmadd231ps!(0, 4, 8, 0),
+			vfmadd231ps!(1, 4, 9, 0),
+			vfmadd231ps!(2, 4, 10, 0),
+		    vfmadd231ps!(3, 4, 11, 0),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 3, 6, 0),
-			vfmadd231ps!(1, 3, 7, 0),
+			vfmadd231ps!(0, 4, 12, 1),
+			vfmadd231ps!(1, 4, 13, 1),
+			vfmadd231ps!(2, 4, 14, 1),
+		    vfmadd231ps!(3, 4, 15, 1),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 2, 8, 0),
-			vfmadd231ps!(1, 2, 9, 0),
+			vfmadd231ps!(0, 4, 16, 2),
+			vfmadd231ps!(1, 4, 17, 2),
+			vfmadd231ps!(2, 4, 18, 2),
+		    vfmadd231ps!(3, 4, 19, 2),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 3, 10, 0),
-			vfmadd231ps!(1, 3, 11, 0),
+			vfmadd231ps!(0, 4, 20, 3),
+			vfmadd231ps!(1, 4, 21, 3),
+			vfmadd231ps!(2, 4, 22, 3),
+		    vfmadd231ps!(3, 4, 23, 3),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 2, 12, 0),
-			vfmadd231ps!(1, 2, 13, 0),
+			vfmadd231ps!(0, 5, 24, 0),
+			vfmadd231ps!(1, 5, 25, 0),
+			vfmadd231ps!(2, 5, 26, 0),
+		    vfmadd231ps!(3, 5, 27, 0),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 3, 14, 0),
-			vfmadd231ps!(1, 3, 15, 0),
+			vfmadd231ps!(0, 5, 28, 1),
+			vfmadd231ps!(1, 5, 29, 1),
+			vfmadd231ps!(2, 5, 30, 1),
+		    vfmadd231ps!(3, 5, 31, 1),
 		)
 	};
 }
@@ -713,34 +755,48 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 1, 7, 0),
+			vfmadd231ps!(0, 2, 20, 0),
+			vfmadd231ps!(1, 2, 21, 0),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 2, 8, 0),
+			vfmadd231ps!(0, 2, 22, 1),
+			vfmadd231ps!(1, 2, 23, 1),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 3, 9, 0),
+			vfmadd231ps!(0, 2, 24, 2),
+			vfmadd231ps!(1, 2, 25, 2),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 4, 10, 0),
+			vfmadd231ps!(0, 2, 26, 3),
+			vfmadd231ps!(1, 2, 27, 3),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 5, 11, 0),
+			vfmadd231ps!(0, 3, 28, 0),
+			vfmadd231ps!(1, 3, 29, 0),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 6, 12, 0),
+			vfmadd231ps!(0, 3, 30, 1),
+			vfmadd231ps!(1, 3, 31, 1),
 		)
 	};
+}
+
+macro_rules! b_num_24x4 {
+	(0,S) => {6};
+	(1,S) => {6};
+	(2,S) => {6};
+	(3,S) => {6};
+	($nr:tt,B) => {6};
 }
 
 macro_rules! b_num_16x6 {
@@ -767,8 +823,8 @@ macro_rules! asm_24x4_step {
 		seq!(n in 0..$nr {
 			concat!(
 				load_a!($N, $a_layout, $K),
-				load_b!($b_layout, 0, $K, $nr, 6),
 				#(
+					load_b!($b_layout, n, $K, $nr, b_num_24x4!(n,$b_layout)),
 					fmadd_3v!(n),
 				)*
 			)
@@ -782,8 +838,8 @@ macro_rules! asm_16x6_step {
 		seq!(n in 0..$nr {
 			concat!(
 				load_a!($N, $a_layout, $K),
-				load_b!($b_layout, 0, $K, $nr, 6),
 				#(
+					load_b!($b_layout, n, $K, $nr, 4),
 					fmadd_2v!(n),
 				)*
 			)
@@ -797,8 +853,8 @@ macro_rules! asm_8x6_step {
 		seq!(n in 0..$nr {
 			concat!(
 				load_a!($N, $a_layout, $K),
-				load_b!($b_layout, 0, $K, $nr, 6),
 				#(
+					load_b!($b_layout, n, $K, $nr, 2),
 					fmadd_1v!(n),
 				)*
 			)
@@ -807,9 +863,14 @@ macro_rules! asm_8x6_step {
 }
 
 macro_rules! prefetch_0 {
+	(0, $reg:tt, $k_i:tt) => {
+		concat!(
+			"",
+		)
+	};
 	($dist:tt, $reg:tt, $k_i:tt) => {
 		concat!(
-			// "prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
+			"prfm pldl1keep, [", $reg, ", #", $k_i, "*64+", $dist, "] \n",
 		)
 	};
 }
@@ -885,7 +946,7 @@ macro_rules! prefetch_a {
 
 macro_rules! prefetch_b {
 	($nr:tt, S, $dist:tt, $unroll:tt, $i:tt) => {
-		prefetch_0!(0, "{bx},{x1},8", 0)
+		prefetch_0!(0, "{bx},{x1}, lsl #3", 0)
 	};
 	($nr:tt, B, $dist:tt, $unroll:tt, 0) => {
 		prefetch_0!($dist, "{bx}", 0)
@@ -899,24 +960,76 @@ macro_rules! prefetch_b {
 }
 
 macro_rules! prefetch_c {
-    (24, $nr:tt, $c:tt, $ldc:tt) => {
-        seq!(j in 0..$nr {
-            // _mm_prefetch($c.add(0+j*$ldc) as *const i8, 3);
-            // _mm_prefetch($c.add(12+j*$ldc) as *const i8, 3);
-			// _mm_prefetch($c.add(23+j*$ldc) as *const i8, 3);
-        });
+	(24, 4) => {
+		concat!(
+			"ldr {x0}, [{int_arrx}, #16]\n",
+			"lsl {x0}, {x0}, #2\n",
+			"add {x1}, {cx}, {x0}\n ",
+			"add {x2}, {x1}, {x0} \n",
+			"add {x3}, {x2}, {x0} \n",
+			"prfm pldl1keep, [{cx}] \n",
+			"prfm pldl1keep, [{cx},#64]\n",
+			"prfm pldl1keep, [{x1}] \n",
+			"prfm pldl1keep, [{x1},#64]\n",
+			"prfm pldl1keep, [{x2}] \n",
+			"prfm pldl1keep, [{x2},#64]\n",
+			"prfm pldl1keep, [{x3}] \n",
+			"prfm pldl1keep, [{x3},#64]\n",
+		)
     };
-    (16, $nr:tt, $c:tt, $ldc:tt) => {
+    (24, $nr:tt) => {
+		""
+        // seq!(j in 0..$nr {
+        //     concat!(
+		// 		#(
+
+		// 		)*
+		// 	)
+        // });
+    };
+    (16, $nr:tt) => {
+			""
         // seq!(j in 0..$nr {
         //     _mm_prefetch($c.add(16+j*$ldc) as *const i8, 3);
         // });
     };
-    (8, $nr:tt, $c:tt, $ldc:tt) => {
+    (8, $nr:tt) => {
+			""
         // seq!(j in 0..$nr {
         //     _mm_prefetch($c.add(8+j*$ldc) as *const i8, 3);
         // });
     }
 }
+
+macro_rules! pre_temp_buf {
+	(T, $mr:tt, $nr:tt, $c_buf:ident,$c_ptr:ident,$c0_ptr:tt,$u64_arr:ident,$u64_ptr:ident,$ld_arr:tt,$ldc:tt,$k_iter:tt,$k_left:tt) => {
+		let mut $c_buf = [0_f32;$mr*$nr];
+		// process c_buf
+		let $u64_arr = [$ld_arr[0], $ld_arr[1], $mr, $k_iter, $k_left];
+		let $u64_ptr = $u64_arr.as_ptr();
+		let $c_ptr = $c_buf.as_mut_ptr();
+		for i in 0..$nr {
+			std::ptr::copy_nonoverlapping($c0_ptr.add(i*$ldc), $c_ptr.add(i*$mr),$ld_arr[2])
+		}
+	};
+	(F, $mr:tt, $nr:tt, $c_buf:ident,$c_ptr:ident,$c0_ptr:tt,$u64_arr:ident,$u64_ptr:ident,$ld_arr:tt,$ldc:tt,$k_iter:tt,$k_left:tt) => {
+		let $c_ptr = $c0_ptr;
+		let $u64_arr = [$ld_arr[0], $ld_arr[1], $ldc, $k_iter, $k_left];
+		let $u64_ptr = $u64_arr.as_ptr();
+	};
+}
+
+macro_rules! post_temp_buf {
+	(T, $mr:tt, $nr:tt, $c_buf:ident,$c_ptr:ident,$c0_ptr:tt,$u64_arr:ident,$u64_ptr:ident,$ld_arr:tt,$ldc:tt,$k_iter:tt,$k_left:tt) => {
+		// process original c_ptr
+		for i in 0..$nr {
+			std::ptr::copy_nonoverlapping($c_buf.as_mut_ptr().add(i*$mr), $c0_ptr.add(i*$ldc),$ld_arr[2])
+		}
+	};
+	(F, $mr:tt, $nr:tt, $c_buf:ident,$c_ptr:ident,$c0_ptr:tt,$u64_arr:ident,$u64_ptr:ident,$ld_arr:tt,$ldc:tt,$k_iter:tt,$k_left:tt) => {
+	};
+}
+ 
  
 macro_rules! def_ukernel {
 	(
@@ -928,6 +1041,7 @@ macro_rules! def_ukernel {
     	$a_layout:tt, $b_layout:tt,
 		$pfa_dist:tt, $pfb_dist:tt,
 		$unroll:tt,
+		$temp_buf:tt,
     	$func_name:ident
 	) => {
 		#[target_feature(enable = "neon")]
@@ -936,16 +1050,16 @@ macro_rules! def_ukernel {
         	alpha: *const TA, beta: *const TB,
         	k: usize,
         	ldc: usize,
-			ld_arr: [usize; 2]
+			ld_arr: [usize; 3]
     	) {
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
-			let cf = c;
+			// let cf = c;
+			pre_temp_buf!($temp_buf,$mr,$nr,arr_buf,cf,c,u64_arr,u64_ptr,ld_arr,ldc,k_iter,k_left);
 			// prefetch for c
-			prefetch_c!($mr,$nr,c,ldc);
         	asm!(
+				prefetch_c!($mr,$nr),
+
             	asm_vzeroall!($VER,$nr),
    	 
             	asm_init_ab!($VER,$a_layout,$b_layout),
@@ -1003,7 +1117,7 @@ macro_rules! def_ukernel {
             	// scale by alpha
             	asm_alpha_scale!($VER, $nr),
 
-				"ldr q0, [{betax}]",
+				"ldr s0, [{betax}]",
 				"/* {betax} */",
 
             	"fcmp s0,#0.0",
@@ -1018,6 +1132,8 @@ macro_rules! def_ukernel {
    	 
             	// 7 -> DDONE
             	"7:",
+				"/* {x4} */",
+				"/* {x5} */",
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
@@ -1028,11 +1144,15 @@ macro_rules! def_ukernel {
             	x1 = out(reg) _,
             	x2 = out(reg) _,
             	x3 = out(reg) _,
-            	out("v0") _, out("v1") _, out("v2") _, out("v3") _,
-            	out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-            	out("v8") _, out("v9") _, out("v10") _, out("v11") _,
-            	out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+				x4 = out(reg) _,
+				x5 = out(reg) _,
+            	out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
+            	out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+            	out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
+            	out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+
         	);
+			post_temp_buf!($temp_buf,$mr,$nr,arr_buf,cf,c,u64_arr,u64_ptr,ld_arr,ldc,k_iter,k_left);
     	}
 	};
 }
@@ -1047,6 +1167,7 @@ macro_rules! def_ukernel_partial {
     	$a_layout:tt, $b_layout:tt,
 		$pfa_dist:tt, $pfb_dist:tt,
 		$unroll:tt,
+		$temp_buf:tt,
     	$func_name:ident
 	) => {
 		#[target_feature(enable = "neon")]
@@ -1055,7 +1176,7 @@ macro_rules! def_ukernel_partial {
         	alpha: *const TA, beta: *const TB,
         	k: usize,
         	ldc: usize,
-			ld_arr: [usize; 2],
+			ld_arr: [usize; 3],
 			mask: *const u32
     	) {
         	let k_iter = k / $unroll;
@@ -1064,8 +1185,9 @@ macro_rules! def_ukernel_partial {
         	let u64_ptr = u64_arr.as_ptr();
 			let cf = c;
 			// prefetch for c
-			prefetch_c!($mr,$nr,c,ldc);
         	asm!(
+				prefetch_c!($mr,$nr),
+
             	asm_vzeroall!($VER,$nr),
    	 
             	asm_init_ab!($VER,$a_layout,$b_layout),
@@ -1123,7 +1245,7 @@ macro_rules! def_ukernel_partial {
             	// scale by alpha
             	asm_alpha_scale!($VER, $nr),
 
-				"ldr q0, [{betax}]",
+				"ldr s0, [{betax}]",
 				"/* {maskx} */",
 
 				"fcmp s7,#0.0",
@@ -1140,6 +1262,8 @@ macro_rules! def_ukernel_partial {
    	 
             	// 7 -> DDONE
             	"7:",
+				"/* {x4} */",
+				"/* {x5} */",
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
@@ -1151,6 +1275,8 @@ macro_rules! def_ukernel_partial {
             	x1 = out(reg) _,
             	x2 = out(reg) _,
             	x3 = out(reg) _,
+				x4 = out(reg) _,
+				x5 = out(reg) _,
             	out("v0") _, out("v1") _, out("v2") _, out("v3") _,
             	out("v4") _, out("v5") _, out("v6") _, out("v7") _,
             	out("v8") _, out("v9") _, out("v10") _, out("v11") _,
@@ -1170,6 +1296,7 @@ macro_rules! group_def_ukernel {
 		$asm_step_macro:tt,
 		$asm_acc_macro:tt,
 		$asm_store_macro:tt,
+		$temp_buf:tt,
 		$VER:tt
 	) => {
 		seq!(nr in $n0..=$n1 {
@@ -1183,6 +1310,7 @@ macro_rules! group_def_ukernel {
 					$a_layout, $b_layout,
 					0, 128,
 					4,
+					$temp_buf,
 					[<ukernel_ $mr x nr _ $func_name>]
 				);
 			}
@@ -1190,19 +1318,397 @@ macro_rules! group_def_ukernel {
 	};
 }
 
-group_def_ukernel!(24, 1, 4, B, B, bb, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel!(24, 1, 4, B, S, bs, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel!(24, 1, 4, B, B, bb_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
-group_def_ukernel!(24, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
+group_def_ukernel!(24, 1, 4, B, B, bb, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, F, VER24);
+group_def_ukernel!(24, 1, 4, B, S, bs, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, F, VER24);
+// group_def_ukernel!(24, 1, 4, B, B, bb_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, F, VER24);
+group_def_ukernel!(24, 1, 4, B, B, bb_partial, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, T, VER24);
+// group_def_ukernel!(24, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, F, VER24);
+group_def_ukernel!(24, 1, 4, B, S, bs_partial, def_ukernel, asm_24x4_step, asm_24x4_acc, asm_24x4_store, T, VER24);
 
 
-group_def_ukernel!(16, 1, 6, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+
+group_def_ukernel!(16, 1, 6, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, F, VER16);
 // group_def_ukernel!(16, 1, 4, B, S, bs, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel!(16, 1, 6, B, B, bb_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
-group_def_ukernel!(16, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+// group_def_ukernel!(16, 1, 6, B, B, bb_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, F, VER16);
+// group_def_ukernel!(16, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, F, VER16);
+group_def_ukernel!(16, 1, 6, B, B, bb_partial, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, T, VER16);
+group_def_ukernel!(16, 1, 4, B, S, bs_partial, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, T, VER16);
 
-group_def_ukernel!(8, 1, 6, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+
+group_def_ukernel!(8, 1, 6, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, F, VER8);
 // group_def_ukernel!(8, 1, 4, B, S, bs, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel!(8, 1, 6, B, B, bb_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
-group_def_ukernel!(8, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+// group_def_ukernel!(8, 1, 6, B, B, bb_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, F, VER8);
+// group_def_ukernel!(8, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, F, VER8);
+group_def_ukernel!(8, 1, 6, B, B, bb_partial, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, T, VER8);
+group_def_ukernel!(8, 1, 4, B, S, bs_partial, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, T, VER8);
 
+
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+pub(crate) unsafe fn ukernel_24x4_bsold(
+    a: *const TA,
+    b: *const TB,
+    c: *mut TC,
+    alpha: *const TA,
+    beta: *const TB,
+    k: usize,
+    ldc: usize,
+    ld_arr: [usize; 3],
+) {
+    let k_iter = k / 4;
+    let k_left = k % 4;
+    let cf = c;
+    let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
+    let u64_ptr = u64_arr.as_ptr();
+    asm!(
+        "ldr {6}, [{3}, #16]",
+"lsl {6}, {6}, #2",
+"add {7}, {2}, {6}",
+" add {8}, {7}, {6} ",
+"add {9}, {8}, {6} ",
+"prfm pldl1keep, [{2}] ",
+"prfm pldl1keep, [{2},#64]",
+"prfm pldl1keep, [{7}] ",
+"prfm pldl1keep, [{7},#64]",
+"prfm pldl1keep, [{8}] ",
+"prfm pldl1keep, [{8},#64]",
+"prfm pldl1keep, [{9}] ",
+"prfm pldl1keep, [{9},#64]",
+"dup v8.4s, wzr ",
+"dup v9.4s, wzr ",
+"dup v10.4s, wzr ",
+"dup v11.4s, wzr ",
+"dup v12.4s, wzr ",
+"dup v13.4s, wzr ",
+"dup v14.4s, wzr ",
+"dup v15.4s, wzr ",
+"dup v16.4s, wzr ",
+"dup v17.4s, wzr ",
+"dup v18.4s, wzr ",
+"dup v19.4s, wzr ",
+"dup v20.4s, wzr ",
+"dup v21.4s, wzr ",
+"dup v22.4s, wzr ",
+"dup v23.4s, wzr ",
+"dup v24.4s, wzr ",
+"dup v25.4s, wzr ",
+"dup v26.4s, wzr ",
+"dup v27.4s, wzr ",
+"dup v28.4s, wzr ",
+"dup v29.4s, wzr ",
+"dup v30.4s, wzr ",
+"dup v31.4s, wzr ",
+"/* {9} */",
+"/* {8} */",
+"/* {7} */",
+"/* {6} */",
+"ldr {7}, [{3}]",
+"ldr {8}, [{3}, #8]",
+"lsl {9}, {8}, #1 ",
+"add {9}, {1}, {9} ",
+"ldr {6}, [{3}, #24]",
+"cmp {6}, #0",
+"BEQ 3f",
+"2:",
+"ldr q0, [{0}, #24*4*0]",
+"ldr q1, [{0}, #24*4*0+0x10]",
+"ldr q2, [{0}, #24*4*0+0x20]",
+"ldr q3, [{0}, #24*4*0+0x30]",
+"ldr q4, [{0}, #24*4*0+0x40]",
+"ldr q5, [{0}, #24*4*0+0x50]",
+"ldr q6, [{1}]",
+"fmla v8.4s, v0.4s, v6.s[0]",
+"fmla v9.4s, v1.4s, v6.s[0]",
+"fmla v10.4s, v2.4s, v6.s[0]",
+"fmla v11.4s, v3.4s, v6.s[0]",
+"fmla v12.4s, v4.4s, v6.s[0]",
+"fmla v13.4s, v5.4s, v6.s[0]",
+"ldr q6, [{1},{8}]",
+"fmla v14.4s, v0.4s, v6.s[0]",
+"fmla v15.4s, v1.4s, v6.s[0]",
+"fmla v16.4s, v2.4s, v6.s[0]",
+"fmla v17.4s, v3.4s, v6.s[0]",
+"fmla v18.4s, v4.4s, v6.s[0]",
+"fmla v19.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9}]",
+"fmla v20.4s, v0.4s, v6.s[0]",
+"fmla v21.4s, v1.4s, v6.s[0]",
+"fmla v22.4s, v2.4s, v6.s[0]",
+"fmla v23.4s, v3.4s, v6.s[0]",
+"fmla v24.4s, v4.4s, v6.s[0]",
+"fmla v25.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9},{8}]",
+"fmla v26.4s, v0.4s, v6.s[0]",
+"fmla v27.4s, v1.4s, v6.s[0]",
+"fmla v28.4s, v2.4s, v6.s[0]",
+"fmla v29.4s, v3.4s, v6.s[0]",
+"fmla v30.4s, v4.4s, v6.s[0]",
+"fmla v31.4s, v5.4s, v6.s[0]",
+"add {1},{1},{7} ",
+" add {9},{9},{7} ",
+"ldr q0, [{0}, #24*4*1]",
+"ldr q1, [{0}, #24*4*1+0x10]",
+"ldr q2, [{0}, #24*4*1+0x20]",
+"ldr q3, [{0}, #24*4*1+0x30]",
+"ldr q4, [{0}, #24*4*1+0x40]",
+"ldr q5, [{0}, #24*4*1+0x50]",
+"ldr q6, [{1}]",
+"fmla v8.4s, v0.4s, v6.s[0]",
+"fmla v9.4s, v1.4s, v6.s[0]",
+"fmla v10.4s, v2.4s, v6.s[0]",
+"fmla v11.4s, v3.4s, v6.s[0]",
+"fmla v12.4s, v4.4s, v6.s[0]",
+"fmla v13.4s, v5.4s, v6.s[0]",
+"ldr q6, [{1},{8}]",
+"fmla v14.4s, v0.4s, v6.s[0]",
+"fmla v15.4s, v1.4s, v6.s[0]",
+"fmla v16.4s, v2.4s, v6.s[0]",
+"fmla v17.4s, v3.4s, v6.s[0]",
+"fmla v18.4s, v4.4s, v6.s[0]",
+"fmla v19.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9}]",
+"fmla v20.4s, v0.4s, v6.s[0]",
+"fmla v21.4s, v1.4s, v6.s[0]",
+"fmla v22.4s, v2.4s, v6.s[0]",
+"fmla v23.4s, v3.4s, v6.s[0]",
+"fmla v24.4s, v4.4s, v6.s[0]",
+"fmla v25.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9},{8}]",
+"fmla v26.4s, v0.4s, v6.s[0]",
+"fmla v27.4s, v1.4s, v6.s[0]",
+"fmla v28.4s, v2.4s, v6.s[0]",
+"fmla v29.4s, v3.4s, v6.s[0]",
+"fmla v30.4s, v4.4s, v6.s[0]",
+"fmla v31.4s, v5.4s, v6.s[0]",
+"add {1},{1},{7} ",
+" add {9},{9},{7} ",
+"ldr q0, [{0}, #24*4*2]",
+"ldr q1, [{0}, #24*4*2+0x10]",
+"ldr q2, [{0}, #24*4*2+0x20]",
+"ldr q3, [{0}, #24*4*2+0x30]",
+"ldr q4, [{0}, #24*4*2+0x40]",
+"ldr q5, [{0}, #24*4*2+0x50]",
+"ldr q6, [{1}]",
+"fmla v8.4s, v0.4s, v6.s[0]",
+"fmla v9.4s, v1.4s, v6.s[0]",
+"fmla v10.4s, v2.4s, v6.s[0]",
+"fmla v11.4s, v3.4s, v6.s[0]",
+"fmla v12.4s, v4.4s, v6.s[0]",
+"fmla v13.4s, v5.4s, v6.s[0]",
+"ldr q6, [{1},{8}]",
+"fmla v14.4s, v0.4s, v6.s[0]",
+"fmla v15.4s, v1.4s, v6.s[0]",
+"fmla v16.4s, v2.4s, v6.s[0]",
+"fmla v17.4s, v3.4s, v6.s[0]",
+"fmla v18.4s, v4.4s, v6.s[0]",
+"fmla v19.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9}]",
+"fmla v20.4s, v0.4s, v6.s[0]",
+"fmla v21.4s, v1.4s, v6.s[0]",
+"fmla v22.4s, v2.4s, v6.s[0]",
+"fmla v23.4s, v3.4s, v6.s[0]",
+"fmla v24.4s, v4.4s, v6.s[0]",
+"fmla v25.4s, v5.4s, v6.s[0]",
+"ldr q6, [{9},{8}]",
+"fmla v26.4s, v0.4s, v6.s[0]",
+"fmla v27.4s, v1.4s, v6.s[0]",
+"fmla v28.4s, v2.4s, v6.s[0]",
+"fmla v29.4s, v3.4s, v6.s[0]",
+"fmla v30.4s, v4.4s, v6.s[0]",
+"fmla v31.4s, v5.4s, v6.s[0]",
+"add {1},{1},{7} ",
+" add {9},{9},{7} ",
+"ldr q0, [{0}, #24*4*3]",
+"ldr q1, [{0}, #24*4*3+0x10]",
+"ldr q2, [{0}, #24*4*3+0x20]",
+"ldr q3, [{0}, #24*4*3+0x30]",
+"ldr q4, [{0}, #24*4*3+0x40]",
+"ldr q5, [{0}, #24*4*3+0x50]",
+"ldr q6, [{1}]",
+"fmla v8.4s, v0.4s, v6.s[0]",
+"fmla v9.4s, v1.4s, v6.s[0]",
+"fmla v10.4s, v2.4s, v6.s[0]",
+"fmla v11.4s, v3.4s, v6.s[0]",
+"fmla v12.4s, v4.4s, v6.s[0]",
+"fmla v13.4s, v5.4s, v6.s[0]",
+"ldr q6, [{1},{8}]",
+"fmla v14.4s, v0.4s, v6.s[0]",
+"fmla v15.4s, v1.4s, v6.s[0]",
+"fmla v16.4s, v2.4s, v6.s[0]",
+"fmla v17.4s, v3.4s, v6.s[0]",
+"fmla v18.4s, v4.4s, v6.s[0]",
+"fmla v19.4s, v5.4s, v6.s[0]",
+"ldr s6, [{9}]",
+"fmla v20.4s, v0.4s, v6.s[0]",
+"fmla v21.4s, v1.4s, v6.s[0]",
+"fmla v22.4s, v2.4s, v6.s[0]",
+"fmla v23.4s, v3.4s, v6.s[0]",
+"fmla v24.4s, v4.4s, v6.s[0]",
+"fmla v25.4s, v5.4s, v6.s[0]",
+"ldr s6, [{9},{8}]",
+"fmla v26.4s, v0.4s, v6.s[0]",
+"fmla v27.4s, v1.4s, v6.s[0]",
+"fmla v28.4s, v2.4s, v6.s[0]",
+"fmla v29.4s, v3.4s, v6.s[0]",
+"fmla v30.4s, v4.4s, v6.s[0]",
+"fmla v31.4s, v5.4s, v6.s[0]",
+"add {1},{1},{7} ",
+" add {9},{9},{7} ",
+"add {0}, {0}, #4*4*24 ",
+"sub {6}, {6}, #1",
+"cmp {6}, 0",
+"BNE 2b",
+"3:",
+"ldr {6}, [{3}, #32]",
+"cmp {6}, #0",
+"BEQ 5f",
+"4:",
+"ldr q0, [{0}, #24*4*0]",
+"ldr q1, [{0}, #24*4*0+0x10]",
+"ldr q2, [{0}, #24*4*0+0x20]",
+"ldr q3, [{0}, #24*4*0+0x30]",
+"ldr q4, [{0}, #24*4*0+0x40]",
+"ldr q5, [{0}, #24*4*0+0x50]",
+"ldr s24, [{1}]",
+"fmla v8.4s, v0.4s, v6.s[0]",
+"fmla v9.4s, v1.4s, v6.s[0]",
+"fmla v10.4s, v2.4s, v6.s[0]",
+"fmla v11.4s, v3.4s, v6.s[0]",
+"fmla v12.4s, v4.4s, v6.s[0]",
+"fmla v13.4s, v5.4s, v6.s[0]",
+"ldr s25, [{1},{8}]",
+"fmla v14.4s, v0.4s, v6.s[1]",
+"fmla v15.4s, v1.4s, v6.s[1]",
+"fmla v16.4s, v2.4s, v6.s[1]",
+"fmla v17.4s, v3.4s, v6.s[1]",
+"fmla v18.4s, v4.4s, v6.s[1]",
+"fmla v19.4s, v5.4s, v6.s[1]",
+"ldr s26, [{9}]",
+"fmla v20.4s, v0.4s, v6.s[2]",
+"fmla v21.4s, v1.4s, v6.s[2]",
+"fmla v22.4s, v2.4s, v6.s[2]",
+"fmla v23.4s, v3.4s, v6.s[2]",
+"fmla v24.4s, v4.4s, v6.s[2]",
+"fmla v25.4s, v5.4s, v6.s[2]",
+"ldr s27, [{9},{8}]",
+"fmla v26.4s, v0.4s, v6.s[3]",
+"fmla v27.4s, v1.4s, v6.s[3]",
+"fmla v28.4s, v2.4s, v6.s[3]",
+"fmla v29.4s, v3.4s, v6.s[3]",
+"fmla v30.4s, v4.4s, v6.s[3]",
+"fmla v31.4s, v5.4s, v6.s[3]",
+"add {1},{1},{7} ",
+" add {9},{9},{7} ",
+"add {0}, {0}, #4*1*24 ",
+"sub {6}, {6}, #1",
+"cmp {6}, 0",
+"BNE 4b",
+"5:",
+"ldr {6}, [{3}, #16]",
+"lsl {6}, {6}, #2",
+"add {7}, {2}, {6} ",
+"add {8}, {7}, {6} ",
+"add {9}, {8}, {6} ",
+"/* {2} */",
+"ldr s1, [{4}]",
+// "fmul  v4.4s, v4.4s, v1.s[0]",
+// "fmul  v5.4s, v5.4s, v1.s[0]",
+// "fmul  v6.4s, v6.4s, v1.s[0]",
+// "fmul  v7.4s, v7.4s, v1.s[0]",
+// "fmul  v8.4s, v8.4s, v1.s[0]",
+// "fmul  v9.4s, v9.4s, v1.s[0]",
+// "fmul  v10.4s, v10.4s, v1.s[0]",
+// "fmul  v11.4s, v11.4s, v1.s[0]",
+// "fmul  v12.4s, v12.4s, v1.s[0]",
+// "fmul  v13.4s, v13.4s, v1.s[0]",
+// "fmul  v14.4s, v14.4s, v1.s[0]",
+// "fmul  v15.4s, v15.4s, v1.s[0]",
+"ldr s0, [{5}]",
+"/* {5} */",
+"fcmp s0,#0.0",
+"BEQ 6f",
+"ldr q1, [{2}]",
+"fmla v8.4s, v1.4s, v0.s[0]",
+"ldr q1, [{2}, #0x10]",
+"fmla v9.4s, v1.4s, v0.s[0]",
+"ldr q1, [{2}, #0x20]",
+"fmla v10.4s, v1.4s, v0.s[0]",
+"ldr q1, [{2}, #0x30]",
+"fmla v11.4s, v1.4s, v0.s[0]",
+"ldr q1, [{2}, #0x40]",
+"fmla v12.4s, v1.4s, v0.s[0]",
+"ldr q1, [{2}, #0x50]",
+"fmla v13.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}]",
+"fmla v14.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}, #0x10]",
+"fmla v15.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}, #0x20]",
+"fmla v16.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}, #0x30]",
+"fmla v17.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}, #0x40]",
+"fmla v18.4s, v1.4s, v0.s[0]",
+"ldr q1, [{7}, #0x50]",
+"fmla v19.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}]",
+"fmla v20.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}, #0x10]",
+"fmla v21.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}, #0x20]",
+"fmla v22.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}, #0x30]",
+"fmla v23.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}, #0x40]",
+"fmla v24.4s, v1.4s, v0.s[0]",
+"ldr q1, [{8}, #0x50]",
+"fmla v25.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}]",
+"fmla v26.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}, #0x10]",
+"fmla v27.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}, #0x20]",
+"fmla v28.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}, #0x30]",
+"fmla v29.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}, #0x40]",
+"fmla v30.4s, v1.4s, v0.s[0]",
+"ldr q1, [{9}, #0x50]",
+"fmla v31.4s, v1.4s, v0.s[0]",
+"6:",
+"str q8, [{2}]",
+"str q9, [{2}, #0x10]",
+"str q10, [{2}, #0x20]",
+"str q11, [{2}, #0x30]",
+"str q12, [{2}, #0x40]",
+"str q13, [{2}, #0x50]",
+"str q14, [{7}]",
+"str q15, [{7}, #0x10]",
+"str q16, [{7}, #0x20]",
+"str q17, [{7}, #0x30]",
+"str q18, [{7}, #0x40]",
+"str q19, [{7}, #0x50]",
+"str q20, [{8}]",
+"str q21, [{8}, #0x10]",
+"str q22, [{8}, #0x20]",
+"str q23, [{8}, #0x30]",
+"str q24, [{8}, #0x40]",
+"str q25, [{8}, #0x50]",
+"str q26, [{9}]",
+"str q27, [{9}, #0x10]",
+"str q28, [{9}, #0x20]",
+"str q29, [{9}, #0x30]",
+"str q30, [{9}, #0x40]",
+"str q31, [{9}, #0x50]",
+"7:",
+        inout(reg) a => _, inout(reg) b => _, inout(reg) cf => _, inout(reg) u64_ptr =>
+        _, inout(reg) alpha => _, inout(reg) beta => _, out(reg) _, out(reg) _, out(reg)
+        _, out(reg) _, out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _,
+        out("v5") _, out("v6") _, out("v7") _, out("v8") _, out("v9") _, out("v10") _,
+        out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _, out("v16")
+        _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _,
+        out("v22") _, out("v23") _, out("v24") _, out("v25") _, out("v26") _, out("v27")
+        _, out("v28") _, out("v29") _, out("v30") _, out("v31") _
+    );
+}
