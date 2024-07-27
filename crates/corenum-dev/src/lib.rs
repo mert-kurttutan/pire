@@ -8,44 +8,6 @@
 use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort};
 
 
-/// Integer type
-pub type gint_t = i64;
-/// Matrix dimension type
-pub type dim_t = gint_t;
-/// Stride type
-pub type inc_t = gint_t;
-
-
-const BLIS_TRANS_SHIFT: usize = 3;
-const BLIS_CONJ_SHIFT: usize = 4;
-const BLIS_UPLO_SHIFT: usize = 5;
-const BLIS_UPPER_SHIFT: usize = 5;
-const BLIS_DIAG_SHIFT: usize = 6;
-const BLIS_LOWER_SHIFT: usize = 7;
-
-
-/// Conjugation enum
-#[repr(C)]
-pub enum conj_t {
-   BLIS_NO_CONJUGATE = 0,
-   BLIS_CONJUGATE = 1 << BLIS_CONJ_SHIFT,
-}
-
-
-pub use self::conj_t::*;
-
-
-/// Transpose enum
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub enum trans_t {
-   BLIS_NO_TRANSPOSE = 0,
-   BLIS_TRANSPOSE = 1 << BLIS_TRANS_SHIFT,
-   BLIS_CONJ_NO_TRANSPOSE = 1 << BLIS_CONJ_SHIFT,
-   BLIS_CONJ_TRANSPOSE = 1 << BLIS_TRANS_SHIFT | 1 << BLIS_CONJ_SHIFT
-}
-
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(clippy::enum_variant_names)]
@@ -81,20 +43,6 @@ pub enum CBLAS_OFFSET {
 }
 pub use self::CBLAS_OFFSET::*;
 
-
-/// Error enum.
-///
-/// Actual C enum has more variants.
-#[repr(C)]
-pub enum err_t {
-   BLIS_SUCCESS = -1,
-   BLIS_FAILURE = -2,
-   #[doc(hidden)]
-   __INCOMPLETE = -140,
-}
-
-
-pub use self::trans_t::*;
 
 #[cfg(feature="mkl")]
 #[allow(dead_code)]
@@ -194,62 +142,6 @@ extern "C" {
 }
 
 
-#[cfg(feature="blis")]
-#[allow(dead_code)]
-extern "C" {
-   pub fn bli_sgemm(
-       // layout: CBLAS_LAYOUT,
-       transa: trans_t,
-       transb: trans_t,
-       m: c_int, n: c_int, k: c_int,
-       alpha: *const c_float,
-       a: *const c_float, rsa: i32, csa: i32,
-       b: *const c_float, rsb: i32, csb: i32,
-       beta: *const c_float,
-       c: *mut c_float, rsc: i32, csc: i32,
-   );
-
-
-   pub fn bli_dgemm(
-       // layout: CBLAS_LAYOUT,
-       transa: trans_t,
-       transb: trans_t,
-       m: c_int, n: c_int, k: c_int,
-       alpha: *const c_double,
-       a: *const c_double, rsa: i32, csa: i32,
-       b: *const c_double, rsb: i32, csb: i32,
-       beta: *const c_double,
-       c: *mut c_double, rsc: i32, csc: i32,
-   );
-
-
-   pub fn bli_init() -> err_t;
-   pub fn bli_finalize() -> err_t;
-   pub fn bli_is_initialized() -> gint_t;
-
-}
-
-#[cfg(feature="blasfeo")]
-#[allow(dead_code)]
-extern "C" {
-    pub fn blasfeo_cblas_sgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_float,
-        lda: c_int,
-        b: *const c_float,
-        ldb: c_int,
-        beta: c_float,
-        c: *mut c_float,
-        ldc: c_int,
-     );
-
-}     
 
 
 use rand::{Rng, SeedableRng};
@@ -447,17 +339,3 @@ pub fn cblas_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(
     }
  }
  
- 
-pub fn blis_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(i32, i32, i32, i32, i32, i32) {
-    if layout_str == "nn" {
-        (1, m as i32, 1, k as i32, 1, m as i32)
-    } else if layout_str == "nt" {
-        (1, m as i32, n as i32, 1, 1, m as i32)
-    } else if layout_str == "tn" {
-        (k as i32, 1, 1, k as i32, 1, m as i32)
-    } else if layout_str == "tt" {
-        (k as i32, 1, n as i32, 1, 1, m as i32)
-    } else {
-        panic!("Unsupported layout str");
-    }
- }

@@ -1,0 +1,23 @@
+[package]
+name = "bench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libc = "0.2"
+rand = "0.8.5"
+corenum-gemm-f32 = { path = "../../corenum/crates/corenum-gemm-f32" }
+# corenum-dev = { path = "../../corenum/crates/corenum-dev" }
+clap = {version = "~4.0", features = ["unicode", "derive"] }
+gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
+
+
+
+[features]
+default = []
+mkl_check = []
+mkl = []
+blis = []
+blasfeo = []
+corenum = []
+rustgemm = ["dep:gemm"]
