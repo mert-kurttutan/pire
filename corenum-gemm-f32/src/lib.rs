@@ -23,9 +23,8 @@ use corenum_base::{
 #[cfg(target_arch = "x86_64")]
 use avx_fma::AvxFma;
 #[cfg(target_arch = "x86_64")]
-use avx512f::AvxFma as Avx512f;
+use avx512f::Avx512f;
 
-use corenum_base::StridedMatrix;
 use corenum_base::{
     GemmGotoPackaPackb,
 	GemmSmallM,
@@ -33,6 +32,11 @@ use corenum_base::{
 	GemmCache,
 	Gemv,
 	corenum_gemv,
+	corenum_gemm,
+	StridedMatrix,
+	GemmArray,
+	StridedMatrixMut,
+	GemmOut,
 };
 pub use corenum_base::CorenumPar;
 
@@ -107,14 +111,6 @@ pub unsafe fn corenum_sdot(
 	corenum_sgemv(1, n, alpha, x, 1, incx, y, incy, beta, res, 1, par);
 }
 
-use corenum_base::corenum_gemm;
-
-use corenum_base::{
-	GemmArray,
-	StridedMatrixMut,
-	GemmOut,
-};
-
 pub unsafe fn corenum_gemm_f32f32f32<
 A: GemmArray<f32,X=f32>, 
 B: GemmArray<f32,X=f32>,
@@ -132,45 +128,20 @@ C: GemmOut<X=f32,Y=f32>,
 	{
 		let avx = hw_avx();
 		let avx512f = hw_avx512f();
-		// let avx2 = (*RUNTIME_HW_CONFIG).avx2;
 		let fma = hw_fma();
 		let model = hw_model();
 		if avx512f {
-			match model {
-				_ => {
-					const MR: usize = 48;
-					const NR: usize = 8;
-					// let kc = std::env::var("KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
-					// let nc = std::env::var("NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
-					let kc = 512;
-					let nc = 192;
-					let hw_config = Avx512f::<MR,NR>{
-						goto_mc: 4800, goto_nc: nc, goto_kc: kc,
-						is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-					};
-					corenum_gemm(
-						&hw_config, m, n, k, alpha, a, b, beta, c, par
-					);
-				}
-			}
+			let hw_config = Avx512f::from_model(model);
+			corenum_gemm(
+				&hw_config, m, n, k, alpha, a, b, beta, c, par
+			);
 			return;
 		}
 		if avx && fma {
-			match model {
-				_ => {
-					const MR: usize = 24;
-					const NR: usize = 4;
-					let kc = std::env::var("KC").unwrap_or("320".to_string()).parse::<usize>().unwrap();
-					let nc = std::env::var("NC").unwrap_or("320".to_string()).parse::<usize>().unwrap();
-					let hw_config = AvxFma::<MR,NR>{
-						goto_mc: 4800, goto_nc: nc, goto_kc: kc,
-						is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-					};
-					corenum_gemm(
-						&hw_config, m, n, k, alpha, a, b, beta, c, par
-					);
-				}
-			}
+			let hw_config = AvxFma::from_model(model);
+			corenum_gemm(
+				&hw_config, m, n, k, alpha, a, b, beta, c, par
+			);
 			return;
 		}
 	}
@@ -192,32 +163,56 @@ C: GemmOut<X=f32,Y=f32>,
 
 
 
-// pub unsafe fn corenum_gemm_f16f16f32<
-// A: GemmArray<f32,X=u16> + SupN, 
-// B: GemmArray<f32,X=u16> + SupM,
-// C: GemmOut<X=f32,Y=f32>,
-// >(
-// 	m: usize, n: usize, k: usize,
-// 	alpha: f32,
-// 	a: A,
-// 	b: B,
-// 	beta: C::X,
-// 	c: C,
-// 	par: &CorenumPar,
-// ){	
-// 	match *RUNTIME_HW_CONFIG {
-// 		HWConfig::Haswell => {
-// 			corenum_gemm::<TA,TB,A, B, C, Identity, AvxFma>(
-// 				m, n, k, alpha, a, b, beta, c, par
-// 			);
-// 		}
-// 		HWConfig::Reference => {
-// 			// corenum_gemm::<TA, TB, TC, InputA, InputB, ReferenceGemm>(
-// 			// 	m, n, k, alpha, a, b, beta, c, c_rs, c_cs, par
-// 			// );
-// 		}
-// 	}
-// }
+pub unsafe fn corenum_gemm_f32f32f32_fuse<
+A: GemmArray<f32,X=f32>, 
+B: GemmArray<f32,X=f32>,
+C: GemmOut<X=f32,Y=f32>,
+>(
+	m: usize, n: usize, k: usize,
+	alpha: A::X,
+	a: A,
+	b: B,
+	beta: C::X,
+	c: C,
+	par: &CorenumPar,
+	unary_op: fn(*mut C::Y, usize) 
+){	
+	#[cfg(target_arch = "x86_64")]
+	{
+		let avx = hw_avx();
+		let avx512f = hw_avx512f();
+		let fma = hw_fma();
+		let model = hw_model();
+		if avx512f {
+			let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_model_func(model,unary_op);
+			corenum_gemm(
+				&hw_config, m, n, k, alpha, a, b, beta, c, par
+			);
+			return;
+		}
+		if avx && fma {
+			// let hw_config = AvxFmaUnaryPointer::from_model(model);
+			// corenum_gemm(
+			// 	&hw_config, m, n, k, alpha, a, b, beta, c, par
+			// );
+			return;
+		}
+	}
+
+	#[cfg(target_arch="aarch64")]
+	{
+		const MR: usize = 24;
+		const NR: usize = 4;
+		let hw_config = armv8::AvxFma::<MR,NR>{
+			goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+		};
+		corenum_gemm(
+			&hw_config, m, n, k, alpha, a, b, beta, c, par
+		);
+		return;
+	}
+}
 
 pub unsafe fn packa_f32(
 	m: usize, k: usize,
@@ -316,6 +311,43 @@ pub unsafe fn corenum_sgemm(
 		cs: c_cs,
 	};
 	corenum_gemm_f32f32f32(m, n, k, alpha, a, b, beta, c, par);
+
+}
+
+
+
+pub unsafe fn corenum_sgemm_fuse(
+	m: usize, n: usize, k: usize,
+	alpha: TA,
+	a: *const TA, a_rs: usize, a_cs: usize,
+	b: *const TB, b_rs: usize, b_cs: usize,
+	beta: TC,
+	c: *mut TC, c_rs: usize, c_cs: usize,
+	par: &CorenumPar,
+	unary_op: fn(*mut TC, usize)
+) {
+	// do not exchange if transa && transb
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+	} else {
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+	};
+	let a = StridedMatrix{
+		data_ptr: a,
+		rs: a_rs,
+		cs: a_cs,
+	};
+	let b = StridedMatrix{
+		data_ptr: b,
+		rs: b_rs,
+		cs: b_cs,
+	};
+	let c = StridedMatrixMut{
+		data_ptr: c,
+		rs: c_rs,
+		cs: c_cs,
+	};
+	corenum_gemm_f32f32f32_fuse(m, n, k, alpha, a, b, beta, c, par, unary_op);
 
 }
 

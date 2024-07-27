@@ -1344,6 +1344,131 @@ macro_rules! def_ukernel {
 	};
 }
 
+macro_rules! def_ukernel2 {
+	(
+		$VER:tt,
+		$asm_step_macro:tt,
+		$asm_acc_macro:tt,
+		$asm_store_macro:tt,
+    	$mr:tt, $nr:tt,
+    	$a_layout:tt, $b_layout:tt,
+		$pfa_dist:tt, $pfb_dist:tt,
+		$unroll:tt,
+    	$func_name:ident
+	) => {
+		#[target_feature(enable = "avx,fma")]
+    	pub(crate) unsafe fn $func_name(
+        	a: *const TA, b: *const TB, c: *mut TC,
+        	alpha: *const TA, beta: *const TB,
+        	k: usize,
+        	ldc: usize,
+			ld_arr: [usize; 2],
+			unary_func: fn(*mut TC, usize)
+    	) {
+        	let k_iter = k / $unroll;
+        	let k_left = k % $unroll;
+            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
+        	let u64_ptr = u64_arr.as_ptr();
+			let cf = c;
+			// prefetch for c
+			use std::arch::x86_64::_mm_prefetch;
+			prefetch_c!($mr,$nr,c,ldc);
+        	asm!(
+            	asm_vzeroall!($VER,$nr),
+   	 
+            	asm_init_ab!($VER,$a_layout,$b_layout),
+           	 
+            	// 3 -> CONSIDKLEFT
+            	"je 3f",
+           	 
+            	// 2 -> KITER
+            	"2:",
+				seq!( i in 0..$unroll{
+					concat!(
+						#(
+							prefetch_a!($mr, $a_layout, $pfa_dist, $unroll, i),
+							prefetch_b!($nr, $b_layout, $pfb_dist, $unroll, i),
+							$asm_step_macro!($mr, $nr, $a_layout, $b_layout, i),
+							inc_a!($a_layout),
+							inc_b!($b_layout,$nr), 
+						)*
+					)
+				}),
+
+            	inc_a_k_unroll!($a_layout, $mr, $unroll),
+            	inc_b_k_unroll!($b_layout, $nr, $unroll),
+   	 
+            	"dec {x0}",
+            	// 2 -> KITER
+            	"jne 2b",
+
+            	// 3 -> CONSIDKLEFT
+            	"3:",
+            	"mov 32({int_arrx}),{x0}",
+            	"test {x0},{x0}",
+
+            	// 5 -> POSTACCUM
+            	"je 5f",
+   	 
+            	// 4 -> KLEFT
+            	"4:",
+            	$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),
+            	inc_a!($a_layout),
+            	inc_b!($b_layout,$nr),
+            	inc_a_k_unroll!($a_layout, $mr, 1),
+            	inc_b_k_unroll!($b_layout, $nr, 1),
+
+            	"dec {x0}",
+   	 
+            	// 4 -> KLEFT
+            	"jne 4b",
+   	 
+            	// 5 -> POSTACCUM
+            	"5:",
+            	asm_c_load!($nr),
+            	// scale by alpha
+            	asm_alpha_scale!($VER, $nr),
+
+            	"vbroadcastss ({betax}), %zmm0",
+
+            	"vxorps %ymm3,%ymm3,%ymm3",
+            	"vucomiss %xmm3,%xmm0",
+
+            	// 6 -> BETAZERO
+            	"je 6f",
+            	$asm_acc_macro!($mr,$nr,C),
+
+            	// 6 -> BETAZERO
+            	"6:",
+            	$asm_store_macro!($mr,$nr,C),
+   	 
+            	// 7 -> DDONE
+            	"7:",
+            	ax = inout(reg) a => _,
+            	bx = inout(reg) b => _,
+            	cx = inout(reg) cf => _,
+            	int_arrx = inout(reg) u64_ptr => _,
+            	alphax = inout(reg) alpha => _,
+            	betax = inout(reg) beta => _,
+            	x0 = out(reg) _,
+            	x1 = out(reg) _,
+            	x2 = out(reg) _,
+            	x3 = out(reg) _,
+				x4 = out(reg) _,
+            	x5 = out(reg) _,
+            	out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+            	out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+            	out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+            	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+            	options(att_syntax)
+        	);
+			seq!(i in 0..$nr {
+				unary_func(c.add(i*ldc), $mr);
+			});
+    	}
+	};
+}
+
 macro_rules! def_ukernel_partial {
 	(
 		$VER:tt,
@@ -1505,10 +1630,16 @@ group_def_ukernel!(48, 1, 8, B, S, bs, def_ukernel, asm_48x8_step, asm_48x8_acc,
 group_def_ukernel!(48, 1, 8, B, B, bb_partial, def_ukernel_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 group_def_ukernel!(48, 1, 8, B, S, bs_partial, def_ukernel_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 
+group_def_ukernel!(48, 1, 8, B, B, bb_fuse, def_ukernel2, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+
+
 group_def_ukernel!(32, 1, 12, B, B, bb, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 // group_def_ukernel!(32, 1, 8, B, S, bs, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 group_def_ukernel!(32, 1, 12, B, B, bb_partial, def_ukernel_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 group_def_ukernel!(32, 1, 8, B, S, bs_partial, def_ukernel_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+
+group_def_ukernel!(32, 1, 12, B, B, bb_fuse, def_ukernel2, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+
 
 group_def_ukernel!(16, 1, 12, B, B, bb, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
 // group_def_ukernel!(16, 1, 8, B, S, bs, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);

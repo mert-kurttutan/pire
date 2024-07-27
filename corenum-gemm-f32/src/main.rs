@@ -94,6 +94,16 @@ struct Args {
                     c.as_mut_ptr(), c_rs as usize, c_cs as usize,
                     &d_par,
                 );
+                // corenum_gemm_f32::corenum_sgemm_fuse(
+                //     m, n, k,
+                //     alpha,
+                //     a.as_ptr(), a_rs as usize, a_cs as usize,
+                //     b.as_ptr(), b_rs as usize, b_cs as usize,
+                //     beta,
+                //     c.as_mut_ptr(), c_rs as usize, c_cs as usize,
+                //     &d_par,
+                //     |x, m| {for i in 0..m {*x=*x*2.0;}}
+                // );
             }
             #[cfg(feature="mkl")]
             unsafe {

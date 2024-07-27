@@ -167,6 +167,86 @@ macro_rules! def_kernel_bb {
 def_kernel_bb!(48, 8, 48, 32, 16);
 def_kernel_bb!(32, 12, 32, 16);
 
+
+
+macro_rules! def_kernel_bb {
+    ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
+        seq!( nr_left in 2..$NR { paste! {
+            #[target_feature(enable = "avx,fma")]
+            pub unsafe fn [<kernel_$MR x $NR _fuse>](
+                m: usize, n: usize, k: usize,
+                alpha: *const TA,
+                beta: *const TC,
+                c: *mut TC, ldc: usize,
+                ap: *const TA, bp: *const TB,
+                unary_func: fn(*mut TC, usize),
+            ) {
+                const MR: usize = $MR;
+                const NR: usize = $NR;
+                let mut m_iter = (m / MR) as u64;
+                let m_left = m % MR;
+                let mut ap_cur = ap;
+                let mut c_cur0 = c;
+                
+                let n_iter0 = (n / NR) as u64;
+                let n_left = (n % NR) as u64;
+                let ld_arr = [0, 0];
+                
+                while m_iter > 0 {
+                    let mut n_iter = n_iter0;
+                    let mut bp_cur = bp;
+                    let mut c_cur1 = c_cur0;
+                    while n_iter > 0 {
+                        [<ukernel_$MR x $NR _bb_fuse>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr,unary_func);
+                        n_iter -= 1;
+                        bp_cur = bp_cur.add(NR*k);
+                        c_cur1 = c_cur1.add(NR*ldc);
+                    }
+                    if n_left == 1 {
+                        [<ukernel_$MR x1_bb>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                    }
+                    #(
+                        else if n_left == nr_left {
+                            [<ukernel_$MR x~nr_left _bb>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr);
+                        }
+                    )*
+                    m_iter -= 1;
+                    ap_cur = ap_cur.add(MR*k);
+                    c_cur0 = c_cur0.add(MR);
+                }
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u16;
+                $(
+                    if m_left > ($mr_left - VS) {
+                        let mut n_iter = n_iter0;
+                        let mut bp_cur = bp;
+                        let mut c_cur1 = c_cur0;
+                        while n_iter > 0 {
+                            [<ukernel_$mr_left x $NR _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            n_iter -= 1;
+                            bp_cur = bp_cur.add(NR*k);
+                            c_cur1 = c_cur1.add(NR*ldc);
+                        }
+                        if n_left == 1 {
+                            [<ukernel_$mr_left x1_bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                        }
+                        #(
+                            else if n_left == nr_left {
+                                [<ukernel_$mr_left x~nr_left _bb_partial>](ap_cur, bp_cur, c_cur1, alpha, beta, k, ldc, ld_arr, mask_ptr);
+                            }
+                        )*
+                        return;
+                    }
+                )*
+            }        
+        }});
+    };
+}
+
+def_kernel_bb!(48, 8, 48, 32, 16);
+def_kernel_bb!(32, 12, 32, 16);
+
+
 macro_rules! def_kernel_bb_strided {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
@@ -489,6 +569,39 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize>(
     }
     panic!("Kernel for MR = {} and NR = {} not implemented", MR, NR);
 }
+
+
+
+
+// Make sure compiler optimizes the const conditional below
+#[target_feature(enable = "avx,fma")]
+pub(crate) unsafe fn kernel_fuse<const MR: usize, const NR: usize>(
+   m: usize, n: usize, k: usize,
+   alpha: *const TA, beta: *const TC,
+   c: *mut TC,
+   c_rs: usize, c_cs: usize,
+   ap: *const TA, bp: *const TB,
+   un_func: fn(*mut TC, usize),
+) {
+   if MR == 48 && NR == 8 {
+        if c_rs == 1 {
+            kernel_48x8_fuse(m, n, k, alpha, beta, c, c_cs, ap, bp, un_func)
+        } else {
+            kernel_48x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
+        }
+        return;
+   }
+   if MR == 32 && NR == 12 {
+        if c_rs == 1 {
+            kernel_32x12(m, n, k, alpha, beta, c, c_cs, ap, bp)
+        } else {
+            kernel_32x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
+        }
+        return;
+    }
+    panic!("Kernel for MR = {} and NR = {} not implemented", MR, NR);
+}
+
 
 #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn packa_panel<const MR: usize>(

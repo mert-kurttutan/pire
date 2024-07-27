@@ -49,10 +49,11 @@ use crate::{
 // pub const SN_KC: usize = env_or!("CORENUM_SGEMM_KC_SA", 192);
 // pub const SN_MR: usize = env_or!("CORENUM_SGEMM_MR_SA", 24);
 // pub const SN_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 4);
+use corenum_base::HWModel;
 
 pub struct AvxFma<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
+const GOTO_MR: usize = 24,
+const GOTO_NR: usize = 4,
 > {
     pub goto_mc: usize,
     pub goto_nc: usize,
@@ -62,6 +63,25 @@ const GOTO_NR: usize,
     pub is_l3_shared: bool,
 }
 
+
+impl AvxFma {
+    pub fn from_model(model: HWModel) -> Self {
+        let goto_mc = 4800;
+        let kc = 192;
+        let nc = 320;
+        let is_l1_shared = false;
+        let is_l2_shared = false;
+        let is_l3_shared = true;
+        Self {
+            goto_mc,
+            goto_nc: nc,
+            goto_kc: kc,
+            is_l1_shared,
+            is_l2_shared,
+            is_l3_shared,
+        }
+    }
+}
 
 
 impl<
@@ -184,6 +204,7 @@ AvxFma<GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
    const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
+    self: &Self,
        m: usize, n: usize, k: usize,
        alpha: *const TA,
        beta: *const TC,

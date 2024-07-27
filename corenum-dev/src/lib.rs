@@ -319,7 +319,7 @@ pub fn my_gemm_ref_row(m: usize, n: usize, k: usize, a: &[f64], ld_a: usize, b: 
 }
 
 
-#[target_feature(enable = "neon")]
+// #[target_feature(enable = "neon")]
 pub unsafe fn gemm_fallback_f32(
 	m: usize, n: usize, k: usize,
 	alpha: f32,

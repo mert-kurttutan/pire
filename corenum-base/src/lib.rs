@@ -929,11 +929,12 @@ B: GemmArray<BP>,
 C: GemmOut,
 > 
 where Self: Sized + GemmCache<AP,BP,A,B>,
-Self: GemmPackB<B::X, BP>,
+Self: GemmPackB<B::X, BP> + Sync,
 Self: GemmPackA<A::X, AP>,
 {
     const ONE: C::X;
    unsafe fn kernel(
+        self: &Self,
        m: usize, n: usize, k: usize,
        alpha: *const AP,
        beta: *const C::X,
@@ -964,39 +965,33 @@ Self: GemmPackA<A::X, AP>,
     let bp = b.into_pack_array(bp_ptr);
     let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
 
-    let mut handle_vec = Vec::with_capacity(par.num_threads-1);
-
-    // let c 
-    for t_id in 1..par.num_threads {
-        let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
-        let ic_id = t_cfg.ic_id;
-        let jc_id = t_cfg.jc_id;
-        let ap_cur = ap.add_p(ic_id*ap_pool_size);
-        let bp_cur = bp.add_p(jc_id*bp_pool_size);
-
-        let x = std::thread::spawn(move || {
-                let alpha = &alpha as *const AP;
-                let beta = &beta as *const C::X;
-                Self::gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
-            }
-        );
-
-        handle_vec.push(x);
-    }
-
-    {
-        let t_id: usize = 0;
-        let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-        let alpha = &alpha as *const AP;
-        let beta = &beta as *const C::X;
-        Self::gemm_packa_packb_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
-    }
-    for handle in handle_vec {
-        handle.join().unwrap();
-    }
+    std::thread::scope(|s| {
+        for t_id in 1..par.num_threads {
+            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+            let ic_id = t_cfg.ic_id;
+            let jc_id = t_cfg.jc_id;
+            let ap_cur = ap.add_p(ic_id*ap_pool_size);
+            let bp_cur = bp.add_p(jc_id*bp_pool_size);
+            let g = self;
+            s.spawn(move || {
+                    let alpha = &alpha as *const AP;
+                    let beta = &beta as *const C::X;
+                    g.gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
+                }
+            );
+        }
+        {
+            let t_id: usize = 0;
+            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+            let alpha = &alpha as *const AP;
+            let beta = &beta as *const C::X;
+            self.gemm_packa_packb_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
+        }
+    });
 }
    #[inline]
    unsafe fn gemm_packa_packb_serial(
+        self: &Self,
        m: usize, n: usize, k: usize,
        alpha: *const AP,
        a: A::PackArray,
@@ -1042,7 +1037,7 @@ Self: GemmPackA<A::X, AP>,
                    let c_ij = c_i.add((nc_i+nr_start) * c_cs);
                    let bp = Self::packb::<B>(b, nc_i, kc_i, nc_len, kc_len, t_cfg);
                    let bp = bp.add(nr_start*kc_len);
-                    Self::kernel(
+                    self.kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
                         ap, bp,
                         kc_last
@@ -1087,7 +1082,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 > 
-where Self: Sized + GemmCache<AP,BP,A,B> + Send + Sync,
+where Self: Sized + GemmCache<AP,BP,A,B> + Sync,
 Self: GemmPackA<A::X, AP>
 {
     const ONE: C::X;
@@ -1120,37 +1115,33 @@ Self: GemmPackA<A::X, AP>
         let ap = a.into_pack_array(ap_ptr);
         let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
-        let mut handle_vec = Vec::with_capacity(par.num_threads-1);
-    
-        // let c 
-        for t_id in 1..par.num_threads {
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
-            let ic_id = t_cfg.ic_id;
-            let ap_cur = ap.add_p(ic_id*ap_pool_size);
-    
-            let x = std::thread::spawn(move || {
-                    let alpha = &alpha as *const AP;
-                    let beta = &beta as *const C::X;
-                    Self::gemm_small_m_serial(m, n, k, alpha, ap_cur, b, beta, c, &t_cfg);
-                }
-            );
-    
-            handle_vec.push(x);
-        }
-    
-        {
-            let t_id: usize = 0;
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-            let alpha = &alpha as *const AP;
-            let beta = &beta as *const C::X;
-            Self::gemm_small_m_serial(m, n, k, alpha, ap, b, beta, c, &t_cfg);
-        }
-        for handle in handle_vec {
-            handle.join().unwrap();
-        }
+        std::thread::scope(|s| {
+            // let c 
+            for t_id in 1..par.num_threads {
+                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+                let ic_id = t_cfg.ic_id;
+                let ap_cur = ap.add_p(ic_id*ap_pool_size);
+        
+                s.spawn(move || {
+                        let alpha = &alpha as *const AP;
+                        let beta = &beta as *const C::X;
+                        self.gemm_small_m_serial(m, n, k, alpha, ap_cur, b, beta, c, &t_cfg);
+                    }
+                );
+            }
+        
+            {
+                let t_id: usize = 0;
+                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+                let alpha = &alpha as *const AP;
+                let beta = &beta as *const C::X;
+                self.gemm_small_m_serial(m, n, k, alpha, ap, b, beta, c, &t_cfg);
+            }
+        });
     }
     #[inline]
     unsafe fn gemm_small_m_serial(
+        self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         a: A::PackArray,
@@ -1229,7 +1220,7 @@ Self: GemmPackA<A::X, AP>
  B: GemmArray<BP>,
 C: GemmOut,
  >
-where Self: Sized + GemmCache<AP,BP,A,B>,
+where Self: Sized + GemmCache<AP,BP,A,B> + Sync,
 Self: GemmPackB<B::X, BP>,
  {
     const ONE: C::X;
@@ -1263,37 +1254,30 @@ Self: GemmPackB<B::X, BP>,
         let ap = a.into_pack_array(ap_ptr);
         let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
     
-        let mut handle_vec = Vec::with_capacity(par.num_threads-1);
+        std::thread::scope(|s| {
+            for t_id in 1..par.num_threads {
+                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+                let jc_id = t_cfg.jc_id;
+                let ap_cur = ap.add_p(t_id*ap_pool_size);
+                let bp_cur = bp.add_p(jc_id*bp_pool_size);
+                s.spawn(move || {
+                        let alpha = &alpha as *const AP;
+                        let beta = &beta as *const C::X;
+                        self.gemm_small_n_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
+                    }
+                );
+            }
     
-        // let c 
-        for t_id in 1..par.num_threads {
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
-            let jc_id = t_cfg.jc_id;
-            let ap_cur = ap.add_p(t_id*ap_pool_size);
-            let bp_cur = bp.add_p(jc_id*bp_pool_size);
-            let x = std::thread::spawn(move || {
-                    let alpha = &alpha as *const AP;
-                    let beta = &beta as *const C::X;
-                    Self::gemm_small_n_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
-                }
-            );
-    
-            handle_vec.push(x);
-        }
-    
-        {
             let t_id: usize = 0;
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
             let alpha = &alpha as *const AP;
             let beta = &beta as *const C::X;
-            Self::gemm_small_n_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
-        }
-        for handle in handle_vec {
-            handle.join().unwrap();
-        }
+            self.gemm_small_n_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
+        });
     }
     #[inline]
     unsafe fn gemm_small_n_serial(
+        self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         a: A::PackArray,
