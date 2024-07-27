@@ -172,21 +172,41 @@ extern "C" {
    );
 
    pub fn cblas_hgemm(
-    layout: CBLAS_LAYOUT,
-    transa: CBLAS_TRANSPOSE,
-    transb: CBLAS_TRANSPOSE,
-    m: c_int,
-    n: c_int,
-    k: c_int,
-    alpha: c_ushort,
-    a: *const c_ushort,
-    lda: c_int,
-    b: *const c_ushort,
-    ldb: c_int,
-    beta: c_ushort,
-    c: *mut c_ushort,
-    ldc: c_int,
-);
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_ushort,
+        a: *const c_ushort,
+        lda: c_int,
+        b: *const c_ushort,
+        ldb: c_int,
+        beta: c_ushort,
+        c: *mut c_ushort,
+        ldc: c_int,
+    );
+
+
+    pub fn cblas_sgemm_batch(
+        layout: CBLAS_LAYOUT,
+        transa: *const CBLAS_TRANSPOSE,
+        transb: *const CBLAS_TRANSPOSE,
+        m: *const c_int,
+        n: *const c_int,
+        k: *const c_int,
+        alpha: *const c_float,
+        a: *const(*const c_float),
+        lda: *const c_int,
+        b: *const(*const c_float),
+        ldb: *const c_int,
+        beta: *const c_float,
+        c: *const(*mut c_float),
+        ldc: *const c_int,
+        group_count: c_int,
+        group_size: *const c_int,
+    );
 }
 
 
@@ -363,6 +383,153 @@ pub fn dispatch_gemm_f32(
     }
 }
 
+pub fn dispatch_gemm_batch_f32(
+    backend: GemmBackend,
+    m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const f32, a_rs: isize, a_cs: isize, stridea: isize,
+    b: *const f32, b_rs: isize, b_cs: isize, strideb: isize,
+    beta: f32,
+    c: *mut f32, c_rs: isize, c_cs: isize, stridec: isize,
+    batch_size: usize,
+) {
+    match backend {
+        GemmBackend::Blis => {
+            unsafe {
+             #[cfg(feature="blis")]
+                for i in 0..batch_size {
+                    bli_sgemm(
+                        BLIS_NO_TRANSPOSE,
+                        BLIS_NO_TRANSPOSE,
+                        m as i32, n as i32, k as i32,
+                        &alpha,
+                        a.offset(i as isize * stridea), a_rs as i32, a_cs as i32,
+                        b.offset(i as isize * strideb), b_rs as i32, b_cs as i32,
+                        &beta,
+                        c.offset(i as isize * stridec), c_rs as i32, c_cs as i32,
+                    );
+                }
+            }
+        }
+        GemmBackend::Mkl => {
+            unsafe {
+             #[cfg(feature="mkl")]
+             {
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
+                let transa_vec = vec![transa; batch_size];
+                let transb_vec = vec![transb; batch_size];
+                let m_vec = vec![m as i32; batch_size];
+                let n_vec = vec![n as i32; batch_size];
+                let k_vec = vec![k as i32; batch_size];
+                let alpha_vec = vec![alpha; batch_size];
+                let lda_vec = vec![lda; batch_size];
+                let ldb_vec = vec![ldb; batch_size];
+                let beta_vec = vec![beta; batch_size];
+                let ldc_vec = vec![ldc; batch_size];
+                let a_vec = (0..batch_size).map(|i| a.offset(i as isize * stridea)).collect::<Vec<*const f32>>();
+                let b_vec = (0..batch_size).map(|i| b.offset(i as isize * strideb)).collect::<Vec<*const f32>>();
+                let c_vec = (0..batch_size).map(|i| c.offset(i as isize * stridec)).collect::<Vec<*mut f32>>();
+                let stride_size_vec = [batch_size as i32; 1];
+
+                cblas_sgemm_batch(
+                    layout,
+                    transa_vec.as_ptr(),
+                    transb_vec.as_ptr(),
+                    m_vec.as_ptr(),
+                    n_vec.as_ptr(),
+                    k_vec.as_ptr(),
+                    alpha_vec.as_ptr(),
+                    a_vec.as_ptr(),
+                    lda_vec.as_ptr(),
+                    b_vec.as_ptr(),
+                    ldb_vec.as_ptr(),
+                    beta_vec.as_ptr(),
+                    c_vec.as_ptr(),
+                    ldc_vec.as_ptr(),
+                    1,
+                    stride_size_vec.as_ptr(),
+                );
+            }
+        }
+        }
+        GemmBackend::Blasfeo => {
+            // unsafe {
+            //  #[cfg(feature="blasfeo")]
+            //     for i in 0..batch_size {
+            //         blasfeo_cblas_sgemm(
+            //             CblasColMajor,
+            //             CblasNoTrans,
+            //             CblasNoTrans,
+            //             m as i32, n as i32, k as i32,
+            //             alpha,
+            //             a.offset(i as isize * stridea),
+            //             a_rs as i32,
+            //             b.offset(i as isize * strideb),
+            //             b_rs as i32,
+            //             beta,
+            //             c.offset(i as isize * stridec),
+            //             c_rs as i32,
+            //         );
+            //     }
+            // }
+            unsafe {
+                #[cfg(feature="mkl")]
+                {
+                   let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
+                   for i in 0..batch_size {
+                          cblas_sgemm(
+                            layout,
+                            transa,
+                            transb,
+                            m as i32, n as i32, k as i32,
+                            alpha,
+                            a.offset(i as isize * stridea), lda as i32,
+                            b.offset(i as isize * strideb), ldb as i32,
+                            beta,
+                            c.offset(i as isize * stridec), ldc as i32,
+                          );
+                   }
+               }
+           }
+        }
+        GemmBackend::RustGemm => {
+            unsafe {
+             #[cfg(feature="rustgemm")]
+                for i in 0..batch_size {
+                    gemm::gemm(
+                        m, n, k,
+                        c.offset(i as isize * stridec), c_cs as isize, c_rs as isize,
+                        true,
+                        a.offset(i as isize * stridea), a_cs as isize, a_rs as isize,
+                        b.offset(i as isize * strideb), b_cs as isize, b_rs as isize,
+                        alpha, beta,
+                        false, false, false,
+                        gemm::Parallelism::Rayon(1)
+                    );
+                }
+            }
+        }
+        GemmBackend::Corenum => {
+            unsafe {
+             #[cfg(feature="corenum")]
+                let d_par = corenum_gemm_f32::CorenumPar::new(
+                    1, 1, 1, 1, 1, 1
+                );
+                for i in 0..batch_size {
+                    corenum_gemm_f32::corenum_sgemm(
+                        m, n, k,
+                        alpha,
+                        a.offset(i as isize * stridea), a_rs as usize, a_cs as usize,
+                        b.offset(i as isize * strideb), b_rs as usize, b_cs as usize,
+                        beta,
+                        c.offset(i as isize * stridec), c_rs as usize, c_cs as usize,
+                        &d_par,
+                    );
+                }
+            }
+        }
+    }
+}
 
 
 pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(ap: &[T], bp: &[T]) -> f64
@@ -572,6 +739,107 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     }
  }
 
+fn test_sgemm(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f32,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+) -> f64 {
+    let mut a = vec![0.0; m * k];
+    let mut b = vec![0.0; k * n];
+    let mut c = vec![0.0; m * n];
+    random_matrix(m, k, &mut a, m);
+    random_matrix(k, n, &mut b, k);
+    let mut c_ref = vec![0.0; m * n];
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    dispatch_gemm_f32(
+        gemm_backend,
+        m, n, k,
+        alpha,
+        a.as_ptr(), a_rs, a_cs,
+        b.as_ptr(), b_rs, b_cs,
+        beta,
+        c.as_mut_ptr(), c_rs, c_cs,
+    );
+    if args.check {
+        let diff = unsafe {
+            check_gemm_f32(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref
+            )
+        };
+        println!("diff: {}", diff);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
+fn test_sgemm_batched(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f32,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+    batch_size: usize,
+) -> f64 {
+    let mut a = vec![0.0; m * k * batch_size];
+    let mut b = vec![0.0; k * n * batch_size];
+    let mut c = vec![0.0; m * n * batch_size];
+    let stridea = m * k;
+    let strideb = k * n;
+    let stridec = m * n;
+    for i in 0..batch_size {
+        random_matrix(m, k, &mut a[i * stridea..], m);
+        random_matrix(k, n, &mut b[i * strideb..], k);
+    }
+    let mut c_ref = vec![0.0; m * n * batch_size];
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    dispatch_gemm_batch_f32(
+        gemm_backend,
+        m, n, k,
+        alpha,
+        a.as_ptr(), a_rs, a_cs, stridea as isize,
+        b.as_ptr(), b_rs, b_cs, strideb as isize,
+        beta,
+        c.as_mut_ptr(), c_rs, c_cs, stridec as isize,
+        batch_size,
+    );
+    if args.check {
+        let diff = unsafe {
+            check_gemm_f32(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref
+            )
+        };
+        println!("diff: {}", diff);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
 
 use corenum_gemm_f32::{
     CorenumPar,
@@ -629,43 +897,8 @@ struct Args {
     let gemm_backend = gemm_backend_from_str(&args.backend);
     let mut rep = 0;
     while rep < n_repeats {
-        let mut a = vec![0.0; m * k];
-        let mut b = vec![0.0; k * n];
-        let mut c = vec![0.0; m * n];
-        random_matrix(m, k, &mut a, m);
-        random_matrix(k, n, &mut b, k);
-        let mut c_ref = vec![0.0; m * n];
-        c_ref.copy_from_slice(&c);
-        let start_time = std::time::Instant::now();
-        dispatch_gemm_f32(
-            gemm_backend,
-            m, n, k,
-            alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
-            beta,
-            c.as_mut_ptr(), c_rs, c_cs,
-        );
-        if args.check {
-            let diff = unsafe {
-                check_gemm_f32(
-                    m, n, k, 
-                    alpha, 
-                    a.as_ptr(), a_rs as usize, a_cs as usize, 
-                    b.as_ptr(), b_rs as usize, b_cs as usize, 
-                    beta, 
-                    &c, c_rs as usize, c_cs as usize, 
-                    &mut c_ref
-                )
-            };
-            println!("diff: {}", diff);
-            // println!("c: {:?}", c);
-            // println!("c_ref: {:?}", c_ref);
-        }
-
-        let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+        let end_time = test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, 5);
         total_time += end_time;
-
 
         println!("time: {}, total_time: {}", end_time, total_time);
         if best_time > end_time {
