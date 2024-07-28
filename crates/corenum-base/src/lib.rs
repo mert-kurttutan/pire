@@ -253,7 +253,6 @@ impl<'a> CorenumThreadConfig {
 
 pub fn corenum_num_threads() -> usize {
     let x = std::thread::available_parallelism().unwrap().get();
-    println!("num_threads: {}", x);
     x
 }
 
