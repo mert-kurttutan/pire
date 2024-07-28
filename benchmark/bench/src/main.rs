@@ -217,7 +217,7 @@ extern "C" {
        // layout: CBLAS_LAYOUT,
        transa: trans_t,
        transb: trans_t,
-       m: c_int, n: c_long, k: c_int,
+       m: c_int, n: c_int, k: c_int,
        alpha: *const c_float,
        a: *const c_float, rsa: i32, csa: i32,
        b: *const c_float, rsb: i32, csb: i32,

@@ -86,7 +86,6 @@ impl Avx512f<fn(*mut f32, usize)> {
 impl<
 T: MyFn
 > GemmPackA<TA,TA> for Avx512f<T> {
-    #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         packa_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
@@ -95,7 +94,6 @@ T: MyFn
 impl<
 T: MyFn
 > GemmPackB<TA,TA> for Avx512f<T> {
-    #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
     }
@@ -133,7 +131,6 @@ B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > Gemv<TA,TB,A,B,C> for Avx512f<NullFn>
 {
-    #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
        m: usize, n: usize,
        alpha: *const TA,
@@ -163,7 +160,6 @@ where
 Avx512f<NullFn>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
        self: &Self,
        m: usize, n: usize, k: usize,
@@ -187,7 +183,6 @@ C: GemmOut<X=f32,Y=f32>,
 where Avx512f<NullFn>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,
@@ -211,7 +206,6 @@ where
 Avx512f<NullFn>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,
@@ -237,7 +231,6 @@ B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
 > Gemv<TA,TB,A,B,C> for Avx512f<UFn>
 {
-    #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
        m: usize, n: usize,
        alpha: *const TA,
@@ -265,7 +258,6 @@ where
 Avx512f<UFn>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
        self: &Self,
        m: usize, n: usize, k: usize,
@@ -294,7 +286,6 @@ C: GemmOut<X=f32,Y=f32>,
 where Avx512f<UFn>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,
@@ -318,7 +309,6 @@ where
 Avx512f<UFn>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
-   #[target_feature(enable = "avx,fma")]
    unsafe fn kernel(
         m: usize, n: usize, k: usize,
         alpha: *const TA,
