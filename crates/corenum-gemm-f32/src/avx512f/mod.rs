@@ -53,35 +53,13 @@ const GOTO_NR: usize = 8,
     pub func: T,
 }
 
-use corenum_base::HWModel;
+use corenum_base::HWConfig;
 
 impl Avx512f {
-    pub fn from_model(model: HWModel) -> Self {
-        let goto_mc = 4800;
-        let kc = 512;
-        let nc = 192;
-        let is_l1_shared = false;
-        let is_l2_shared = false;
-        let is_l3_shared = true;
+    pub fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize) -> Self {
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         Self {
-            goto_mc,
-            goto_nc: nc,
-            goto_kc: kc,
-            is_l1_shared,
-            is_l2_shared,
-            is_l3_shared,
-            func: NullFn,
-        }
-    }
-    pub fn from_model_func(model: HWModel, func: fn(*mut f32, m: usize)) -> Self {
-        let goto_mc = 4800;
-        let kc = 512;
-        let nc = 192;
-        let is_l1_shared = false;
-        let is_l2_shared = false;
-        let is_l3_shared = true;
-        Self {
-            goto_mc,
+            goto_mc: mc,
             goto_nc: nc,
             goto_kc: kc,
             is_l1_shared,
@@ -94,15 +72,10 @@ impl Avx512f {
 
 
 impl Avx512f<fn(*mut f32, usize)> {
-    pub fn from_model_func(model: HWModel, func: fn(*mut f32, m: usize)) -> Self {
-        let goto_mc = 4800;
-        let kc = 512;
-        let nc = 192;
-        let is_l1_shared = false;
-        let is_l2_shared = false;
-        let is_l3_shared = true;
+    pub fn from_hw_cfg_func(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, func: fn(*mut f32, m: usize)) -> Self {
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         Self {
-            goto_mc,
+            goto_mc: mc,
             goto_nc: nc,
             goto_kc: kc,
             is_l1_shared,

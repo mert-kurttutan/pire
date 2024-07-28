@@ -62,7 +62,7 @@ C: GemmOut<X=f32,Y=f32>,
 	
 			match model {
 				_ => {
-					corenum_gemv::<TA,TB,A, B, C, AvxFma::<24,4>>(
+					corenum_gemv::<TA,TB,A, B, C, AvxFma>(
 						m, n, alpha, a, b, beta, c, par
 					);
 				}
@@ -81,21 +81,9 @@ pub unsafe fn corenum_sgemv(
 	y: *mut TC, incy: usize,
 	par: &CorenumPar,
 ) {
-	let a = StridedMatrix{
-		data_ptr: a,
-		rs: a_rs,
-		cs: a_cs,
-	};
-	let x = StridedMatrix{
-		data_ptr: x,
-		rs: incx,
-		cs: 1,
-	};
-	let y = StridedMatrixMut{
-		data_ptr: y,
-		rs: incy,
-		cs: 1,
-	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let x = StridedMatrix::new(x, incx, 1);
+	let y = StridedMatrixMut::new(y, incy, 1);
 	corenum_gemv_f32f32f32(m, n, alpha, a, x, beta, y, par);
 }
 
@@ -111,6 +99,7 @@ pub unsafe fn corenum_sdot(
 	corenum_sgemv(1, n, alpha, x, 1, incx, y, incy, beta, res, 1, par);
 }
 
+use corenum_base::RUNTIME_HW_CONFIG;
 pub unsafe fn corenum_gemm_f32f32f32<
 A: GemmArray<f32,X=f32>, 
 B: GemmArray<f32,X=f32>,
@@ -126,19 +115,17 @@ C: GemmOut<X=f32,Y=f32>,
 ){	
 	#[cfg(target_arch = "x86_64")]
 	{
-		let avx = hw_avx();
-		let avx512f = hw_avx512f();
-		let fma = hw_fma();
-		let model = hw_model();
-		if avx512f {
-			let hw_config = Avx512f::from_model(model);
+		if hw_avx512f() {
+			let (mc, nc, kc) = (4800, 192, 512);
+			let hw_config = Avx512f::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
 			corenum_gemm(
 				&hw_config, m, n, k, alpha, a, b, beta, c, par
 			);
 			return;
 		}
-		if avx && fma {
-			let hw_config = AvxFma::from_model(model);
+		if hw_avx() && hw_fma() {
+			let (mc, nc, kc) = (4800, 320, 192);
+			let hw_config = AvxFma::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
 			corenum_gemm(
 				&hw_config, m, n, k, alpha, a, b, beta, c, par
 			);
@@ -184,17 +171,19 @@ C: GemmOut<X=f32,Y=f32>,
 		let fma = hw_fma();
 		let model = hw_model();
 		if avx512f {
-			let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_model_func(model,unary_op);
+			let (mc, nc, kc) = (4800, 192, 512);
+			let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
 			corenum_gemm(
 				&hw_config, m, n, k, alpha, a, b, beta, c, par
 			);
 			return;
 		}
 		if avx && fma {
-			// let hw_config = AvxFmaUnaryPointer::from_model(model);
-			// corenum_gemm(
-			// 	&hw_config, m, n, k, alpha, a, b, beta, c, par
-			// );
+			let (mc, nc, kc) = (4800, 320, 192);
+			let hw_config = AvxFma::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
+			corenum_gemm(
+				&hw_config, m, n, k, alpha, a, b, beta, c, par
+			);
 			return;
 		}
 	}
@@ -295,23 +284,10 @@ pub unsafe fn corenum_sgemm(
 	} else {
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
-	let a = StridedMatrix{
-		data_ptr: a,
-		rs: a_rs,
-		cs: a_cs,
-	};
-	let b = StridedMatrix{
-		data_ptr: b,
-		rs: b_rs,
-		cs: b_cs,
-	};
-	let c = StridedMatrixMut{
-		data_ptr: c,
-		rs: c_rs,
-		cs: c_cs,
-	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
 	corenum_gemm_f32f32f32(m, n, k, alpha, a, b, beta, c, par);
-
 }
 
 
@@ -332,23 +308,10 @@ pub unsafe fn corenum_sgemm_fuse(
 	} else {
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
-	let a = StridedMatrix{
-		data_ptr: a,
-		rs: a_rs,
-		cs: a_cs,
-	};
-	let b = StridedMatrix{
-		data_ptr: b,
-		rs: b_rs,
-		cs: b_cs,
-	};
-	let c = StridedMatrixMut{
-		data_ptr: c,
-		rs: c_rs,
-		cs: c_cs,
-	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
 	corenum_gemm_f32f32f32_fuse(m, n, k, alpha, a, b, beta, c, par, unary_op);
-
 }
 
 

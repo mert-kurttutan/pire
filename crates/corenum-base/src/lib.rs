@@ -17,17 +17,29 @@ macro_rules! env_or {
 	};
  }
 #[cfg(target_arch = "x86_64")]
-struct HWConfig {
+pub struct HWConfig {
     avx: bool,
     avx2: bool,
     avx512f: bool,
     fma: bool,
     fma4: bool,
     hw_model: HWModel,
+    is_l1_shared: bool,
+    is_l2_shared: bool,
+    is_l3_shared: bool,
+}
+
+impl HWConfig {
+    pub fn get_cache_info(&self) -> (bool, bool, bool) {
+        (self.is_l1_shared, self.is_l2_shared, self.is_l3_shared)
+    }
+    pub fn hw_model(&self) -> HWModel {
+        self.hw_model
+    }
 }
 
 #[cfg(target_arch = "aarch64")]
-struct HWConfig {
+pub struct HWConfig {
     neon: bool,
 }
 
@@ -37,6 +49,17 @@ pub enum HWModel {
     Haswell,
     Zen1,
     Zen2,
+}
+
+impl HWModel {
+    pub fn get_cache_info(&self) -> (bool, bool, bool) {
+        match self {
+            HWModel::Reference => (false, false, false),
+            HWModel::Haswell => (false, false, true),
+            HWModel::Zen1 => (false, false, true),
+            HWModel::Zen2 => (false, false, true),
+        }
+    }
 }
 
 // Use family and model id instead of cache size parameters
@@ -57,6 +80,8 @@ fn detect_hw_config() -> HWConfig {
 
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
+        let hw_model = HWModel::Haswell;
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig {
             avx,
             avx2,
@@ -64,6 +89,9 @@ fn detect_hw_config() -> HWConfig {
             fma,
             fma4,
             hw_model: HWModel::Reference,
+            is_l1_shared,
+            is_l2_shared,
+            is_l3_shared,
         };
     }
     #[cfg(target_arch = "aarch64")]
@@ -75,7 +103,7 @@ fn detect_hw_config() -> HWConfig {
 }
 
 
-static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
+pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
     detect_hw_config()
 });
 #[cfg(target_arch = "x86_64")]
@@ -104,7 +132,7 @@ pub(crate) mod cpu_features{
     
     pub fn hw_fma4() -> bool {
         RUNTIME_HW_CONFIG.fma4
-    }    
+    }
 }
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod cpu_features{ 
@@ -614,6 +642,16 @@ pub struct StridedMatrix<T> {
     pub cs: usize,
 }
 
+impl<T> StridedMatrix<T> {
+    pub fn new(data_ptr: *const T, rs: usize, cs: usize) -> Self {
+        Self {
+            data_ptr,
+            rs,
+            cs,
+        }
+    }
+}
+
 unsafe impl<T> Send for StridedMatrix<T> {}
 // unsafe impl<T> Sync for StridedMatrix<T> {}
 
@@ -643,6 +681,15 @@ pub struct StridedMatrixMut<T> {
 unsafe impl<T> Send for StridedMatrixMut<T> {}
 // unsafe impl<T> Sync for StridedMatrixMut<T> {}
 
+impl<T> StridedMatrixMut<T> {
+    pub fn new(data_ptr: *mut T, rs: usize, cs: usize) -> Self {
+        Self {
+            data_ptr,
+            rs,
+            cs,
+        }
+    }
+}
 
 impl<T: BaseNum> GemmOut for StridedMatrixMut<T> {
 	type X = T;
