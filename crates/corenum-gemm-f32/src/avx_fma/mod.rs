@@ -1,7 +1,6 @@
 pub(crate) mod microkernel;
 
 use corenum_base::GemmArrayP;
-use corenum_base::Tensor2D;
 use corenum_base::PackedMatrix;
 pub(crate) use microkernel::{
    packa_panel,

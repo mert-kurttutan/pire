@@ -372,9 +372,6 @@ pub fn dispatch_gemm_f32(
          }
          GemmBackend::Corenum => {
               unsafe {
-                let d_par = corenum_gemm_f32::CorenumPar::new(
-                     1, 1, 1, 1, 1, 1
-                );
                 corenum_gemm_f32::corenum_sgemm(
                      m, n, k,
                      alpha,
@@ -382,7 +379,6 @@ pub fn dispatch_gemm_f32(
                      b, b_rs as usize, b_cs as usize,
                      beta,
                      c, c_rs as usize, c_cs as usize,
-                     &d_par,
                 );
             }
         }
@@ -518,9 +514,6 @@ pub fn dispatch_gemm_batch_f32(
         GemmBackend::Corenum => {
             unsafe {
              #[cfg(feature="corenum")]
-                let d_par = corenum_gemm_f32::CorenumPar::new(
-                    1, 1, 1, 1, 1, 1
-                );
                 for i in 0..batch_size {
                     corenum_gemm_f32::corenum_sgemm(
                         m, n, k,
@@ -529,7 +522,6 @@ pub fn dispatch_gemm_batch_f32(
                         b.offset(i as isize * strideb), b_rs as usize, b_cs as usize,
                         beta,
                         c.offset(i as isize * stridec), c_rs as usize, c_cs as usize,
-                        &d_par,
                     );
                 }
             }

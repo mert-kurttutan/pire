@@ -72,6 +72,8 @@ C: GemmOut<X=f32,Y=f32>,
 	}
 }
 
+use std::thread;
+
 pub unsafe fn corenum_sgemv(
 	m: usize, n: usize,
 	alpha: TA,
@@ -111,15 +113,15 @@ C: GemmOut<X=f32,Y=f32>,
 	b: B,
 	beta: C::X,
 	c: C,
-	par: &CorenumPar,
 ){	
+	let par = CorenumPar::default();
 	#[cfg(target_arch = "x86_64")]
 	{
 		if hw_avx512f() {
 			let (mc, nc, kc) = (4800, 192, 512);
 			let hw_config = Avx512f::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
 			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, par
+				&hw_config, m, n, k, alpha, a, b, beta, c, &par
 			);
 			return;
 		}
@@ -127,7 +129,7 @@ C: GemmOut<X=f32,Y=f32>,
 			let (mc, nc, kc) = (4800, 320, 192);
 			let hw_config = AvxFma::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
 			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, par
+				&hw_config, m, n, k, alpha, a, b, beta, c, &par
 			);
 			return;
 		}
@@ -142,7 +144,7 @@ C: GemmOut<X=f32,Y=f32>,
 			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
 		};
 		corenum_gemm(
-			&hw_config, m, n, k, alpha, a, b, beta, c, par
+			&hw_config, m, n, k, alpha, a, b, beta, c, &par
 		);
 		return;
 	}
@@ -161,9 +163,9 @@ C: GemmOut<X=f32,Y=f32>,
 	b: B,
 	beta: C::X,
 	c: C,
-	par: &CorenumPar,
 	unary_op: fn(*mut C::Y, usize) 
 ){	
+	let par = CorenumPar::default();
 	#[cfg(target_arch = "x86_64")]
 	{
 		let avx = hw_avx();
@@ -174,7 +176,7 @@ C: GemmOut<X=f32,Y=f32>,
 			let (mc, nc, kc) = (4800, 192, 512);
 			let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
 			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, par
+				&hw_config, m, n, k, alpha, a, b, beta, c, &par
 			);
 			return;
 		}
@@ -182,7 +184,7 @@ C: GemmOut<X=f32,Y=f32>,
 			let (mc, nc, kc) = (4800, 320, 192);
 			let hw_config = AvxFma::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
 			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, par
+				&hw_config, m, n, k, alpha, a, b, beta, c, &par
 			);
 			return;
 		}
@@ -276,7 +278,6 @@ pub unsafe fn corenum_sgemm(
 	b: *const TB, b_rs: usize, b_cs: usize,
 	beta: TC,
 	c: *mut TC, c_rs: usize, c_cs: usize,
-	par: &CorenumPar,
 ) {
 	// do not exchange if transa && transb
 	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
@@ -287,7 +288,7 @@ pub unsafe fn corenum_sgemm(
 	let a = StridedMatrix::new(a, a_rs, a_cs);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	corenum_gemm_f32f32f32(m, n, k, alpha, a, b, beta, c, par);
+	corenum_gemm_f32f32f32(m, n, k, alpha, a, b, beta, c);
 }
 
 
@@ -299,7 +300,6 @@ pub unsafe fn corenum_sgemm_fuse(
 	b: *const TB, b_rs: usize, b_cs: usize,
 	beta: TC,
 	c: *mut TC, c_rs: usize, c_cs: usize,
-	par: &CorenumPar,
 	unary_op: fn(*mut TC, usize)
 ) {
 	// do not exchange if transa && transb
@@ -311,7 +311,7 @@ pub unsafe fn corenum_sgemm_fuse(
 	let a = StridedMatrix::new(a, a_rs, a_cs);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	corenum_gemm_f32f32f32_fuse(m, n, k, alpha, a, b, beta, c, par, unary_op);
+	corenum_gemm_f32f32f32_fuse(m, n, k, alpha, a, b, beta, c, unary_op);
 }
 
 
@@ -349,9 +349,6 @@ mod tests {
     	}
 	}
 	fn test_gemm(layout: &Layout) {
-    	let d_par = CorenumPar::new(
-        	4, 2, 1, 2, 1, 1
-    	);
     	for m in M_ARR {
         	for n in N_ARR {
             	let mut c = vec![0.0; m * n];
@@ -374,7 +371,6 @@ mod tests {
                                 	b.as_ptr(), b_rs, b_cs,
                                 	beta,
                                 	c.as_mut_ptr(), c_rs, c_cs,
-                                	&d_par,
                             	);
                         	}
                         	let diff_max = unsafe { 
@@ -403,9 +399,6 @@ mod tests {
 	}
 
 	fn test_gemm_ap(layout: &Layout) {
-    	let d_par = CorenumPar::new(
-        	4, 2, 1, 2, 1, 1
-    	);
     	for m in M_ARR {
         	for n in N_ARR {
             	let mut c = vec![0.0; m * n];
@@ -453,7 +446,6 @@ mod tests {
                                 	b_matrix,
                                 	beta,
                                 	c_matrix,
-                                	&d_par,
                             	);
                         	}
                         	let diff_max = unsafe { 

@@ -251,6 +251,11 @@ impl<'a> CorenumThreadConfig {
     }
 }
 
+pub fn corenum_num_threads() -> usize {
+    let x = std::thread::available_parallelism().unwrap().get();
+    println!("num_threads: {}", x);
+    x
+}
 
 #[derive(Copy,Clone)]
 pub struct CorenumPar {
@@ -296,6 +301,11 @@ impl CorenumPar {
            jr_par,
            ir_par,
        }
+   }
+
+   pub fn default() -> Self {
+       let num_threads = corenum_num_threads();
+       Self::from_num_threads(num_threads)
    }
    #[inline]
    fn get_ic_id(&self, t_id: usize) -> usize {
