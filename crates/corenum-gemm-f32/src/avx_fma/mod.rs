@@ -1,6 +1,4 @@
-
 pub(crate) mod microkernel;
-
 
 use corenum_base::GemmArrayP;
 use corenum_base::Tensor2D;
@@ -17,6 +15,8 @@ pub(crate) use microkernel::{
 
 use corenum_base::GemmArray;
 
+const GOTO_MR: usize = 48; // register block size
+const GOTO_NR: usize = 8; // register block size
 
 
 const VS: usize = 8; // vector size in float, __m256
@@ -40,9 +40,7 @@ impl MyFn for NullFn{}
 impl MyFn for fn(*mut f32, m: usize){}
 
 pub struct AvxFma<
-T: MyFn = NullFn,
-const GOTO_MR: usize = 24,
-const GOTO_NR: usize = 4,
+T: MyFn = NullFn
 > {
     pub goto_mc: usize,
     pub goto_nc: usize,
@@ -87,10 +85,8 @@ impl AvxFma<fn(*mut f32, usize)> {
 }
 
 impl<
-T: MyFn,
-const GOTO_MR: usize,
-const GOTO_NR: usize,
-> GemmPackA<TA,TA> for AvxFma<T,GOTO_MR,GOTO_NR> {
+T: MyFn
+> GemmPackA<TA,TA> for AvxFma<T> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         packa_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
@@ -98,10 +94,8 @@ const GOTO_NR: usize,
 }
 
 impl<
-T: MyFn,
-const GOTO_MR: usize,
-const GOTO_NR: usize,
-> GemmPackB<TA,TA> for AvxFma<T,GOTO_MR,GOTO_NR> {
+T: MyFn
+> GemmPackB<TA,TA> for AvxFma<T> {
     #[target_feature(enable = "avx,fma")]
     unsafe fn packb_fn(b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
@@ -110,12 +104,10 @@ const GOTO_NR: usize,
 
 impl<
 T: MyFn,
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 AP, BP,
 A: GemmArray<AP>,
 B: GemmArray<BP>,
-> GemmCache<AP,BP,A,B> for AvxFma<T,GOTO_MR,GOTO_NR> {
+> GemmCache<AP,BP,A,B> for AvxFma<T> {
     // const CACHELINE_PAD: usize = 256;
     const MR: usize = GOTO_MR;
     const NR: usize = GOTO_NR;
@@ -136,33 +128,11 @@ B: GemmArray<BP>,
     }
 }
 
-// impl<
-// const GOTO_MR: usize,
-// const GOTO_NR: usize,
-// > GemmPackA<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-//     #[target_feature(enable = "avx,fma")]
-//     unsafe fn packa_fn(a: *const u16, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-//         // pack_panel::<GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-//     }
-// }
-// impl<
-// const GOTO_MR: usize,
-// const GOTO_NR: usize,
-// > GemmPackB<u16,TA> for AvxFma<GOTO_MR,GOTO_NR> {
-//     #[target_feature(enable = "avx,fma")]
-//     unsafe fn packb_fn(b: *const u16, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-//         // pack_panel::<GOTO_NR>(n, k, b, b_rs, b_cs, bp);
-//     }
-// }
-
-
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32, X=f32>, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
-> Gemv<TA,TB,A,B,C> for AvxFma<NullFn,GOTO_MR,GOTO_NR>
+> Gemv<TA,TB,A,B,C> for AvxFma<NullFn>
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
@@ -186,14 +156,12 @@ C: GemmOut<X=f32,Y=f32>,
 use corenum_base::GemmOut;
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<NullFn,GOTO_MR,GOTO_NR>
+> GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<NullFn>
 where 
-AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
+AvxFma<NullFn>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -209,18 +177,15 @@ AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
    ) {
        kernel::<GOTO_MR, GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
    }
-
 }
 
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32, X = f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallM<TA,TB,A,B,C> for AvxFma<NullFn,GOTO_MR,GOTO_NR>
-where AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
+> GemmSmallM<TA,TB,A,B,C> for AvxFma<NullFn>
+where AvxFma<NullFn>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -228,27 +193,23 @@ where AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        b: B, //b_rs: usize, b_cs: usize,
+        b: *const f32, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const TA,
    ) {
-    let b_ptr = b.get_data_ptr();//.add(b_rs*b.get_rs()+b_cs*b.get_cs());
-    kernel_bs(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
-    // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
+    kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
 
 
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32, X = f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallN<TA,TB,A,B,C> for AvxFma<NullFn,GOTO_MR,GOTO_NR>
+> GemmSmallN<TA,TB,A,B,C> for AvxFma<NullFn>
 where 
-AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
+AvxFma<NullFn>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -256,31 +217,26 @@ AvxFma<NullFn,GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A::PackArray, b: *const f32,
+        a: *const f32, a_rs: usize, a_cs: usize,
+        ap: *mut f32,
+        b: *const f32,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        // ap_buf: *mut TA,
    ) {
-        let a_ptr = a.get_data_ptr();
-        let a_ptr_rs = a.rs();
-        let a_ptr_cs = a.cs();
-        let ap_buf = a.get_data_p_ptr();
         kernel_sb(
             m, n, k, alpha, beta, 
-            a_ptr, a_ptr_rs, a_ptr_cs, 
+            a, a_rs, a_cs, 
             b,
             c, c_rs, c_cs,
-            ap_buf
+            ap
         );
    }
 }
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32, X=f32>, 
 B: GemmArray<f32, X=f32>,
 C: GemmOut<X=f32,Y=f32>,
-> Gemv<TA,TB,A,B,C> for AvxFma<UFn,GOTO_MR,GOTO_NR>
+> Gemv<TA,TB,A,B,C> for AvxFma<UFn>
 {
     #[target_feature(enable = "avx,fma")]
    unsafe fn gemv_serial(
@@ -302,14 +258,12 @@ C: GemmOut<X=f32,Y=f32>,
 type UFn = fn(*mut f32, usize);
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<UFn,GOTO_MR,GOTO_NR>
+> GemmGotoPackaPackb<TA,TB,A,B,C> for AvxFma<UFn>
 where 
-AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
+AvxFma<UFn>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 {
    const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -334,13 +288,11 @@ AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA> + GemmPackB<B::X, TB>
 
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32>, 
 B: GemmArray<f32, X = f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallM<TA,TB,A,B,C> for AvxFma<UFn,GOTO_MR,GOTO_NR>
-where AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
+> GemmSmallM<TA,TB,A,B,C> for AvxFma<UFn>
+where AvxFma<UFn>: GemmPackA<A::X, TA>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -348,27 +300,23 @@ where AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackA<A::X, TA>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        b: B, //b_rs: usize, b_cs: usize,
+        b: *const f32, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const TA,
    ) {
-    let b_ptr = b.get_data_ptr();//.add(b_rs*b.get_rs()+b_cs*b.get_cs());
-    kernel_bs(m, n, k, alpha, beta, b_ptr, b.rs(), b.cs(), c, c_rs, c_cs, ap);
-    // B::kernel_sup_m(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
+    kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
    }
 }
 
 
 
 impl<
-const GOTO_MR: usize,
-const GOTO_NR: usize,
 A: GemmArray<f32, X = f32>, 
 B: GemmArray<f32>,
 C: GemmOut<X=f32,Y=f32>,
-> GemmSmallN<TA,TB,A,B,C> for AvxFma<UFn,GOTO_MR,GOTO_NR>
+> GemmSmallN<TA,TB,A,B,C> for AvxFma<UFn>
 where 
-AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
+AvxFma<UFn>: GemmPackB<B::X, TB>
 {
     const ONE: TC = 1.0;
    #[target_feature(enable = "avx,fma")]
@@ -376,20 +324,17 @@ AvxFma<UFn,GOTO_MR,GOTO_NR>: GemmPackB<B::X, TB>
         m: usize, n: usize, k: usize,
         alpha: *const TA,
         beta: *const TC,
-        a: A::PackArray, b: *const f32,
+        a: *const f32, a_rs: usize, a_cs: usize,
+        ap: *mut f32,
+        b: *const f32,
         c: *mut TC, c_rs: usize, c_cs: usize,
-        // ap_buf: *mut TA,
    ) {
-        let a_ptr = a.get_data_ptr();
-        let a_ptr_rs = a.rs();
-        let a_ptr_cs = a.cs();
-        let ap_buf = a.get_data_p_ptr();
         kernel_sb(
             m, n, k, alpha, beta, 
-            a_ptr, a_ptr_rs, a_ptr_cs, 
+            a, a_rs, a_cs, 
             b,
             c, c_rs, c_cs,
-            ap_buf
+            ap
         );
    }
 }

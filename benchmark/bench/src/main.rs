@@ -289,6 +289,12 @@ pub enum GemmBackend {
    Corenum,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum BenchType {
+    SGemm,
+    SGemmBatched,
+}
+
 pub fn dispatch_gemm_f32(
    backend: GemmBackend,
    m: usize, n: usize, k: usize,
@@ -601,8 +607,6 @@ pub unsafe fn gemm_fallback_f32(
 }
 
 
-
-
 fn stride_to_cblas(
     m: usize, n: usize, k: usize,
 	a_rs: usize, a_cs: usize,
@@ -739,6 +743,16 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     }
  }
 
+pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
+    if bench_type_str == "sgemm" {
+        BenchType::SGemm
+    } else if bench_type_str == "sgemm_batched" {
+        BenchType::SGemmBatched
+    } else {
+        panic!("Unsupported bench type str");
+    }
+}
+
 fn test_sgemm(
     m: usize, n: usize, k: usize,
     gemm_backend: GemmBackend, args: &Args,
@@ -843,8 +857,6 @@ fn test_sgemm_batched(
 
 use corenum_gemm_f32::{
     CorenumPar,
-    // BLAS_LAYOUT,
-    // gelu_f32,
 };
  
 use clap::Parser;
@@ -866,6 +878,10 @@ struct Args {
     #[arg(short, long, default_value_t = 200)]
     k: usize,
 
+    /// batch dim
+    #[arg(short, long, default_value_t = 5)]
+    batch_dim: usize,
+
    // tranpose layout
    #[arg(short, long, default_value_t = String::from("nt"))]
    t_layout: String,
@@ -876,6 +892,10 @@ struct Args {
    // gemm backend
     #[arg(short, long, default_value_t = String::from("corenum"))]
     backend: String,
+
+    // bench type
+    #[arg(short, long, default_value_t = String::from("sgemm"))]
+    bench_type: String,
 }
  
  
@@ -895,9 +915,14 @@ struct Args {
     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = blis_params_from_str(layout_str, m, n, k);
 
     let gemm_backend = gemm_backend_from_str(&args.backend);
+    let bench_type = bench_type_from_str(&args.bench_type);
+    let batch_dim = args.batch_dim;
     let mut rep = 0;
     while rep < n_repeats {
-        let end_time = test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, 5);
+        let end_time = match bench_type {
+            BenchType::SGemm => test_sgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
+        };
         total_time += end_time;
 
         println!("time: {}, total_time: {}", end_time, total_time);

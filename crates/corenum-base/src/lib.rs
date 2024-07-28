@@ -1137,7 +1137,7 @@ Self: GemmPackA<A::X, AP>
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         beta: *const C::X,
-        b: B,
+        b: *const B::X, b_rs: usize, b_cs: usize,
         c: *mut C::X, c_rs: usize, c_cs: usize,
         ap: *const AP,
     );
@@ -1214,6 +1214,9 @@ Self: GemmPackA<A::X, AP>
 
         let mut mc = mc_start;
         let mc_end = mc_end;
+        let b_ptr = b.get_data_ptr();
+        let b_rs = b.rs();
+        let b_cs = b.cs();
         let c_rs = c.rs();
         let c_cs = c.cs();
         let c_ptr = c.data_ptr();
@@ -1230,15 +1233,16 @@ Self: GemmPackA<A::X, AP>
                 let mut nc = nc_start;
                 let ap = Self::packa::<A>(a, mc, kc, mc_len, kc_len, t_cfg);
                 let ap = ap.add(mr_start*kc_len);
+                let b_j = b_ptr.add(kc * b_rs);
                 while nc < nc_end {
                     let nc_len = nc_eff.min(nc_end - nc);
                     let (nr_start, nr_end) = split_range(nc_len, Self::NR, jr_id, jr_par);
                     let nr_len = nr_end - nr_start;
                     let c_ij = c_i.add((nc + nr_start) * c_cs);
-                    let b_cur = b.at(kc, nc+nr_start);
+                    let b_cur = b_j.add((nc+nr_start) * b_cs);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, 
-                        b_cur,
+                        b_cur, b_rs, b_cs,
                         c_ij, c_rs, c_cs,
                         ap
                     );
@@ -1275,7 +1279,9 @@ Self: GemmPackB<B::X, BP>,
         m: usize, n: usize, k: usize,
         alpha: *const AP,
         beta: *const C::X,
-        a: A::PackArray, b: *const BP,
+        a: *const A::X, a_rs: usize, a_cs: usize,
+        ap: *mut AP,
+        b: *const BP,
         c: *mut C::X, c_rs: usize, c_cs: usize,
     );
     unsafe fn gemm_small_n(
@@ -1353,17 +1359,22 @@ Self: GemmPackB<B::X, BP>,
         let c_rs = c.rs();
         let c_cs = c.cs();
         let c_ptr = c.data_ptr();
+        let a_ptr = a.get_data_ptr();
+        let a_rs = a.rs();
+        let a_cs = a.cs();
+        let ap = a.get_data_p_ptr();
         while mc < mc_end {
             let mc_len = mc_eff.min(mc_end - mc);
              let (mr_start, mr_end) = split_range(mc_len, Self::MR, ir_id, ir_par);
  
             let mr_len = mr_end - mr_start;
             let c_i = c_ptr.add((mc+mr_start) * c_rs);
+            let a_i = a_ptr.add((mc+mr_start) * a_rs);
             let mut kc = kc_start;
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
                 let beta_t = if kc == kc_start { beta } else { &one as *const C::X};
-                let a_cur = a.at(mr_start+mc, kc);
+                let a_cur = a_i.add(kc*a_cs);
                 let mut nc = nc_start;
  
                 while nc < nc_end {
@@ -1374,7 +1385,9 @@ Self: GemmPackB<B::X, BP>,
                     let c_ij = c_i.add((nc + nr_start) * c_cs);
                     Self::kernel(
                         mr_len, nr_len, kc_len, alpha, beta_t, 
-                        a_cur, b_cur,
+                        a_cur, a_rs, a_cs,
+                        ap,
+                        b_cur,
                         c_ij, c_rs, c_cs,
                     );
                     nc += nc_eff;
