@@ -20,8 +20,7 @@ for n_i in "${nc_array[@]}"; do
         
         # echo nc and kc to out.txt
         echo "nc: $NC, kc: $KC" >> out.txt
-        # run ./target/release/corenum-gemm-f32 and output to a out.txt using pipe
-        ./target/release/corenum-gemm-f32 --m 4800 --n 2400 --k 2400 --t-layout nt >> out2.txt
+        ./target/release/bench --m 6000 --n 6000 --k 6000 --t-layout nt >> out.txt
         sleep 1
     done
 done
