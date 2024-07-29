@@ -1,7 +1,5 @@
 #[cfg(target_arch = "x86_64")]
-pub(crate) mod avx_fma;
-#[cfg(target_arch = "x86_64")]
-pub(crate) mod avx512f;
+pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
@@ -21,9 +19,7 @@ use corenum_base::{
 };
 
 #[cfg(target_arch = "x86_64")]
-use avx_fma::AvxFma;
-#[cfg(target_arch = "x86_64")]
-use avx512f::Avx512f;
+use x86_64_arch::x86_64;
 
 use corenum_base::{
     GemmGotoPackaPackb,
@@ -62,7 +58,7 @@ C: GemmOut<X=f32,Y=f32>,
 	
 			match model {
 				_ => {
-					corenum_gemv::<TA,TB,A, B, C, AvxFma>(
+					corenum_gemv::<TA,TB,A, B, C, x86_64>(
 						m, n, alpha, a, b, beta, c, par
 					);
 				}
@@ -117,22 +113,15 @@ C: GemmOut<X=f32,Y=f32>,
 	let par = CorenumPar::default();
 	#[cfg(target_arch = "x86_64")]
 	{
-		if hw_avx512f() {
-			let (mc, nc, kc) = (4800, 192, 512);
-			let hw_config = Avx512f::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
-			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, &par
-			);
-			return;
-		}
-		if hw_avx() && hw_fma() {
-			let (mc, nc, kc) = (4800, 320, 192);
-			let hw_config = AvxFma::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc);
-			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, &par
-			);
-			return;
-		}
+		let (x86Backend, mc, nc, kc) = if hw_avx512f() {
+			(x86_64_arch::x86Backend::Avx512f, 4800, 192, 512)
+		} else {
+			(x86_64_arch::x86Backend::AvxFma, 4800, 320, 192)
+		};
+		let hw_config = x86_64::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86Backend);
+		corenum_gemm(
+			&hw_config, m, n, k, alpha, a, b, beta, c, &par
+		);
 	}
 
 	#[cfg(target_arch="aarch64")]
@@ -140,7 +129,7 @@ C: GemmOut<X=f32,Y=f32>,
 		const MR: usize = 24;
 		const NR: usize = 4;
 		let hw_config = armv8::AvxFma::<MR,NR>{
-			goto_mc: 4800, goto_nc: 320, goto_kc: 192,
+			goto_mc: 4800, goto_nc: 192, goto_kc: 512,
 			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
 		};
 		corenum_gemm(
@@ -168,26 +157,26 @@ C: GemmOut<X=f32,Y=f32>,
 	let par = CorenumPar::default();
 	#[cfg(target_arch = "x86_64")]
 	{
-		let avx = hw_avx();
-		let avx512f = hw_avx512f();
-		let fma = hw_fma();
-		let model = hw_model();
-		if avx512f {
-			let (mc, nc, kc) = (4800, 192, 512);
-			let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
-			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, &par
-			);
-			return;
-		}
-		if avx && fma {
-			let (mc, nc, kc) = (4800, 320, 192);
-			let hw_config = AvxFma::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
-			corenum_gemm(
-				&hw_config, m, n, k, alpha, a, b, beta, c, &par
-			);
-			return;
-		}
+		// let avx = hw_avx();
+		// let avx512f = hw_avx512f();
+		// let fma = hw_fma();
+		// let model = hw_model();
+		// if avx512f {
+		// 	let (mc, nc, kc) = (4800, 192, 512);
+		// 	let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
+		// 	corenum_gemm(
+		// 		&hw_config, m, n, k, alpha, a, b, beta, c, &par
+		// 	);
+		// 	return;
+		// }
+		// if avx && fma {
+		// 	let (mc, nc, kc) = (4800, 320, 192);
+		// 	let hw_config = AvxFma::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
+		// 	corenum_gemm(
+		// 		&hw_config, m, n, k, alpha, a, b, beta, c, &par
+		// 	);
+		// 	return;
+		// }
 	}
 
 	#[cfg(target_arch="aarch64")]
@@ -239,7 +228,7 @@ pub unsafe fn packa_f32(
 						let mc_len_eff = (mc_len + MR-1) / MR * MR;
 						for p in (0..k).step_by(KC) {
 							let kc_len = if k >= (p + KC) {KC} else {k - p};
-							avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+							// avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
 							ap = ap.add(mc_len_eff*kc_len);	
 						}
 					}
@@ -259,7 +248,7 @@ pub unsafe fn packa_f32(
 						let mc_len_eff = (mc_len + MR-1) / MR * MR;
 						for p in (0..k).step_by(KC) {
 							let kc_len = if k >= (p + KC) {KC} else {k - p};
-							avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+							// avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
 							ap = ap.add(mc_len_eff*kc_len);	
 						}
 					}

@@ -366,8 +366,8 @@ pub fn dispatch_gemm_f32(
                    b, b_cs as isize, b_rs as isize,
                    alpha, beta,
                    false, false, false,
-                   gemm::Parallelism::Rayon(1)
-               );
+                   gemm::Parallelism::Rayon(0)
+                );
               }
          }
          GemmBackend::Corenum => {
@@ -506,7 +506,7 @@ pub fn dispatch_gemm_batch_f32(
                         b.offset(i as isize * strideb), b_cs as isize, b_rs as isize,
                         alpha, beta,
                         false, false, false,
-                        gemm::Parallelism::Rayon(1)
+                        gemm::Parallelism::Rayon(0)
                     );
                 }
             }
@@ -858,6 +858,10 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// number of repeats
+    #[arg(short, long, default_value_t = 2)]
+    n_repeats: usize,
+
     /// dim m
     #[arg(short, long, default_value_t = 200)]
     m: usize,
@@ -888,11 +892,11 @@ struct Args {
     // bench type
     #[arg(short, long, default_value_t = String::from("sgemm"))]
     bench_type: String,
+
 }
  
  
  fn main() {
-    let n_repeats = 2;
     let mut total_time = 0.0;
  
     let mut best_time = f64::INFINITY;
@@ -909,6 +913,7 @@ struct Args {
     let gemm_backend = gemm_backend_from_str(&args.backend);
     let bench_type = bench_type_from_str(&args.bench_type);
     let batch_dim = args.batch_dim;
+    let n_repeats = args.n_repeats;
     let mut rep = 0;
     while rep < n_repeats {
         let end_time = match bench_type {
