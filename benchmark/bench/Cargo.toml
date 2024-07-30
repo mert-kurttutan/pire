@@ -12,6 +12,13 @@ corenum-gemm-f16 = { path = "../../crates/corenum-gemm-f16" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "bench"
+harness = false
+
 
 
 [features]
