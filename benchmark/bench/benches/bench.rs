@@ -3,6 +3,7 @@ use corenum_gemm_f32::*;
 // use nalgebra::DMatrix;
 use std::{thread::available_parallelism, time::Duration};
 
+#[cfg(feature="rustgemm")]
 use gemm::*;
 
 // use bench::*;
@@ -536,7 +537,7 @@ pub fn bench_blas_group2(
             })
         },
     );
-
+    #[cfg(feature="blis")]
     bench_c.bench_function(
         &format!(
             "f32-blis-gemm-{}×{}×{}", m, n, k
@@ -558,7 +559,7 @@ pub fn bench_blas_group2(
             })
         },
     );
-
+    #[cfg(feature="rustgemm")]
     bench_c.bench_function(
         &format!(
             "f32-rust-gemm-{}×{}×{}", m, n, k
