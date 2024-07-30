@@ -7,6 +7,7 @@ edition = "2021"
 libc = "0.2"
 rand = "0.8.5"
 corenum-gemm-f32 = { path = "../../crates/corenum-gemm-f32" }
+corenum-gemm-f16 = { path = "../../crates/corenum-gemm-f16" }
 # corenum-dev = { path = "../../crates/corenum-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }

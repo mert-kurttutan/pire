@@ -252,8 +252,10 @@ impl<'a> CorenumThreadConfig {
 }
 
 pub fn corenum_num_threads() -> usize {
-    let x = std::thread::available_parallelism().unwrap().get();
-    x
+    let n_core = std::thread::available_parallelism().unwrap().get();
+    // CORENUM_NUM_THREADS or the number of logical cores
+    let x = std::env::var("CORENUM_NUM_THREADS").unwrap_or(n_core.to_string());
+    x.parse::<usize>().unwrap()
 }
 
 #[derive(Copy,Clone)]
@@ -287,18 +289,18 @@ impl CorenumPar {
        }
    }
    pub fn from_num_threads(num_threads: usize) -> Self {
-       let jc_par = 1;
+       let ic_par = num_threads;
        let pc_par = 1;
-       let ic_par = num_threads / 1;
-       let jr_par = 1;
+       let jc_par = 1;
        let ir_par = 1;
+       let jr_par = 1;
        Self {
            num_threads,
-           jc_par,
-           pc_par,
            ic_par,
-           jr_par,
+           pc_par,
+           jc_par,
            ir_par,
+           jr_par,
        }
    }
 
@@ -335,7 +337,7 @@ fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) ->
    let rem = m % (mr*ic_par);
    if ic_id == 0 {
         let x = chunk_len + rem%mr;
-        let mc_left = ((x+mc-1) / mc ) * mc < m;
+        let mc_left = ((((x+mc-1) / mc ) * mc) * ic_par) < m;
         return (m - chunk_len - (rem%mr), m, mc_left);
     }
     let ic_id = ic_id - 1;
@@ -345,7 +347,7 @@ fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) ->
    let end_delta = rem.min((ic_id + 1)*mr);
 //    let is_m_boundary = (chunk_len + end_delta - start_delta ) % mc == 0;
    let mc_coeff = (chunk_len + end_delta - start_delta + mc -1) / mc;
-   let mc_left = mc_coeff * mc < m;
+   let mc_left = ((mc_coeff * mc) * ic_par ) < m;
 //    let mc_left = is_m_boundary && rem != 0 && end_delta == start_delta;
    (chunk_len * ic_id + start_delta, chunk_len * (ic_id + 1) + end_delta, mc_left)
 }
@@ -555,6 +557,45 @@ fn run_small_n<AP, A: GemmArray<AP>>(n: usize) -> bool {
     A::is_packing_needed() && n < 144
 }
 
+pub unsafe fn corenum_gemm_strided<
+AX: BaseNum,
+BX: BaseNum,
+// CX: BaseNum,
+CY: BaseNum,
+AP: BaseNum + Into<BP>,
+BP: BaseNum,
+HWConfig
+>(
+    hw_config: &HWConfig,
+    m: usize, n: usize, k: usize,
+    alpha: AP,
+    a: *const AX, a_rs: usize, a_cs: usize,
+    b: *const BX, b_rs: usize, b_cs: usize,
+    beta: CY,
+    c: *mut CY, c_rs: usize, c_cs: usize,
+    par: &CorenumPar,
+) 
+where HWConfig: GemmGotoPackaPackb<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
+    + GemmSmallM<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
+    + GemmSmallN<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
+    + Gemv<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
+    + Gemv<BP,AP,StridedMatrix<BX>,StridedMatrix<AX>,StridedMatrixMut<CY>>,
+    StridedMatrix<AX>: GemmArray<AP>,
+    StridedMatrix<BX>: GemmArray<BP>,
+{
+	if c_cs == 1 && c_rs != 1 {
+        let a = StridedMatrix::new(a, a_rs, a_cs);
+        let b = StridedMatrix::new(b, b_rs, b_cs);
+        let c = StridedMatrixMut::new(c, c_rs, c_cs);
+        corenum_gemm(hw_config, m, n, k, alpha, a, b, beta, c, par);
+	} else {
+        let a = StridedMatrix::new(a, a_rs, a_cs);
+        let b = StridedMatrix::new(b, b_rs, b_cs);
+        let c = StridedMatrixMut::new(c, c_rs, c_cs);
+        corenum_gemm(hw_config, m, n, k, alpha, a, b, beta, c, par);	
+    };
+}
+
 pub unsafe fn corenum_gemm<
 AP: BaseNum,
 BP: BaseNum,
@@ -753,6 +794,28 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
     }
 
     fn get_data_ptr(&self) -> *const T {
+        self.data_ptr
+    }
+
+    fn transpose(&mut self) {
+        let temp = self.rs;
+        self.rs = self.cs;
+        self.cs = temp;
+    }
+}
+
+impl GemmArray<f64> for StridedMatrix<f32> {
+    type X = f32;
+    // type Y = f64;
+    type PackArray = StridedMatrixP<f32,f64>;
+    fn is_packing_needed() -> bool {
+        true
+    }
+    fn into_pack_array(self, a: *mut f64) -> Self::PackArray {
+        StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
+    }
+
+    fn get_data_ptr(&self) -> *const f32 {
         self.data_ptr
     }
 
