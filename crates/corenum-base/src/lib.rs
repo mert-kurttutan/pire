@@ -21,6 +21,7 @@ pub struct HWConfig {
     avx: bool,
     avx2: bool,
     avx512f: bool,
+    avx512f16: bool,
     fma: bool,
     fma4: bool,
     hw_model: HWModel,
@@ -77,6 +78,7 @@ fn detect_hw_config() -> HWConfig {
         let fma = feature_info.has_fma();
         let avx2  = extended_feature_info.has_avx2();
         let avx512f = extended_feature_info.has_avx512f();
+        let avx512f16 = extended_feature_info.has_avx512_fp16();
 
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
@@ -86,6 +88,7 @@ fn detect_hw_config() -> HWConfig {
             avx,
             avx2,
             avx512f,
+            avx512f16,
             fma,
             fma4,
             hw_model: HWModel::Reference,
@@ -132,6 +135,10 @@ pub(crate) mod cpu_features{
     
     pub fn hw_fma4() -> bool {
         RUNTIME_HW_CONFIG.fma4
+    }
+
+    pub fn hw_avx512f16() -> bool {
+        RUNTIME_HW_CONFIG.avx512f16
     }
 }
 #[cfg(target_arch = "aarch64")]
@@ -557,45 +564,6 @@ fn run_small_n<AP, A: GemmArray<AP>>(n: usize) -> bool {
     A::is_packing_needed() && n < 144
 }
 
-pub unsafe fn corenum_gemm_strided<
-AX: BaseNum,
-BX: BaseNum,
-// CX: BaseNum,
-CY: BaseNum,
-AP: BaseNum + Into<BP>,
-BP: BaseNum,
-HWConfig
->(
-    hw_config: &HWConfig,
-    m: usize, n: usize, k: usize,
-    alpha: AP,
-    a: *const AX, a_rs: usize, a_cs: usize,
-    b: *const BX, b_rs: usize, b_cs: usize,
-    beta: CY,
-    c: *mut CY, c_rs: usize, c_cs: usize,
-    par: &CorenumPar,
-) 
-where HWConfig: GemmGotoPackaPackb<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
-    + GemmSmallM<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
-    + GemmSmallN<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
-    + Gemv<AP,BP,StridedMatrix<AX>,StridedMatrix<BX>,StridedMatrixMut<CY>> 
-    + Gemv<BP,AP,StridedMatrix<BX>,StridedMatrix<AX>,StridedMatrixMut<CY>>,
-    StridedMatrix<AX>: GemmArray<AP>,
-    StridedMatrix<BX>: GemmArray<BP>,
-{
-	if c_cs == 1 && c_rs != 1 {
-        let a = StridedMatrix::new(a, a_rs, a_cs);
-        let b = StridedMatrix::new(b, b_rs, b_cs);
-        let c = StridedMatrixMut::new(c, c_rs, c_cs);
-        corenum_gemm(hw_config, m, n, k, alpha, a, b, beta, c, par);
-	} else {
-        let a = StridedMatrix::new(a, a_rs, a_cs);
-        let b = StridedMatrix::new(b, b_rs, b_cs);
-        let c = StridedMatrixMut::new(c, c_rs, c_cs);
-        corenum_gemm(hw_config, m, n, k, alpha, a, b, beta, c, par);	
-    };
-}
-
 pub unsafe fn corenum_gemm<
 AP: BaseNum,
 BP: BaseNum,
@@ -616,7 +584,7 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN
 where AP: Into<BP>
 {
     if n == 1 && A::is_packing_needed() {
-        corenum_gemv::<AP,BP,A,B,C,HWConfig>(m, k, alpha, a, b, beta, c, par);
+        corenum_gemv::<AP,BP,A,B,C,HWConfig>(hw_config, m, k, alpha, a, b, beta, c, par);
         return;
     }
     if m == 1 && B::is_packing_needed() {
@@ -626,7 +594,7 @@ where AP: Into<BP>
         b.transpose();
         let mut c = c;
         c.transpose();
-        corenum_gemv::<BP,AP,B,A,C,HWConfig>(n, k, alpha.into(), b, a, beta, c, par);
+        corenum_gemv::<BP,AP,B,A,C,HWConfig>(hw_config, n, k, alpha.into(), b, a, beta, c, par);
         return;
     }
     let gemm_fun = if run_small_m::<BP,B>(m) {
@@ -674,7 +642,9 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 HWConfig: Gemv<AP,BP,A,B,C>,
->(	m: usize, n: usize,
+>(	
+    hw_config: &HWConfig,
+    m: usize, n: usize,
 	alpha: AP,
 	a: A,
 	x: B,
@@ -683,7 +653,7 @@ HWConfig: Gemv<AP,BP,A,B,C>,
 	par: &CorenumPar
 ) {
     HWConfig::gemv(
-        m, n, alpha, a, x, beta, y, par
+        hw_config, m, n, alpha, a, x, beta, y, par
     );
 }
 
@@ -804,18 +774,17 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
     }
 }
 
-impl GemmArray<f64> for StridedMatrix<f32> {
-    type X = f32;
-    // type Y = f64;
-    type PackArray = StridedMatrixP<f32,f64>;
+impl GemmArray<f32> for StridedMatrix<u16> {
+    type X = u16;
+    type PackArray = StridedMatrixP<u16,f32>;
     fn is_packing_needed() -> bool {
         true
     }
-    fn into_pack_array(self, a: *mut f64) -> Self::PackArray {
+    fn into_pack_array(self, a: *mut f32) -> Self::PackArray {
         StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
     }
 
-    fn get_data_ptr(&self) -> *const f32 {
+    fn get_data_ptr(&self) -> *const u16 {
         self.data_ptr
     }
 
@@ -1512,6 +1481,7 @@ B: GemmArray<BP>,
 C: GemmOut,
 > {
    unsafe fn gemv(
+        self: &Self,
        m: usize, n: usize,
        alpha: AP,
        a: A,
@@ -1522,9 +1492,10 @@ C: GemmOut,
    ) {
        let alpha = &alpha as *const AP;
        let beta = &beta as *const C::X;
-       Self::gemv_serial(m, n, alpha, a, x, beta, y);
+       self.gemv_serial(m, n, alpha, a, x, beta, y);
    }
    unsafe fn gemv_serial(
+        self: &Self,
        m: usize, n: usize,
        alpha: *const AP,
        a: A,

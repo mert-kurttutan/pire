@@ -18,8 +18,27 @@ use corenum_base::{
 	hw_model,
 };
 
+#[derive(Copy, Clone)]
+pub(crate) struct NullFn;
+
+pub(crate) trait MyFn: Copy + std::marker::Sync {
+	fn call(self, c: *mut TC, m: usize);
+}
+
+impl MyFn for NullFn{
+	#[inline(always)]
+	fn call(self, _c: *mut TC, _m: usize) {}
+}
+
+impl MyFn for fn(*mut TC, m: usize){
+	#[inline(always)]
+	fn call(self, c: *mut TC, m: usize) {
+		self(c, m);
+	}
+}
+
 #[cfg(target_arch = "x86_64")]
-use x86_64_arch::x86_64;
+use x86_64_arch::X86_64dispatcher;
 
 use corenum_base::{
     GemmGotoPackaPackb,
@@ -27,124 +46,40 @@ use corenum_base::{
 	GemmSmallN,
 	GemmCache,
 	Gemv,
-	corenum_gemv,
-	corenum_gemm,
 	StridedMatrix,
 	GemmArray,
 	StridedMatrixMut,
 	GemmOut,
 };
 pub use corenum_base::CorenumPar;
+use corenum_base::RUNTIME_HW_CONFIG;
+use corenum_base::corenum_gemm;
 
-pub unsafe fn corenum_gemv_f32f32f32<
-A: GemmArray<f32,X=TA>, 
-B: GemmArray<f32,X=TB>,
-C: GemmOut<X=TC,Y=f32>,
+pub(crate) unsafe fn corenum_sgemm_generic<
+A: GemmArray<f32,X=f32>, 
+B: GemmArray<f32,X=f32>,
+C: GemmOut<X=f32,Y=f32>,
+F: MyFn,
 >(
-	m: usize, n: usize,
+	m: usize, n: usize, k: usize,
 	alpha: TA,
 	a: A,
 	b: B,
 	beta: C::X,
 	c: C,
-	par: &CorenumPar,
-){	
-	#[cfg(target_arch = "x86_64")]
-	{
-		let avx = hw_avx();
-		let fma = hw_fma();
-		let model = hw_model();
-		if avx && fma {
-	
-			match model {
-				_ => {
-					corenum_gemv::<TA,TB,A, B, C, x86_64>(
-						m, n, alpha, a, b, beta, c, par
-					);
-				}
-			}
-			return;
-		}
-	}
+	f: F,
+) 
+where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>
+{
+	let (x86_64_features, mc, nc, kc) = if hw_avx512f() {
+		(x86_64_arch::X86_64Features::Avx512f, 4800, 192, 512)
+	} else {
+		(x86_64_arch::X86_64Features::AvxFma, 4800, 320, 192)
+	};
+	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+	let par = CorenumPar::default();
+	corenum_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
-
-use std::thread;
-
-pub unsafe fn corenum_sgemv(
-	m: usize, n: usize,
-	alpha: TA,
-	a: *const TA, a_rs: usize, a_cs: usize,
-	x: *const TB, incx: usize,
-	beta: TC,
-	y: *mut TC, incy: usize,
-	par: &CorenumPar,
-) {
-	let a = StridedMatrix::new(a, a_rs, a_cs);
-	let x = StridedMatrix::new(x, incx, 1);
-	let y = StridedMatrixMut::new(y, incy, 1);
-	corenum_gemv_f32f32f32(m, n, alpha, a, x, beta, y, par);
-}
-
-pub unsafe fn corenum_sdot(
-	n: usize,
-	alpha: TA,
-	x: *const TA, incx: usize,
-	y: *const TB, incy: usize,
-	beta: TC,
-	res: *mut TC,
-	par: &CorenumPar
-) {
-	corenum_sgemv(1, n, alpha, x, 1, incx, y, incy, beta, res, 1, par);
-}
-use corenum_base::BaseNum;
-use corenum_base::RUNTIME_HW_CONFIG;
-// pub unsafe fn corenum_gemm_hw<
-// T,
-// ta:BaseNum + Into<tb>, tb:BaseNum, tc:BaseNum,
-// A: GemmArray<ta,X=ta>, 
-// B: GemmArray<tb,X=tb>,
-// C: GemmOut<X=tc,Y=tc>,
-// >
-// (
-// 	hw_cfg: T,
-// 	m: usize, n: usize, k: usize,
-// 	alpha: A::X,
-// 	a: A,
-// 	b: B,
-// 	beta: C::X,
-// 	c: C,
-// )
-// where T: GemmGotoPackaPackb<ta,tb,A,B,C> + GemmSmallM<ta,tb,A,B,C> + GemmSmallN<ta,tb,A,B,C> + Gemv<ta,tb,A,B,C> + Gemv<tb,ta,B,A,C>
-// {	
-// 	let par = CorenumPar::default();
-// 	#[cfg(target_arch = "x86_64")]
-// 	{
-// 		// let (x86Backend, mc, nc, kc) = if hw_avx512f() {
-// 		// 	(x86_64_arch::x86Backend::Avx512f, 4800, 192, 512)
-// 		// } else {
-// 		// 	(x86_64_arch::x86Backend::AvxFma, 4800, 320, 192)
-// 		// };
-// 		// let hw_config = x86_64::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86Backend);
-// 		corenum_gemm::<ta,tb,_,_,_,_>(
-// 			&hw_cfg, m, n, k, alpha, a, b, beta, c, &par
-// 		);
-// 	}
-
-// 	#[cfg(target_arch="aarch64")]
-// 	{
-// 		const MR: usize = 24;
-// 		const NR: usize = 4;
-// 		let hw_config = armv8::AvxFma::<MR,NR>{
-// 			goto_mc: 4800, goto_nc: 192, goto_kc: 512,
-// 			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-// 		};
-// 		corenum_gemm(
-// 			&hw_config, m, n, k, alpha, a, b, beta, c, &par
-// 		);
-// 		return;
-// 	}
-// }
-use corenum_base::corenum_gemm_strided;
 
 pub unsafe fn corenum_sgemm(
 	m: usize, n: usize, k: usize,
@@ -154,68 +89,73 @@ pub unsafe fn corenum_sgemm(
 	beta: TC,
 	c: *mut TC, c_rs: usize, c_cs: usize,
 ) {
-	let (x86Backend, mc, nc, kc) = if hw_avx512f() {
-		(x86_64_arch::x86Backend::Avx512f, 4800, 192, 512)
+	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
 	} else {
-		(x86_64_arch::x86Backend::AvxFma, 4800, 320, 192)
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
-	let hw_config = x86_64::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86Backend);
-	let par = CorenumPar::default();
-	corenum_gemm_strided(&hw_config, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs, &par);
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let null_fn = NullFn{};
+	corenum_sgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
-
-pub unsafe fn corenum_gemm_f32f32f32_fuse<
-A: GemmArray<f32,X=TA>, 
-B: GemmArray<f32,X=TB>,
-C: GemmOut<X=TC,Y=f32>,
->(
+pub unsafe fn corenum_sgemm_fused(
 	m: usize, n: usize, k: usize,
-	alpha: A::X,
-	a: A,
-	b: B,
-	beta: C::X,
-	c: C,
-	unary_op: fn(*mut C::Y, usize) 
-){	
-	let par = CorenumPar::default();
-	#[cfg(target_arch = "x86_64")]
-	{
-		// let avx = hw_avx();
-		// let avx512f = hw_avx512f();
-		// let fma = hw_fma();
-		// let model = hw_model();
-		// if avx512f {
-		// 	let (mc, nc, kc) = (4800, 192, 512);
-		// 	let hw_config = Avx512f::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
-		// 	corenum_gemm(
-		// 		&hw_config, m, n, k, alpha, a, b, beta, c, &par
-		// 	);
-		// 	return;
-		// }
-		// if avx && fma {
-		// 	let (mc, nc, kc) = (4800, 320, 192);
-		// 	let hw_config = AvxFma::<fn(*mut C::Y, usize)>::from_hw_cfg_func(&*RUNTIME_HW_CONFIG,mc,nc,kc,unary_op);
-		// 	corenum_gemm(
-		// 		&hw_config, m, n, k, alpha, a, b, beta, c, &par
-		// 	);
-		// 	return;
-		// }
-	}
+	alpha: TA,
+	a: *const TA, a_rs: usize, a_cs: usize,
+	b: *const TB, b_rs: usize, b_cs: usize,
+	beta: TC,
+	c: *mut TC, c_rs: usize, c_cs: usize,
+	unary: fn(*mut TC, usize),
+) {
+	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+	} else {
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	corenum_sgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
+}
 
-	#[cfg(target_arch="aarch64")]
-	{
-		const MR: usize = 24;
-		const NR: usize = 4;
-		let hw_config = armv8::AvxFma::<MR,NR>{
-			goto_mc: 4800, goto_nc: 320, goto_kc: 192,
-			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-		};
-		corenum_gemm(
-			&hw_config, m, n, k, alpha, a, b, beta, c, par
-		);
-		return;
-	}
+pub unsafe fn corenum_sgemv(
+	m: usize, n: usize,
+	alpha: TA,
+	a: *const TA, a_rs: usize, a_cs: usize,
+	x: *const TB, incx: usize,
+	beta: TC,
+	y: *mut TC, incy: usize,
+) {
+	corenum_sgemm(
+		m, 1, n,
+		alpha,
+		a, a_rs, a_cs,
+		x, incx, 1,
+		beta,
+		y, incy, 1,
+	)	
+}
+pub unsafe fn corenum_sdot(
+	n: usize,
+	alpha: TA,
+	x: *const TA, incx: usize,
+	y: *const TB, incy: usize,
+	beta: TC,
+	res: *mut TC,
+) {
+	corenum_sgemm(
+		1, 1, n,
+		alpha,
+		x, incx, 1,
+		y, incy, 1,
+		beta,
+		res, 1, 1,
+	)
 }
 
 pub unsafe fn packa_f32(
@@ -283,31 +223,6 @@ pub unsafe fn packa_f32(
 	}
 
 }
-
-
-
-pub unsafe fn corenum_sgemm_fuse(
-	m: usize, n: usize, k: usize,
-	alpha: TA,
-	a: *const TA, a_rs: usize, a_cs: usize,
-	b: *const TB, b_rs: usize, b_cs: usize,
-	beta: TC,
-	c: *mut TC, c_rs: usize, c_cs: usize,
-	unary_op: fn(*mut TC, usize)
-) {
-	// do not exchange if transa && transb
-	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
-	} else {
-    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
-	};
-	let a = StridedMatrix::new(a, a_rs, a_cs);
-	let b = StridedMatrix::new(b, b_rs, b_cs);
-	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	corenum_gemm_f32f32f32_fuse(m, n, k, alpha, a, b, beta, c, unary_op);
-}
-
-
 
 
 #[cfg(test)]

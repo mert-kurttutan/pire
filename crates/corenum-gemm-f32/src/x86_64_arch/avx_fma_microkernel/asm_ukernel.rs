@@ -955,6 +955,8 @@ macro_rules! prefetch_c {
         });
     }
 }
+
+use crate::MyFn;
  
 macro_rules! def_ukernel {
 	(
@@ -969,12 +971,13 @@ macro_rules! def_ukernel {
     	$func_name:ident
 	) => {
 		#[target_feature(enable = "avx,fma")]
-    	pub(crate) unsafe fn $func_name(
+    	pub(crate) unsafe fn $func_name<F: MyFn>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
         	k: usize,
         	ldc: usize,
-			ld_arr: [usize; 2]
+			ld_arr: [usize; 2],
+			f: F,
     	) {
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
@@ -1071,6 +1074,12 @@ macro_rules! def_ukernel {
             	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
             	options(att_syntax)
         	);
+
+			for j in 0..$nr {
+				for i in 0..$mr/8 {
+					f.call(c.add(i*8+j*ldc), 8);
+				}
+			}
     	}
 	};
 }
@@ -1088,13 +1097,14 @@ macro_rules! def_ukernel_partial {
     	$func_name:ident
 	) => {
 		#[target_feature(enable = "avx,fma")]
-    	pub(crate) unsafe fn $func_name(
+    	pub(crate) unsafe fn $func_name<F: MyFn>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
         	k: usize,
         	ldc: usize,
 			ld_arr: [usize; 2],
-			mask: *const u32
+			mask: *const u32,
+			f: F,
     	) {
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
@@ -1194,6 +1204,12 @@ macro_rules! def_ukernel_partial {
             	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
             	options(att_syntax)
         	);
+
+			for j in 0..$nr {
+				for i in 0..$mr/8 {
+					f.call(c.add(i*8+j*ldc), 8);
+				}
+			}
     	}
 	};
 }
