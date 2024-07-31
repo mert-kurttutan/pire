@@ -30,7 +30,7 @@ pub unsafe fn axpy<F: MyFn>(
    x: *const TB, incx: usize,
    beta: *const TC,
    y: *mut TC, incy: usize,
-   f: F,
+   _f: F,
 ) {
    if a_cs == 1 && incx == 1 {
        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);

@@ -1,8 +1,6 @@
 pub(crate) mod avx_fma_microkernel;
 pub(crate) mod avx512f_microkernel;
 
-use avx_fma_microkernel::axpy;
-
 use corenum_base::GemmArray;
 use corenum_base::GemmOut;
 
@@ -41,7 +39,8 @@ T: MyFn = NullFn
     goto_kc: usize,
     goto_mr: usize,
     goto_nr: usize,
-    is_l1_shared: bool,
+    // TODO: Cech jr parallelism is beneificial for perf
+    // is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
@@ -52,7 +51,7 @@ use corenum_base::HWConfig;
 
 impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: X86_64Features, f: F) -> Self {
-        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let goto_mr = match features {
             X86_64Features::AvxFma => AVX_FMA_GOTO_MR,
             X86_64Features::Avx512f => AVX512F_GOTO_MR,
@@ -65,7 +64,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
             goto_mc: mc,
             goto_nc: nc,
             goto_kc: kc,
-            is_l1_shared,
+            // is_l1_shared,
             is_l2_shared,
             is_l3_shared,
             func: f,
@@ -157,7 +156,14 @@ F: MyFn + Sync,
         let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+        match self.features {
+            X86_64Features::Avx512f => {
+                avx512f_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+            }
+            X86_64Features::AvxFma => {
+                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+            }
+        }
    }
 }
 

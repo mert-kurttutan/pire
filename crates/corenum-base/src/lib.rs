@@ -911,7 +911,7 @@ impl<T> Tensor2D for PackedMatrix<T> {
 }
 
 impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
-    unsafe fn packa_dispatch_hw<H>(&self, x: &H, mc: usize, kc: usize, _mc_len: usize, kc_len: usize, _mc_i: usize, _run: bool) -> *const T
+    unsafe fn packa_dispatch_hw<H>(&self, _x: &H, mc: usize, kc: usize, _mc_len: usize, kc_len: usize, _mc_i: usize, _run: bool) -> *const T
     {
         let ib = mc / self.mc;
         let jb = kc / self.kc;
@@ -920,7 +920,7 @@ impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
 
         self.data_ptr.add(ib*self.k*self.mc + jb*m_eff*self.kc + mr_block * kc_len*self.mr)
     }
-    unsafe fn packb_dispatch_hw<H>(&self, x: &H, nc: usize, kc: usize, _nc_len: usize, kc_len: usize, _run: bool) -> *const T
+    unsafe fn packb_dispatch_hw<H>(&self, _x: &H, nc: usize, kc: usize, _nc_len: usize, kc_len: usize, _run: bool) -> *const T
     {
         let ib = nc / self.mc;
         let jb = kc / self.kc;

@@ -22,13 +22,14 @@ use crate::MyFn;
 
 const VS: usize = 16;
 
-pub unsafe fn axpy(
+pub unsafe fn axpy<F: MyFn>(
    m: usize, n: usize,
    alpha: *const TA,
    a: *const TA, a_rs: usize, a_cs: usize,
    x: *const TB, incx: usize,
    beta: *const TC,
    y: *mut TC, incy: usize,
+    _f: F,
 ) {
    if a_cs == 1 && incx == 1 {
        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
@@ -78,7 +79,7 @@ pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
     c: *mut TC, ct: *const TC,
     m: usize,
