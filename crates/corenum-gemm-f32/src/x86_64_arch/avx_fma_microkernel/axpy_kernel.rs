@@ -12,38 +12,9 @@ use super::super::VS;
 const K_UNROLL: usize = 4;
 
 
-// this is well optimized by compiler
-// TODO: investigate the behaviour of optimization for earlier versions of rustc
-// it differs for N < 8 for version below 1.71.0 in godbolt
-// see: https://godbolt.org/z/197YcKrrY
-// this can be mitigated by writing code for literal values of N with constant branching (to be optimized away by compiler)
-// #[inline(always)]
-// unsafe fn v_storeu_n<const N: usize>(mem_addr: *mut f32, a: __m256) {
-//     let mut a_arr = [0_f32; 8];
-//     _mm256_storeu_ps(a_arr.as_mut_ptr(), a);
-//     copy_nonoverlapping(a_arr.as_ptr(), mem_addr, N);
-// }
-
-
-// #[inline(always)]
-// unsafe fn v_loadu_n<const N: usize>(mem_addr: *const f32) -> __m256 {
-//     let mut a_arr = [0_f32; 8];
-//     copy_nonoverlapping(mem_addr, a_arr.as_mut_ptr(), N);
-//     _mm256_loadu_ps(a_arr.as_ptr())
-// }
-
-
 // TODO: optimize axpy for m=1 case,
 // for each loop we use, less than optimal number of registers, less than 16
 // modify so that we use 16 registers for each loop step
-
-
-#[inline(always)]
-unsafe fn v_storeu_n(mem_addr: *mut f32, a: __m256, n: usize) {
-   let mut a_arr = [0_f32; 8];
-   _mm256_storeu_ps(a_arr.as_mut_ptr(), a);
-   copy_nonoverlapping(a_arr.as_ptr(), mem_addr, n);
-}
 
 
 #[inline(always)]
@@ -71,210 +42,211 @@ pub(crate) unsafe fn axpy_v(
    let m_lane4 = m / (VS*4) * VS*4;
    let m_lane = m / VS * VS;
 
-    let mut col = 0;
+    let mut ni = 0;
     let mut a_cur0 = a;
     let mut x_cur0 = x;
-   while col < n_lane {
+   while ni < n_lane {
        let mut a_cur = a_cur0;
        let mut y_cur = y;
-       let mut rhs_arr = [0.0; 4];
-         copy_nonoverlapping(x_cur0, rhs_arr.as_mut_ptr(), 4);
-        rhs_arr.iter_mut().for_each(|x| *x *= *alpha);
-        let x_cur = rhs_arr.as_ptr();
+       let mut xt_arr = [0.0; 4];
+         for i in 0..4 {
+             xt_arr[i] = *alpha * *x_cur0.add(i*incx);
+         }
+        let x_cur = xt_arr.as_ptr();
 
-        let rhs0 = _mm256_broadcast_ss(&*x_cur);
-        let rhs1 = _mm256_broadcast_ss(&*x_cur.add(1));
-        let rhs2 = _mm256_broadcast_ss(&*x_cur.add(2));
-        let rhs3 = _mm256_broadcast_ss(&*x_cur.add(3));
-        let mut row = 0usize;
+        let xt0 = _mm256_broadcast_ss(&*x_cur);
+        let xt1 = _mm256_broadcast_ss(&*x_cur.add(1));
+        let xt2 = _mm256_broadcast_ss(&*x_cur.add(2));
+        let xt3 = _mm256_broadcast_ss(&*x_cur.add(3));
+        let mut mi = 0usize;
         if beta == 1.0 {
-            while row < m_lane4 {
+            while mi < m_lane4 {
                 seq!(i in 0..4{
-                    let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0, _mm256_loadu_ps(y_cur.add(VS*i)));
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), rhs1, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), rhs2, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), rhs3, c~i);
+                    let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0, _mm256_loadu_ps(y_cur.add(VS*i)));
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), xt1, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), xt2, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), xt3, c~i);
                     _mm256_storeu_ps(y_cur.add(VS*i), c~i);
                 });
                 a_cur = a_cur.add(VS*4);
                 y_cur = y_cur.add(VS*4);
-                row += VS*4;
+                mi += VS*4;
             }
-            while row < m_lane {
-                let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), rhs0, _mm256_loadu_ps(y_cur));
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), rhs1, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), rhs2, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), rhs3, c0);
+            while mi < m_lane {
+                let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), xt0, _mm256_loadu_ps(y_cur));
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), xt1, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), xt2, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), xt3, c0);
                 _mm256_storeu_ps(y_cur, c0);
                 a_cur = a_cur.add(VS);
                 y_cur = y_cur.add(VS);
-                row += VS;
+                mi += VS;
             }
-            while row < m {
+            while mi < m {
                 *y_cur = *a_cur * *x_cur + *y_cur;
                 *y_cur = *a_cur.add(lda) * *x_cur.add(1) + *y_cur;
                 *y_cur = *a_cur.add(lda*2) * *x_cur.add(2) + *y_cur;
                 *y_cur = *a_cur.add(lda*3) * *x_cur.add(3) + *y_cur;
                 a_cur = a_cur.add(1);
                 y_cur = y_cur.add(1);
-                row += 1;
+                mi += 1;
             }
         } else if beta == 0.0 {
-            while row < m_lane4 {
+            while mi < m_lane4 {
                 seq!(i in 0..4{
-                    let mut c~i = _mm256_mul_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), rhs1, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), rhs2, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), rhs3, c~i);
+                    let mut c~i = _mm256_mul_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), xt1, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), xt2, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), xt3, c~i);
                     _mm256_storeu_ps(y_cur.add(VS*i), c~i);
                 });
                 a_cur = a_cur.add(VS*4);
                 y_cur = y_cur.add(VS*4);
-                row += VS*4;
+                mi += VS*4;
             }
-            while row < m_lane {
-                let mut c0 = _mm256_mul_ps(_mm256_loadu_ps(a_cur), rhs0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), rhs1, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), rhs2, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), rhs3, c0);
+            while mi < m_lane {
+                let mut c0 = _mm256_mul_ps(_mm256_loadu_ps(a_cur), xt0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), xt1, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), xt2, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), xt3, c0);
                 _mm256_storeu_ps(y_cur, c0);
                 a_cur = a_cur.add(VS);
                 y_cur = y_cur.add(VS);
-                row += VS;
+                mi += VS;
             }
-            while row < m {
+            while mi < m {
                 *y_cur = *a_cur * *x_cur;
                 *y_cur = *a_cur.add(lda) * *x_cur.add(1) + *y_cur;
                 *y_cur = *a_cur.add(lda*2) * *x_cur.add(2) + *y_cur;
                 *y_cur = *a_cur.add(lda*3) * *x_cur.add(3) + *y_cur;
                 a_cur = a_cur.add(1);
                 y_cur = y_cur.add(1);
-                row += 1;
+                mi += 1;
             }
         } else {
-            while row < m_lane4 {
+            while mi < m_lane4 {
                 seq!(i in 0..4 {
                     let cx~i = _mm256_mul_ps(_mm256_loadu_ps(y_cur.add(VS*i)), beta_v);
-                    let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0, cx~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), rhs1, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), rhs2, c~i);
-                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), rhs3, c~i);
+                    let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0, cx~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda)), xt1, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*2)), xt2, c~i);
+                    c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i+lda*3)), xt3, c~i);
                     _mm256_storeu_ps(y_cur.add(VS*i), c~i);
                 });
                 a_cur = a_cur.add(VS*4);
                 y_cur = y_cur.add(VS*4);
-                row += VS*4;
+                mi += VS*4;
             }
-            while row < m_lane {
+            while mi < m_lane {
                 let cx0 = _mm256_mul_ps(_mm256_loadu_ps(y_cur), beta_v);
-                let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), rhs0, cx0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), rhs1, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), rhs2, c0);
-                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), rhs3, c0);
+                let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), xt0, cx0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda)), xt1, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*2)), xt2, c0);
+                c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(lda*3)), xt3, c0);
                 _mm256_storeu_ps(y_cur, c0);
                 a_cur = a_cur.add(VS);
                 y_cur = y_cur.add(VS);
-                row += VS;
+                mi += VS;
             }
-            while row < m {
+            while mi < m {
                 *y_cur = *a_cur * *x_cur + *y_cur * beta;
                 *y_cur = *a_cur.add(lda) * *x_cur.add(1) + *y_cur;
                 *y_cur = *a_cur.add(lda*2) * *x_cur.add(2) + *y_cur;
                 *y_cur = *a_cur.add(lda*3) * *x_cur.add(3) + *y_cur;
                 a_cur = a_cur.add(1);
                 y_cur = y_cur.add(1);
-                row += 1;
+                mi += 1;
             }
         }
         a_cur0 = a_cur0.add(lda*4);
-        x_cur0 = x_cur0.add(4);
+        x_cur0 = x_cur0.add(4*incx);
        beta = 1.0;
-       col += 4;
+       ni += 4;
    }
 
-   while col < n {
+   while ni < n {
     let mut a_cur = a_cur0;
     let mut y_cur = y;
       let xt = *x_cur0 * *alpha;
      let x_cur = &xt as *const f32;
 
-     let rhs0 = _mm256_broadcast_ss(&*x_cur);
-     let mut row = 0usize;
+     let xt0 = _mm256_broadcast_ss(&*x_cur);
+     let mut mi = 0usize;
      if beta == 1.0 {
-         while row < m_lane4 {
+         while mi < m_lane4 {
              seq!(i in 0..4{
-                 let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0, _mm256_loadu_ps(y_cur.add(VS*i)));
+                 let c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0, _mm256_loadu_ps(y_cur.add(VS*i)));
                  _mm256_storeu_ps(y_cur.add(VS*i), c~i);
              });
              a_cur = a_cur.add(VS*4);
              y_cur = y_cur.add(VS*4);
-             row += VS*4;
+             mi += VS*4;
          }
-         while row < m_lane {
-             let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), rhs0, _mm256_loadu_ps(y_cur));
+         while mi < m_lane {
+             let c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), xt0, _mm256_loadu_ps(y_cur));
              _mm256_storeu_ps(y_cur, c0);
              a_cur = a_cur.add(VS);
              y_cur = y_cur.add(VS);
-             row += VS;
+             mi += VS;
          }
-         while row < m {
+         while mi < m {
              *y_cur = *a_cur * *x_cur + *y_cur;
              a_cur = a_cur.add(1);
              y_cur = y_cur.add(1);
-             row += 1;
+             mi += 1;
          }
      } else if beta == 0.0 {
-         while row < m_lane4 {
+         while mi < m_lane4 {
              seq!(i in 0..4{
-                 let mut c~i = _mm256_mul_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0);
+                 let c~i = _mm256_mul_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0);
                  _mm256_storeu_ps(y_cur.add(VS*i), c~i);
              });
              a_cur = a_cur.add(VS*4);
              y_cur = y_cur.add(VS*4);
-             row += VS*4;
+             mi += VS*4;
          }
-         while row < m_lane {
-             let mut c0 = _mm256_mul_ps(_mm256_loadu_ps(a_cur), rhs0);
+         while mi < m_lane {
+             let c0 = _mm256_mul_ps(_mm256_loadu_ps(a_cur), xt0);
              _mm256_storeu_ps(y_cur, c0);
              a_cur = a_cur.add(VS);
              y_cur = y_cur.add(VS);
-             row += VS;
+             mi += VS;
          }
-         while row < m {
+         while mi < m {
              *y_cur = *a_cur * *x_cur;
              a_cur = a_cur.add(1);
              y_cur = y_cur.add(1);
-             row += 1;
+             mi += 1;
          }
      } else {
-         while row < m_lane4 {
+         while mi < m_lane4 {
              seq!(i in 0..4 {
                  let cx~i = _mm256_mul_ps(_mm256_loadu_ps(y_cur.add(VS*i)), beta_v);
-                 let mut c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), rhs0, cx~i);
+                 let c~i = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur.add(VS*i)), xt0, cx~i);
                  _mm256_storeu_ps(y_cur.add(VS*i), c~i);
              });
              a_cur = a_cur.add(VS*4);
              y_cur = y_cur.add(VS*4);
-             row += VS*4;
+             mi += VS*4;
          }
-         while row < m_lane {
+         while mi < m_lane {
              let cx0 = _mm256_mul_ps(_mm256_loadu_ps(y_cur), beta_v);
-             let mut c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), rhs0, cx0);
+             let c0 = _mm256_fmadd_ps(_mm256_loadu_ps(a_cur), xt0, cx0);
              _mm256_storeu_ps(y_cur, c0);
              a_cur = a_cur.add(VS);
              y_cur = y_cur.add(VS);
-             row += VS;
+             mi += VS;
          }
-         while row < m {
+         while mi < m {
              *y_cur = *a_cur * *x_cur + *y_cur * beta;
              a_cur = a_cur.add(1);
              y_cur = y_cur.add(1);
-             row += 1;
+             mi += 1;
          }
      }
      a_cur0 = a_cur0.add(lda);
-     x_cur0 = x_cur0.add(1);
-     col += 1;
+     x_cur0 = x_cur0.add(1*incx);
+     ni += 1;
     beta = 1.0;
 }
 }
