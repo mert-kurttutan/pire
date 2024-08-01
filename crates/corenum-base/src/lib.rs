@@ -109,6 +109,13 @@ fn detect_hw_config() -> HWConfig {
 pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
     detect_hw_config()
 });
+
+pub static CORENUM_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
+    let n_core = std::thread::available_parallelism().unwrap().get();
+    // CORENUM_NUM_THREADS or the number of logical cores
+    let x = std::env::var("CORENUM_NUM_THREADS").unwrap_or(n_core.to_string());
+    x.parse::<usize>().unwrap()
+});
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod cpu_features{
     use super::RUNTIME_HW_CONFIG;
@@ -258,11 +265,10 @@ impl<'a> CorenumThreadConfig {
     }
 }
 
+// once this is read, this cannot be changed for the time being.
+#[inline(always)]
 pub fn corenum_num_threads() -> usize {
-    let n_core = std::thread::available_parallelism().unwrap().get();
-    // CORENUM_NUM_THREADS or the number of logical cores
-    let x = std::env::var("CORENUM_NUM_THREADS").unwrap_or(n_core.to_string());
-    x.parse::<usize>().unwrap()
+    return *CORENUM_NUM_THREADS;
 }
 
 #[derive(Copy,Clone)]
@@ -310,7 +316,7 @@ impl CorenumPar {
            jr_par,
        }
    }
-
+   #[inline(always)]
    pub fn default() -> Self {
        let num_threads = corenum_num_threads();
        Self::from_num_threads(num_threads)

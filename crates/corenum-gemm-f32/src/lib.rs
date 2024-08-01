@@ -135,9 +135,9 @@ pub unsafe fn corenum_sgemv(
 		m, 1, n,
 		alpha,
 		a, a_rs, a_cs,
-		x, incx, 1,
+		x, 1, incx,
 		beta,
-		y, incy, 1,
+		y, 1, incy,
 	)	
 }
 pub unsafe fn corenum_sdot(

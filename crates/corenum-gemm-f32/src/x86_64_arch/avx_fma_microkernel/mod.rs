@@ -30,16 +30,22 @@ pub unsafe fn axpy<F: MyFn>(
    x: *const TB, incx: usize,
    beta: *const TC,
    y: *mut TC, incy: usize,
-   _f: F,
+   f: F,
 ) {
    if a_cs == 1 && incx == 1 {
        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+       for i in 0..m {
+           f.call(y.add(i*incy), m);
+       }
        return;
    }
    if a_rs == 1 && incy == 1 {
-       axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-       return;
+    axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+    // move this inside axpy_v, and benchmark
+    f.call(y, m);
+    return;
    }
+
    if a_cs == 1 {
        for i in 0..m {
            let a_cur = a.add(i*a_rs);
@@ -50,6 +56,7 @@ pub unsafe fn axpy<F: MyFn>(
                acc += *a_cur.add(j) * *x_cur;
            }
            *y_cur = *beta * *y_cur + *alpha * acc;
+           f.call(y_cur, 1);
        }
        return;
    }
@@ -63,6 +70,7 @@ pub unsafe fn axpy<F: MyFn>(
                acc += *a_cur.add(i) * *x_cur;
            }
            *y_cur = *beta * *y_cur + *alpha * acc;
+            f.call(y_cur, 1);
        }
        return;
    }

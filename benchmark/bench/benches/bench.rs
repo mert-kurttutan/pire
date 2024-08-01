@@ -1,6 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use corenum_gemm_f32::*;
-// use nalgebra::DMatrix;
 use std::{thread::available_parallelism, time::Duration};
 
 #[cfg(feature="rustgemm")]
@@ -314,9 +313,26 @@ extern "C" {
 const ALPHA: f32 = 1.0;
 const BETA: f32 = 1.0;
 
+#[derive(Clone, Copy, Debug)]
 pub enum DimSize{
     Big,
     Small,
+}
+fn get_mnk(dim_triple: (DimSize, DimSize, DimSize), d0: usize, dt: usize) -> (usize, usize, usize) {
+    let m = match dim_triple.0 {
+        DimSize::Small => d0,
+        DimSize::Big => dt,
+    };
+    let n = match dim_triple.1 {
+        DimSize::Small => d0,
+        DimSize::Big => dt,
+    };
+    let k = match dim_triple.2 {
+        DimSize::Small => d0,
+        DimSize::Big => dt,
+    };
+    (m, n, k)
+
 }
 
 fn benchmark_dim(bench_type: (DimSize, DimSize, DimSize), d0: usize, d1: usize, step: usize) -> Vec<(usize, usize, usize)> {
@@ -443,15 +459,18 @@ pub fn bench_blas_group<M: criterion::measurement::Measurement>(
 
 
 use criterion::BenchmarkId;
+
 pub fn bench_blas_group3<M: criterion::measurement::Measurement>(
     bench_c: &mut BenchmarkGroup<M>, 
-    m: usize, n: usize, k: usize,
-    a: *const f32, a_rs: usize, a_cs: usize,
-    b: *const f32, b_rs: usize, b_cs: usize,
-    c: *mut f32, c_rs: usize, c_cs: usize,
+    dim_triple: (DimSize, DimSize, DimSize),
+    d0: usize, dt: usize,
+    a: *const f32,
+    b: *const f32,
+    c: *mut f32,
 ) {
+    let (m, n, k) = get_mnk(dim_triple, d0, dt);
     bench_c.bench_with_input(
-        BenchmarkId::new("f32-mkl-gemm", m), &m, 
+        BenchmarkId::new("f32-mkl-gemm", dt), &dt, 
         |bench_b, x| bench_b.iter(
             || unsafe {
                 cblas_sgemm(
@@ -469,17 +488,56 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement>(
         )
     );
     bench_c.bench_with_input(
-        BenchmarkId::new("f32-corenum-gemm", m), &m, 
+        BenchmarkId::new("f32-corenum-gemm", dt), &dt, 
         |bench_b, x| bench_b.iter(
             || unsafe {
                 corenum_sgemm(
                     m, n, k,
                     ALPHA,
-                    a, a_rs, a_cs, 
-                    b, b_rs, b_cs,
+                    a, 1, m,
+                    b, 1, k,
                     BETA,
-                    c, c_rs, c_cs,
+                    c, 1, m,
                 );
+            }
+        )
+    );
+
+    #[cfg(feature="blis")]
+    bench_c.bench_with_input(
+        BenchmarkId::new("f32-blis-gemm", dt), &dt, 
+        |bench_b, x| bench_b.iter(
+            || unsafe {
+                bli_sgemm(
+                    BLIS_NO_TRANSPOSE,
+                    BLIS_NO_TRANSPOSE,
+                    m as i32, n as i32, k as i32,
+                    &ALPHA,
+                    a, 1, m as i32,
+                    b, 1, k as i32,
+                    &BETA,
+                    c, 1, m as i32,
+                );
+            }
+        )
+    );
+
+    #[cfg(feature="rustgemm")]
+    bench_c.bench_with_input(
+        BenchmarkId::new("f32-rust-gemm", dt), &dt, 
+        |bench_b, x| bench_b.iter(
+            || unsafe {
+                gemm(
+                    m, n, k,
+                    c, m as isize, 1,
+                    true,
+                    a, m as isize, 1,
+                    b, k as isize, 1,
+                    0.0_f32,
+                    0.0_f32,
+                    false, false, false,
+                    gemm::Parallelism::Rayon(0),
+                )
             }
         )
     );
@@ -584,6 +642,7 @@ pub fn bench_blas_group2(
     );
 }
 
+
 // pub fn criterion_benchmark(c: &mut Criterion) {
 //     {
 //         let mnk_vec = benchmark_dim((DimSize::Big, DimSize::Big, DimSize::Big), 1000, 5000, 400);
@@ -600,38 +659,29 @@ pub fn bench_blas_group2(
 //     }
 // }
 
+
+
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
-    let mnk_vec = benchmark_dim((DimSize::Big, DimSize::Big, DimSize::Big), 2000, 5000, 200);
-    let m1 = 6000;
-    let n1 = 6000;
-    let k1 = 6000;
+    let dim_triple = (DimSize::Big, DimSize::Small, DimSize::Big);
+    let m1 = 8000;
+    let n1 = 8000;
+    let k1 = 8000;
     let a = vec![0.0_f32; m1 * k1];
     let b_vec = vec![0.0_f32; k1 * n1];
     let mut c_vec = vec![0.0_f32; m1 * n1];
+    let d0 = 1;
     let mnk_vec = vec![
-        (10, 10, 10), 
-        (40, 40, 40), 
-        (80, 80, 80), 
-        (160, 160, 160), 
-        (320, 320, 320), 
-        (640, 640, 640), 
-        (1280, 1280, 1280), 
-        (1600, 1600, 1600), 
-        (2000, 2000, 2000), 
-        (2400, 2400, 2400), 
-        (2800, 2800, 2800), 
-        (3200, 3200, 3200), 
-        (3600, 3600, 3600), 
-        (4000, 4000, 4000), 
-        (4400, 4400, 4400), 
-        (4800, 4800, 4800), 
-        (5000, 5000, 5000),
-        (6000, 6000, 6000)
+        // 10, 100, 
+        // 128,
+        // 256,
+        // 320, 640, 960, 2048,
+        // 2400, 3200, 4000, 4800, 5600, 6400, 
+        7200, 8000,
     ];
-    for (m, n, k) in mnk_vec.iter() {
-        bench_blas_group3(&mut group, *m, *n, *k, a.as_ptr(), 1, *m, b_vec.as_ptr(), 1, *k, c_vec.as_mut_ptr(), 1, *m);
+    for dt in mnk_vec {
+        bench_blas_group3(&mut group, dim_triple, d0, dt, a.as_ptr(), b_vec.as_ptr(), c_vec.as_mut_ptr());
         // bench_blas_group2(c, *m, *n, *k, a.as_ptr(), 1, *m, b_vec.as_ptr(), 1, *k, c_vec.as_mut_ptr(), 1, *m);
         // group.bench_with_input(BenchmarkId::new("Recursive", i), i, 
         //     |b, i| b.iter(|| fibonacci_slow(*i)));
