@@ -15,20 +15,20 @@ use corenum_base::{
     Gemv,
  };
  
-pub const GOTO_MC: usize = env_or!("CORENUM_SGEMM_MC", 4800);
-pub const GOTO_NC: usize = env_or!("CORENUM_SGEMM_NC", 320);
-pub const GOTO_KC: usize = env_or!("CORENUM_SGEMM_KC", 192);
-pub const GOTO_MR: usize = env_or!("CORENUM_SGEMM_MR", 24);
-pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
+// pub const GOTO_MC: usize = env_or!("CORENUM_SGEMM_MC", 4800);
+// pub const GOTO_NC: usize = env_or!("CORENUM_SGEMM_NC", 320);
+// pub const GOTO_KC: usize = env_or!("CORENUM_SGEMM_KC", 192);
+// pub const GOTO_MR: usize = env_or!("CORENUM_SGEMM_MR", 24);
+// pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
 
-pub const SGEMM_M_TH: usize = env_or!("CORENUM_SGEMM_SPM_TH", 128);
-pub const SGEMM_N_TH: usize = env_or!("CORENUM_SGEMM_SPN_TH", 256);
-pub const SGEMM_K_TH: usize = env_or!("CORENUM_SGEMM_SPK_TH", 256);
+// pub const SGEMM_M_TH: usize = env_or!("CORENUM_SGEMM_SPM_TH", 128);
+// pub const SGEMM_N_TH: usize = env_or!("CORENUM_SGEMM_SPN_TH", 256);
+// pub const SGEMM_K_TH: usize = env_or!("CORENUM_SGEMM_SPK_TH", 256);
 
-pub const SA_NC: usize = env_or!("CORENUM_SGEMM_NC_SA", 168);
-pub const SA_KC: usize = env_or!("CORENUM_SGEMM_KC_SA", 256);
-pub const SA_MR: usize = env_or!("CORENUM_SGEMM_MR_SA", 16);
-pub const SA_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 6);
+// pub const SA_NC: usize = env_or!("CORENUM_SGEMM_NC_SA", 168);
+// pub const SA_KC: usize = env_or!("CORENUM_SGEMM_KC_SA", 256);
+// pub const SA_MR: usize = env_or!("CORENUM_SGEMM_MR_SA", 16);
+// pub const SA_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 6);
 
 pub struct ReferenceGemv {}
  
