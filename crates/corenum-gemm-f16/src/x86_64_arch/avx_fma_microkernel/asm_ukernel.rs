@@ -1,6 +1,5 @@
 use seq_macro::seq;
 use std::arch::asm;
-use half::slice::HalfFloatSliceExt;
 use half::f16;
 
 use paste::paste;

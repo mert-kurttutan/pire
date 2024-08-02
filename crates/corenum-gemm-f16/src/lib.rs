@@ -12,11 +12,13 @@ pub(crate) type TC = f16;
 
 #[cfg(target_arch = "x86_64")]
 use corenum_base::{
-	hw_avx,
-	hw_avx512f,
-	hw_fma,
 	hw_model,
     hw_avx512f16,
+};
+
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::{
+	F32Dispatcher, F16Dispatcher,
 };
 
 #[derive(Copy, Clone)]
@@ -44,7 +46,6 @@ use corenum_base::{
 	GemmSmallN,
 	GemmCache,
 	Gemv,
-	corenum_gemv,
 	corenum_gemm,
 	StridedMatrix,
 	GemmArray,
@@ -55,7 +56,6 @@ pub use corenum_base::CorenumPar;
 
 pub use half::f16;
 
-use std::thread;
 use corenum_base::RUNTIME_HW_CONFIG;
 
 
@@ -75,18 +75,25 @@ C: GemmOut<X=f16,Y=f16>,
 	#[cfg(target_arch = "x86_64")]
 	{
         if hw_avx512f16() {
-            let hw_config = x86_64_arch::Avx512Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_arch::Avx512Features::Avx512F16);
+            let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_arch::F16Features::Avx512F16);
             corenum_gemm(
                 &hw_config, m, n, k, alpha, a, b, beta, c, &par
             );
             return;
-        } 
-        if hw_avx() {
-            let hw_config = x86_64_arch::AvxDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 320, 192, x86_64_arch::AvxFeatures::AvxFma);
-            corenum_gemm(
-                &hw_config, m, n, k, alpha.to_f32(), a, b, beta, c, &par
-            );
         }
+
+        // TODO: test compuation in bf16 for bf16 targets
+		use corenum_base::F32Features;
+		let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
+			F32Features::Avx512F => (4800, 192, 512),
+			F32Features::AvxFma => (4800, 320, 192),
+			_ => (4800, 320, 192),
+		};
+		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
+		corenum_gemm(
+			&hw_config, m, n, k, alpha.to_f32(), a, b, beta, c, &par
+		);
 	}
 
 	#[cfg(target_arch="aarch64")]
@@ -139,6 +146,7 @@ mod tests {
 	const EPS: f64 = 2e-1;
 
 	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 17, 38, 40, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
+	// static M_ARR: [usize; 1] = [48];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
 	static K_ARR: [usize; 5] = [1, 8, 16, 64, 128];
 	static ALPHA_ARR: [f32; 1] = [1.0];

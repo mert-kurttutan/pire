@@ -12,9 +12,6 @@ pub(crate) type TC = f32;
 
 #[cfg(target_arch = "x86_64")]
 use corenum_base::{
-	hw_avx,
-	hw_avx512f,
-	hw_fma,
 	hw_model,
 };
 
@@ -71,11 +68,13 @@ F: MyFn,
 ) 
 where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>
 {
-	let (x86_64_features, mc, nc, kc) = if hw_avx512f() {
-		(x86_64_arch::X86_64Features::Avx512f, 4800, 192, 512)
-	} else {
-		(x86_64_arch::X86_64Features::AvxFma, 4800, 320, 192)
+	use corenum_base::F32Features;
+	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
+		F32Features::Avx512F => (4800, 192, 512),
+		F32Features::AvxFma => (4800, 320, 192),
+		_ => (4800, 320, 192),
 	};
+	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
 	let par = CorenumPar::default();
 	corenum_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
@@ -177,49 +176,49 @@ pub unsafe fn packa_f32(
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let avx = hw_avx();
-		let fma = hw_fma();
-		let model = hw_model();
-		let avx512f = hw_avx512f();
-		if avx512f {
-			match model {
-				_ => {
-					const MC: usize = 4800;
-					const MR: usize = 48;
-					const KC: usize = 512;
-					for i in (0..m).step_by(MC) {
-						let mc_len = if m >= (i + MC) {MC} else {m - i};
-						let mc_len_eff = (mc_len + MR-1) / MR * MR;
-						for p in (0..k).step_by(KC) {
-							let kc_len = if k >= (p + KC) {KC} else {k - p};
-							// avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-							ap = ap.add(mc_len_eff*kc_len);	
-						}
-					}
-				}
-			}
-			return;
+		// let avx = hw_avx();
+		// let fma = hw_fma();
+		// let model = hw_model();
+		// let avx512f = hw_avx512f();
+		// if avx512f {
+		// 	match model {
+		// 		_ => {
+		// 			const MC: usize = 4800;
+		// 			const MR: usize = 48;
+		// 			const KC: usize = 512;
+		// 			for i in (0..m).step_by(MC) {
+		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
+		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
+		// 				for p in (0..k).step_by(KC) {
+		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
+		// 					// avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+		// 					ap = ap.add(mc_len_eff*kc_len);	
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// 	return;
 		
-		}
-		if avx && fma {
-			match model {
-				_ => {
-					const MC: usize = 4800;
-					const MR: usize = 24;
-					const KC: usize = 192;
-					for i in (0..m).step_by(MC) {
-						let mc_len = if m >= (i + MC) {MC} else {m - i};
-						let mc_len_eff = (mc_len + MR-1) / MR * MR;
-						for p in (0..k).step_by(KC) {
-							let kc_len = if k >= (p + KC) {KC} else {k - p};
-							// avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-							ap = ap.add(mc_len_eff*kc_len);	
-						}
-					}
-				}
-			}
-			return;
-		}
+		// }
+		// if avx && fma {
+		// 	match model {
+		// 		_ => {
+		// 			const MC: usize = 4800;
+		// 			const MR: usize = 24;
+		// 			const KC: usize = 192;
+		// 			for i in (0..m).step_by(MC) {
+		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
+		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
+		// 				for p in (0..k).step_by(KC) {
+		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
+		// 					// avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+		// 					ap = ap.add(mc_len_eff*kc_len);	
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// 	return;
+		// }
 	}
 
 }
@@ -290,6 +289,7 @@ mod tests {
 									beta,
 									&mut c, c_rs, c_cs,
 									&mut c_ref,
+									EPS,
 								)
 							};
                         	// if diff_max >= EPS {
@@ -365,6 +365,7 @@ mod tests {
 									beta,
 									&mut c, c_rs, c_cs,
 									&mut c_ref,
+									EPS,
 								)
 							};
                         	// if diff_max >= EPS {
