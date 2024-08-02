@@ -7,7 +7,7 @@ use paste::paste;
 
 use std::arch::x86_64::*;
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_t<const MR: usize>(
     a: *const TA, lda: usize,
     ap: *mut TB,
@@ -68,7 +68,7 @@ pub(crate) unsafe fn pack_t<const MR: usize>(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     m_left: usize, k: usize,
     a: *const TA, a_rs: usize, a_cs: usize,
@@ -81,7 +81,7 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn storeu_ps<const M: usize>(
     src: __m256, dst: *mut f32
 ) {
@@ -90,13 +90,13 @@ pub(crate) unsafe fn storeu_ps<const M: usize>(
     copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f32, b: *mut f32) {
     std::ptr::copy_nonoverlapping(a, b, M);
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -135,7 +135,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx24_v0(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -176,7 +176,7 @@ pub(crate) unsafe fn pack_kx24_v0(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx16_v0(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -213,7 +213,7 @@ pub(crate) unsafe fn pack_kx16_v0(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx6_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -250,7 +250,7 @@ pub(crate) unsafe fn pack_kx6_v0(
 
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx5_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -287,7 +287,7 @@ pub(crate) unsafe fn pack_kx5_v0(
 
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx4_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -323,7 +323,7 @@ pub(crate) unsafe fn pack_kx4_v0(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx3_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -360,7 +360,7 @@ pub(crate) unsafe fn pack_kx3_v0(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx2_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -397,7 +397,7 @@ pub(crate) unsafe fn pack_kx2_v0(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx1_v0(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -433,7 +433,7 @@ pub(crate) unsafe fn pack_kx1_v0(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx24_v1(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -488,7 +488,7 @@ pub(crate) unsafe fn pack_kx24_v1(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx16_v1(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -533,7 +533,7 @@ pub(crate) unsafe fn pack_kx16_v1(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx6_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -628,7 +628,7 @@ pub(crate) unsafe fn pack_kx6_v1(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx5_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -723,7 +723,7 @@ pub(crate) unsafe fn pack_kx5_v1(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx4_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -787,7 +787,7 @@ pub(crate) unsafe fn pack_kx4_v1(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx3_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -849,7 +849,7 @@ pub(crate) unsafe fn pack_kx3_v1(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx2_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -909,7 +909,7 @@ pub(crate) unsafe fn pack_kx2_v1(
 }
 
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx1_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, _ldb: usize,
@@ -972,7 +972,7 @@ macro_rules! def_packb {
    ($nr:tt) => {
        seq!(NL in 1..$nr {
            paste! {
-            #[target_feature(enable = "avx,fma")]
+            #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packb_panel_$nr>](
                    n: usize, k: usize,
                    b: *const TB, b_rs: usize, b_cs: usize,
@@ -1064,7 +1064,7 @@ macro_rules! mul8_2 {
 macro_rules! def_packa {
     ($mr:tt, $($mr_left:tt),*) => {
         paste! {
-            #[target_feature(enable = "avx,fma")]
+            #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_$mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,

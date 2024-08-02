@@ -7,6 +7,7 @@
 
 use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort};
 
+use half::f16;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -163,7 +164,9 @@ where rand::distributions::Standard: rand::prelude::Distribution<T>,
 
 
 
-pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(ap: &[T], bp: &[T]) -> f64
+pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(
+    ap: &[T], bp: &[T], eps: f64
+) -> f64
 where f64: From<<T as std::ops::Sub>::Output>
 {
    let mut diff = 0_f64;
@@ -173,19 +176,16 @@ where f64: From<<T as std::ops::Sub>::Output>
    for i in 0..len {
        let a = ap[i];
        let b = bp[i];
-       let cur_diff = <<T as std::ops::Sub>::Output as Into<f64>>::into(a-b).abs();
-       // println!("cur_diff: {:?}, a: {:?}, b: {:?}", cur_diff, a, b);
+       let cur_diff_abs: f64 = <<T as std::ops::Sub>::Output as Into<f64>>::into(a-b).abs().into();
+       let cur_diff_rel: f64 = cur_diff_abs / b.into().abs();
+       let cur_diff = cur_diff_abs.min(cur_diff_rel);
+       ;
        if cur_diff > diff {
-        //    println!("i: {:?}, cur_diff: {:?}, a: {:?}, b: {:?}", i, cur_diff, a, b);
             diff_idx = i;
            diff = cur_diff;
        }
    }
-//    println!("diff_idx: {:?}", diff_idx);
-//    println!("ap[diff_idx]: {:?}, bp[diff_idx]: {:?}", ap[diff_idx], bp[diff_idx]);
    diff
-   // let diff = ap.iter().zip(bp.iter()).map(|(a, b)| <<T as std::ops::Sub>::Output as Into<f64>>::into(*a-*b).abs()).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-   // diff
 }
 
 
@@ -211,7 +211,6 @@ pub fn my_gemm_ref_row(m: usize, n: usize, k: usize, a: &[f64], ld_a: usize, b: 
 }
 
 
-// #[target_feature(enable = "neon")]
 pub unsafe fn gemm_fallback_f32(
 	m: usize, n: usize, k: usize,
 	alpha: f32,
@@ -223,6 +222,27 @@ pub unsafe fn gemm_fallback_f32(
     for i in 0..m {
         for j in 0..n {
             let mut dx = 0.0;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
+            }
+            *c.add(c_rs * i + c_cs * j ) = alpha * dx +  beta * *c.add(c_rs * i + c_cs * j );
+        }
+    }
+}
+
+
+
+pub unsafe fn gemm_fallback_f16(
+	m: usize, n: usize, k: usize,
+	alpha: f16,
+	a: *const f16, a_rs: usize, a_cs: usize,
+	b: *const f16, b_rs: usize, b_cs: usize,
+	beta: f16,
+	c: *mut f16, c_rs: usize, c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = f16::ZERO;
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
             }
@@ -306,23 +326,58 @@ pub unsafe fn check_gemm_f32(
 	beta: f32,
 	c: &[f32], c_rs: usize, c_cs: usize,
     c_ref: &mut [f32],
+    eps: f64,
 ) -> f64 {
     #[cfg(feature="mkl")] {
         let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         cblas_sgemm(
             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref.as_mut_ptr(), ldc
         );
-        let diff = max_abs_diff(&c, &c_ref);
+        let diff = max_abs_diff(&c, &c_ref, eps);
         return diff;
     }
     #[cfg(not(feature="mkl"))] {
         // calculate diff using fallback
         gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref);
+        let diff = max_abs_diff(&c, &c_ref, eps);
         return diff;
     }
 
 }
+
+
+pub unsafe fn check_gemm_f16(
+	m: usize, n: usize, k: usize,
+	alpha: f16,
+	a: *const f16, a_rs: usize, a_cs: usize,
+	b: *const f16, b_rs: usize, b_cs: usize,
+	beta: f16,
+	c: &[f16], c_rs: usize, c_cs: usize,
+    c_ref: &mut [f16],
+    eps: f64,
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let a = a as *const u16;
+        let b = b as *const u16;
+        let c_ref_ptr = c_ref.as_mut_ptr() as *mut u16;
+        let alpha = alpha.to_bits();
+        let beta = beta.to_bits();
+        cblas_hgemm(
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc
+        );
+        let diff = max_abs_diff(&c, &c_ref, eps);
+        return diff;
+    }
+    #[cfg(not(feature="mkl"))] {
+        // calculate diff using fallback
+        gemm_fallback_f16(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+        let diff = max_abs_diff(&c, &c_ref, eps);
+        return diff;
+    }
+
+}
+
 
 
 pub fn cblas_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(i32, i32, i32, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE) {

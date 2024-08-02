@@ -1,6 +1,7 @@
-// pub(crate) mod avx_fma_microkernel;
+pub(crate) mod avx_fma_microkernel;
 // pub(crate) mod avx512f_microkernel;
 
+use crate::f16;
 use corenum_base::GemmArrayP;
 use corenum_base::PackedMatrix;
 // use avx_fma_microkernel::axpy;
@@ -23,19 +24,13 @@ use corenum_base::{
 
 use crate::{
    GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC,
-   GemmCache,
+   GemmCache, NullFn, MyFn
 };
 
-pub(crate) struct NullFn;
-
-pub(crate) trait MyFn{}
-
-impl MyFn for NullFn{}
-
-impl MyFn for fn(*mut f32, m: usize){}
-
 pub(crate) enum AvxFeatures {
+    AvxFmaF16C,
     AvxFma,
+    AvxF16C,
     Avx,
 }
 
@@ -101,11 +96,11 @@ impl AvxDispatcher {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let goto_mr = match features {
             AvxFeatures::AvxFma => AVX_FMA_GOTO_MR,
-            AvxFeatures::Avx => AVX512F_GOTO_MR,
+            _ => AVX512F_GOTO_MR,
         };
         let goto_nr = match features {
             AvxFeatures::AvxFma => AVX_FMA_GOTO_NR,
-            AvxFeatures::Avx => AVX512F_GOTO_NR,
+            _ => AVX512F_GOTO_NR,
         };
         Self {
             goto_mc: mc,
@@ -124,46 +119,49 @@ impl AvxDispatcher {
 
 impl<
 T: MyFn
-> GemmPackA<u16,f32> for AvxDispatcher<T> {
-    unsafe fn packa_fn(self: &AvxDispatcher<T>, a: *const u16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+> GemmPackA<f16,f32> for AvxDispatcher<T> {
+    unsafe fn packa_fn(self: &AvxDispatcher<T>, a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize) {
         match self.features {
-            AvxFeatures::Avx => {
+            AvxFeatures::AvxFma => {
+                avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            }
+            _ => {
                 // avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
             }
-            AvxFeatures::AvxFma => {
-                // avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            }
         }
     }
 }
 
 impl<
 T: MyFn
-> GemmPackA<u16,u16> for Avx512Dispatcher<T> {
-    unsafe fn packa_fn(self: &Avx512Dispatcher<T>, a: *const u16, ap: *mut u16, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+> GemmPackA<f16,f16> for Avx512Dispatcher<T> {
+    #[allow(unused_variables)]
+    unsafe fn packa_fn(self: &Avx512Dispatcher<T>, a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize) {
     }
 }
 
 impl<
 T: MyFn
-> GemmPackB<u16,f32> for AvxDispatcher<T> {
-    unsafe fn packb_fn(self: &AvxDispatcher<T>, b: *const u16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+> GemmPackB<f16,f32> for AvxDispatcher<T> {
+    unsafe fn packb_fn(self: &AvxDispatcher<T>, b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize) {
         // packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
         match self.features {
-            AvxFeatures::Avx => {
+            AvxFeatures::AvxFma => {
+                avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            }
+            _ => {
                 // avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
             }
-            AvxFeatures::AvxFma => {
-                // avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            }
+
         }
     }
 }
 
 impl<
 T: MyFn
-> GemmPackB<u16,u16> for Avx512Dispatcher<T> {
-    unsafe fn packb_fn(self: &Avx512Dispatcher<T>, b: *const u16, bp: *mut u16, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+> GemmPackB<f16,f16> for Avx512Dispatcher<T> {
+    #[allow(unused_variables)]
+    unsafe fn packb_fn(self: &Avx512Dispatcher<T>, b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize) {
     }
 }
 
@@ -229,11 +227,12 @@ B: GemmArray<BP>,
 }
 
 impl<
-A: GemmArray<f32, X=u16>, 
-B: GemmArray<f32, X=u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f32, X=f16>, 
+B: GemmArray<f32, X=f16>,
+C: GemmOut<X=f16,Y=f16>,
 > Gemv<f32,f32,A,B,C> for AvxDispatcher<NullFn>
 {
+    #[allow(unused_variables)]
    unsafe fn gemv_serial(
          self: &Self,
        m: usize, n: usize,
@@ -243,20 +242,21 @@ C: GemmOut<X=u16,Y=u16>,
        beta: *const C::X,
        y: C,
    ) {
-        let x_ptr = x.get_data_ptr();
-        let inc_x = x.rs();
-        let y_ptr   = y.data_ptr();
-        let incy = y.rs();
+        // let x_ptr = x.get_data_ptr();
+        // let inc_x = x.rs();
+        // let y_ptr   = y.data_ptr();
+        // let incy = y.rs();
         // axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy);
    }
 }
 
 impl<
-A: GemmArray<u16, X=u16>, 
-B: GemmArray<u16, X=u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f16, X=f16>, 
+B: GemmArray<f16, X=f16>,
+C: GemmOut<X=f16,Y=f16>,
 > Gemv<TA,TB,A,B,C> for Avx512Dispatcher<NullFn>
 {
+    #[allow(unused_variables)]
    unsafe fn gemv_serial(
     self: &Self,
        m: usize, n: usize,
@@ -266,10 +266,10 @@ C: GemmOut<X=u16,Y=u16>,
        beta: *const C::X,
        y: C,
    ) {
-        let x_ptr = x.get_data_ptr();
-        let inc_x = x.rs();
-        let y_ptr   = y.data_ptr();
-        let incy = y.rs();
+        // let x_ptr = x.get_data_ptr();
+        // let inc_x = x.rs();
+        // let y_ptr   = y.data_ptr();
+        // let incy = y.rs();
         // axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy);
    }
 }
@@ -278,30 +278,34 @@ C: GemmOut<X=u16,Y=u16>,
 use corenum_base::GemmOut;
 
 impl<
-A: GemmArray<f32, X=u16>, 
-B: GemmArray<f32, X=u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f32, X=f16>, 
+B: GemmArray<f32, X=f16>,
+C: GemmOut<X=f16,Y=f16>,
 > GemmGotoPackaPackb<f32,f32,A,B,C> for AvxDispatcher<NullFn>
 where 
-AvxDispatcher<NullFn>: GemmPackA<u16, f32> + GemmPackB<u16, f32> 
+AvxDispatcher<NullFn>: GemmPackA<f16, f32> + GemmPackB<f16, f32> 
 {
-   const ONE: TC = 1_u16;
+   const ONE: TC = f16::ONE;
    unsafe fn kernel(
        self: &Self,
        m: usize, n: usize, k: usize,
        alpha: *const f32,
-       beta: *const TC,
+       beta: *const f16,
        c: *mut TC,
        c_rs: usize, c_cs: usize,
        ap: *const f32, bp: *const f32,
        _kc_last: bool
    ) {
+        let my_func = self.func;
+        let beta_val = *beta;
+        let beta_t = beta_val.to_f32();
+        let beta = &beta_t as *const f32;
         match self.features {
-            AvxFeatures::Avx => {
-                // avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
-            }
             AvxFeatures::AvxFma => {
-                // avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp);
+                avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
+            }
+            _ => {
+                // avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
             }
         }
    }
@@ -309,22 +313,23 @@ AvxDispatcher<NullFn>: GemmPackA<u16, f32> + GemmPackB<u16, f32>
 
 
 impl<
-A: GemmArray<u16, X=u16>, 
-B: GemmArray<u16, X=u16>,
-C: GemmOut<X=u16,Y=u16>,
-> GemmGotoPackaPackb<u16,u16,A,B,C> for Avx512Dispatcher<NullFn>
+A: GemmArray<f16, X=f16>, 
+B: GemmArray<f16, X=f16>,
+C: GemmOut<X=f16,Y=f16>,
+> GemmGotoPackaPackb<f16,f16,A,B,C> for Avx512Dispatcher<NullFn>
 where 
-Avx512Dispatcher<NullFn>: GemmPackA<u16, u16> + GemmPackB<u16, u16> 
+Avx512Dispatcher<NullFn>: GemmPackA<f16, f16> + GemmPackB<f16, f16> 
 {
-   const ONE: TC = 1_u16;
+   const ONE: TC = f16::ONE;
+   #[allow(unused_variables)]
    unsafe fn kernel(
        self: &Self,
        m: usize, n: usize, k: usize,
-       alpha: *const u16,
+       alpha: *const f16,
        beta: *const TC,
        c: *mut TC,
        c_rs: usize, c_cs: usize,
-       ap: *const u16, bp: *const u16,
+       ap: *const f16, bp: *const f16,
        _kc_last: bool
    ) {
    }
@@ -333,63 +338,48 @@ Avx512Dispatcher<NullFn>: GemmPackA<u16, u16> + GemmPackB<u16, u16>
 
 
 impl<
-A: GemmArray<f32, X = u16>, 
-B: GemmArray<f32, X = u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f32, X = f16>, 
+B: GemmArray<f32, X = f16>,
+C: GemmOut<X=f16,Y=f16>,
 > GemmSmallM<f32,f32,A,B,C> for AvxDispatcher<NullFn>
-where AvxDispatcher<NullFn>: GemmPackA<u16, f32>
+where AvxDispatcher<NullFn>: GemmPackA<f16, f32>
 {
-    const ONE: TC = 1_u16;
-   
+    const ONE: TC = f16::ONE;
+    #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const f32,
-        beta: *const TC,
-        b: *const u16, b_rs: usize, b_cs: usize,
+        beta: *const f16,
+        b: *const f16, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const f32,
    ) {
-    match self.features {
-        AvxFeatures::Avx => {
-            // avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap)
-        }
-        AvxFeatures::AvxFma => {
-            // avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap);
-        }
-    }
    }
 }
 
 
 
 impl<
-A: GemmArray<f32, X = u16>, 
-B: GemmArray<f32, X = u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f32, X = f16>, 
+B: GemmArray<f32, X = f16>,
+C: GemmOut<X=f16,Y=f16>,
 > GemmSmallN<f32,f32,A,B,C> for AvxDispatcher<NullFn>
 where 
-AvxDispatcher<NullFn>: GemmPackB<u16, f32>
+AvxDispatcher<NullFn>: GemmPackB<f16, f32>
 {
-    const ONE: TC = 1_u16;
+    const ONE: TC = f16::ONE;
+    #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const f32,
         beta: *const TC,
-        a: *const u16, a_rs: usize, a_cs: usize,
+        a: *const f16, a_rs: usize, a_cs: usize,
         ap: *mut f32,
         b: *const f32,
         c: *mut TC, c_rs: usize, c_cs: usize,
    ) {
-        match self.features {
-            AvxFeatures::Avx => {
-                // avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap)
-            }
-            AvxFeatures::AvxFma => {
-                // avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap);
-            }
-        }
    }
 }
 
@@ -398,22 +388,22 @@ AvxDispatcher<NullFn>: GemmPackB<u16, f32>
 
 
 impl<
-A: GemmArray<u16, X = u16>, 
-B: GemmArray<u16, X = u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f16, X = f16>, 
+B: GemmArray<f16, X = f16>,
+C: GemmOut<X=f16,Y=f16>,
 > GemmSmallM<TA,TB,A,B,C> for Avx512Dispatcher<NullFn>
 where Avx512Dispatcher<NullFn>: GemmPackA<A::X, TA>
 {
-    const ONE: TC = 1_u16;
-   
+    const ONE: TC = f16::ONE;
+    #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const u16,
-        beta: *const u16,
-        b: *const u16, b_rs: usize, b_cs: usize,
-        c: *mut u16, c_rs: usize, c_cs: usize,
-        ap: *const u16,
+        alpha: *const f16,
+        beta: *const f16,
+        b: *const f16, b_rs: usize, b_cs: usize,
+        c: *mut f16, c_rs: usize, c_cs: usize,
+        ap: *const f16,
    ) {
    }
 }
@@ -421,22 +411,23 @@ where Avx512Dispatcher<NullFn>: GemmPackA<A::X, TA>
 
 
 impl<
-A: GemmArray<u16, X = u16>, 
-B: GemmArray<u16>,
-C: GemmOut<X=u16,Y=u16>,
+A: GemmArray<f16, X = f16>, 
+B: GemmArray<f16>,
+C: GemmOut<X=f16,Y=f16>,
 > GemmSmallN<TA,TB,A,B,C> for Avx512Dispatcher<NullFn>
 where 
 Avx512Dispatcher<NullFn>: GemmPackB<B::X, TB>
 {
-    const ONE: TC = 1_u16;
+    const ONE: TC = f16::ONE;
+    #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const u16,
-        beta: *const u16,
-        a: *const u16, a_rs: usize, a_cs: usize,
-        ap: *mut u16,
-        b: *const u16,
+        alpha: *const f16,
+        beta: *const f16,
+        a: *const f16, a_rs: usize, a_cs: usize,
+        ap: *mut f16,
+        b: *const f16,
         c: *mut TC, c_rs: usize, c_cs: usize,
    ) {
    }

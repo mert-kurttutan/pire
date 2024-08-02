@@ -390,6 +390,7 @@ pub trait GemmArray<Y>: Copy + Send + 'static + Tensor2D{
     // type Y: BaseNum;
     type PackArray: GemmArrayP<Self::X,Y>+Copy+Send;
     fn is_packing_needed() -> bool;
+    fn is_compute_native() -> bool;
     fn into_pack_array(self, a: *mut Y) -> Self::PackArray;
     fn get_data_ptr(&self) -> *const Self::X;
     fn transpose(&mut self);
@@ -563,11 +564,11 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
 // specific gemm implementation and hardware.
 
 fn run_small_m<BP, B: GemmArray<BP>>(m: usize) -> bool {
-    B::is_packing_needed() && m < 144
+    B::is_packing_needed() && m < 144 && B::is_compute_native()
 }
 
 fn run_small_n<AP, A: GemmArray<AP>>(n: usize) -> bool {
-    A::is_packing_needed() && n < 144
+    A::is_packing_needed() && n < 144 && A::is_compute_native()
 }
 
 pub unsafe fn corenum_gemm<
@@ -589,11 +590,11 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN
 )
 where AP: Into<BP>
 {
-    if n == 1 && A::is_packing_needed() {
+    if n == 1 && A::is_packing_needed() && A::is_compute_native() && B::is_compute_native() {
         corenum_gemv::<AP,BP,A,B,C,HWConfig>(hw_config, m, k, alpha, a, b, beta, c, par);
         return;
     }
-    if m == 1 && B::is_packing_needed() {
+    if m == 1 && B::is_packing_needed() && A::is_compute_native() && B::is_compute_native() {
         let mut a = a;
         a.transpose();
         let mut b = b;
@@ -765,6 +766,9 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
     fn is_packing_needed() -> bool {
         true
     }
+    fn is_compute_native() -> bool {
+        true
+    }
     fn into_pack_array(self, a: *mut T) -> Self::PackArray {
         StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
     }
@@ -780,17 +784,24 @@ impl<T:BaseNum> GemmArray<T> for StridedMatrix<T> {
     }
 }
 
-impl GemmArray<f32> for StridedMatrix<u16> {
-    type X = u16;
-    type PackArray = StridedMatrixP<u16,f32>;
+#[cfg(feature = "f16")]
+use half::f16;
+
+#[cfg(feature = "f16")]
+impl GemmArray<f32> for StridedMatrix<f16> {
+    type X = f16;
+    type PackArray = StridedMatrixP<f16,f32>;
     fn is_packing_needed() -> bool {
         true
+    }
+    fn is_compute_native() -> bool {
+        false
     }
     fn into_pack_array(self, a: *mut f32) -> Self::PackArray {
         StridedMatrixP { data_ptr: self.data_ptr, rs: self.rs, cs: self.cs, data_p_ptr: a }
     }
 
-    fn get_data_ptr(&self) -> *const u16 {
+    fn get_data_ptr(&self) -> *const f16 {
         self.data_ptr
     }
 
@@ -879,6 +890,9 @@ impl<T:BaseNum> GemmArray<T> for PackedMatrix<T> {
     type PackArray = PackedMatrix<T>;
     fn is_packing_needed() -> bool {
         false
+    }
+    fn is_compute_native() -> bool {
+        true
     }
     fn into_pack_array(self, _a: *mut T) -> Self::PackArray {
         self

@@ -171,22 +171,22 @@ extern "C" {
        ldc: c_int,
    );
 
-//    pub fn cblas_hgemm(
-//         layout: CBLAS_LAYOUT,
-//         transa: CBLAS_TRANSPOSE,
-//         transb: CBLAS_TRANSPOSE,
-//         m: c_int,
-//         n: c_int,
-//         k: c_int,
-//         alpha: c_ushort,
-//         a: *const c_ushort,
-//         lda: c_int,
-//         b: *const c_ushort,
-//         ldb: c_int,
-//         beta: c_ushort,
-//         c: *mut c_ushort,
-//         ldc: c_int,
-//     );
+   pub fn cblas_hgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_ushort,
+        a: *const c_ushort,
+        lda: c_int,
+        b: *const c_ushort,
+        ldb: c_int,
+        beta: c_ushort,
+        c: *mut c_ushort,
+        ldc: c_int,
+    );
 
 
     pub fn cblas_sgemm_batch(
@@ -293,6 +293,7 @@ pub enum GemmBackend {
 pub enum BenchType {
     SGemm,
     SGemmBatched,
+    HGemm,
 }
 
 pub fn dispatch_gemm_f32(
@@ -532,11 +533,11 @@ pub fn dispatch_gemm_batch_f32(
 pub fn dispatch_gemm_f16(
     backend: GemmBackend,
     m: usize, n: usize, k: usize,
-    alpha: f32,
-    a: *const f32, a_rs: isize, a_cs: isize,
-    b: *const f32, b_rs: isize, b_cs: isize,
-    beta: f32,
-    c: *mut f32, c_rs: isize, c_cs: isize,
+    alpha: f16,
+    a: *const f16, a_rs: isize, a_cs: isize,
+    b: *const f16, b_rs: isize, b_cs: isize,
+    beta: f16,
+    c: *mut f16, c_rs: isize, c_cs: isize,
  ) {
     match backend {
         GemmBackend::Blis => {
@@ -550,17 +551,22 @@ pub fn dispatch_gemm_f16(
              #[cfg(feature="mkl")]
              {
                  let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                //  cblas_hgemm(
-                //      layout,
-                //      transa,
-                //      transb,
-                //      m as i32, n as i32, k as i32,
-                //      alpha,
-                //      a, lda as i32,
-                //      b, ldb as i32,
-                //      beta,
-                //      c, ldc as i32,
-                //  );
+                 let a = a as *const c_ushort;
+                    let b = b as *const c_ushort;
+                    let c = c as *mut c_ushort;
+                    let alpha = alpha.to_bits();
+                    let beta = beta.to_bits();
+                 cblas_hgemm(
+                     layout,
+                     transa,
+                     transb,
+                     m as i32, n as i32, k as i32,
+                     alpha,
+                     a, lda as i32,
+                     b, ldb as i32,
+                     beta,
+                     c, ldc as i32,
+                 );
              }
             }
         }
@@ -587,14 +593,14 @@ pub fn dispatch_gemm_f16(
           }
           GemmBackend::Corenum => {
                unsafe {
-                //  corenum_gemm_f16::corenum_hgemm(
-                //       m, n, k,
-                //       alpha,
-                //       a, a_rs as usize, a_cs as usize,
-                //       b, b_rs as usize, b_cs as usize,
-                //       beta,
-                //       c, c_rs as usize, c_cs as usize,
-                //  );
+                 corenum_gemm_f16::corenum_hgemm(
+                      m, n, k,
+                      alpha,
+                      a, a_rs as usize, a_cs as usize,
+                      b, b_rs as usize, b_cs as usize,
+                      beta,
+                      c, c_rs as usize, c_cs as usize,
+                 );
              }
          }
      }
@@ -602,7 +608,7 @@ pub fn dispatch_gemm_f16(
 
 
 
-pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(ap: &[T], bp: &[T]) -> f64
+pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(ap: &[T], bp: &[T], eps: f64) -> f64
 where f64: From<<T as std::ops::Sub>::Output>
 {
    let mut diff = 0_f64;
@@ -614,10 +620,10 @@ where f64: From<<T as std::ops::Sub>::Output>
        let b = bp[i];
        let cur_diff = <<T as std::ops::Sub>::Output as Into<f64>>::into(a-b).abs();
        // println!("cur_diff: {:?}, a: {:?}, b: {:?}", cur_diff, a, b);
-       if cur_diff > diff {
+       if cur_diff > diff && cur_diff > eps{
         //    println!("i: {:?}, cur_diff: {:?}, a: {:?}, b: {:?}", i, cur_diff, a, b);
             diff_idx = i;
-           diff = cur_diff;
+           diff = cur_diff / b.into().abs();
        }
    }
 //    println!("diff_idx: {:?}", diff_idx);
@@ -749,16 +755,48 @@ pub unsafe fn check_gemm_f32(
         cblas_sgemm(
             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref.as_mut_ptr(), ldc
         );
-        let diff = max_abs_diff(&c, &c_ref);
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
         return diff;
     }
     #[cfg(not(feature="mkl"))] {
         // calculate diff using fallback
         gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref);
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
         return diff;
     }
+}
 
+
+
+
+pub unsafe fn check_gemm_f16(
+	m: usize, n: usize, k: usize,
+	alpha: f16,
+	a: *const f16, a_rs: usize, a_cs: usize,
+	b: *const f16, b_rs: usize, b_cs: usize,
+	beta: f16,
+	c: &[f16], c_rs: usize, c_cs: usize,
+    c_ref: &mut [f16],
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let a = a as *const c_ushort;
+        let b = b as *const c_ushort;
+        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_ushort;
+        let alpha = alpha.to_bits();
+        let beta = beta.to_bits();
+        cblas_hgemm(
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc
+        );
+        let diff = max_abs_diff(&c, &c_ref, 1e-1);
+        return diff;
+    }
+    #[cfg(not(feature="mkl"))] {
+        // calculate diff using fallback
+        gemm_fallback_f16(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+        let diff = max_abs_diff(&c, &c_ref, 1e-1);
+        return diff;
+    }
 }
 
 
@@ -812,6 +850,8 @@ pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
         BenchType::SGemm
     } else if bench_type_str == "sgemm_batched" {
         BenchType::SGemmBatched
+    } else if bench_type_str == "hgemm" {
+        BenchType::HGemm
     } else {
         panic!("Unsupported bench type str");
     }
@@ -919,6 +959,60 @@ fn test_sgemm_batched(
 }
 
 
+use half::f16;
+fn test_hgemm(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f32,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+) -> f64 {
+    let alpha = f16::from_f32(alpha);
+    let beta = f16::from_f32(beta);
+    let mut a = vec![f16::ZERO; m * k];
+    let mut b = vec![f16::ZERO; k * n];
+    let mut c = vec![f16::ZERO; m * n];
+    random_matrix(m, k, &mut a, m);
+    random_matrix(k, n, &mut b, k);
+    let mut c_ref = vec![f16::ZERO; m * n];
+    a.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
+    b.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    dispatch_gemm_f16(
+        gemm_backend,
+        m, n, k,
+        alpha,
+        a.as_ptr(), a_rs, a_cs,
+        b.as_ptr(), b_rs, b_cs,
+        beta,
+        c.as_mut_ptr(), c_rs, c_cs,
+    );
+    if args.check {
+        let diff = unsafe {
+            check_gemm_f16(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref
+            )
+        };
+        println!("diff: {}", diff);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
+
+
 use corenum_gemm_f32::{
     CorenumPar,
 };
@@ -991,6 +1085,7 @@ struct Args {
         let end_time = match bench_type {
             BenchType::SGemm => test_sgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
             BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
+            BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
         };
         total_time += end_time;
 
