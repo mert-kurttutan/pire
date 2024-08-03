@@ -8,10 +8,12 @@ libc = "0.2"
 rand = "0.8.5"
 corenum-base = { path = "../../crates/corenum-base" }
 corenum-gemm-f32 = { path = "../../crates/corenum-gemm-f32" }
+corenum-gemm-f64 = { path = "../../crates/corenum-gemm-f64" }
 corenum-gemm-f16 = { path = "../../crates/corenum-gemm-f16" }
 # corenum-dev = { path = "../../crates/corenum-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
+num-complex = { version = "0.4.6", features = ["rand"] }
 half = { version = "2.4.1", features = ["rand_distr", "num-traits"] }
 
 [dev-dependencies]

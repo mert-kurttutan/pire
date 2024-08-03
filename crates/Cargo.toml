@@ -3,7 +3,8 @@
 members = [ 
     "corenum-base", 
     "corenum-dev", "corenum-gemm-f16",
-    "corenum-gemm-f32",
+    "corenum-gemm-f32", "corenum-gemm-f64",
+    "corenum-gemm-c32", "corenum-gemm-c64"
 ]
 
 resolver = "2"

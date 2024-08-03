@@ -4,11 +4,11 @@
 nc_array=(128 192 256 320 320 448 512 578 640 768 960)
 kc_array=(128 192 256 320 320 448 512 578 640 768 960)
 
-mr=24
+mr=12
 nr=4
 
-export CORENUM_SGEMM_MR=$mr
-export CORENUM_SGEMM_NR=$nr
+# export CORENUM_SGEMM_MR=$mr
+# export CORENUM_SGEMM_NR=$nr
 
 # Outer loop
 for n_i in "${nc_array[@]}"; do
@@ -20,7 +20,7 @@ for n_i in "${nc_array[@]}"; do
         
         # echo nc and kc to out.txt
         echo "nc: $NC, kc: $KC" >> out.txt
-        ./target/release/bench --m 6000 --n 6000 --k 6000 --t-layout nt >> out.txt
+        taskset -c 0 ./target/release/bench --m 4000 --n 4000 --k 4000 --n-repeats 2 --t-layout nn  --bench-type dgemm --backend corenum >> out.txt
         sleep 1
     done
 done

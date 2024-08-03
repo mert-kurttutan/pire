@@ -188,27 +188,25 @@ where f64: From<<T as std::ops::Sub>::Output>
    diff
 }
 
-
-pub fn my_gemm_ref_col(m: usize, n: usize, k: usize, a: &[f64], ld_a: usize, b: &[f64], ld_b: usize, c: &mut [f64], ld_c: usize) {
-   for i in 0..m {
-       for j in 0..n {
-           for p in 0..k {
-               c[j*ld_c + i] += a[p*ld_a + i] * b[j*ld_b + p];
-           }
-       }
-   }
+pub unsafe fn gemm_fallback_f64(
+	m: usize, n: usize, k: usize,
+	alpha: f64,
+	a: *const f64, a_rs: usize, a_cs: usize,
+	b: *const f64, b_rs: usize, b_cs: usize,
+	beta: f64,
+	c: *mut f64, c_rs: usize, c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = 0.0;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
+            }
+            *c.add(c_rs * i + c_cs * j ) = alpha * dx +  beta * *c.add(c_rs * i + c_cs * j );
+        }
+    }
 }
 
-
-pub fn my_gemm_ref_row(m: usize, n: usize, k: usize, a: &[f64], ld_a: usize, b: &[f64], ld_b: usize, c: &mut [f64], ld_c: usize) {
-   for i in 0..m {
-       for j in 0..n {
-           for p in 0..k {
-               c[i*ld_c + j] += a[i*ld_a + p] * b[p*ld_b + j];
-           }
-       }
-   }
-}
 
 
 pub unsafe fn gemm_fallback_f32(
@@ -315,6 +313,36 @@ fn cblas_to_stride(
         (a_rs, a_cs, b_rs, b_cs, ldc as usize, 1)
     }
 }
+
+
+
+pub unsafe fn check_gemm_f64(
+	m: usize, n: usize, k: usize,
+	alpha: f64,
+	a: *const f64, a_rs: usize, a_cs: usize,
+	b: *const f64, b_rs: usize, b_cs: usize,
+	beta: f64,
+	c: &[f64], c_rs: usize, c_cs: usize,
+    c_ref: &mut [f64],
+    eps: f64,
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        cblas_dgemm(
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref.as_mut_ptr(), ldc
+        );
+        let diff = max_abs_diff(&c, &c_ref, eps);
+        return diff;
+    }
+    #[cfg(not(feature="mkl"))] {
+        // calculate diff using fallback
+        gemm_fallback_f64(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+        let diff = max_abs_diff(&c, &c_ref, eps);
+        return diff;
+    }
+
+}
+
 
 
 
