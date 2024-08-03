@@ -81,6 +81,21 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     }
 }
 
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
+    k: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    for i in 0..M  {
+        for j in 0..k {
+            *ap.add(j*MR+i) = *a.add(j + i*lda);
+        }
+    }
+}
+
+
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn storeu_ps<const M: usize>(
     src: __m256, dst: *mut f32
@@ -409,101 +424,6 @@ pub(crate) unsafe fn pack_kx6_v1(
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx5_v1(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 5;
-    const M1: usize = 4;
-    const M2: usize = 1;
-    while k_i < k_iter {
-        let a0 = _mm256_loadu_ps(b);
-        let a1 = _mm256_loadu_ps(b.add(ldb));
-        let a2 = _mm256_loadu_ps(b.add(ldb*2));
-        let a3 = _mm256_loadu_ps(b.add(ldb*3));
-
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-        let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-        let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
-
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
-
-        storeu_ps::<M1>(x0, bp);
-        storeu_ps::<M1>(x0_h, bp.add(M*4));
-
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M1>(x1, bp.add(M));
-        storeu_ps::<M1>(x1_h, bp.add(M+M*4));
-
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M1>(x2, bp.add(2*M));
-        storeu_ps::<M1>(x2_h, bp.add(2*M+M*4));
-
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M1>(x3, bp.add(3*M));
-        storeu_ps::<M1>(x3_h, bp.add(3*M+M*4));
-
-
-
-        let a0 = _mm256_loadu_ps(b.add(ldb*4));
-
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
-
-        storeu_ps::<M2>(x0, bp.add(4));
-        storeu_ps::<M2>(x0_h, bp.add(M*4+4));
-
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M2>(x1, bp.add(M+4));
-        storeu_ps::<M2>(x1_h, bp.add(M+M*4+4));
-
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M2>(x2, bp.add(2*M+4));
-        storeu_ps::<M2>(x2_h, bp.add(2*M+M*4+4));
-
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M2>(x3, bp.add(3*M+4));
-        storeu_ps::<M2>(x3_h, bp.add(3*M+M*4+4));
-
-        b = b.add(8);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<1>(b, bp);
-        copy_packed::<1>(b.add(ldb), bp.add(1));
-        copy_packed::<1>(b.add(ldb*2), bp.add(2));
-        copy_packed::<1>(b.add(ldb*3), bp.add(3));
-        copy_packed::<1>(b.add(ldb*4), bp.add(4));
-        b = b.add(1);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx4_v1(
     k_iter: usize, k_left: usize,
     b: *const TB, ldb: usize,
@@ -567,238 +487,55 @@ pub(crate) unsafe fn pack_kx4_v1(
 }
 
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx3_v1(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 3;
-    let a3 = _mm256_setzero_ps();
-    while k_i < k_iter {
-        let a0 = _mm256_loadu_ps(b);
-        let a1 = _mm256_loadu_ps(b.add(ldb));
-        let a2 = _mm256_loadu_ps(b.add(ldb*2));
-
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-        let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-        let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
-
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
-
-        storeu_ps::<M>(x0, bp);
-        storeu_ps::<M>(x0_h, bp.add(M*4));
-
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M>(x1, bp.add(M));
-        storeu_ps::<M>(x1_h, bp.add(M+M*4));
-
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M>(x2, bp.add(2*M));
-        storeu_ps::<M>(x2_h, bp.add(2*M+M*4));
-
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M>(x3, bp.add(3*M));
-        storeu_ps::<M>(x3_h, bp.add(3*M+M*4));
-
-        b = b.add(8);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<1>(b, bp);
-        copy_packed::<1>(b.add(ldb), bp.add(1));
-        copy_packed::<1>(b.add(ldb*2), bp.add(2));
-        b = b.add(1);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx2_v1(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    let t2 = _mm256_setzero_pd();
-    let t3 = _mm256_setzero_pd();
-    const M: usize = 2;
-    while k_i < k_iter {
-        let a0 = _mm256_loadu_ps(b);
-        let a1 = _mm256_loadu_ps(b.add(ldb));
-
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
-
-        storeu_ps::<M>(x0, bp);
-        storeu_ps::<M>(x0_h, bp.add(M*4));
-
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M>(x1, bp.add(M));
-        storeu_ps::<M>(x1_h, bp.add(M+M*4));
-
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M>(x2, bp.add(2*M));
-        storeu_ps::<M>(x2_h, bp.add(2*M+M*4));
-
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M>(x3, bp.add(3*M));
-        storeu_ps::<M>(x3_h, bp.add(3*M+M*4));
-
-
-        b = b.add(8);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<1>(b, bp);
-        copy_packed::<1>(b.add(ldb), bp.add(1));
-        b = b.add(1);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx1_v1(
-    k_iter: usize, k_left: usize,
-    b: *const TB, _ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    let t2 = _mm256_setzero_pd();
-    let t3 = _mm256_setzero_pd();
-    let a1 = _mm256_setzero_ps();
-    const M: usize = 1;
-    while k_i < k_iter {
-        let a0 = _mm256_loadu_ps(b);
-
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
-
-        storeu_ps::<M>(x0, bp);
-        storeu_ps::<M>(x0_h, bp.add(M*4));
-
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M>(x1, bp.add(M));
-        storeu_ps::<M>(x1_h, bp.add(M+M*4));
-
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M>(x2, bp.add(2*M));
-        storeu_ps::<M>(x2_h, bp.add(2*M+M*4));
-
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M>(x3, bp.add(3*M));
-        storeu_ps::<M>(x3_h, bp.add(3*M+M*4));
-
-
-        b = b.add(8);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<1>(b, bp);
-        b = b.add(1);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
 macro_rules! def_packb {
    ($nr:tt) => {
-       seq!(NL in 1..$nr {
-           paste! {
-            #[target_feature(enable = "avx")]
-            pub(crate) unsafe fn [<packb_panel_$nr>](
-                   n: usize, k: usize,
-                   b: *const TB, b_rs: usize, b_cs: usize,
-                   bp: *mut TB,
-               ) {
-                   let k_iter = k / 8;
-                   let k_left = k % 8;
-                   let mut bp = bp;
-                   let mut b = b;
-                   const NR: usize = $nr;
-                   const NR_LAST_STEP: usize = $nr;
-                   let mut n_idx = 0;
-                   if b_rs == 1 {
-                       let ldb = b_cs;
-                       while n_idx + NR_LAST_STEP <= n {
-                            [<pack_k_v0>]::<NR,NR>(k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b = b.add(NR);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                               [<pack_k_v0>]::<NL,NL>(k_iter, k_left, b, ldb, bp);
-                               return;
-                           }
-                       )*
-                   } else if b_cs == 1 {
-                       let ldb = b_rs;
-                       while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b =  b.add(NR*ldb);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                               [<pack_kx~NL _v1>](k_iter, k_left, b, ldb, bp);
-                               return;
-                           }
-                       )*
-                   }
-               }   
-           }
-       });
+        paste! {
+        #[target_feature(enable = "avx")]
+        pub(crate) unsafe fn [<packb_panel_$nr>](
+                n: usize, k: usize,
+                b: *const TB, b_rs: usize, b_cs: usize,
+                bp: *mut TB,
+            ) {
+                let k_iter = k / 8;
+                let k_left = k % 8;
+                let mut bp = bp;
+                let mut b = b;
+                const NR: usize = $nr;
+                const NR_LAST_STEP: usize = $nr;
+                let mut n_idx = 0;
+                if b_rs == 1 {
+                    let ldb = b_cs;
+                    while n_idx + NR_LAST_STEP <= n {
+                        pack_k_v0::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                        n_idx += NR;
+                        bp = bp.add(k*NR);
+                        b = b.add(NR);
+                    }
+                    let n_left = n - n_idx;
+                    seq!(NL in 1..$nr {
+                        if n_left == NL {
+                            pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                            return;
+                        }
+                    });
+                } else if b_cs == 1 {
+                    let ldb = b_rs;
+                    while n_idx + NR_LAST_STEP <= n {
+                        [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
+                        n_idx += NR;
+                        bp = bp.add(k*NR);
+                        b =  b.add(NR*ldb);
+                    }
+                    let n_left = n - n_idx;
+                    seq!(NL in 1..$nr {
+                        if n_left == NL {
+                            pack_k_v1::<NL,NL>(k, b, ldb, bp);
+                            return;
+                        }
+                    });
+                }
+            }   
+        }
    };
 }
 
