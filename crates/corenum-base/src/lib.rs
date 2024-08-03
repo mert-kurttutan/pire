@@ -100,7 +100,7 @@ fn detect_hw_config() -> HWConfig {
         } else {
             F32Features::NoSimd
         };
-        let avx2  = extended_feature_info.has_avx2();
+        let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         let f16c = feature_info.has_f16c();
         let cpu_ft = CpuFeatures {

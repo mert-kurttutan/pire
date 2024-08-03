@@ -237,14 +237,13 @@ pub(crate) unsafe fn pack_kx24_v1(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
+    const MR: usize = 24;
     while k_i < k_iter {
-        pack_t::<24>(a, lda, ap);
+        pack_t::<MR>(a, lda, ap);
+        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
+        pack_t::<MR>(a.add(16*lda), lda, ap.add(16));
 
-        pack_t::<24>(a.add(8*lda), lda, ap.add(8));
-
-        pack_t::<24>(a.add(16*lda), lda, ap.add(16));
-
-        ap = ap.add(192);
+        ap = ap.add(MR*8);
         a = a.add(8);
         k_i += 1;
     }
@@ -252,32 +251,11 @@ pub(crate) unsafe fn pack_kx24_v1(
     k_i = 0;
 
     while k_i < k_left {
-        copy_packed::<1>(a, ap);
-        copy_packed::<1>(a.add(lda), ap.add(1));
-        copy_packed::<1>(a.add(lda*2), ap.add(2));
-        copy_packed::<1>(a.add(lda*3), ap.add(3));
-        copy_packed::<1>(a.add(lda*4), ap.add(4));
-        copy_packed::<1>(a.add(lda*5), ap.add(5));
-        copy_packed::<1>(a.add(lda*6), ap.add(6));
-        copy_packed::<1>(a.add(lda*7), ap.add(7));
-        copy_packed::<1>(a.add(lda*8), ap.add(8));
-        copy_packed::<1>(a.add(lda*9), ap.add(9));
-        copy_packed::<1>(a.add(lda*10), ap.add(10));
-        copy_packed::<1>(a.add(lda*11), ap.add(11));
-        copy_packed::<1>(a.add(lda*12), ap.add(12));
-        copy_packed::<1>(a.add(lda*13), ap.add(13));
-        copy_packed::<1>(a.add(lda*14), ap.add(14));
-        copy_packed::<1>(a.add(lda*15), ap.add(15));
-        copy_packed::<1>(a.add(lda*16), ap.add(16));
-        copy_packed::<1>(a.add(lda*17), ap.add(17));
-        copy_packed::<1>(a.add(lda*18), ap.add(18));
-        copy_packed::<1>(a.add(lda*19), ap.add(19));
-        copy_packed::<1>(a.add(lda*20), ap.add(20));
-        copy_packed::<1>(a.add(lda*21), ap.add(21));
-        copy_packed::<1>(a.add(lda*22), ap.add(22));
-        copy_packed::<1>(a.add(lda*23), ap.add(23));
+        seq!(i in 0..24 {
+            *ap.add(i) = *a.add(i*lda);
+        });
 
-        ap = ap.add(24);
+        ap = ap.add(MR);
         a = a.add(1);
         k_i += 1;
     }
@@ -292,12 +270,12 @@ pub(crate) unsafe fn pack_kx16_v1(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
+    const MR: usize = 16;
     while k_i < k_iter {
-        pack_t::<16>(a, lda, ap);
+        pack_t::<MR>(a, lda, ap);
+        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
 
-        pack_t::<16>(a.add(8*lda), lda, ap.add(8));
-
-        ap = ap.add(128);
+        ap = ap.add(MR*8);
         a = a.add(8);
         k_i += 1;
     }
@@ -305,24 +283,11 @@ pub(crate) unsafe fn pack_kx16_v1(
     k_i = 0;
 
     while k_i < k_left {
-        copy_packed::<1>(a, ap);
-        copy_packed::<1>(a.add(lda), ap.add(1));
-        copy_packed::<1>(a.add(lda*2), ap.add(2));
-        copy_packed::<1>(a.add(lda*3), ap.add(3));
-        copy_packed::<1>(a.add(lda*4), ap.add(4));
-        copy_packed::<1>(a.add(lda*5), ap.add(5));
-        copy_packed::<1>(a.add(lda*6), ap.add(6));
-        copy_packed::<1>(a.add(lda*7), ap.add(7));
-        copy_packed::<1>(a.add(lda*8), ap.add(8));
-        copy_packed::<1>(a.add(lda*9), ap.add(9));
-        copy_packed::<1>(a.add(lda*10), ap.add(10));
-        copy_packed::<1>(a.add(lda*11), ap.add(11));
-        copy_packed::<1>(a.add(lda*12), ap.add(12));
-        copy_packed::<1>(a.add(lda*13), ap.add(13));
-        copy_packed::<1>(a.add(lda*14), ap.add(14));
-        copy_packed::<1>(a.add(lda*15), ap.add(15));
+        seq!(i in 0..16 {
+            *ap.add(i) = *a.add(i*lda);
+        });
 
-        ap = ap.add(16);
+        ap = ap.add(MR);
         a = a.add(1);
         k_i += 1;
     }
