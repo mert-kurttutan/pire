@@ -10,11 +10,6 @@ pub(crate) type TA = f32;
 pub(crate) type TB = f32;
 pub(crate) type TC = f32;
 
-#[cfg(target_arch = "x86_64")]
-use corenum_base::{
-	hw_model,
-};
-
 #[derive(Copy, Clone)]
 pub(crate) struct NullFn;
 

@@ -214,226 +214,6 @@ pub(crate) unsafe fn pack_kx16_v0(
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx6_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 6;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx5_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 5;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx4_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 4;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx3_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 3;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx2_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 2;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx1_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 1;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-#[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx24_v1(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
@@ -988,7 +768,7 @@ macro_rules! def_packb {
                    if b_rs == 1 {
                        let ldb = b_cs;
                        while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v0>](k_iter, k_left, b, ldb, bp);
+                            [<pack_k_v0>]::<NR,NR>(k_iter, k_left, b, ldb, bp);
                            n_idx += NR;
                            bp = bp.add(k*NR);
                            b = b.add(NR);
@@ -996,7 +776,7 @@ macro_rules! def_packb {
                        let n_left = n - n_idx;
                        #(
                            if n_left == NL {
-                               [<pack_kx~NL _v0>](k_iter, k_left, b, ldb, bp);
+                               [<pack_k_v0>]::<NL,NL>(k_iter, k_left, b, ldb, bp);
                                return;
                            }
                        )*
@@ -1026,43 +806,8 @@ macro_rules! def_packb {
 def_packb!(4);
 def_packb!(6);
 
-
-macro_rules! mul8 {
-    (24) => { 24 };
-    (23) => { 24 };
-    (22) => { 24 };
-    (21) => { 24 };
-    (20) => { 24 };
-    (19) => { 24 };
-    (18) => { 24 };
-    (17) => { 24 };
-    (16) => { 16 };
-    (15) => { 16 };
-    (14) => { 16 };
-    (13) => { 16 };
-    (12) => { 16 };
-    (11) => { 16 };
-    (10) => { 16 };
-    (9) => { 16 };
-    (8) => { 8 };
-    (7) => { 8 };
-    (6) => { 8 };
-    (5) => { 8 };
-    (4) => { 8 };
-    (3) => { 8 };
-    (2) => { 8 };
-    (1) => { 8 };
-}
-macro_rules! mul8_2 {
-    (24) => { 16 };
-    (16) => { 8 };
-    (8) => { 0 };
-    (4) => { 0 };
-    (2) => { 0 };
-    (1) => { 0 };
-}
 macro_rules! def_packa {
-    ($mr:tt, $($mr_left:tt),*) => {
+    ($mr:tt) => {
         paste! {
             #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_$mr>](
@@ -1088,7 +833,7 @@ macro_rules! def_packa {
                     let m_left = m_left - m_idx;
                     seq!(mr_left in 1..$mr {
                         if m_left == mr_left {
-                            pack_k_v0::<mr_left, {mul8!(mr_left)}>(k_iter, k_left, a, lda, ap);
+                            pack_k_v0::<mr_left, {(mr_left+7)/ 8 * 8}>(k_iter, k_left, a, lda, ap);
                             return;
                         }
                     });
@@ -1104,21 +849,21 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    $(
-                        if m_left > mul8_2!($mr_left) {
-                            pack_scalar_k::<$mr_left>(
-                                m_left, k,
+                    seq!(mr_left in 1..$mr {
+                        if m_left == mr_left {
+                            pack_scalar_k::<{(mr_left+7)/ 8 * 8}>(
+                                mr_left, k,
                                 a, a_rs, a_cs,
                                 ap
                             );
                             return;
                         }
-                    )*
+                    });
                 }
             }
         }
     };
 }
 
-def_packa!(24, 24, 16, 8);
-def_packa!(16, 16, 8);
+def_packa!(24);
+def_packa!(16);

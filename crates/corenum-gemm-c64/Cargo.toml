@@ -1,5 +1,5 @@
 [package]
-name = "corenum-gemm-f32"
+name = "corenum-gemm-c64"
 version = "0.1.0"
 edition = "2021"
 

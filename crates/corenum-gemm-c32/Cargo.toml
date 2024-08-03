@@ -1,5 +1,5 @@
 [package]
-name = "corenum-gemm-f32"
+name = "corenum-gemm-c32"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,7 @@ edition = "2021"
 corenum-base = { path = "../corenum-base" }
 seq-macro = "0.3.5"
 paste = "1.0.14"
+num-complex = { version = "0.4.6"}
 
 [dev-dependencies]
 corenum-dev = { path = "../../crates/corenum-dev" }
