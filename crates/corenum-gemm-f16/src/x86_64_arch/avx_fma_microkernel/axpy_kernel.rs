@@ -36,7 +36,7 @@ unsafe fn v_store_ph(mem_addr: *mut f16, a: __m256) {
     _mm_storeu_si128(mem_addr as *mut __m128i, a_ph);
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn acc_store(
     a: *const TA, lda: usize,
     c: *mut TC,
@@ -50,7 +50,7 @@ pub(crate) unsafe fn acc_store(
     _mm_storeu_si128(c as *mut __m128i, cv_ph);
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     m_lane4: usize, m_lane: usize, m: usize,
     a: *const TA, lda: usize,
@@ -110,7 +110,7 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
     m_lane4: usize, m_lane: usize, m: usize,
     a: *const TA,
@@ -169,7 +169,7 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
 
 // The inner should traver along m dimenson for better hw prefetching since they are contiguous in memory
 // inner loop should work multiple k to utilize the registers while keeping hw prefetching happy, so tune unrolling param
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn axpy_v(
    m: usize, n: usize,
    alpha: *const f32,
@@ -231,7 +231,7 @@ pub(crate) unsafe fn axpy_v(
 
 use seq_macro::seq;
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn acc_vec(
     x: __m256,
 )-> TC {
@@ -241,7 +241,7 @@ pub(crate) unsafe fn acc_vec(
     f16::from_f32(x)
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx,fma,f16c")]
 pub(crate) unsafe fn axpy_d(
    m: usize, n: usize,
    alpha: *const f32,
