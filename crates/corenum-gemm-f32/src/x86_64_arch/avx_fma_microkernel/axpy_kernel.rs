@@ -294,7 +294,7 @@ pub(crate) unsafe fn axpy_d(
             *y_cur.add(incy*2) = *beta * *y_cur.add(incy*2) + acc3 * *alpha;
        }
          a_cur0 = a_cur0.add(3*lda);
-         y_cur = y_cur.add(3);
+         y_cur = y_cur.add(3*incy);
          i += 3;
    }
 
@@ -342,7 +342,7 @@ pub(crate) unsafe fn axpy_d(
         *y_cur = *beta * *y_cur + acc1 * *alpha;
     }
       a_cur0 = a_cur0.add(lda);
-      y_cur = y_cur.add(1);
+      y_cur = y_cur.add(incy);
       i += 1;
 }
 }
