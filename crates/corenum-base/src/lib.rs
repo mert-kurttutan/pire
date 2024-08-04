@@ -608,11 +608,11 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN
 )
 where AP: Into<BP>
 {
-    if n == 1 && A::is_packing_needed() && A::is_compute_native() && B::is_compute_native() {
+    if n == 1 && A::is_packing_needed() {
         corenum_gemv::<AP,BP,A,B,C,HWConfig>(hw_config, m, k, alpha, a, b, beta, c, par);
         return;
     }
-    if m == 1 && B::is_packing_needed() && A::is_compute_native() && B::is_compute_native() {
+    if m == 1 && B::is_packing_needed() {
         let mut a = a;
         a.transpose();
         let mut b = b;

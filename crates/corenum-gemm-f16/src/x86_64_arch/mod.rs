@@ -248,12 +248,23 @@ C: GemmOut<X=f16,Y=f16>,
        beta: *const C::X,
        y: C,
    ) {
-        // let x_ptr = x.get_data_ptr();
-        // let inc_x = x.rs();
-        // let y_ptr   = y.data_ptr();
-        // let incy = y.rs();
-        // axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy);
-   }
+        let x_ptr = x.get_data_ptr();
+        let inc_x = x.rs();
+        let y_ptr   = y.data_ptr();
+        let incy = y.rs();
+        let beta_val = *beta;
+        let beta_t = beta_val.to_f32();
+        let beta = &beta_t as *const f32;
+        match self.features.f32_ft {
+            F32Features::Avx512F => {
+                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+            }
+            F32Features::AvxFma => {
+                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+            }
+            _ => { panic!("Unsupported feature set for this kernel") }
+        }
+    }
 }
 
 impl<

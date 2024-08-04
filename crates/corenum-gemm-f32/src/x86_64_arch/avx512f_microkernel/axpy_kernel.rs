@@ -13,31 +13,6 @@ const VS: usize = 8;
 const K_UNROLL: usize = 4;
 
 
-// this is well optimized by compiler
-// TODO: investigate the behaviour of optimization for earlier versions of rustc
-// it differs for N < 8 for version below 1.71.0 in godbolt
-// see: https://godbolt.org/z/197YcKrrY
-// this can be mitigated by writing code for literal values of N with constant branching (to be optimized away by compiler)
-// #[inline(always)]
-// unsafe fn v_storeu_n<const N: usize>(mem_addr: *mut f32, a: __m256) {
-//     let mut a_arr = [0_f32; 8];
-//     _mm256_storeu_ps(a_arr.as_mut_ptr(), a);
-//     copy_nonoverlapping(a_arr.as_ptr(), mem_addr, N);
-// }
-
-
-// #[inline(always)]
-// unsafe fn v_loadu_n<const N: usize>(mem_addr: *const f32) -> __m256 {
-//     let mut a_arr = [0_f32; 8];
-//     copy_nonoverlapping(mem_addr, a_arr.as_mut_ptr(), N);
-//     _mm256_loadu_ps(a_arr.as_ptr())
-// }
-
-
-// TODO: optimize axpy for m=1 case,
-// for each loop we use, less than optimal number of registers, less than 16
-// modify so that we use 16 registers for each loop step
-
 
 #[inline(always)]
 unsafe fn v_storeu_n(mem_addr: *mut f32, a: __m256, n: usize) {
@@ -75,7 +50,6 @@ pub(crate) unsafe fn axpy_v(
    for col in 0..n {
        let lhs = a.wrapping_offset(col as isize * lda as isize);
        let rhs = *x.wrapping_offset(col as isize * incx as isize);
-
 
        let beta_v = _mm256_broadcast_ss(&beta);
 
