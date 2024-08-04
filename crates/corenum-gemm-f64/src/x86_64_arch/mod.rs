@@ -10,7 +10,7 @@ use corenum_base::{
 const AVX_FMA_GOTO_MR: usize = 12; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
 
-const AVX512F_GOTO_MR: usize = 48; // register block size
+const AVX512F_GOTO_MR: usize = 24; // register block size
 const AVX512F_GOTO_NR: usize = 8; // register block size
 
 

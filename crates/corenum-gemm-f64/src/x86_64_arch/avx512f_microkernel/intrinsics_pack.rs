@@ -2,69 +2,60 @@ use seq_macro::seq;
 use std::ptr::copy_nonoverlapping;
 use crate::{TA,TB};
 
-
 use paste::paste;
 
 use std::arch::x86_64::*;
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_t<const MR: usize>(
-    a: *const TA, lda: usize,
-    ap: *mut TB,
+pub(crate) unsafe fn pack_t4<const MR: usize>(
+    b: *const TA, ldb: usize,
+    bp: *mut TB,
 ) {
-    // let a0 = _mm256_loadu_pd(a);
-    // let a1 = _mm256_loadu_pd(a.add(lda));
-    // let a2 = _mm256_loadu_pd(a.add(lda*2));
-    // let a3 = _mm256_loadu_pd(a.add(lda*3));
+    let a0 = _mm256_loadu_pd(b);
+    let a1 = _mm256_loadu_pd(b.add(ldb));
+    let a2 = _mm256_loadu_pd(b.add(ldb*2));
+    let a3 = _mm256_loadu_pd(b.add(ldb*3));
 
-    // // transpose
-    // let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-    // let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-    // let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-    // let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
+    // transpose
+    let t0 = _mm256_unpacklo_pd(a0, a1);
+    let t1 = _mm256_unpackhi_pd(a0, a1);
+    let t2 = _mm256_unpacklo_pd(a2, a3);
+    let t3 = _mm256_unpackhi_pd(a2, a3);
 
-    // let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-    // let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-    // let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-    // let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
+    let x0 = _mm256_permute2f128_pd(t0, t2, 0x20);
+    let x0_h = _mm256_permute2f128_pd(t0, t2, 0x31);
 
-    // let a0 = _mm256_loadu_pd(a.add(lda*4));
-    // let a1 = _mm256_loadu_pd(a.add(lda*5));
-    // let a2 = _mm256_loadu_pd(a.add(lda*6));
-    // let a3 = _mm256_loadu_pd(a.add(lda*7));
+    storeu_ps::<4>(x0, bp);
+    storeu_ps::<4>(x0_h, bp.add(MR*2));
 
-    // // transpose
-    // let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-    // let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-    // let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-    // let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
+    let x1 = _mm256_permute2f128_pd(t1, t3, 0x20);
+    let x1_h = _mm256_permute2f128_pd(t1, t3, 0x31);
 
-    // let x4 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-    // let x5 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-    // let x6 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-    // let x7 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
+    storeu_ps::<4>(x1, bp.add(MR));
+    storeu_ps::<4>(x1_h, bp.add(MR*3));
 
-    // // exchange hi of x0 and lo of x4
-    // let x0_t = _mm256_permute2f128_ps(x0, x4, 0b0010_0000);
-    // let x4_t = _mm256_permute2f128_ps(x0, x4, 0b0011_0001);
-    // // exchange hi of x1 and lo of x5
-    // let x1_t = _mm256_permute2f128_ps(x1, x5, 0b0010_0000);
-    // let x5_t = _mm256_permute2f128_ps(x1, x5, 0b0011_0001);
-    // // exchange hi of x2 and lo of x6
-    // let x2_t = _mm256_permute2f128_ps(x2, x6, 0b0010_0000);
-    // let x6_t = _mm256_permute2f128_ps(x2, x6, 0b0011_0001);
-    // // exchange hi of x3 and lo of x7
-    // let x3_t = _mm256_permute2f128_ps(x3, x7, 0b0010_0000);
-    // let x7_t = _mm256_permute2f128_ps(x3, x7, 0b0011_0001);
+    // k = 4
+    let a0 = _mm256_loadu_pd(b.add(4));
+    let a1 = _mm256_loadu_pd(b.add(ldb+4));
+    let a2 = _mm256_loadu_pd(b.add(ldb*2+4));
+    let a3 = _mm256_loadu_pd(b.add(ldb*3+4));
 
-    // _mm256_store_pd(ap, x0_t);
-    // _mm256_store_pd(ap.add(MR), x1_t);
-    // _mm256_store_pd(ap.add(MR*2), x2_t);
-    // _mm256_store_pd(ap.add(MR*3), x3_t);
-    // _mm256_store_pd(ap.add(MR*4), x4_t);
-    // _mm256_store_pd(ap.add(MR*5), x5_t);
-    // _mm256_store_pd(ap.add(MR*6), x6_t);
-    // _mm256_store_pd(ap.add(MR*7), x7_t); 
+    // transpose
+    let t0 = _mm256_unpacklo_pd(a0, a1);
+    let t1 = _mm256_unpackhi_pd(a0, a1);
+    let t2 = _mm256_unpacklo_pd(a2, a3);
+    let t3 = _mm256_unpackhi_pd(a2, a3);
+
+    let x0 = _mm256_permute2f128_pd(t0, t2, 0x20);
+    let x0_h = _mm256_permute2f128_pd(t0, t2, 0x31);
+    storeu_ps::<4>(x0, bp.add(MR*4));
+    storeu_ps::<4>(x0_h, bp.add(MR*6));
+
+    let x1 = _mm256_permute2f128_pd(t1, t3, 0x20);
+    let x1_h = _mm256_permute2f128_pd(t1, t3, 0x31);
+    storeu_ps::<4>(x1, bp.add(MR*5));
+    storeu_ps::<4>(x1_h, bp.add(MR*7));
+
 }
 
 
@@ -82,8 +73,31 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
 }
 
 #[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
+    k: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    for i in 0..M  {
+        for j in 0..k {
+            *ap.add(j*MR+i) = *a.add(j + i*lda);
+        }
+    }
+}
+
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn storeu_ps<const M: usize>(
+    src: __m256d, dst: *mut f64
+) {
+    let mut temp_arr = [0.0; 4];
+    _mm256_storeu_pd(temp_arr.as_mut_ptr(), src);
+    copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
+}
+
+#[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f64, b: *mut f64) {
-    copy_nonoverlapping(a, b, M);
+    std::ptr::copy_nonoverlapping(a, b, M);
 }
 
 
@@ -127,7 +141,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx48_v0(
+pub(crate) unsafe fn pack_kx24_v0(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
@@ -135,22 +149,22 @@ pub(crate) unsafe fn pack_kx48_v0(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
-    const MR: usize = 48;
+    const MR: usize = 24;
     while k_i < k_iter {
         // use vector intrinscs
         seq!(i in 0..8 {
-            let a0 = _mm256_loadu_pd(a.add(i*lda));
-            let a1 = _mm256_loadu_pd(a.add(i*lda+8));
-            let a2 = _mm256_loadu_pd(a.add(i*lda+16));
-            let a3 = _mm256_loadu_pd(a.add(i*lda+24));
-            let a4 = _mm256_loadu_pd(a.add(i*lda+32));
-            let a5 = _mm256_loadu_pd(a.add(i*lda+40));
+            let a0 = _mm256_loadu_pd(a.add(lda*i));
+            let a1 = _mm256_loadu_pd(a.add(lda*i+4));
+            let a2 = _mm256_loadu_pd(a.add(lda*i+8));
+            let a3 = _mm256_loadu_pd(a.add(lda*i+12));
+            let a4 = _mm256_loadu_pd(a.add(lda*i+16));
+            let a5 = _mm256_loadu_pd(a.add(lda*i+20));
             _mm256_store_pd(ap.add(i*MR), a0);
-            _mm256_store_pd(ap.add(i*MR+8), a1);
-            _mm256_store_pd(ap.add(i*MR+16), a2);
-            _mm256_store_pd(ap.add(i*MR+24), a3);
-            _mm256_store_pd(ap.add(i*MR+32), a4);
-            _mm256_store_pd(ap.add(i*MR+40), a5);
+            _mm256_store_pd(ap.add(i*MR+4), a1);
+            _mm256_store_pd(ap.add(i*MR+8), a2);
+            _mm256_store_pd(ap.add(i*MR+12), a3);
+            _mm256_store_pd(ap.add(i*MR+16), a4);
+            _mm256_store_pd(ap.add(i*MR+20), a5);
         });
 
         ap = ap.add(MR*8);
@@ -158,64 +172,61 @@ pub(crate) unsafe fn pack_kx48_v0(
 
         k_i += 1;
     }
-
     k_i = 0;
+    while k_i < k_left {
+        let a0 = _mm256_loadu_pd(a);
+        let a1 = _mm256_loadu_pd(a.add(4));
+        let a2 = _mm256_loadu_pd(a.add(8));
+        let a3 = _mm256_loadu_pd(a.add(12));
+        let a4 = _mm256_loadu_pd(a.add(16));
+        let a5 = _mm256_loadu_pd(a.add(20));
+        _mm256_store_pd(ap, a0);
+        _mm256_store_pd(ap.add(4), a1);
+        _mm256_store_pd(ap.add(8), a2);
+        _mm256_store_pd(ap.add(12), a3);
+        _mm256_store_pd(ap.add(16), a4);
+        _mm256_store_pd(ap.add(20), a5);
 
+        ap = ap.add(MR);
+        a = a.add(lda);
+        k_i += 1;
+    }
+}
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_kx16_v0(
+    k_iter: usize, k_left: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    let mut k_i = 0;
+    let mut a = a;
+    let mut ap = ap;
+    const MR: usize = 16;
+    while k_i < k_iter {
+        // use vector intrinscs
+        seq!(i in 0..8 {
+            let a0 = _mm256_loadu_pd(a.add(lda*i));
+            let a1 = _mm256_loadu_pd(a.add(lda*i+8));
+            let a2 = _mm256_loadu_pd(a.add(lda*i+16));
+            let a3 = _mm256_loadu_pd(a.add(lda*i+24));
+            _mm256_store_pd(ap.add(i*MR), a0);
+            _mm256_store_pd(ap.add(i*MR+8), a1);
+            _mm256_store_pd(ap.add(i*MR+16), a2);
+            _mm256_store_pd(ap.add(i*MR+24), a3);
+        });
+
+        ap = ap.add(MR*8);
+        a = a.add(8*lda);
+
+        k_i += 1;
+    }
+    k_i = 0;
     while k_i < k_left {
         let a0 = _mm256_loadu_pd(a);
         let a1 = _mm256_loadu_pd(a.add(8));
         let a2 = _mm256_loadu_pd(a.add(16));
         let a3 = _mm256_loadu_pd(a.add(24));
-        let a4 = _mm256_loadu_pd(a.add(32));
-        let a5 = _mm256_loadu_pd(a.add(40));
-        _mm256_store_pd(ap, a0);
-        _mm256_store_pd(ap.add(8), a1);
-        _mm256_store_pd(ap.add(16), a2);
-        _mm256_store_pd(ap.add(24), a3);
-        _mm256_store_pd(ap.add(32), a4);
-        _mm256_store_pd(ap.add(40), a5);
-        ap = ap.add(MR);
-        a = a.add(lda);
-        k_i += 1;
-    }
-}
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx32_v0(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 32;
-    while k_i < k_iter {
-        // use vector intrinscs
-        seq!(i in 0..8 {
-            let a0 = _mm256_loadu_pd(a.add(i*lda));
-            let a1 = _mm256_loadu_pd(a.add(i*lda+8));
-            let a2 = _mm256_loadu_pd(a.add(i*lda+16));
-            let a3 = _mm256_loadu_pd(a.add(i*lda+24));
-            _mm256_store_pd(ap.add(i*MR), a0);
-            _mm256_store_pd(ap.add(i*MR+8), a1);
-            _mm256_store_pd(ap.add(i*MR+16), a2);
-            _mm256_store_pd(ap.add(i*MR+24), a3);
-        });
-
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i < k_left {
-        let a0 = _mm256_loadu_pd(a);
-        let a1 = _mm256_loadu_pd(a.add(8));
-        let a2 = _mm256_loadu_pd(a.add(16));
-        let a3 = _mm256_loadu_pd(a.add(24));
         _mm256_store_pd(ap, a0);
         _mm256_store_pd(ap.add(8), a1);
         _mm256_store_pd(ap.add(16), a2);
@@ -229,7 +240,7 @@ pub(crate) unsafe fn pack_kx32_v0(
 
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx12_v0(
+pub(crate) unsafe fn pack_kx24_v1(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
@@ -237,88 +248,14 @@ pub(crate) unsafe fn pack_kx12_v0(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
-    const MR: usize = 12;
+    const MR: usize = 24;
     while k_i < k_iter {
-        // use vector intrinscs
-        seq!(i in 0..8 {
-            let a0 = _mm256_loadu_pd(a.add(i*lda));
-            _mm256_store_pd(ap.add(i*MR), a0);
-            copy_packed::<4>(a.add(i*lda+8), ap.add(i*MR+8));
-        });
-
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i < k_left {
-        let a0 = _mm256_loadu_pd(a);
-        _mm256_store_pd(ap, a0);
-        copy_packed::<4>(a.add(8), ap.add(8));
-
-        ap = ap.add(MR);
-        a = a.add(lda);
-        k_i += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx8_v0(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 8;
-    while k_i < k_iter {
-        // use vector intrinscs
-        seq!(i in 0..8 {
-            let a0 = _mm256_loadu_pd(a.add(i*lda));
-            _mm256_store_pd(ap.add(i*MR), a0);
-        });
-
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i < k_left {
-        let a0 = _mm256_loadu_pd(a);
-        _mm256_store_pd(ap, a0);
-
-        ap = ap.add(MR);
-        a = a.add(lda);
-        k_i += 1;
-    }
-}
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx48_v1(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 48;
-    while k_i < k_iter {
-        pack_t::<MR>(a, lda, ap);
-        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
-        pack_t::<MR>(a.add(16*lda), lda, ap.add(16));
-        pack_t::<MR>(a.add(24*lda), lda, ap.add(24));
-        pack_t::<MR>(a.add(32*lda), lda, ap.add(32));
-        pack_t::<MR>(a.add(40*lda), lda, ap.add(40));
+        pack_t4::<MR>(a, lda, ap);
+        pack_t4::<MR>(a.add(4*lda), lda, ap.add(4));
+        pack_t4::<MR>(a.add(8*lda), lda, ap.add(8));
+        pack_t4::<MR>(a.add(12*lda), lda, ap.add(12));
+        pack_t4::<MR>(a.add(16*lda), lda, ap.add(16));
+        pack_t4::<MR>(a.add(20*lda), lda, ap.add(20));
 
         ap = ap.add(MR*8);
         a = a.add(8);
@@ -328,8 +265,8 @@ pub(crate) unsafe fn pack_kx48_v1(
     k_i = 0;
 
     while k_i < k_left {
-        seq!(i in 0..48 {
-            copy_packed::<1>(a.add(i*lda), ap.add(i));
+        seq!(i in 0..24 {
+            copy_packed::<1>(a.add(lda*i), ap.add(i));
         });
 
         ap = ap.add(MR);
@@ -339,7 +276,7 @@ pub(crate) unsafe fn pack_kx48_v1(
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx32_v1(
+pub(crate) unsafe fn pack_kx16_v1(
     k_iter: usize, k_left: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
@@ -347,12 +284,12 @@ pub(crate) unsafe fn pack_kx32_v1(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
-    const MR: usize = 32;
+    const MR: usize = 16;
     while k_i < k_iter {
-        pack_t::<MR>(a, lda, ap);
-        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
-        pack_t::<MR>(a.add(16*lda), lda, ap.add(16));
-        pack_t::<MR>(a.add(24*lda), lda, ap.add(24));
+        pack_t4::<MR>(a, lda, ap);
+        pack_t4::<MR>(a.add(4*lda), lda, ap.add(4));
+        pack_t4::<MR>(a.add(8*lda), lda, ap.add(8));
+        pack_t4::<MR>(a.add(12*lda), lda, ap.add(12));
 
         ap = ap.add(MR*8);
         a = a.add(8);
@@ -362,8 +299,8 @@ pub(crate) unsafe fn pack_kx32_v1(
     k_i = 0;
 
     while k_i < k_left {
-        seq!(i in 0..32 {
-            copy_packed::<1>(a.add(i*lda), ap.add(i));
+        seq!(i in 0..16 {
+            copy_packed::<1>(a.add(lda*i), ap.add(i));
         });
 
         ap = ap.add(MR);
@@ -371,7 +308,6 @@ pub(crate) unsafe fn pack_kx32_v1(
         k_i += 1;
     }
 }
-
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx12_v1(
@@ -382,10 +318,11 @@ pub(crate) unsafe fn pack_kx12_v1(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
-    const MR: usize = 8;
+    const MR: usize = 12;
     while k_i < k_iter {
-        pack_t::<8>(a, lda, ap);
-        pack_t::<4>(a.add(8*lda), lda, ap.add(8));
+        pack_t4::<MR>(a, lda, ap);
+        pack_t4::<MR>(a.add(4*lda), lda, ap.add(4));
+        pack_t4::<MR>(a.add(8*lda), lda, ap.add(8));
 
         ap = ap.add(MR*8);
         a = a.add(8);
@@ -396,7 +333,7 @@ pub(crate) unsafe fn pack_kx12_v1(
 
     while k_i < k_left {
         seq!(i in 0..12 {
-            copy_packed::<1>(a.add(i*lda), ap.add(i));
+            copy_packed::<1>(a.add(lda*i), ap.add(i));
         });
 
         ap = ap.add(MR);
@@ -404,7 +341,6 @@ pub(crate) unsafe fn pack_kx12_v1(
         k_i += 1;
     }
 }
-
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx8_v1(
@@ -417,9 +353,10 @@ pub(crate) unsafe fn pack_kx8_v1(
     let mut ap = ap;
     const MR: usize = 8;
     while k_i < k_iter {
-        pack_t::<MR>(a, lda, ap);
+        pack_t4::<MR>(a, lda, ap);
+        pack_t4::<MR>(a.add(4*lda), lda, ap.add(4));
 
-        ap = ap.add(8*MR);
+        ap = ap.add(MR*8);
         a = a.add(8);
         k_i += 1;
     }
@@ -428,7 +365,7 @@ pub(crate) unsafe fn pack_kx8_v1(
 
     while k_i < k_left {
         seq!(i in 0..8 {
-            copy_packed::<1>(a.add(i*lda), ap.add(i));
+            copy_packed::<1>(a.add(lda*i), ap.add(i));
         });
 
         ap = ap.add(MR);
@@ -437,131 +374,65 @@ pub(crate) unsafe fn pack_kx8_v1(
     }
 }
 
-
 macro_rules! def_packb {
-   ($nr:tt) => {
-       seq!(NL in 1..$nr {
-           paste! {
-            #[target_feature(enable = "avx")]
-            pub(crate) unsafe fn [<packb_panel_$nr>](
-                   n: usize, k: usize,
-                   b: *const TB, b_rs: usize, b_cs: usize,
-                   bp: *mut TB,
-               ) {
-                   let k_iter = k / 8;
-                   let k_left = k % 8;
-                   let mut bp = bp;
-                   let mut b = b;
-                   const NR: usize = $nr;
-                   const NR_LAST_STEP: usize = $nr;
-                   let mut n_idx = 0;
-                   if b_rs == 1 {
-                       let ldb = b_cs;
-                       while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v0>](k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b = b.add(NR);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                               pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
-                               return;
-                           }
-                       )*
-                   } else if b_cs == 1 {
-                       let ldb = b_rs;
-                       while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b =  b.add(NR*ldb);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                            //    [<pack_kx~NL _v1>](k_iter, k_left, b, ldb, bp);
-                                pack_scalar_k::<NL>(
-                                    NL, k,
-                                    b, b_rs, b_cs,
-                                    bp
-                                );
-                               return;
-                           }
-                       )*
-                   }
-               }   
-           }
-       });
-   };
-}
+    ($nr:tt) => {
+         paste! {
+         #[target_feature(enable = "avx")]
+         pub(crate) unsafe fn [<packb_panel_$nr>](
+                 n: usize, k: usize,
+                 b: *const TB, b_rs: usize, b_cs: usize,
+                 bp: *mut TB,
+             ) {
+                 let k_iter = k / 8;
+                 let k_left = k % 8;
+                 let mut bp = bp;
+                 let mut b = b;
+                 const NR: usize = $nr;
+                 const NR_LAST_STEP: usize = $nr;
+                 let mut n_idx = 0;
+                 if b_rs == 1 {
+                     let ldb = b_cs;
+                     while n_idx + NR_LAST_STEP <= n {
+                         pack_k_v0::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                         n_idx += NR;
+                         bp = bp.add(k*NR);
+                         b = b.add(NR);
+                     }
+                     let n_left = n - n_idx;
+                     seq!(NL in 1..$nr {
+                         if n_left == NL {
+                             pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                             return;
+                         }
+                     });
+                 } else if b_cs == 1 {
+                     let ldb = b_rs;
+                     while n_idx + NR_LAST_STEP <= n {
+                         [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
+                         n_idx += NR;
+                         bp = bp.add(k*NR);
+                         b =  b.add(NR*ldb);
+                     }
+                     let n_left = n - n_idx;
+                     seq!(NL in 1..$nr {
+                         if n_left == NL {
+                             pack_k_v1::<NL,NL>(k, b, ldb, bp);
+                             return;
+                         }
+                     });
+                 }
+             }   
+         }
+    };
+ }
+ 
+ 
+ def_packb!(8);
+ def_packb!(12);
 
 
-def_packb!(8);
-def_packb!(12);
-
-
-macro_rules! mul8 {
-    (48) => { 48 };
-    (47) => { 48 };
-    (46) => { 48 };
-    (45) => { 48 };
-    (44) => { 48 };
-    (43) => { 48 };
-    (42) => { 48 };
-    (41) => { 48 };
-    (40) => { 48 };
-    (39) => { 48 };
-    (38) => { 48 };
-    (37) => { 48 };
-    (36) => { 48 };
-    (35) => { 48 };
-    (34) => { 48 };
-    (33) => { 48 };
-    (32) => { 32 };
-    (31) => { 32 };
-    (30) => { 32 };
-    (29) => { 32 };
-    (28) => { 32 };
-    (27) => { 32 };
-    (26) => { 32 };
-    (25) => { 32 };
-    (24) => { 32 };
-    (23) => { 32 };
-    (22) => { 32 };
-    (21) => { 32 };
-    (20) => { 32 };
-    (19) => { 32 };
-    (18) => { 32 };
-    (17) => { 32 };
-    (16) => { 16 };
-    (15) => { 16 };
-    (14) => { 16 };
-    (13) => { 16 };
-    (12) => { 16 };
-    (11) => { 16 };
-    (10) => { 16 };
-    (9) => { 16 };
-    (8) => { 16 };
-    (7) => { 16 };
-    (6) => { 16 };
-    (5) => { 16 };
-    (4) => { 16 };
-    (3) => { 16 };
-    (2) => { 16 };
-    (1) => { 16 };
-}
-macro_rules! mul8_2 {
-    (48) => { 32 };
-    (32) => { 16 };
-    (16) => { 0 };
-    (4) => { 0 };
-    (2) => { 0 };
-    (1) => { 0 };
-}
 macro_rules! def_packa {
-    ($mr:tt, $($mr_left:tt),*) => {
+    ($mr:tt) => {
         paste! {
             #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_$mr>](
@@ -587,7 +458,7 @@ macro_rules! def_packa {
                     let m_left = m_left - m_idx;
                     seq!(mr_left in 1..$mr {
                         if m_left == mr_left {
-                            pack_k_v0::<mr_left, {mul8!(mr_left)}>(k_iter, k_left, a, lda, ap);
+                            pack_k_v0::<mr_left, {(mr_left+7)/ 8 * 8}>(k_iter, k_left, a, lda, ap);
                             return;
                         }
                     });
@@ -603,21 +474,21 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    $(
-                        if m_left > mul8_2!($mr_left) {
-                            pack_scalar_k::<$mr_left>(
-                                m_left, k,
+                    seq!(mr_left in 1..$mr {
+                        if m_left == mr_left {
+                            pack_scalar_k::<{(mr_left+7)/ 8 * 8}>(
+                                mr_left, k,
                                 a, a_rs, a_cs,
                                 ap
                             );
                             return;
                         }
-                    )*
+                    });
                 }
             }
         }
     };
 }
 
-def_packa!(48, 48, 32, 16);
-def_packa!(32, 32, 16);
+def_packa!(24);
+def_packa!(16);

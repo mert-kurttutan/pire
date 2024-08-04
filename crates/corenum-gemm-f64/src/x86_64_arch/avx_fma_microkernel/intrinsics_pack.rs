@@ -2,7 +2,6 @@ use seq_macro::seq;
 use std::ptr::copy_nonoverlapping;
 use crate::{TA,TB};
 
-
 use paste::paste;
 
 use std::arch::x86_64::*;
@@ -72,6 +71,20 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
         }
     }
 }
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
+    k: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    for i in 0..M  {
+        for j in 0..k {
+            *ap.add(j*MR+i) = *a.add(j + i*lda);
+        }
+    }
+}
+
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn storeu_ps<const M: usize>(
@@ -205,225 +218,6 @@ pub(crate) unsafe fn pack_kx8_v0(
     }
 }
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx6_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 6;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx5_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 5;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx4_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 4;
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx3_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 3;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx2_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 2;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx1_v0(
-    k_iter: usize, k_left: usize,
-    b: *const TB, ldb: usize,
-    bp: *mut TB,
-) {
-    let mut b = b;
-    let mut bp = bp;
-
-    let mut k_i = 0;
-    const M: usize = 1;
-
-    while k_i < k_iter {
-        copy_packed::<M>(b, bp);
-        copy_packed::<M>(b.add(ldb), bp.add(M));
-        copy_packed::<M>(b.add(ldb*2), bp.add(M*2));
-        copy_packed::<M>(b.add(ldb*3), bp.add(M*3));
-        copy_packed::<M>(b.add(ldb*4), bp.add(M*4));
-        copy_packed::<M>(b.add(ldb*5), bp.add(M*5));
-        copy_packed::<M>(b.add(ldb*6), bp.add(M*6));
-        copy_packed::<M>(b.add(ldb*7), bp.add(M*7));
-        b = b.add(8*ldb);
-        bp = bp.add(M*8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i <  k_left {
-        copy_packed::<M>(b, bp);
-        b = b.add(ldb);
-        bp = bp.add(M);
-        k_i += 1;
-    }
-}
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_kx12_v1(
@@ -554,92 +348,64 @@ pub(crate) unsafe fn pack_kx4_v1(
 }
 
 macro_rules! def_packb {
-   ($nr:tt) => {
-       seq!(NL in 1..$nr {
-           paste! {
-            #[target_feature(enable = "avx")]
-            pub(crate) unsafe fn [<packb_panel_$nr>](
-                   n: usize, k: usize,
-                   b: *const TB, b_rs: usize, b_cs: usize,
-                   bp: *mut TB,
-               ) {
-                   let k_iter = k / 8;
-                   let k_left = k % 8;
-                   let mut bp = bp;
-                   let mut b = b;
-                   const NR: usize = $nr;
-                   const NR_LAST_STEP: usize = $nr;
-                   let mut n_idx = 0;
-                   if b_rs == 1 {
-                       let ldb = b_cs;
-                       while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v0>](k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b = b.add(NR);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                               [<pack_kx~NL _v0>](k_iter, k_left, b, ldb, bp);
-                               return;
-                           }
-                       )*
-                   } else if b_cs == 1 {
-                       let ldb = b_rs;
-                       while n_idx + NR_LAST_STEP <= n {
-                           [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
-                           n_idx += NR;
-                           bp = bp.add(k*NR);
-                           b =  b.add(NR*ldb);
-                       }
-                       let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                            //    [<pack_kx~NL _v1>](k_iter, k_left, b, ldb, bp);
-                            pack_scalar_k::<NL>(
-                                NL, k,
-                                b, b_rs, b_cs,
-                                bp
-                            );
-                               return;
-                           }
-                       )*
-                   }
-               }   
-           }
-       });
-   };
-}
+    ($nr:tt) => {
+         paste! {
+         #[target_feature(enable = "avx")]
+         pub(crate) unsafe fn [<packb_panel_$nr>](
+                 n: usize, k: usize,
+                 b: *const TB, b_rs: usize, b_cs: usize,
+                 bp: *mut TB,
+             ) {
+                 let k_iter = k / 8;
+                 let k_left = k % 8;
+                 let mut bp = bp;
+                 let mut b = b;
+                 const NR: usize = $nr;
+                 const NR_LAST_STEP: usize = $nr;
+                 let mut n_idx = 0;
+                 if b_rs == 1 {
+                     let ldb = b_cs;
+                     while n_idx + NR_LAST_STEP <= n {
+                         pack_k_v0::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                         n_idx += NR;
+                         bp = bp.add(k*NR);
+                         b = b.add(NR);
+                     }
+                     let n_left = n - n_idx;
+                     seq!(NL in 1..$nr {
+                         if n_left == NL {
+                             pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                             return;
+                         }
+                     });
+                 } else if b_cs == 1 {
+                     let ldb = b_rs;
+                     while n_idx + NR_LAST_STEP <= n {
+                         [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
+                         n_idx += NR;
+                         bp = bp.add(k*NR);
+                         b =  b.add(NR*ldb);
+                     }
+                     let n_left = n - n_idx;
+                     seq!(NL in 1..$nr {
+                         if n_left == NL {
+                             pack_k_v1::<NL,NL>(k, b, ldb, bp);
+                             return;
+                         }
+                     });
+                 }
+             }   
+         }
+    };
+ }
+ 
+ 
+ def_packb!(4);
+ def_packb!(6);
 
 
-def_packb!(4);
-def_packb!(6);
-
-
-macro_rules! mul8 {
-    (12) => { 12 };
-    (11) => { 12 };
-    (10) => { 12 };
-    (9) => { 12 };
-    (8) => { 8 };
-    (7) => { 8 };
-    (6) => { 8 };
-    (5) => { 8 };
-    (4) => { 4 };
-    (3) => { 4 };
-    (2) => { 4 };
-    (1) => { 4 };
-}
-macro_rules! mul8_2 {
-    (12) => { 8 };
-    (8) => { 4 };
-    (4) => { 0 };
-    (2) => { 0 };
-    (1) => { 0 };
-}
 macro_rules! def_packa {
-    ($mr:tt, $($mr_left:tt),*) => {
+    ($mr:tt) => {
         paste! {
             #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_$mr>](
@@ -665,7 +431,7 @@ macro_rules! def_packa {
                     let m_left = m_left - m_idx;
                     seq!(mr_left in 1..$mr {
                         if m_left == mr_left {
-                            pack_k_v0::<mr_left, {mul8!(mr_left)}>(k_iter, k_left, a, lda, ap);
+                            pack_k_v0::<mr_left, {(mr_left+3)/ 4 * 4}>(k_iter, k_left, a, lda, ap);
                             return;
                         }
                     });
@@ -681,21 +447,21 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    $(
-                        if m_left > mul8_2!($mr_left) {
-                            pack_scalar_k::<$mr_left>(
-                                m_left, k,
+                    seq!(mr_left in 1..$mr {
+                        if m_left == mr_left {
+                            pack_scalar_k::<{(mr_left+3)/ 4 * 4}>(
+                                mr_left, k,
                                 a, a_rs, a_cs,
                                 ap
                             );
                             return;
                         }
-                    )*
+                    });
                 }
             }
         }
     };
 }
 
-def_packa!(12, 12, 8, 4);
-def_packa!(8, 8, 4);
+def_packa!(12);
+def_packa!(8);

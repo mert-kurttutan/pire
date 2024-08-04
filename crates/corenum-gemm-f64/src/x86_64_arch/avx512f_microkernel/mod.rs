@@ -6,8 +6,8 @@ pub(crate) mod intrinsics_pack;
 pub(crate) use asm_ukernel::*;
 // pub(crate) use new_asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
-    packa_panel_48,
-    packa_panel_32,
+    packa_panel_24,
+    packa_panel_16,
     packb_panel_12,
     packb_panel_8,
 };
@@ -20,7 +20,7 @@ use crate::{TA,TB,TC};
 
 use crate::MyFn;
 
-const VS: usize = 16;
+const VS: usize = 8;
 
 pub unsafe fn axpy<F: MyFn>(
    m: usize, n: usize,
@@ -136,8 +136,8 @@ macro_rules! def_kernel_bb {
                     ap_cur = ap_cur.add(MR*k);
                     c_cur0 = c_cur0.add(MR);
                 }
-                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
-                let mask_ptr = (&x) as *const u16;
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFF } else { (1_u8 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u8;
                 $(
                     if m_left > ($mr_left - VS) {
                         let mut n_iter = n_iter0;
@@ -165,8 +165,8 @@ macro_rules! def_kernel_bb {
     };
 }
 
-def_kernel_bb!(48, 8, 48, 32, 16);
-def_kernel_bb!(32, 12, 32, 16);
+def_kernel_bb!(24, 8, 24, 16, 8);
+def_kernel_bb!(16, 12, 16, 8);
 
 
 macro_rules! def_kernel_bb_strided {
@@ -259,8 +259,8 @@ macro_rules! def_kernel_bb_strided {
     };
 }
 
-def_kernel_bb_strided!(48, 8, 48, 32, 16);
-def_kernel_bb_strided!(32, 12, 32, 16);
+def_kernel_bb_strided!(24, 8, 24, 16, 8);
+def_kernel_bb_strided!(16, 12, 16, 8);
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
@@ -283,7 +283,7 @@ macro_rules! def_kernel_bs {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [b_rs*4, b_cs*4];
+                let ld_arr = [b_rs*8, b_cs*8];
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
@@ -307,8 +307,8 @@ macro_rules! def_kernel_bs {
                     c_cur0 = c_cur0.add(MR);
                 }
 
-                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
-                let mask_ptr = (&x) as *const u16;
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFF } else { (1_u8 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u8;
                 $(
                     if m_left > ($mr_left - VS) {
                         let mut n_iter = n_iter0;
@@ -336,7 +336,7 @@ macro_rules! def_kernel_bs {
     };
 }
 
-def_kernel_bs!(48, 8, 48, 32, 16);
+def_kernel_bs!(24, 8, 24, 16, 8);
 
 pub(crate) unsafe fn kernel_bs<F: MyFn>(
     m: usize, n: usize, k: usize,
@@ -383,7 +383,7 @@ macro_rules! def_kernel_sb {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0*4, 0*4];
+                let ld_arr = [0, 0];
                 let ap_cur = ap_buf;
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -409,8 +409,8 @@ macro_rules! def_kernel_sb {
                     c_cur0 = c_cur0.add(MR);
                 }
 
-                let x = if m_left % VS == 0 && m_left > 0 { 0xFFFF } else { (1_u16 << (m_left % VS)) - 1 };
-                let mask_ptr = (&x) as *const u16;
+                let x = if m_left % VS == 0 && m_left > 0 { 0xFF } else { (1_u8 << (m_left % VS)) - 1 };
+                let mask_ptr = (&x) as *const u8;
                 $(
                     if m_left > ($mr_left - VS) {
                         [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap_cur);
@@ -439,7 +439,7 @@ macro_rules! def_kernel_sb {
     };
 }
 
-def_kernel_sb!(48, 8, 48, 32, 16);
+def_kernel_sb!(24, 8, 24, 16, 8);
 
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
@@ -474,19 +474,19 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize, F: MyFn>(
    ap: *const TA, bp: *const TB,
    f: F,
 ) {
-   if MR == 48 && NR == 8 {
+   if MR == 24 && NR == 8 {
         if c_rs == 1 {
-            kernel_48x8(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
+            kernel_24x8(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
         } else {
-            kernel_48x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            kernel_24x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
         }
         return;
    }
-   if MR == 32 && NR == 12 {
+   if MR == 16 && NR == 12 {
         if c_rs == 1 {
-            kernel_32x12(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
+            kernel_16x12(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
         } else {
-            kernel_32x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            kernel_16x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
         }
         return;
     }
@@ -499,12 +499,12 @@ pub(crate) unsafe fn packa_panel<const MR: usize>(
     a: *const TB, a_rs: usize, a_cs: usize,
     ap: *mut TB,
 ){
-    if MR == 48 {
-        packa_panel_48(m, k, a, a_rs, a_cs, ap);
+    if MR == 24 {
+        packa_panel_24(m, k, a, a_rs, a_cs, ap);
         return;
     }
-    if MR == 32 {
-        packa_panel_32(m, k, a, a_rs, a_cs, ap);
+    if MR == 16 {
+        packa_panel_16(m, k, a, a_rs, a_cs, ap);
         return;
     }
     panic!("Packing for MR = {} not implemented", MR);
