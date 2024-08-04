@@ -1,5 +1,4 @@
 use seq_macro::seq;
-use std::ptr::copy_nonoverlapping;
 use crate::{TA,TB};
 
 use paste::paste;
@@ -25,14 +24,14 @@ pub(crate) unsafe fn pack_t4<const MR: usize>(
     let x0 = _mm256_permute2f128_pd(t0, t2, 0x20);
     let x0_h = _mm256_permute2f128_pd(t0, t2, 0x31);
 
-    storeu_ps::<4>(x0, bp);
-    storeu_ps::<4>(x0_h, bp.add(MR*2));
+    _mm256_storeu_pd(bp, x0);
+    _mm256_store_pd(bp.add(MR*2), x0_h);
 
     let x1 = _mm256_permute2f128_pd(t1, t3, 0x20);
     let x1_h = _mm256_permute2f128_pd(t1, t3, 0x31);
 
-    storeu_ps::<4>(x1, bp.add(MR));
-    storeu_ps::<4>(x1_h, bp.add(MR*3));
+    _mm256_storeu_pd(bp.add(MR), x1);
+    _mm256_store_pd(bp.add(MR*3), x1_h);
 
     // k = 4
     let a0 = _mm256_loadu_pd(b.add(4));
@@ -48,13 +47,15 @@ pub(crate) unsafe fn pack_t4<const MR: usize>(
 
     let x0 = _mm256_permute2f128_pd(t0, t2, 0x20);
     let x0_h = _mm256_permute2f128_pd(t0, t2, 0x31);
-    storeu_ps::<4>(x0, bp.add(MR*4));
-    storeu_ps::<4>(x0_h, bp.add(MR*6));
+
+    _mm256_storeu_pd(bp.add(MR*4), x0);
+    _mm256_store_pd(bp.add(MR*6), x0_h);
 
     let x1 = _mm256_permute2f128_pd(t1, t3, 0x20);
     let x1_h = _mm256_permute2f128_pd(t1, t3, 0x31);
-    storeu_ps::<4>(x1, bp.add(MR*5));
-    storeu_ps::<4>(x1_h, bp.add(MR*7));
+
+    _mm256_storeu_pd(bp.add(MR*5), x1);
+    _mm256_store_pd(bp.add(MR*7), x1_h);
 
 }
 
@@ -85,15 +86,6 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     }
 }
 
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn storeu_ps<const M: usize>(
-    src: __m256d, dst: *mut f64
-) {
-    let mut temp_arr = [0.0; 4];
-    _mm256_storeu_pd(temp_arr.as_mut_ptr(), src);
-    copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
-}
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f64, b: *mut f64) {

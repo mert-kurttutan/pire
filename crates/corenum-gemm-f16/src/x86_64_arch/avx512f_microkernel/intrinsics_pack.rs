@@ -10,16 +10,6 @@ use paste::paste;
 use std::arch::x86_64::*;
 
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn storeu_ps<const M: usize>(
-    src: __m256, dst: *mut f32
-) {
-    let mut temp_arr = [0.0; 8];
-    _mm256_storeu_ps(temp_arr.as_mut_ptr(), src);
-    copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
-}
-
-
 #[target_feature(enable = "avx,f16c")]
 pub(crate) unsafe fn pack_t<const MR: usize>(
     a: *const f16, lda: usize,

@@ -1,6 +1,6 @@
 pub mod asm_ukernel;
 // pub mod new_asm_ukernel;
-pub(crate) mod axpy_kernel;
+// pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
 
 pub(crate) use asm_ukernel::*;
@@ -11,7 +11,7 @@ pub(crate) use intrinsics_pack::{
     packb_panel_12,
     packb_panel_8,
 };
-pub(crate) use axpy_kernel::*;
+// pub(crate) use axpy_kernel::*;
 
 use seq_macro::seq;
 use paste::paste;
@@ -22,50 +22,6 @@ use crate::MyFn;
 
 const VS: usize = 16;
 
-pub unsafe fn axpy<F: MyFn>(
-   m: usize, n: usize,
-   alpha: *const TA,
-   a: *const TA, a_rs: usize, a_cs: usize,
-   x: *const TB, incx: usize,
-   beta: *const TC,
-   y: *mut TC, incy: usize,
-    _f: F,
-) {
-   if a_cs == 1 && incx == 1 {
-       axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-       return;
-   }
-   if a_rs == 1 && incy == 1 {
-       axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-       return;
-   }
-   if a_cs == 1 {
-       for i in 0..m {
-           let a_cur = a.add(i*a_rs);
-           let y_cur = y.add(i * incy);
-           let mut acc = 0.0;
-           for j in 0..n {
-               let x_cur = x.add(j * incx);
-               acc += *a_cur.add(j) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-       }
-       return;
-   }
-   if a_rs == 1 || true {
-       for i in 0..m {
-           let y_cur = y.add(i*incy);
-           let mut acc = 0.0;
-           for j in 0..n {
-               let a_cur = a.add(j*a_cs);
-               let x_cur = x.add(j*incx);
-               acc += *a_cur.add(i) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-       }
-       return;
-   }
-}
 
 pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
     c: *const TC, ct: *mut TC,

@@ -29,11 +29,6 @@ use crate::{
    MyFn, NullFn
 };
 
-pub(crate) enum X86_64Features {
-    AvxFma,
-    Avx512F,
-}
-
 pub(crate) struct X86_64dispatcher<
 T: MyFn = NullFn
 > {

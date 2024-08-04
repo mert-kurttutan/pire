@@ -1,5 +1,4 @@
 use seq_macro::seq;
-use std::ptr::copy_nonoverlapping;
 use crate::{TA,TB};
 
 
@@ -95,15 +94,6 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     }
 }
 
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn storeu_ps<const M: usize>(
-    src: __m256, dst: *mut f32
-) {
-    let mut temp_arr = [0.0; 8];
-    _mm256_storeu_ps(temp_arr.as_mut_ptr(), src);
-    copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
-}
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f32, b: *mut f32) {
