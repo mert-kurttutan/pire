@@ -91,11 +91,15 @@ fn detect_hw_config() -> HWConfig {
         let cpuid = raw_cpuid::CpuId::new();
         let feature_info = cpuid.get_feature_info().unwrap();
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
-        let f32_ft = if extended_feature_info.has_avx512f() {
+        let avx = feature_info.has_avx();
+        let fma = feature_info.has_fma();
+        // although avx512f should also have avx and fma double check since we use avx
+        // for packing and fma for gemv on avx512f
+        let f32_ft = if extended_feature_info.has_avx512f() && avx && fma {
             F32Features::Avx512F
-        } else if feature_info.has_avx() && feature_info.has_fma() {
+        } else if avx && fma {
             F32Features::AvxFma
-        } else if feature_info.has_avx() {
+        } else if avx {
             F32Features::Avx
         } else {
             F32Features::NoSimd

@@ -165,7 +165,7 @@ F: MyFn + Sync,
         let incy = y.rs();
         match self.features.f32_ft {
             F32Features::Avx512F => {
-                avx512f_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
             }
             F32Features::AvxFma => {
                 avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
