@@ -612,20 +612,20 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN
 	par: &CorenumPar,
 )
 {
-    // if n == 1 && A::is_packing_needed() {
-    //     corenum_gemv::<AP,BP,A,B,C,HWConfig>(hw_config, m, k, alpha, a, b, beta, c, par);
-    //     return;
-    // }
-    // if m == 1 && B::is_packing_needed() {
-    //     let mut a = a;
-    //     a.transpose();
-    //     let mut b = b;
-    //     b.transpose();
-    //     let mut c = c;
-    //     c.transpose();
-    //     corenum_gemv::<BP,AP,B,A,C,HWConfig>(hw_config, n, k, alpha.into(), b, a, beta, c, par);
-    //     return;
-    // }
+    if n == 1 && A::is_packing_needed() {
+        corenum_gemv::<AP,BP,A,B,C,HWConfig>(hw_config, m, k, alpha, a, b, beta, c, par);
+        return;
+    }
+    if m == 1 && B::is_packing_needed() {
+        let mut a = a;
+        a.transpose();
+        let mut b = b;
+        b.transpose();
+        let mut c = c;
+        c.transpose();
+        corenum_gemv::<BP,AP,B,A,C,HWConfig>(hw_config, n, k, alpha.into(), b, a, beta, c, par);
+        return;
+    }
     let gemm_fun = if run_small_m::<BP,B>(m) && HWConfig::IS_EFFICIENT {
         HWConfig::gemm_small_m
     } else if run_small_n::<AP,A>(n) {
