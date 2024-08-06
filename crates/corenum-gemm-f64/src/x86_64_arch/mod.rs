@@ -22,11 +22,11 @@ use corenum_base::{
    GemmPackA, GemmPackB
 };
 
-use corenum_base::AB_Type;
+use corenum_base::AccCoef;
 
-impl<F: MyFn> AB_Type for X86_64dispatcher<F> {
-    type ALP = f64;
-    type BE = f64;
+impl<F: MyFn> AccCoef for X86_64dispatcher<F> {
+    type AS = f64;
+    type BS = f64;
 }
 
 use crate::{

@@ -589,9 +589,9 @@ fn run_small_n<AP, A: GemmArray<AP>>(n: usize) -> bool {
     A::is_packing_needed() && n < 144 && A::is_compute_native()
 }
 
-pub trait AB_Type {
-    type ALP: BaseNum;
-    type BE: BaseNum;
+pub trait AccCoef {
+    type AS: BaseNum;
+    type BS: BaseNum;
 }
 
 pub unsafe fn corenum_gemm<
@@ -600,14 +600,14 @@ BP: BaseNum,
 A: GemmArray<AP>, 
 B: GemmArray<BP>,
 C: GemmOut,
-HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN<AP,BP,A,B,C> + Gemv<AP,BP,A,B,C> + Gemv<BP,AP,B,A,C> + AB_Type,
+HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN<AP,BP,A,B,C> + Gemv<AP,BP,A,B,C> + Gemv<BP,AP,B,A,C> + AccCoef,
 >(
     hw_config: &HWConfig,
 	m: usize, n: usize, k: usize,
-	alpha: HWConfig::ALP,
+	alpha: HWConfig::AS,
 	a: A,
 	b: B,
-	beta: HWConfig::BE,
+	beta: HWConfig::BS,
 	c: C,
 	par: &CorenumPar,
 )
@@ -670,14 +670,14 @@ BP,
 A: GemmArray<AP>, 
 B: GemmArray<BP>,
 C: GemmOut,
-HWConfig: Gemv<AP,BP,A,B,C> + AB_Type,
+HWConfig: Gemv<AP,BP,A,B,C> + AccCoef,
 >(	
     hw_config: &HWConfig,
     m: usize, n: usize,
-	alpha: HWConfig::ALP,
+	alpha: HWConfig::AS,
 	a: A,
 	x: B,
-	beta: HWConfig::BE,
+	beta: HWConfig::BS,
 	y: C,
 	par: &CorenumPar
 ) {
@@ -1061,15 +1061,15 @@ B: GemmArray<BP>,
 C: GemmOut,
 > 
 where Self: Sized + GemmCache<AP,BP,A,B>,
-Self: GemmPackB<B::X, BP> + Sync + AB_Type,
+Self: GemmPackB<B::X, BP> + Sync + AccCoef,
 Self: GemmPackA<A::X, AP>,
 {
-    const ONE: Self::BE;
+    const ONE: Self::BS;
    unsafe fn kernel(
         self: &Self,
        m: usize, n: usize, k: usize,
-       alpha: *const Self::ALP,
-       beta: *const Self::BE,
+       alpha: *const Self::AS,
+       beta: *const Self::BS,
        c: *mut C::X,
        c_rs: usize, c_cs: usize,
        ap: *const AP, bp: *const BP,
@@ -1078,10 +1078,10 @@ Self: GemmPackA<A::X, AP>,
    unsafe fn gemm_packa_packb(
     self: &Self,
     m: usize, n: usize, k: usize,
-    alpha: Self::ALP,
+    alpha: Self::AS,
     a: A,
     b: B,
-    beta: Self::BE,
+    beta: Self::BS,
     c: C,
     par: &CorenumPar,
     pool_buf: *mut u8,
@@ -1106,8 +1106,8 @@ Self: GemmPackA<A::X, AP>,
             let bp_cur = bp.add_p(jc_id*bp_pool_size);
             let g = self;
             s.spawn(move || {
-                    let alpha = &alpha as *const Self::ALP;
-                    let beta = &beta as *const Self::BE;
+                    let alpha = &alpha as *const Self::AS;
+                    let beta = &beta as *const Self::BS;
                     g.gemm_packa_packb_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
                 }
             );
@@ -1115,8 +1115,8 @@ Self: GemmPackA<A::X, AP>,
         {
             let t_id: usize = 0;
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-            let alpha = &alpha as *const Self::ALP;
-            let beta = &beta as *const Self::BE;
+            let alpha = &alpha as *const Self::AS;
+            let beta = &beta as *const Self::BS;
             self.gemm_packa_packb_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
         }
     });
@@ -1125,10 +1125,10 @@ Self: GemmPackA<A::X, AP>,
    unsafe fn gemm_packa_packb_serial(
         self: &Self,
        m: usize, n: usize, k: usize,
-       alpha: *const Self::ALP,
+       alpha: *const Self::AS,
        a: A::PackArray,
        b: B::PackArray,
-       beta: *const Self::BE,
+       beta: *const Self::BS,
        c: C,
        t_cfg: &CorenumThreadConfig
    ) {
@@ -1160,7 +1160,7 @@ Self: GemmPackA<A::X, AP>,
            while kc_i < kc_end {
                let kc_len = kc.min(kc_end - kc_i);
                let kc_last = kc_i + kc_len == kc_end;
-               let beta_t = if kc_i == kc_start { beta } else { &one as *const Self::BE};
+               let beta_t = if kc_i == kc_start { beta } else { &one as *const Self::BS};
                let mut nc_i = nc_start;
                let ap = Self::packa::<A>(self,a, mc_i, kc_i, mc_len, kc_len, t_cfg);
                let ap = ap.add(mr_start*kc_len);
@@ -1217,16 +1217,16 @@ B: GemmArray<BP>,
 C: GemmOut,
 > 
 where Self: Sized + GemmCache<AP,BP,A,B> + Sync,
-Self: GemmPackA<A::X, AP> + AB_Type
+Self: GemmPackA<A::X, AP> + AccCoef
 {
-    const ONE: Self::BE;
+    const ONE: Self::BS;
     // for some gemm impl, it is more efficient to use goto than small m
     const IS_EFFICIENT: bool = true;
     unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const Self::ALP,
-        beta: *const Self::BE,
+        alpha: *const Self::AS,
+        beta: *const Self::BS,
         b: *const B::X, b_rs: usize, b_cs: usize,
         c: *mut C::X, c_rs: usize, c_cs: usize,
         ap: *const AP,
@@ -1234,10 +1234,10 @@ Self: GemmPackA<A::X, AP> + AB_Type
     unsafe fn gemm_small_m(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: Self::ALP,
+        alpha: Self::AS,
         a: A,
         b: B,
-        beta: Self::BE,
+        beta: Self::BS,
         c: C,
         par: &CorenumPar,
         pack_pool: *mut u8,
@@ -1260,8 +1260,8 @@ Self: GemmPackA<A::X, AP> + AB_Type
                 let ap_cur = ap.add_p(ic_id*ap_pool_size);
         
                 s.spawn(move || {
-                        let alpha = &alpha as *const Self::ALP;
-                        let beta = &beta as *const Self::BE;
+                        let alpha = &alpha as *const Self::AS;
+                        let beta = &beta as *const Self::BS;
                         self.gemm_small_m_serial(m, n, k, alpha, ap_cur, b, beta, c, &t_cfg);
                     }
                 );
@@ -1270,8 +1270,8 @@ Self: GemmPackA<A::X, AP> + AB_Type
             {
                 let t_id: usize = 0;
                 let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-                let alpha = &alpha as *const Self::ALP;
-                let beta = &beta as *const Self::BE;
+                let alpha = &alpha as *const Self::AS;
+                let beta = &beta as *const Self::BS;
                 self.gemm_small_m_serial(m, n, k, alpha, ap, b, beta, c, &t_cfg);
             }
         });
@@ -1280,10 +1280,10 @@ Self: GemmPackA<A::X, AP> + AB_Type
     unsafe fn gemm_small_m_serial(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const Self::ALP,
+        alpha: *const Self::AS,
         a: A::PackArray,
         b: B,
-        beta: *const Self::BE,
+        beta: *const Self::BS,
         c: C,
         t_cfg: &CorenumThreadConfig
     ) {
@@ -1321,7 +1321,7 @@ Self: GemmPackA<A::X, AP> + AB_Type
             let mut kc = kc_start;
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
-                let beta_t = if kc == kc_start { beta } else { &one as *const Self::BE};
+                let beta_t = if kc == kc_start { beta } else { &one as *const Self::BS};
                 let mut nc = nc_start;
                 let ap = Self::packa::<A>(self, a, mc, kc, mc_len, kc_len, t_cfg);
                 let ap = ap.add(mr_start*kc_len);
@@ -1363,15 +1363,15 @@ Self: GemmPackA<A::X, AP> + AB_Type
  B: GemmArray<BP>,
 C: GemmOut,
  >
-where Self: Sized + GemmCache<AP,BP,A,B> + Sync + AB_Type,
+where Self: Sized + GemmCache<AP,BP,A,B> + Sync + AccCoef,
 Self: GemmPackB<B::X, BP>,
  {
-    const ONE: Self::BE;
+    const ONE: Self::BS;
     unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const Self::ALP,
-        beta: *const Self::BE,
+        alpha: *const Self::AS,
+        beta: *const Self::BS,
         a: *const A::X, a_rs: usize, a_cs: usize,
         ap: *mut AP,
         b: *const BP,
@@ -1380,10 +1380,10 @@ Self: GemmPackB<B::X, BP>,
     unsafe fn gemm_small_n(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: Self::ALP,
+        alpha: Self::AS,
         a: A,
         b: B,
-        beta: Self::BE,
+        beta: Self::BS,
         c: C,
         par: &CorenumPar,
         pack_pool: *mut u8,
@@ -1407,8 +1407,8 @@ Self: GemmPackB<B::X, BP>,
                 let ap_cur = ap.add_p(t_id*ap_pool_size);
                 let bp_cur = bp.add_p(jc_id*bp_pool_size);
                 s.spawn(move || {
-                        let alpha = &alpha as *const Self::ALP;
-                        let beta = &beta as *const Self::BE;
+                        let alpha = &alpha as *const Self::AS;
+                        let beta = &beta as *const Self::BS;
                         self.gemm_small_n_serial(m, n, k, alpha, ap_cur, bp_cur, beta, c, &t_cfg);
                     }
                 );
@@ -1416,8 +1416,8 @@ Self: GemmPackB<B::X, BP>,
     
             let t_id: usize = 0;
             let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
-            let alpha = &alpha as *const Self::ALP;
-            let beta = &beta as *const Self::BE;
+            let alpha = &alpha as *const Self::AS;
+            let beta = &beta as *const Self::BS;
             self.gemm_small_n_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
         });
     }
@@ -1425,10 +1425,10 @@ Self: GemmPackB<B::X, BP>,
     unsafe fn gemm_small_n_serial(
         self: &Self,
         m: usize, n: usize, k: usize,
-        alpha: *const Self::ALP,
+        alpha: *const Self::AS,
         a: A::PackArray,
         b: B::PackArray,
-        beta: *const Self::BE,
+        beta: *const Self::BS,
         c: C,
         t_cfg: &CorenumThreadConfig
     ) {
@@ -1468,7 +1468,7 @@ Self: GemmPackB<B::X, BP>,
             let mut kc = kc_start;
             while kc < kc_end {
                 let kc_len = kc_eff.min(kc_end - kc);
-                let beta_t = if kc == kc_start { beta } else { &one as *const Self::BE};
+                let beta_t = if kc == kc_start { beta } else { &one as *const Self::BS};
                 let a_cur = a_i.add(kc*a_cs);
                 let mut nc = nc_start;
  
@@ -1524,29 +1524,29 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 >
-where Self: Sized + AB_Type,
+where Self: Sized + AccCoef,
  {
    unsafe fn gemv(
         self: &Self,
        m: usize, n: usize,
-       alpha: Self::ALP,
+       alpha: Self::AS,
        a: A,
        x: B,
-       beta: Self::BE,
+       beta: Self::BS,
        y: C,
        _par: &CorenumPar
    ) {
-       let alpha = &alpha as *const Self::ALP;
-       let beta = &beta as *const Self::BE;
+       let alpha = &alpha as *const Self::AS;
+       let beta = &beta as *const Self::BS;
        self.gemv_serial(m, n, alpha, a, x, beta, y);
    }
    unsafe fn gemv_serial(
         self: &Self,
        m: usize, n: usize,
-       alpha: *const Self::ALP,
+       alpha: *const Self::AS,
        a: A,
        x: B,
-       beta: *const Self::BE,
+       beta: *const Self::BS,
        y: C
    );
 }

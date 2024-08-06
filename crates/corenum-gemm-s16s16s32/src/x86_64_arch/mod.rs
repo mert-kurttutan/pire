@@ -138,11 +138,11 @@ B: GemmArray<BP>,
     }
 }
 
-use corenum_base::AB_Type;
+use corenum_base::AccCoef;
 
-impl<F: MyFn> AB_Type for X86_64dispatcher<F> {
-    type ALP = f32;
-    type BE = f32;
+impl<F: MyFn> AccCoef for X86_64dispatcher<F> {
+    type AS = f32;
+    type BS = f32;
 }
 
 impl<

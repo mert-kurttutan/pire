@@ -46,16 +46,16 @@ T: MyFn = NullFn
     func: T,
     features: CpuFeatures,
 }
-use corenum_base::AB_Type;
+use corenum_base::AccCoef;
 
-impl<F: MyFn> AB_Type for F32Dispatcher<F> {
-    type ALP = f32;
-    type BE = f32;
+impl<F: MyFn> AccCoef for F32Dispatcher<F> {
+    type AS = f32;
+    type BS = f32;
 }
 
-impl<F: MyFn> AB_Type for F16Dispatcher<F> {
-    type ALP = f16;
-    type BE = f16;
+impl<F: MyFn> AccCoef for F16Dispatcher<F> {
+    type AS = f16;
+    type BS = f16;
 }
 
 
@@ -257,7 +257,7 @@ C: GemmOut<X=f16,Y=f16>,
        alpha: *const f32,
        a: A,
        x: B,
-       beta: *const Self::BE,
+       beta: *const Self::BS,
        y: C,
    ) {
         let x_ptr = x.get_data_ptr();
