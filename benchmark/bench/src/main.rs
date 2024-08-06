@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 
 
-use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort};
+use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort, c_short};
 
 use num_complex::{
     c32,
@@ -76,6 +76,20 @@ pub use self::trans_t::*;
 #[cfg(feature="mkl")]
 #[allow(dead_code)]
 extern "C" {
+   #[allow(clippy::too_many_arguments)]
+   pub fn cblas_gemm_s16s16s32(
+       layout: CBLAS_LAYOUT,
+       transa: CBLAS_TRANSPOSE,
+       transb: CBLAS_TRANSPOSE,
+       offsetc: CBLAS_OFFSET,
+       m: c_int, n: c_int, k: c_int,
+       alpha: c_float,
+       a: *const c_short, lda: c_int, oa: c_short,
+       b: *const c_short, ldb: c_int, ob: c_short,
+       beta: c_float,
+       c: *mut c_int, ldc: c_int, oc: *const c_int,
+   );
+
    #[allow(clippy::too_many_arguments)]
    pub fn cblas_gemm_s8u8s32(
        layout: CBLAS_LAYOUT,
@@ -253,6 +267,7 @@ pub enum BenchType {
     SGemmBatched,
     HGemm,
     CGemm,
+    GemmS16S16S32,
 }
 
 pub unsafe fn dispatch_dgemm(
@@ -388,8 +403,6 @@ pub unsafe fn dispatch_sgemm(
     }
 }
 
-
-
 pub unsafe fn dispatch_cgemm(
     backend: GemmBackend,
     m: usize, n: usize, k: usize,
@@ -456,14 +469,7 @@ pub unsafe fn dispatch_cgemm(
                  );
           }
           GemmBackend::Corenum => {
-            //  corenum_gemm_f32::corenum_sgemm(
-            //      m, n, k,
-            //      alpha,
-            //      a, a_rs as usize, a_cs as usize,
-            //      b, b_rs as usize, b_cs as usize,
-            //      beta,
-            //      c, c_rs as usize, c_cs as usize,
-            //  );
+            panic!("Not implemented for corenum");
          }
      }
  }
@@ -497,7 +503,6 @@ pub unsafe fn dispatch_gemm_batch_f32(
                     );
                 }
              }
-
         }
         GemmBackend::Mkl => {
              #[cfg(feature="mkl")]
@@ -635,6 +640,58 @@ pub unsafe fn dispatch_gemm_f16(
      }
  }
 
+ pub unsafe fn dispatch_gemm_s16s16s32(
+    backend: GemmBackend,
+    m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const i16, a_rs: isize, a_cs: isize,
+    b: *const i16, b_rs: isize, b_cs: isize,
+    beta: f32,
+    c: *mut i32, c_rs: isize, c_cs: isize,
+ ) {
+    match backend {
+        GemmBackend::Blis => {
+             #[cfg(feature="blis")]
+                panic!("s16s16s32 is not supported in blis");
+        }
+        GemmBackend::Mkl => {
+             #[cfg(feature="mkl")]
+             {
+                let oc_val = 0;
+                let oc = &oc_val as *const c_int;
+                 let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
+                 cblas_gemm_s16s16s32(
+                     layout,
+                     transa,
+                     transb,
+                     CblasFixOffset,
+                     m as i32, n as i32, k as i32,
+                     alpha,
+                     a, lda as i32, 0,
+                     b, ldb as i32, 0,
+                     beta,
+                     c, ldc as i32, oc,
+                 );
+             }
+        }
+        GemmBackend::RustGemm => {
+             #[cfg(feature="rustgemm")]
+                panic!("s16s16s32 is not supported in rustgemm");
+          }
+          GemmBackend::Corenum => {
+             use corenum_gemm_s16s16s32::corenum_gemm_s16s16s32 as gemm_s16s16s32;
+            gemm_s16s16s32(
+                m, n, k,
+                alpha,
+                a, a_rs as usize, a_cs as usize,
+                b, b_rs as usize, b_cs as usize,
+                beta,
+                c, c_rs as usize, c_cs as usize,
+            );
+         }
+     }
+ }
+
 pub trait Norm {
     fn norm(&self) -> f64;
 }
@@ -663,6 +720,12 @@ impl Norm for f16 {
     }
 }
 
+impl Norm for i32 {
+    fn norm(&self) -> f64 {
+        (*self as f64).abs()
+    }
+}
+
 pub fn max_abs_diff<T: Copy + Norm + std::ops::Sub + std::fmt::Debug>(ap: &[T], bp: &[T], eps: f64) -> f64
 where <T as std::ops::Sub>::Output: Norm
 {
@@ -672,9 +735,11 @@ where <T as std::ops::Sub>::Output: Norm
        let a = ap[i];
        let b = bp[i];
        let cur_diff = (a-b).norm().abs();
-       let b_norm = b.norm();
+       let b_norm = b.norm().max(1.0);
+       let cur_diff = cur_diff / (b_norm+0.1);
        if cur_diff > diff && cur_diff > eps{
-           diff = cur_diff / b_norm;
+
+           diff = cur_diff / (b_norm+0.1);
        }
    }
    diff
@@ -773,6 +838,34 @@ pub unsafe fn check_sgemm(
         let diff = max_abs_diff(&c, &c_ref, 1e-3);
         return diff;
     }
+}
+
+
+pub unsafe fn check_gemm_s16s16s32(
+	m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const i16, a_rs: usize, a_cs: usize,
+    b: *const i16, b_rs: usize, b_cs: usize,
+    beta: f32,
+    c: &[i32], c_rs: usize, c_cs: usize,
+    c_ref: &mut [i32],
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let oc_val = 0;
+        let oc = &oc_val as *const c_int;
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        cblas_gemm_s16s16s32(
+            layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
+        );
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
+        return diff;
+    }
+    // #[cfg(not(feature="mkl"))] {
+    //     // calculate diff using fallback
+    //     gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+    //     let diff = max_abs_diff(&c, &c_ref, 1e-3);
+    //     return diff;
+    // }
 }
 
 
@@ -921,9 +1014,11 @@ pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
     if bench_type_str == "dgemm" {
         return BenchType::DGemm;
     }
-
     if bench_type_str == "cgemm" {
         return BenchType::CGemm;
+    }
+    if bench_type_str == "gemm_s16s16s32" {
+        return BenchType::GemmS16S16S32;
     }
     panic!("Unsupported bench type str");
 }
@@ -1185,6 +1280,58 @@ fn test_hgemm(
     end_time
 }
 
+
+fn test_gemm_s16s16s32(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f32,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+) -> f64 {
+    let mut a = vec![0_i16; m * k];
+    let mut b = vec![0_i16; k * n];
+    let mut c = vec![0_i32; m * n];
+    random_matrix(m, k, &mut a, m);
+    random_matrix(k, n, &mut b, k);
+    // div every elem of a and b by 100
+    a.iter_mut().for_each(|x| *x = *x / 100);
+    b.iter_mut().for_each(|x| *x = *x / 100);
+    let mut c_ref = vec![0_i32; m * n];
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    unsafe {
+        dispatch_gemm_s16s16s32(
+            gemm_backend,
+            m, n, k,
+            alpha,
+            a.as_ptr(), a_rs, a_cs,
+            b.as_ptr(), b_rs, b_cs,
+            beta,
+            c.as_mut_ptr(), c_rs, c_cs,
+        );
+    }
+    if args.check {
+        let diff = unsafe {
+            check_gemm_s16s16s32(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref
+            )
+        };
+        println!("diff: {}", diff);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
+
  
 use clap::Parser;
  
@@ -1257,6 +1404,7 @@ struct Args {
             BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
             BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
             BenchType::CGemm => test_cgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::GemmS16S16S32 => test_gemm_s16s16s32(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
         };
         total_time += end_time;
 

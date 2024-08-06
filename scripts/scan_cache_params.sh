@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Define arrays of literal values
-nc_array=(128 192 256 320 320 448 512 578 640 768 960)
-kc_array=(128 192 256 320 320 448 512 578 640 768 960)
+nc_array=(128 192 256 320 384 448)
+kc_array=(128 192 256 320 384 448)
 
-mr=12
+mr=16
 nr=4
 
 # export CORENUM_SGEMM_MR=$mr
@@ -20,7 +20,7 @@ for n_i in "${nc_array[@]}"; do
         
         # echo nc and kc to out.txt
         echo "nc: $NC, kc: $KC" >> out.txt
-        taskset -c 0 ./target/release/bench --m 4000 --n 4000 --k 4000 --n-repeats 2 --t-layout nn  --bench-type dgemm --backend corenum >> out.txt
+        taskset -c 0 ./target/release/bench --m 4800 --n 4800 --k 4800 --n-repeats 2 --t-layout nt  --bench-type gemm_s16s16s32 --backend corenum >> out.txt
         sleep 1
     done
 done

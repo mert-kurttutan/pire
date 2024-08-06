@@ -46,6 +46,18 @@ T: MyFn = NullFn
     func: T,
     features: CpuFeatures,
 }
+use corenum_base::AB_Type;
+
+impl<F: MyFn> AB_Type for F32Dispatcher<F> {
+    type ALP = f32;
+    type BE = f32;
+}
+
+impl<F: MyFn> AB_Type for F16Dispatcher<F> {
+    type ALP = f16;
+    type BE = f16;
+}
+
 
 impl F32Dispatcher {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures) -> Self {
@@ -245,16 +257,16 @@ C: GemmOut<X=f16,Y=f16>,
        alpha: *const f32,
        a: A,
        x: B,
-       beta: *const C::X,
+       beta: *const Self::BE,
        y: C,
    ) {
         let x_ptr = x.get_data_ptr();
         let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        let beta_val = *beta;
-        let beta_t = beta_val.to_f32();
-        let beta = &beta_t as *const f32;
+        // let beta_val = *beta;
+        // let beta_t = beta_val.to_f32();
+        // let beta = &beta_t as *const f32;
         match self.features.f32_ft {
             F32Features::Avx512F => {
                 avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
@@ -301,21 +313,21 @@ C: GemmOut<X=f16,Y=f16>,
 where 
 F32Dispatcher<T>: GemmPackA<f16, f32> + GemmPackB<f16, f32> 
 {
-   const ONE: TC = f16::ONE;
+   const ONE: f32 = 1_f32;
    unsafe fn kernel(
        self: &Self,
        m: usize, n: usize, k: usize,
        alpha: *const f32,
-       beta: *const f16,
+       beta: *const f32,
        c: *mut TC,
        c_rs: usize, c_cs: usize,
        ap: *const f32, bp: *const f32,
        _kc_last: bool
    ) {
         let my_func = self.func;
-        let beta_val = *beta;
-        let beta_t = beta_val.to_f32();
-        let beta = &beta_t as *const f32;
+        // let beta_val = *beta;
+        // let beta_t = beta_val.to_f32();
+        // let beta = &beta_t as *const f32;
         match self.features.f32_ft {
             F32Features::AvxFma => {
                 avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
@@ -363,13 +375,13 @@ C: GemmOut<X=f16,Y=f16>,
 > GemmSmallM<f32,f32,A,B,C> for F32Dispatcher<T>
 where F32Dispatcher<T>: GemmPackA<f16, f32>
 {
-    const ONE: TC = f16::ONE;
+    const ONE: f32 = 1_f32;
     #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const f32,
-        beta: *const f16,
+        beta: *const f32,
         b: *const f16, b_rs: usize, b_cs: usize,
         c: *mut TC, c_rs: usize, c_cs: usize,
         ap: *const f32,
@@ -388,13 +400,13 @@ C: GemmOut<X=f16,Y=f16>,
 where 
 F32Dispatcher<T>: GemmPackB<f16, f32>
 {
-    const ONE: TC = f16::ONE;
+    const ONE: f32 = 1_f32;
     #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
         alpha: *const f32,
-        beta: *const TC,
+        beta: *const f32,
         a: *const f16, a_rs: usize, a_cs: usize,
         ap: *mut f32,
         b: *const f32,

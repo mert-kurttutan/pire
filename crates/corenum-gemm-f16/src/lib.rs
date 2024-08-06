@@ -68,7 +68,7 @@ C: GemmOut<X=f16,Y=f16>,
 	alpha: f16,
 	a: A,
 	b: B,
-	beta: C::X,
+	beta: f16,
 	c: C,
 ){	
 	let par = CorenumPar::default();
@@ -92,7 +92,7 @@ C: GemmOut<X=f16,Y=f16>,
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
 		corenum_gemm(
-			&hw_config, m, n, k, alpha.to_f32(), a, b, beta, c, &par
+			&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par
 		);
 	}
 

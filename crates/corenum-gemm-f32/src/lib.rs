@@ -46,7 +46,7 @@ use corenum_base::{
 pub use corenum_base::CorenumPar;
 use corenum_base::RUNTIME_HW_CONFIG;
 use corenum_base::corenum_gemm;
-
+use corenum_base::AB_Type;
 pub(crate) unsafe fn corenum_sgemm_generic<
 A: GemmArray<f32,X=f32>, 
 B: GemmArray<f32,X=f32>,
@@ -61,7 +61,8 @@ F: MyFn,
 	c: C,
 	f: F,
 ) 
-where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>
+where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
+X86_64dispatcher<F>: AB_Type<ALP=f32,BE=f32>
 {
 	use corenum_base::F32Features;
 	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {

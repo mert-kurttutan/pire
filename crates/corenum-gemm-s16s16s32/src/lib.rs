@@ -6,9 +6,9 @@ pub(crate) mod armv8;
 
 pub(crate) mod reference;
 
-pub(crate) type TA = f64;
-pub(crate) type TB = f64;
-pub(crate) type TC = f64;
+pub(crate) type TA = i16;
+pub(crate) type TB = i16;
+pub(crate) type TC = i32;
 
 #[derive(Copy, Clone)]
 pub(crate) struct NullFn;
@@ -47,22 +47,23 @@ pub use corenum_base::CorenumPar;
 use corenum_base::RUNTIME_HW_CONFIG;
 use corenum_base::corenum_gemm;
 use corenum_base::AB_Type;
-pub(crate) unsafe fn corenum_dgemm_generic<
-A: GemmArray<f64,X=f64>, 
-B: GemmArray<f64,X=f64>,
-C: GemmOut<X=f64,Y=f64>,
+
+pub(crate) unsafe fn corenum_gemm_s16s16s32_generic<
+A: GemmArray<i16,X=i16>, 
+B: GemmArray<i16,X=i16>,
+C: GemmOut<X=i32,Y=i32>,
 F: MyFn,
 >(
 	m: usize, n: usize, k: usize,
-	alpha: TA,
+	alpha: f32,
 	a: A,
 	b: B,
-	beta: C::X,
+	beta: f32,
 	c: C,
 	f: F,
 ) 
 where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
-X86_64dispatcher<F>: AB_Type<ALP=f64,BE=f64>
+X86_64dispatcher<F>: AB_Type<ALP=f32,BE=f32>
 {
 	use corenum_base::F32Features;
 	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
@@ -76,12 +77,12 @@ X86_64dispatcher<F>: AB_Type<ALP=f64,BE=f64>
 	corenum_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 
-pub unsafe fn corenum_dgemm(
+pub unsafe fn corenum_gemm_s16s16s32(
 	m: usize, n: usize, k: usize,
-	alpha: TA,
+	alpha: f32,
 	a: *const TA, a_rs: usize, a_cs: usize,
 	b: *const TB, b_rs: usize, b_cs: usize,
-	beta: TC,
+	beta: f32,
 	c: *mut TC, c_rs: usize, c_cs: usize,
 ) {
 	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
@@ -94,15 +95,15 @@ pub unsafe fn corenum_dgemm(
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
 	let null_fn = NullFn{};
-	corenum_dgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
+	corenum_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
-pub unsafe fn corenum_dgemm_fused(
+pub unsafe fn corenum_gemm_s16s16s32_fused(
 	m: usize, n: usize, k: usize,
-	alpha: TA,
+	alpha: f32,
 	a: *const TA, a_rs: usize, a_cs: usize,
 	b: *const TB, b_rs: usize, b_cs: usize,
-	beta: TC,
+	beta: f32,
 	c: *mut TC, c_rs: usize, c_cs: usize,
 	unary: fn(*mut TC, usize),
 ) {
@@ -115,18 +116,18 @@ pub unsafe fn corenum_dgemm_fused(
 	let a = StridedMatrix::new(a, a_rs, a_cs);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	corenum_dgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
+	corenum_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
-pub unsafe fn corenum_dgemv(
+pub unsafe fn corenum_gemv_s16s16s32(
 	m: usize, n: usize,
-	alpha: TA,
+	alpha: f32,
 	a: *const TA, a_rs: usize, a_cs: usize,
 	x: *const TB, incx: usize,
-	beta: TC,
+	beta: f32,
 	y: *mut TC, incy: usize,
 ) {
-	corenum_dgemm(
+	corenum_gemm_s16s16s32(
 		m, 1, n,
 		alpha,
 		a, a_rs, a_cs,
@@ -135,15 +136,15 @@ pub unsafe fn corenum_dgemv(
 		y, 1, incy,
 	)	
 }
-pub unsafe fn corenum_sdot(
+pub unsafe fn corenum_dot_s16s16s32(
 	n: usize,
-	alpha: TA,
+	alpha: f32,
 	x: *const TA, incx: usize,
 	y: *const TB, incy: usize,
-	beta: TC,
+	beta: f32,
 	res: *mut TC,
 ) {
-	corenum_dgemm(
+	corenum_gemm_s16s16s32(
 		1, 1, n,
 		alpha,
 		x, incx, 1,
@@ -153,22 +154,22 @@ pub unsafe fn corenum_sdot(
 	)
 }
 
-pub unsafe fn packa_f64(
+pub unsafe fn packa_f32(
 	m: usize, k: usize,
 	a: *const TA,
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) {
-	let align_offset = ap.align_offset(256);
-	let mut ap = ap.add(align_offset);
-	if m == 1 || k == 1 {
-		for i in 0..m {
-			for j in 0..k {
-				*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
-			}
-		}
-		return;
-	}
+	// let align_offset = ap.align_offset(256);
+	// let mut ap = ap.add(align_offset);
+	// if m == 1 || k == 1 {
+	// 	for i in 0..m {
+	// 		for j in 0..k {
+	// 			*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
+	// 		}
+	// 	}
+	// 	return;
+	// }
 
 	#[cfg(target_arch = "x86_64")]
 	{
@@ -225,18 +226,17 @@ mod tests {
 	use super::*;
 	use corenum_dev::{
     	random_matrix,
-    	check_gemm_f64,
+    	check_gemm_s16s16s32,
 	};
 
 	const EPS: f64 = 2e-2;
 
 	// static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
 	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444];
-	// static M_ARR: [usize; 1] = [24];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
-	static K_ARR: [usize; 12] = [1, 3, 4, 8, 16, 64, 128, 129, 130, 131, 132, 509];
-	static ALPHA_ARR: [f64; 1] = [1.0];
-	static BETA_ARR: [f64; 3] = [1.0, 0.0, 3.1415];
+	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
+	static ALPHA_ARR: [i16; 1] = [1];
+	static BETA_ARR: [i32; 2] = [1, 0];
 	enum Layout {
     	NN,
     	NT,
@@ -255,12 +255,12 @@ mod tests {
 	fn test_gemm(layout: &Layout) {
     	for m in M_ARR {
         	for n in N_ARR {
-            	let mut c = vec![0.0; m * n];
-            	let mut c_ref = vec![0.0; m * n];
+            	let mut c = vec![0; m * n];
+            	let mut c_ref = vec![0; m * n];
             	for k in K_ARR {
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
-                	let mut a = vec![0.0; m * k];
-                	let mut b = vec![0.0; k * n];
+                	let mut a = vec![0; m * k];
+                	let mut b = vec![0; k * n];
                 	for alpha in ALPHA_ARR {
                     	for beta in BETA_ARR {
                         	random_matrix(m, k, &mut a, m);
@@ -268,7 +268,7 @@ mod tests {
                         	random_matrix(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
                         	unsafe {
-                            	corenum_dgemm(
+                            	corenum_gemm_s16s16s32(
                                 	m, n, k,
                                 	alpha,
                                 	a.as_ptr(), a_rs, a_cs,
@@ -278,97 +278,21 @@ mod tests {
                             	);
                         	}
                         	let diff_max = unsafe { 
-								check_gemm_f64(
+								check_gemm_s16s16s32(
 									m, n, k,
-									alpha,
+									alpha as f32,
 									a.as_ptr(), a_rs, a_cs,
 									b.as_ptr(), b_rs, b_cs,
-									beta,
+									beta as f32,
 									&mut c, c_rs, c_cs,
 									&mut c_ref,
-									EPS,
-								)
-							};
-                        	if diff_max >= EPS {
-                            	println!("a: {:?}", a);
-                            	println!("b: {:?}", b);
-                            	println!("c: {:?}", c);
-                            	println!("c_ref: {:?}", c_ref);
-                        	}
-                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
-                    	}
-                	}
-            	}
-        	}
-    	}
-	}
-
-	fn test_gemm_ap(layout: &Layout) {
-    	for m in M_ARR {
-        	for n in N_ARR {
-            	let mut c = vec![0.0; m * n];
-            	let mut c_ref = vec![0.0; m * n];
-            	for k in K_ARR {
-                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
-                	let mut a = vec![0.0; m * k];
-                	let mut b = vec![0.0; k * n];
-					let mut ap = vec![0_f64; (m+100)*k+512];
-					let ap_offset = ap.as_ptr().align_offset(512);
-					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
-					let ap_ptr = ap_mut_ptr as *const f64;
-                	for alpha in ALPHA_ARR {
-                    	for beta in ALPHA_ARR {
-                        	random_matrix(m, k, &mut a, m);
-                        	random_matrix(k, n, &mut b, k);
-                        	random_matrix(m, n, &mut c, m);
-                        	c_ref.copy_from_slice(&c);
-							unsafe {
-								packa_f64(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr);
-							}
-							let ap_matrix = corenum_base::PackedMatrix{
-								data_ptr: ap_ptr,
-								mc: 4800,
-								kc: 512,
-								mr: 48,
-								k,
-								m,
-								rs: a_rs,
-								cs: a_cs,
-							};
-							let b_matrix = StridedMatrix{
-								data_ptr: b.as_ptr(),
-								rs: b_rs, cs: b_cs,
-							};
-							let c_matrix = StridedMatrixMut{
-								data_ptr: c.as_mut_ptr(),
-								rs: c_rs, cs: c_cs,
-							};
-                        	// unsafe {
-                            // 	corenum_gemm_f64f64f64(
-                            //     	m, n, k,
-                            //     	alpha,
-                            //     	ap_matrix,
-                            //     	b_matrix,
-                            //     	beta,
-                            //     	c_matrix,
-                            // 	);
-                        	// }
-                        	let diff_max = unsafe { 
-								check_gemm_f64(
-									m, n, k,
-									alpha,
-									a.as_ptr(), a_rs, a_cs,
-									b.as_ptr(), b_rs, b_cs,
-									beta,
-									&mut c, c_rs, c_cs,
-									&mut c_ref,
-									EPS,
+									// EPS,
 								)
 							};
                         	// if diff_max >= EPS {
                             // 	println!("a: {:?}", a);
                             // 	println!("b: {:?}", b);
-                            // 	println!("c:     {:?}", c);
+                            // 	println!("c: {:?}", c);
                             // 	println!("c_ref: {:?}", c_ref);
                         	// }
                         	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
@@ -378,6 +302,7 @@ mod tests {
         	}
     	}
 	}
+
 	// #[test]
 	// fn test_nn_col_ap() {
     // 	test_gemm_ap(&Layout::NN);

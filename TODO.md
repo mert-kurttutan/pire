@@ -3,3 +3,5 @@
 
 - mkl batched api does not perform any better than gemm+external batching (even for small dim), investigaet this further (only for small dim since big dim cannot exceed this)
 - check dispatching of sgemv through sgemm is the same as sgemv in terms of performance. It should be, but a rigourous check is better to be sure. (Only additional overhead should be due to dispathcing of cache params, mc, nc, kc)
+
+-Add test for packing

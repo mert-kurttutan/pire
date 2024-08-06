@@ -22,6 +22,12 @@ use corenum_base::{
    GemmPackA, GemmPackB
 };
 
+use corenum_base::AB_Type;
+
+impl<F: MyFn> AB_Type for X86_64dispatcher<F> {
+    type ALP = f64;
+    type BE = f64;
+}
 
 use crate::{
    GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC,
