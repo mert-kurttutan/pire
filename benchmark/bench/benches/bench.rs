@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use corenum_gemm_f32::*;
+use glare_gemm_f32::*;
 use std::{thread::available_parallelism, time::Duration};
 
 #[cfg(feature="rustgemm")]
@@ -391,14 +391,14 @@ pub fn bench_blas_group<M: criterion::measurement::Measurement>(
 
     bench_c.bench_function(
         &format!(
-            "f32-corenum-gemm-{}×{}×{}", m, n, k
+            "f32-glare-gemm-{}×{}×{}", m, n, k
         ),
         |x| {
             x.iter(|| unsafe {
 
                 unsafe {
 
-                    corenum_sgemm(
+                    glare_sgemm(
                         m, n, k,
                         ALPHA,
                         a, a_rs, a_cs, 
@@ -488,10 +488,10 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement>(
         )
     );
     bench_c.bench_with_input(
-        BenchmarkId::new("f32-corenum-gemm", dt), &dt, 
+        BenchmarkId::new("f32-glare-gemm", dt), &dt, 
         |bench_b, x| bench_b.iter(
             || unsafe {
-                corenum_sgemm(
+                glare_sgemm(
                     m, n, k,
                     ALPHA,
                     a, 1, m,
@@ -576,14 +576,14 @@ pub fn bench_blas_group2(
 
     bench_c.bench_function(
         &format!(
-            "f32-corenum-gemm-{}×{}×{}", m, n, k
+            "f32-glare-gemm-{}×{}×{}", m, n, k
         ),
         |x| {
             x.iter(|| unsafe {
 
                 unsafe {
 
-                    corenum_sgemm(
+                    glare_sgemm(
                         m, n, k,
                         ALPHA,
                         a, a_rs, a_cs, 

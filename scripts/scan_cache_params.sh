@@ -7,8 +7,8 @@ kc_array=(128 192 256 320 384 448)
 mr=16
 nr=4
 
-# export CORENUM_SGEMM_MR=$mr
-# export CORENUM_SGEMM_NR=$nr
+# export GLARE_SGEMM_MR=$mr
+# export GLARE_SGEMM_NR=$nr
 
 # Outer loop
 for n_i in "${nc_array[@]}"; do

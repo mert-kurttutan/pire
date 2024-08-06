@@ -51,9 +51,9 @@ pub const BLASFEO: &str = "blasfeo";
 pub const UNSUPPORTED_OS_ERROR: _ = "Target OS is not supported. Please contact me";
 
 pub const LINK_DIRS: &[&str] = &[
-    env_or!("CORENUM_MKL_PATH"),
-    env_or!("CORENUM_BLIS_PATH"),
-    env_or!("CORENUM_BLASFEO_PATH"),
+    env_or!("GLARE_MKL_PATH"),
+    env_or!("GLARE_BLIS_PATH"),
+    env_or!("GLARE_BLASFEO_PATH"),
 ];
 
 

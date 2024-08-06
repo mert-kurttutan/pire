@@ -6,12 +6,12 @@ edition = "2021"
 [dependencies]
 libc = "0.2"
 rand = "0.8.5"
-corenum-base = { path = "../../crates/corenum-base" }
-corenum-gemm-f32 = { path = "../../crates/corenum-gemm-f32" }
-corenum-gemm-f64 = { path = "../../crates/corenum-gemm-f64" }
-corenum-gemm-f16 = { path = "../../crates/corenum-gemm-f16" }
-corenum-gemm-s16s16s32 = { path = "../../crates/corenum-gemm-s16s16s32" }
-# corenum-dev = { path = "../../crates/corenum-dev" }
+glare-base = { path = "../../crates/glare-base" }
+glare-gemm-f32 = { path = "../../crates/glare-gemm-f32" }
+glare-gemm-f64 = { path = "../../crates/glare-gemm-f64" }
+glare-gemm-f16 = { path = "../../crates/glare-gemm-f16" }
+glare-gemm-s16s16s32 = { path = "../../crates/glare-gemm-s16s16s32" }
+# glare-dev = { path = "../../crates/glare-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
 num-complex = { version = "0.4.6", features = ["rand"] }
@@ -32,5 +32,5 @@ mkl_check = []
 mkl = []
 blis = []
 blasfeo = []
-corenum = []
+glare = []
 rustgemm = ["dep:gemm"]

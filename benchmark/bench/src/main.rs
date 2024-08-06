@@ -324,7 +324,7 @@ pub unsafe fn dispatch_dgemm(
                  );
           }
           GemmBackend::Corenum => {
-            corenum_gemm_f64::corenum_dgemm(
+            glare_gemm_f64::glare_dgemm(
                 m, n, k,
                 alpha,
                 a, a_rs as usize, a_cs as usize,
@@ -391,7 +391,7 @@ pub unsafe fn dispatch_sgemm(
                 );
          }
          GemmBackend::Corenum => {
-            corenum_gemm_f32::corenum_sgemm(
+            glare_gemm_f32::glare_sgemm(
                 m, n, k,
                 alpha,
                 a, a_rs as usize, a_cs as usize,
@@ -469,7 +469,7 @@ pub unsafe fn dispatch_cgemm(
                  );
           }
           GemmBackend::Corenum => {
-            panic!("Not implemented for corenum");
+            panic!("Not implemented for glare");
          }
      }
  }
@@ -561,10 +561,10 @@ pub unsafe fn dispatch_gemm_batch_f32(
             }
         }
         GemmBackend::Corenum => {
-             #[cfg(feature="corenum")]
+             #[cfg(feature="glare")]
              {
                 for i in 0..batch_size {
-                    corenum_gemm_f32::corenum_sgemm(
+                    glare_gemm_f32::glare_sgemm(
                         m, n, k,
                         alpha,
                         a.offset(i as isize * stridea), a_rs as usize, a_cs as usize,
@@ -628,7 +628,7 @@ pub unsafe fn dispatch_gemm_f16(
                  );
           }
           GemmBackend::Corenum => {
-            corenum_gemm_f16::corenum_hgemm(
+            glare_gemm_f16::glare_hgemm(
                 m, n, k,
                 alpha,
                 a, a_rs as usize, a_cs as usize,
@@ -679,7 +679,7 @@ pub unsafe fn dispatch_gemm_f16(
                 panic!("s16s16s32 is not supported in rustgemm");
           }
           GemmBackend::Corenum => {
-             use corenum_gemm_s16s16s32::corenum_gemm_s16s16s32 as gemm_s16s16s32;
+             use glare_gemm_s16s16s32::glare_gemm_s16s16s32 as gemm_s16s16s32;
             gemm_s16s16s32(
                 m, n, k,
                 alpha,
@@ -995,7 +995,7 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     if backend_str == "rustgemm" {
         return GemmBackend::RustGemm;
     } 
-    if backend_str == "corenum" {
+    if backend_str == "glare" {
         return GemmBackend::Corenum;
     } 
     panic!("Unsupported backend str");
@@ -1368,7 +1368,7 @@ struct Args {
    check: bool,
 
    // gemm backend
-    #[arg(short, long, default_value_t = String::from("corenum"))]
+    #[arg(short, long, default_value_t = String::from("glare"))]
     backend: String,
 
     // bench type

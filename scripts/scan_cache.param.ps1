@@ -5,8 +5,8 @@ $kc_array = 128, 192, 256, 320, 320, 448, 512, 578, 640, 768, 960
 $mr = 24
 $nr = 4
 
-$env:CORENUM_SGEMM_MR = $mr
-$env:CORENUM_SGEMM_NR = $nr
+$env:GLARE_SGEMM_MR = $mr
+$env:GLARE_SGEMM_NR = $nr
 
 # Outer loop
 foreach ($n_i in $nc_array) {

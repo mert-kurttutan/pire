@@ -1,11 +1,11 @@
 [workspace]
 
 members = [ 
-    "corenum-base", 
-    "corenum-dev", "corenum-gemm-f16",
-    "corenum-gemm-f32", "corenum-gemm-f64",
-    "corenum-gemm-c32", "corenum-gemm-c64",
-    "corenum-gemm-s16s16s32"
+    "glare-base", 
+    "glare-dev", "glare-gemm-f16",
+    "glare-gemm-f32", "glare-gemm-f64",
+    "glare-gemm-c32", "glare-gemm-c64",
+    "glare-gemm-s16s16s32"
 ]
 
 resolver = "2"
