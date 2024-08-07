@@ -1,71 +1,10 @@
 use seq_macro::seq;
-use std::ptr::copy_nonoverlapping;
 use crate::{TA,TB};
 
 
 use paste::paste;
 
 use std::arch::x86_64::*;
-
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_t<const MR: usize>(
-    a: *const TA, lda: usize,
-    ap: *mut TB,
-) {
-    // let a0 = _mm256_loadu_ps(a);
-    // let a1 = _mm256_loadu_ps(a.add(lda));
-    // let a2 = _mm256_loadu_ps(a.add(lda*2));
-    // let a3 = _mm256_loadu_ps(a.add(lda*3));
-
-    // // transpose
-    // let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-    // let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-    // let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-    // let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
-
-    // let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-    // let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-    // let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-    // let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-
-    // let a0 = _mm256_loadu_ps(a.add(lda*4));
-    // let a1 = _mm256_loadu_ps(a.add(lda*5));
-    // let a2 = _mm256_loadu_ps(a.add(lda*6));
-    // let a3 = _mm256_loadu_ps(a.add(lda*7));
-
-    // // transpose
-    // let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-    // let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-    // let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-    // let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
-
-    // let x4 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-    // let x5 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-    // let x6 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-    // let x7 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-
-    // // exchange hi of x0 and lo of x4
-    // let x0_t = _mm256_permute2f128_ps(x0, x4, 0b0010_0000);
-    // let x4_t = _mm256_permute2f128_ps(x0, x4, 0b0011_0001);
-    // // exchange hi of x1 and lo of x5
-    // let x1_t = _mm256_permute2f128_ps(x1, x5, 0b0010_0000);
-    // let x5_t = _mm256_permute2f128_ps(x1, x5, 0b0011_0001);
-    // // exchange hi of x2 and lo of x6
-    // let x2_t = _mm256_permute2f128_ps(x2, x6, 0b0010_0000);
-    // let x6_t = _mm256_permute2f128_ps(x2, x6, 0b0011_0001);
-    // // exchange hi of x3 and lo of x7
-    // let x3_t = _mm256_permute2f128_ps(x3, x7, 0b0010_0000);
-    // let x7_t = _mm256_permute2f128_ps(x3, x7, 0b0011_0001);
-
-    // _mm256_store_ps(ap, x0_t);
-    // _mm256_store_ps(ap.add(MR), x1_t);
-    // _mm256_store_ps(ap.add(MR*2), x2_t);
-    // _mm256_store_ps(ap.add(MR*3), x3_t);
-    // _mm256_store_ps(ap.add(MR*4), x4_t);
-    // _mm256_store_ps(ap.add(MR*5), x5_t);
-    // _mm256_store_ps(ap.add(MR*6), x6_t);
-    // _mm256_store_ps(ap.add(MR*7), x7_t); 
-}
 
 
 #[target_feature(enable = "avx,avx2")]
@@ -92,21 +31,6 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     //         *ap.add(j*2*MR+i*2+1) = 0;
     //     }
     // }
-}
-
-
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn storeu_ps<const M: usize>(
-    src: __m256, dst: *mut f32
-) {
-    let mut temp_arr = [0.0; 8];
-    _mm256_storeu_ps(temp_arr.as_mut_ptr(), src);
-    copy_nonoverlapping(temp_arr.as_ptr(), dst, M);
-}
-
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn copy_packed<const M: usize>(a: *const TA, b: *mut TA) {
-    std::ptr::copy_nonoverlapping(a, b, M);
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -241,7 +165,7 @@ pub(crate) unsafe fn interleave<const M: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave_left<const M: usize>(
-    a: *const TA, ap: *mut TA, lda: usize
+    a: *const TA, ap: *mut TA
 ) {
     if M == 1 {
         let mut t0 = [0_i16; 2];
@@ -365,7 +289,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     }
 
     if k_left % 2 != 0 {
-        interleave_left::<M>(a, ap, lda);
+        interleave_left::<M>(a, ap);
     }
 }
 
@@ -461,37 +385,37 @@ pub(crate) unsafe fn pack_kx16_v0(
 }
 
 
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_kx16_v1(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 16;
-    while k_i < k_iter {
-        pack_t::<MR>(a, lda, ap);
-        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
+// #[target_feature(enable = "avx,avx2")]
+// pub(crate) unsafe fn pack_kx16_v1(
+//     k_iter: usize, k_left: usize,
+//     a: *const TA, lda: usize,
+//     ap: *mut TA,
+// ) {
+//     let mut k_i = 0;
+//     let mut a = a;
+//     let mut ap = ap;
+//     const MR: usize = 16;
+//     while k_i < k_iter {
+//         // pack_t::<MR>(a, lda, ap);
+//         // pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
 
-        ap = ap.add(MR*8);
-        a = a.add(8);
-        k_i += 1;
-    }
+//         ap = ap.add(MR*8);
+//         a = a.add(8);
+//         k_i += 1;
+//     }
 
-    k_i = 0;
+//     k_i = 0;
 
-    while k_i < k_left {
-        seq!(i in 0..16 {
-            *ap.add(i) = *a.add(i*lda);
-        });
+//     while k_i < k_left {
+//         seq!(i in 0..16 {
+//             *ap.add(i) = *a.add(i*lda);
+//         });
 
-        ap = ap.add(MR);
-        a = a.add(1);
-        k_i += 1;
-    }
-}
+//         ap = ap.add(MR);
+//         a = a.add(1);
+//         k_i += 1;
+//     }
+// }
 
 
 macro_rules! def_packb {

@@ -18,19 +18,12 @@ macro_rules! env_or {
  }
 
 #[derive(Copy,Clone)]
-pub enum F32Features {
-    Avx512F,
-    AvxFma,
-    Avx,
-    NoSimd,
-}
-
-#[derive(Copy,Clone)]
 pub struct CpuFeatures {
     pub avx: bool,
     pub avx2: bool,
     pub avx512f: bool,
     pub avx512f16: bool,
+    pub avx512bf16: bool,
     pub fma: bool,
     pub fma4: bool,
     pub f16c: bool,
@@ -94,6 +87,7 @@ fn detect_hw_config() -> HWConfig {
         let fma = feature_info.has_fma();
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
+        let avx512bf16 = extended_feature_info.has_avx512_bf16();
         let avx512f = extended_feature_info.has_avx512f();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
@@ -103,6 +97,7 @@ fn detect_hw_config() -> HWConfig {
             avx2,
             avx512f,
             avx512f16,
+            avx512bf16,
             fma,
             fma4,
             f16c,
@@ -151,6 +146,10 @@ pub(crate) mod cpu_features{
 
     pub fn hw_avx512f16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
+    }
+
+    pub fn hw_avx512bf16() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx512f
     }
 }
 #[cfg(target_arch = "aarch64")]

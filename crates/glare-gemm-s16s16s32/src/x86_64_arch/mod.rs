@@ -3,9 +3,7 @@ pub(crate) mod avx_fma_microkernel;
 
 use glare_base::GemmArray;
 use glare_base::GemmOut;
-use glare_base::{
-    CpuFeatures, F32Features
-};
+use glare_base::CpuFeatures;
 
 const AVX_FMA_GOTO_MR: usize = 16; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
@@ -76,7 +74,10 @@ impl<
 T: MyFn
 > GemmPackA<TA,TA> for X86_64dispatcher<T> {
     unsafe fn packa_fn(self: &X86_64dispatcher<T>, a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+        if self.features.avx2{
+            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            return;
+        }
     }
 }
 
@@ -182,6 +183,7 @@ F: MyFn + Sync,
 {
     const ONE: f32 = 1_f32;
    const IS_EFFICIENT: bool = false;
+   #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
         m: usize, n: usize, k: usize,
@@ -192,15 +194,6 @@ F: MyFn + Sync,
         ap: *const TA,
    ) {
     panic!("This should not run since goto is more effiicent on s16s16s32 gemm");
-    // match self.features.f32_ft {
-    //     F32Features::Avx512F => {
-    //         avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, self.func);
-    //     }
-    //     F32Features::AvxFma => {
-    //         avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, self.func);
-    //     }
-    //     _ => { panic!("Unsupported feature set for this kernel"); }
-    // }
    }
 }
 

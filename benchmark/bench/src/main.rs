@@ -238,10 +238,6 @@ extern "C" {
 
 }
 
-use rand::{Rng, SeedableRng};
-use rand::rngs::StdRng;
-use rand::distributions::{Distribution, Uniform};
-
 #[derive(Copy, Clone, Debug)]
 pub enum GemmBackend {
    Blis,

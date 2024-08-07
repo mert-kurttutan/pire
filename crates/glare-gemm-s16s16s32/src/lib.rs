@@ -76,7 +76,6 @@ where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,
 X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
 {
 	let par = CorenumPar::default();
-	use glare_base::F32Features;
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
@@ -160,71 +159,71 @@ pub unsafe fn glare_dot_s16s16s32(
 	)
 }
 
-pub unsafe fn packa_f32(
-	m: usize, k: usize,
-	a: *const TA,
-	a_rs: usize, a_cs: usize,
-	ap: *mut TA,
-) {
-	// let align_offset = ap.align_offset(256);
-	// let mut ap = ap.add(align_offset);
-	// if m == 1 || k == 1 {
-	// 	for i in 0..m {
-	// 		for j in 0..k {
-	// 			*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
-	// 		}
-	// 	}
-	// 	return;
-	// }
+// pub unsafe fn packa_f32(
+// 	m: usize, k: usize,
+// 	a: *const TA,
+// 	a_rs: usize, a_cs: usize,
+// 	ap: *mut TA,
+// ) {
+// 	// let align_offset = ap.align_offset(256);
+// 	// let mut ap = ap.add(align_offset);
+// 	// if m == 1 || k == 1 {
+// 	// 	for i in 0..m {
+// 	// 		for j in 0..k {
+// 	// 			*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
+// 	// 		}
+// 	// 	}
+// 	// 	return;
+// 	// }
 
-	#[cfg(target_arch = "x86_64")]
-	{
-		// let avx = hw_avx();
-		// let fma = hw_fma();
-		// let model = hw_model();
-		// let avx512f = hw_avx512f();
-		// if avx512f {
-		// 	match model {
-		// 		_ => {
-		// 			const MC: usize = 4800;
-		// 			const MR: usize = 48;
-		// 			const KC: usize = 512;
-		// 			for i in (0..m).step_by(MC) {
-		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
-		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
-		// 				for p in (0..k).step_by(KC) {
-		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
-		// 					// avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-		// 					ap = ap.add(mc_len_eff*kc_len);	
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// 	return;
+// 	#[cfg(target_arch = "x86_64")]
+// 	{
+// 		// let avx = hw_avx();
+// 		// let fma = hw_fma();
+// 		// let model = hw_model();
+// 		// let avx512f = hw_avx512f();
+// 		// if avx512f {
+// 		// 	match model {
+// 		// 		_ => {
+// 		// 			const MC: usize = 4800;
+// 		// 			const MR: usize = 48;
+// 		// 			const KC: usize = 512;
+// 		// 			for i in (0..m).step_by(MC) {
+// 		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
+// 		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
+// 		// 				for p in (0..k).step_by(KC) {
+// 		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
+// 		// 					// avx512f::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+// 		// 					ap = ap.add(mc_len_eff*kc_len);	
+// 		// 				}
+// 		// 			}
+// 		// 		}
+// 		// 	}
+// 		// 	return;
 		
-		// }
-		// if avx && fma {
-		// 	match model {
-		// 		_ => {
-		// 			const MC: usize = 4800;
-		// 			const MR: usize = 24;
-		// 			const KC: usize = 192;
-		// 			for i in (0..m).step_by(MC) {
-		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
-		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
-		// 				for p in (0..k).step_by(KC) {
-		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
-		// 					// avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
-		// 					ap = ap.add(mc_len_eff*kc_len);	
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// 	return;
-		// }
-	}
+// 		// }
+// 		// if avx && fma {
+// 		// 	match model {
+// 		// 		_ => {
+// 		// 			const MC: usize = 4800;
+// 		// 			const MR: usize = 24;
+// 		// 			const KC: usize = 192;
+// 		// 			for i in (0..m).step_by(MC) {
+// 		// 				let mc_len = if m >= (i + MC) {MC} else {m - i};
+// 		// 				let mc_len_eff = (mc_len + MR-1) / MR * MR;
+// 		// 				for p in (0..k).step_by(KC) {
+// 		// 					let kc_len = if k >= (p + KC) {KC} else {k - p};
+// 		// 					// avx_fma::packa_panel::<MR>(mc_len, kc_len, a.add(i*a_rs+p*a_cs), a_rs, a_cs, ap);
+// 		// 					ap = ap.add(mc_len_eff*kc_len);	
+// 		// 				}
+// 		// 			}
+// 		// 		}
+// 		// 	}
+// 		// 	return;
+// 		// }
+// 	}
 
-}
+// }
 
 
 #[cfg(test)]

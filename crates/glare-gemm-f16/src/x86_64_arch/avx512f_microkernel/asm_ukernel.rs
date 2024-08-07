@@ -3,7 +3,6 @@ use std::arch::asm;
 
 use half::f16;
 
-use crate::{TA, TB, TC};
 
 use paste::paste;
 macro_rules! beta_fmaddps {

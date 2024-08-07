@@ -17,7 +17,7 @@ const VS: usize = 8; // vector size in float, __m256
 
 use glare_base::{
     GemmPackA, GemmPackB, HWConfig,
-   GemmOut, F32Features, CpuFeatures
+   GemmOut, CpuFeatures
 };
 
 
@@ -25,12 +25,6 @@ use crate::{
    GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC,
    GemmCache, NullFn, MyFn
 };
-
-
-pub(crate) enum F16Features {
-    Avx512F16,
-    Avx512BF16,
-}
 
 pub(crate) struct F32Dispatcher<
 T: MyFn = NullFn
@@ -97,11 +91,11 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    features: F16Features,
+    features: CpuFeatures,
 }
 
 impl F16Dispatcher {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: F16Features) -> Self {
+    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures) -> Self {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let goto_mr = AVX512F_GOTO_MR;
         let goto_nr = AVX512F_GOTO_NR;

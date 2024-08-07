@@ -18,7 +18,6 @@ use half::f16;
 use seq_macro::seq;
 use paste::paste;
 
-use crate::{TA,TB,TC};
 
 use crate::MyFn;
 

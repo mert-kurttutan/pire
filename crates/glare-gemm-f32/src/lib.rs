@@ -74,7 +74,6 @@ F: MyFn,
 where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
 X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
 {
-	use glare_base::F32Features;
 	let par = CorenumPar::default();
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
@@ -166,7 +165,7 @@ pub unsafe fn packa_f32(
 	ap: *mut TA,
 ) {
 	let align_offset = ap.align_offset(256);
-	let mut ap = ap.add(align_offset);
+	let ap = ap.add(align_offset);
 	if m == 1 || k == 1 {
 		for i in 0..m {
 			for j in 0..k {

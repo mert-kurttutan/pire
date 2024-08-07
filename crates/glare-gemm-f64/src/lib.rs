@@ -76,7 +76,6 @@ where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,
 X86_64dispatcher<F>: AccCoef<AS=f64,BS=f64>
 {
 	let par = CorenumPar::default();
-	use glare_base::F32Features;
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
@@ -167,7 +166,7 @@ pub unsafe fn packa_f64(
 	ap: *mut TA,
 ) {
 	let align_offset = ap.align_offset(256);
-	let mut ap = ap.add(align_offset);
+	let ap = ap.add(align_offset);
 	if m == 1 || k == 1 {
 		for i in 0..m {
 			for j in 0..k {

@@ -1,6 +1,5 @@
 use seq_macro::seq;
 use std::ptr::copy_nonoverlapping;
-use crate::{TA,TB};
 
 use half::f16;
 

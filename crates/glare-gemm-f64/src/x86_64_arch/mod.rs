@@ -3,9 +3,6 @@ pub(crate) mod avx512f_microkernel;
 
 use glare_base::GemmArray;
 use glare_base::GemmOut;
-use glare_base::{
-    CpuFeatures, F32Features
-};
 
 const AVX_FMA_GOTO_MR: usize = 12; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
@@ -13,13 +10,10 @@ const AVX_FMA_GOTO_NR: usize = 4; // register block size
 const AVX512F_GOTO_MR: usize = 24; // register block size
 const AVX512F_GOTO_NR: usize = 8; // register block size
 
-
-const VS: usize = 8; // vector size in float, __m256
-
 use std::marker::Sync;
 
 use glare_base::{
-   GemmPackA, GemmPackB
+   GemmPackA, GemmPackB, CpuFeatures
 };
 
 use glare_base::AccCoef;

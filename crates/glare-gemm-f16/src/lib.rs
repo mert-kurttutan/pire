@@ -10,11 +10,6 @@ pub(crate) type TA = f16;
 pub(crate) type TB = f16;
 pub(crate) type TC = f16;
 
-#[cfg(target_arch = "x86_64")]
-use glare_base::{
-	hw_model,
-    hw_avx512f16,
-};
 
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::{
@@ -52,6 +47,7 @@ use glare_base::{
 	StridedMatrixMut,
 	GemmOut,
 	is_null_f16,
+    hw_avx512f16,
 };
 pub use glare_base::CorenumPar;
 
@@ -89,8 +85,9 @@ C: GemmOut<X=f16,Y=f16>,
 	}
 	#[cfg(target_arch = "x86_64")]
 	{
+		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
         if hw_avx512f16() {
-            let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_arch::F16Features::Avx512F16);
+            let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_features);
             glare_gemm(
                 &hw_config, m, n, k, alpha, a, b, beta, c, &par
             );
@@ -98,9 +95,7 @@ C: GemmOut<X=f16,Y=f16>,
         }
 
         // TODO: test compuation in bf16 for bf16 targets
-		use glare_base::F32Features;
 		let (mc, nc, kc) = get_mcnckc();
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
 		glare_gemm(
 			&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par
