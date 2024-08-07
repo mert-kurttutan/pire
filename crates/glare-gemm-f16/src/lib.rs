@@ -51,12 +51,23 @@ use glare_base::{
 	GemmArray,
 	StridedMatrixMut,
 	GemmOut,
+	is_null_f16,
 };
 pub use glare_base::CorenumPar;
 
 pub use half::f16;
 
 use glare_base::RUNTIME_HW_CONFIG;
+
+#[inline(always)]
+fn get_mcnckc() -> (usize, usize, usize) {
+	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		(4800, 192, 512)
+	} else {
+		(4800, 320, 192)
+	};
+	(mc, nc, kc)
+}
 
 
 pub unsafe fn glare_hgemm_generic<
@@ -72,6 +83,10 @@ C: GemmOut<X=f16,Y=f16>,
 	c: C,
 ){	
 	let par = CorenumPar::default();
+	if is_null_f16() {
+		// run reference implementation
+		return;
+	}
 	#[cfg(target_arch = "x86_64")]
 	{
         if hw_avx512f16() {
@@ -84,11 +99,7 @@ C: GemmOut<X=f16,Y=f16>,
 
         // TODO: test compuation in bf16 for bf16 targets
 		use glare_base::F32Features;
-		let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
-			F32Features::Avx512F => (4800, 192, 512),
-			F32Features::AvxFma => (4800, 320, 192),
-			_ => (4800, 320, 192),
-		};
+		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
 		glare_gemm(
@@ -149,7 +160,7 @@ mod tests {
 	// static M_ARR: [usize; 1] = [48];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
 	static K_ARR: [usize; 5] = [1, 8, 16, 64, 128];
-	static ALPHA_ARR: [f32; 1] = [1.0];
+	static ALPHA_ARR: [f32; 2] = [1.0, 2.17];
 	static BETA_ARR: [f32; 1] = [1.0];
 	enum Layout {
     	NN,
@@ -182,10 +193,6 @@ mod tests {
                         	random_matrix_uniform(m, k, &mut a, m);
                         	random_matrix_uniform(k, n, &mut b, k);
                         	random_matrix_uniform(m, n, &mut c, m);
-							// subtract 1 from a, b, c,
-							a.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
-							b.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
-							c.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
                         	c_ref.copy_from_slice(&c);
                         	unsafe {
                             	glare_hgemm(
@@ -209,12 +216,12 @@ mod tests {
 									EPS
 								)
 							};
-                        	if diff_max >= EPS {
-                            	println!("a: {:?}", a);
-                            	println!("b: {:?}", b);
-                            	println!("c: {:?}", c);
-                            	println!("c_ref: {:?}", c_ref);
-                        	}
+                        	// if diff_max >= EPS {
+                            // 	println!("a: {:?}", a);
+                            // 	println!("b: {:?}", b);
+                            // 	println!("c: {:?}", c);
+                            // 	println!("c_ref: {:?}", c_ref);
+                        	// }
                         	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
                     	}
                 	}

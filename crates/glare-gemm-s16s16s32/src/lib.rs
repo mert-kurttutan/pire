@@ -29,6 +29,16 @@ impl MyFn for fn(*mut TC, m: usize){
 	}
 }
 
+#[inline(always)]
+fn get_mcnckc() -> (usize, usize, usize) {
+	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		(4800, 192, 512)
+	} else {
+		(4800, 320, 192)
+	};
+	(mc, nc, kc)
+}
+
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
@@ -65,15 +75,11 @@ F: MyFn,
 where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
 X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
 {
+	let par = CorenumPar::default();
 	use glare_base::F32Features;
-	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
-		F32Features::Avx512F => (4800, 192, 512),
-		F32Features::AvxFma => (4800, 320, 192),
-		_ => (4800, 320, 192),
-	};
+	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	let par = CorenumPar::default();
 	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 

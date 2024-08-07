@@ -27,20 +27,19 @@ pub enum F32Features {
 
 #[derive(Copy,Clone)]
 pub struct CpuFeatures {
-    pub f32_ft: F32Features,
+    pub avx: bool,
+    pub avx2: bool,
+    pub avx512f: bool,
+    pub avx512f16: bool,
+    pub fma: bool,
+    pub fma4: bool,
     pub f16c: bool,
 }
 
 
 #[cfg(target_arch = "x86_64")]
 pub struct HWConfig {
-    // avx: bool,
-    avx2: bool,
-    // avx512f: bool,
-    avx512f16: bool,
     pub cpu_ft: CpuFeatures,
-    // fma: bool,
-    fma4: bool,
     hw_model: HWModel,
     is_l1_shared: bool,
     is_l2_shared: bool,
@@ -93,33 +92,25 @@ fn detect_hw_config() -> HWConfig {
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
         let avx = feature_info.has_avx();
         let fma = feature_info.has_fma();
-        // although avx512f should also have avx and fma double check since we use avx
-        // for packing and fma for gemv on avx512f
-        let f32_ft = if extended_feature_info.has_avx512f() && avx && fma {
-            F32Features::Avx512F
-        } else if avx && fma {
-            F32Features::AvxFma
-        } else if avx {
-            F32Features::Avx
-        } else {
-            F32Features::NoSimd
-        };
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
+        let avx512f = extended_feature_info.has_avx512f();
         let f16c = feature_info.has_f16c();
-        let cpu_ft = CpuFeatures {
-            f32_ft,
-            f16c,
-        };
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
+        let cpu_ft = CpuFeatures {
+            avx,
+            avx2,
+            avx512f,
+            avx512f16,
+            fma,
+            fma4,
+            f16c,
+        };
         let hw_model = HWModel::Haswell;
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig {
-            avx2,
-            avx512f16,
             cpu_ft,
-            fma4,
             hw_model: HWModel::Reference,
             is_l1_shared,
             is_l2_shared,
@@ -149,21 +140,17 @@ pub static CORENUM_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
 pub(crate) mod cpu_features{
     use super::RUNTIME_HW_CONFIG;
     use super::HWModel;
-    
-    pub fn hw_avx2() -> bool {
-        RUNTIME_HW_CONFIG.avx2
-    }
-    
+
     pub fn hw_model() -> HWModel {
         RUNTIME_HW_CONFIG.hw_model
     }
     
-    pub fn hw_fma4() -> bool {
-        RUNTIME_HW_CONFIG.fma4
+    pub fn is_null_f16() -> bool {
+        !RUNTIME_HW_CONFIG.cpu_ft.avx512f16 && !RUNTIME_HW_CONFIG.cpu_ft.avx512f && !RUNTIME_HW_CONFIG.cpu_ft.avx
     }
 
     pub fn hw_avx512f16() -> bool {
-        RUNTIME_HW_CONFIG.avx512f16
+        RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
 }
 #[cfg(target_arch = "aarch64")]

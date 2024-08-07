@@ -201,7 +201,7 @@ pub(crate) unsafe fn axpy_v(
    while ni < n {
       let xt = *x_cur * *alpha;
         let xt_ptr = &xt as *const TB;
-     let xt0 = _mm256_broadcast_sd(&*x_cur);
+     let xt0 = _mm256_broadcast_sd(&*xt_ptr);
      if beta == 1.0 {
         axpy_v_inner2::<1>(m_lane4, m_lane, m, a_cur, y, xt0, xt_ptr, beta_v, beta);
     } else if beta == 0.0 {

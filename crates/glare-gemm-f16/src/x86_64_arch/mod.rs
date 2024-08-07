@@ -62,13 +62,13 @@ impl<F: MyFn> AccCoef for F16Dispatcher<F> {
 impl F32Dispatcher {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures) -> Self {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let goto_mr = match features.f32_ft {
-            F32Features::AvxFma => AVX_FMA_GOTO_MR,
-            _ => AVX512F_GOTO_MR,
-        };
-        let goto_nr = match features.f32_ft {
-            F32Features::AvxFma => AVX_FMA_GOTO_NR,
-            _ => AVX512F_GOTO_NR,
+        
+        let (goto_mr, goto_nr) = if features.avx512f {
+            (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
+        } else if features.avx && features.fma {
+            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+        } else {
+            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
         Self {
             goto_mc: mc,
@@ -185,20 +185,17 @@ impl<
 T: MyFn
 > GemmPackA<f16,f32> for F32Dispatcher<T> {
     unsafe fn packa_fn(self: &F32Dispatcher<T>, a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        match self.features.f32_ft {
-            F32Features::AvxFma | F32Features::Avx => {
-                if self.features.f16c {
-                    avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-                } else {
-                    // avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-                }
-            }
-            F32Features::Avx512F => {
-                avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            }
-            _ => {
-                // avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            }
+        if self.features.avx512f {
+            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            return;
+        } 
+        if self.features.avx && self.features.fma {
+            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            return;
+        }
+        if self.features.avx {
+            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            return;
         }
     }
 }
@@ -206,22 +203,17 @@ impl<
 T: MyFn
 > GemmPackB<f16,f32> for F32Dispatcher<T> {
     unsafe fn packb_fn(self: &F32Dispatcher<T>, b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        // packb_panel::<GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-        match self.features.f32_ft {
-            F32Features::AvxFma | F32Features::Avx => {
-                if self.features.f16c {
-                    avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-                } else {
-                    //
-                }
-            }
-            F32Features::Avx512F => {
-                avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            }
-            _ => {
-                // avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            }
-
+        if self.features.avx512f {
+            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            return;
+        }
+        if self.features.avx && self.features.fma {
+            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            return;
+        }
+        if self.features.avx {
+            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            return;
         }
     }
 }
@@ -264,17 +256,9 @@ C: GemmOut<X=f16,Y=f16>,
         let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        // let beta_val = *beta;
-        // let beta_t = beta_val.to_f32();
-        // let beta = &beta_t as *const f32;
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
+        if self.features.avx512f || (self.features.avx && self.features.fma) {
+            avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
+            return;
         }
     }
 }
@@ -325,17 +309,13 @@ F32Dispatcher<T>: GemmPackA<f16, f32> + GemmPackB<f16, f32>
        _kc_last: bool
    ) {
         let my_func = self.func;
-        // let beta_val = *beta;
-        // let beta_t = beta_val.to_f32();
-        // let beta = &beta_t as *const f32;
-        match self.features.f32_ft {
-            F32Features::AvxFma => {
-                avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
-            }
-            F32Features::Avx512F => {
-                avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func)
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
+        if self.features.avx512f {
+            avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
+            return;
+        }
+        if self.features.avx && self.features.fma {
+            avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
+            return;
         }
    }
 }

@@ -7,3 +7,5 @@
 -Add test for packing
 
 -Add not about how alpha and beta f32 are used in integer gemm (e.g. at which steps they are converted ot/from i32/f32). This will have impact on end result
+
+-Add note about scaling parameter for quantized gemm and their precision

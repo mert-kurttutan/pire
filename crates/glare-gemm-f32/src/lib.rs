@@ -29,6 +29,16 @@ impl MyFn for fn(*mut TC, m: usize){
 	}
 }
 
+#[inline(always)]
+fn get_mcnckc() -> (usize, usize, usize) {
+	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		(4800, 192, 512)
+	} else {
+		(4800, 320, 192)
+	};
+	(mc, nc, kc)
+}
+
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
@@ -65,14 +75,10 @@ where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,
 X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
 {
 	use glare_base::F32Features;
-	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).cpu_ft.f32_ft {
-		F32Features::Avx512F => (4800, 192, 512),
-		F32Features::AvxFma => (4800, 320, 192),
-		_ => (4800, 320, 192),
-	};
+	let par = CorenumPar::default();
+	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	let par = CorenumPar::default();
 	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 
@@ -234,7 +240,7 @@ mod tests {
 	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
-	static ALPHA_ARR: [f32; 1] = [1.0];
+	static ALPHA_ARR: [f32; 2] = [1.0, 2.17];
 	static BETA_ARR: [f32; 3] = [1.0, 0.0, 3.1415];
 	enum Layout {
     	NN,

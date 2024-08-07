@@ -46,35 +46,36 @@ pub unsafe fn axpy<F: MyFn>(
     f.call(y, m);
     return;
    }
-
-//    if a_cs == 1 {
-//        for i in 0..m {
-//            let a_cur = a.add(i*a_rs);
-//            let y_cur = y.add(i * incy);
-//            let mut acc = 0.0;
-//            for j in 0..n {
-//                let x_cur = x.add(j * incx);
-//                acc += *a_cur.add(j) * *x_cur;
-//            }
-//            *y_cur = *beta * *y_cur + *alpha * acc;
-//            f.call(y_cur, 1);
-//        }
-//        return;
-//    }
-//    if a_rs == 1 || true {
-//        for i in 0..m {
-//            let y_cur = y.add(i*incy);
-//            let mut acc = 0.0;
-//            for j in 0..n {
-//                let a_cur = a.add(j*a_cs);
-//                let x_cur = x.add(j*incx);
-//                acc += *a_cur.add(i) * *x_cur;
-//            }
-//            *y_cur = *beta * *y_cur + *alpha * acc;
-//             f.call(y_cur, 1);
-//        }
-//        return;
-//    }
+   let beta_f16 = f16::from_f32(*beta);
+    let alpha_f16 = f16::from_f32(*alpha);
+   if a_cs == 1 {
+       for i in 0..m {
+           let a_cur = a.add(i*a_rs);
+           let y_cur = y.add(i * incy);
+           let mut acc = f16::ZERO;
+           for j in 0..n {
+               let x_cur = x.add(j * incx);
+               acc += *a_cur.add(j) * *x_cur;
+           }
+           *y_cur = beta_f16 * *y_cur + alpha_f16 * acc;
+           f.call(y_cur, 1);
+       }
+       return;
+   }
+   if a_rs == 1 {
+       for i in 0..m {
+           let y_cur = y.add(i*incy);
+           let mut acc = f16::ZERO;
+           for j in 0..n {
+               let a_cur = a.add(j*a_cs);
+               let x_cur = x.add(j*incx);
+               acc += *a_cur.add(i) * *x_cur;
+           }
+           *y_cur = beta_f16 * *y_cur + alpha_f16 * acc;
+            f.call(y_cur, 1);
+       }
+       return;
+   }
 }
 
 pub unsafe fn load_c_contiguous<const MR: usize, const NR: usize>(

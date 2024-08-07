@@ -50,15 +50,12 @@ use glare_base::HWConfig;
 impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let goto_mr = match features.f32_ft {
-            F32Features::Avx512F => AVX512F_GOTO_MR,
-            F32Features::AvxFma => AVX_FMA_GOTO_MR,
-            _ => { panic!("Unsupported feature set for this kernel") }
-        };
-        let goto_nr = match features.f32_ft {
-            F32Features::Avx512F => AVX512F_GOTO_NR,
-            F32Features::AvxFma => AVX_FMA_GOTO_NR,
-            _ => { panic!("Unsupported feature set for this kernel") }
+        let (goto_mr, goto_nr) = if features.avx512f {
+            (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
+        } else if features.avx && features.fma {
+            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+        } else {
+            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
         Self {
             goto_mc: mc,
@@ -79,15 +76,7 @@ impl<
 T: MyFn
 > GemmPackA<TA,TA> for X86_64dispatcher<T> {
     unsafe fn packa_fn(self: &X86_64dispatcher<T>, a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
-        }
+        avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
     }
 }
 
@@ -95,15 +84,7 @@ impl<
 T: MyFn
 > GemmPackB<TA,TA> for X86_64dispatcher<T> {
     unsafe fn packb_fn(self: &X86_64dispatcher<T>, b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
-        }
+        avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
     }
 }
 
@@ -165,15 +146,7 @@ F: MyFn + Sync,
         let inc_x = x.rs();
         let y_ptr   = y.data_ptr();
         let incy = y.rs();
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
-        }
+        avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
    }
 }
 
@@ -196,15 +169,7 @@ F: MyFn + Sync,
        ap: *const TA, bp: *const TB,
        _kc_last: bool
    ) {
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
-            }
-            _ => { panic !("Unsupported feature set for this kernel")}
-        }
+        avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
    }
 }
 
@@ -259,14 +224,6 @@ F: MyFn + Sync,
         b: *const TB,
         c: *mut TC, c_rs: usize, c_cs: usize,
    ) {
-        match self.features.f32_ft {
-            F32Features::Avx512F => {
-                avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, self.func);
-            }
-            F32Features::AvxFma => {
-                avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, self.func);
-            }
-            _ => { panic!("Unsupported feature set for this kernel") }
-        }
+        avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, self.func);
    }
 }
