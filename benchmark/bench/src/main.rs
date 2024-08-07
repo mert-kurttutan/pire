@@ -237,20 +237,38 @@ extern "C" {
 
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::distributions::{Distribution, Uniform};
 
 
-pub fn random_matrix<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+pub fn random_matrix<T>(m: usize, n: usize, arr: &mut [T], ld: usize, t0: T, t1: T)
 where rand::distributions::Standard: rand::prelude::Distribution<T>,
+T: rand::distributions::uniform::SampleUniform
 {
    let mut x = StdRng::seed_from_u64(43);
+   let un_dist = Uniform::new(t0, t1);
    for j in 0..n {
        for i in 0..m {
            // arr[j * ld + i] = rand::random::<T>();
-           arr[j * ld + i] = x.gen::<T>();
+        //    arr[j * ld + i] = x.gen::<T>();
+        arr[j * ld + i] = un_dist.sample(&mut x);
        }
    }
 }
 
+
+pub fn random_matrix2<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+where rand::distributions::Standard: rand::prelude::Distribution<T>,
+{
+   let mut x = StdRng::seed_from_u64(43);
+//    let un_dist = Uniform::new(t0, t1);
+   for j in 0..n {
+       for i in 0..m {
+           // arr[j * ld + i] = rand::random::<T>();
+           arr[j * ld + i] = x.gen::<T>();
+        // arr[j * ld + i] = un_dist.sample(&mut x);
+       }
+   }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub enum GemmBackend {
@@ -738,7 +756,6 @@ where <T as std::ops::Sub>::Output: Norm
        let b_norm = b.norm().max(1.0);
        let cur_diff = cur_diff / (b_norm+0.1);
        if cur_diff > diff && cur_diff > eps{
-
            diff = cur_diff / (b_norm+0.1);
        }
    }
@@ -1037,8 +1054,10 @@ fn test_dgemm(
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
     let mut c = vec![0.0; m * n];
-    random_matrix(m, k, &mut a, m);
-    random_matrix(k, n, &mut b, k);
+    let b0 = -1.0;
+    let b1 = 1.0;
+    random_matrix(m, k, &mut a, m, b0, b1);
+    random_matrix(k, n, &mut b, k, b0, b1);
     let mut c_ref = vec![0.0; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -1086,8 +1105,10 @@ fn test_sgemm(
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
     let mut c = vec![0.0; m * n];
-    random_matrix(m, k, &mut a, m);
-    random_matrix(k, n, &mut b, k);
+    let b0 = -1.0;
+    let b1 = 1.0;
+    random_matrix(m, k, &mut a, m, b0, b1);
+    random_matrix(k, n, &mut b, k, b0, b1);
     let mut c_ref = vec![0.0; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -1135,8 +1156,8 @@ fn test_cgemm(
     let mut a = vec![Complex32::ZERO; m * k];
     let mut b = vec![Complex32::ZERO; k * n];
     let mut c = vec![Complex32::ZERO; m * n];
-    random_matrix(m, k, &mut a, m);
-    random_matrix(k, n, &mut b, k);
+    random_matrix2(m, k, &mut a, m);
+    random_matrix2(k, n, &mut b, k);
     let mut c_ref = vec![Complex32::ZERO; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -1186,9 +1207,11 @@ fn test_sgemm_batched(
     let stridea = m * k;
     let strideb = k * n;
     let stridec = m * n;
+    let b0 = -1.0;
+    let b1 = 1.0;
     for i in 0..batch_size {
-        random_matrix(m, k, &mut a[i * stridea..], m);
-        random_matrix(k, n, &mut b[i * strideb..], k);
+        random_matrix(m, k, &mut a[i * stridea..], m, b0, b1);
+        random_matrix(k, n, &mut b[i * strideb..], k, b0, b1);
     }
     let mut c_ref = vec![0.0; m * n * batch_size];
     c_ref.copy_from_slice(&c);
@@ -1241,8 +1264,10 @@ fn test_hgemm(
     let mut a = vec![f16::ZERO; m * k];
     let mut b = vec![f16::ZERO; k * n];
     let mut c = vec![f16::ZERO; m * n];
-    random_matrix(m, k, &mut a, m);
-    random_matrix(k, n, &mut b, k);
+    let b0 = f16::from_f32(-1.0);
+    let b1 = f16::from_f32(1.0);
+    random_matrix(m, k, &mut a, m, b0, b1);
+    random_matrix(k, n, &mut b, k, b0, b1);
     let mut c_ref = vec![f16::ZERO; m * n];
     a.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
     b.iter_mut().for_each(|x| *x = *x - f16::from_f32(0.5));
@@ -1292,11 +1317,10 @@ fn test_gemm_s16s16s32(
     let mut a = vec![0_i16; m * k];
     let mut b = vec![0_i16; k * n];
     let mut c = vec![0_i32; m * n];
-    random_matrix(m, k, &mut a, m);
-    random_matrix(k, n, &mut b, k);
-    // div every elem of a and b by 100
-    a.iter_mut().for_each(|x| *x = *x / 100);
-    b.iter_mut().for_each(|x| *x = *x / 100);
+    let b0 = -100;
+    let b1 = 100;
+    random_matrix(m, k, &mut a, m, b0, b1);
+    random_matrix(k, n, &mut b, k, b0, b1);
     let mut c_ref = vec![0_i32; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -1323,6 +1347,8 @@ fn test_gemm_s16s16s32(
                 &mut c_ref
             )
         };
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }
 

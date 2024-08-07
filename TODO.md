@@ -5,3 +5,5 @@
 - check dispatching of sgemv through sgemm is the same as sgemv in terms of performance. It should be, but a rigourous check is better to be sure. (Only additional overhead should be due to dispathcing of cache params, mc, nc, kc)
 
 -Add test for packing
+
+-Add not about how alpha and beta f32 are used in integer gemm (e.g. at which steps they are converted ot/from i32/f32). This will have impact on end result

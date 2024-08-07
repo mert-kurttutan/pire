@@ -235,8 +235,8 @@ mod tests {
 	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
-	static ALPHA_ARR: [i16; 1] = [1];
-	static BETA_ARR: [i32; 2] = [1, 0];
+	static ALPHA_ARR: [f32; 1] = [1.0];
+	static BETA_ARR: [f32; 2] = [1., 0.];
 	enum Layout {
     	NN,
     	NT,
@@ -295,7 +295,7 @@ mod tests {
                             // 	println!("c: {:?}", c);
                             // 	println!("c_ref: {:?}", c_ref);
                         	// }
-                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
+                        	assert!(diff_max == 0.0, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
                     	}
                 	}
             	}
