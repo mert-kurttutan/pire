@@ -222,12 +222,65 @@ where T: rand::distributions::uniform::SampleUniform + Bound
 
 
 
+pub trait Diff {
+    fn diff(&self, other: &Self) -> f64;
+}
 
+impl Diff for f32 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (self - other).abs();
+        let diff_rel = diff_abs / self.abs();
+        diff_abs.min(diff_rel) as f64
+    }
+}
 
-pub fn max_abs_diff<T: Copy + std::ops::Sub + Into<f64> + std::fmt::Debug>(
+impl Diff for f64 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (self - other).abs();
+        let diff_rel = diff_abs / self.abs();
+        diff_abs.min(diff_rel) as f64
+    }
+}
+
+impl Diff for i16 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (*self - *other).abs() as f64;
+        diff_abs
+    }
+}
+
+impl Diff for i32 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (*self - *other).abs() as f64;
+        diff_abs
+    }
+}
+
+impl Diff for f16 {
+    fn diff(&self, other: &Self) -> f64 {
+        let x = self.to_f32();
+        let y = other.to_f32();
+        let diff_abs = (x - y).abs();
+        let diff_rel = diff_abs / x.abs();
+        diff_abs.min(diff_rel) as f64
+    }
+}
+
+use num_complex::Complex;
+
+impl<f32: Diff> Diff for Complex<f32>
+{
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_re = self.re.diff(&other.re);
+        let diff_im = self.im.diff(&other.im);
+        diff_re.max(diff_im)
+    }
+}
+
+pub fn max_abs_diff<T: Copy + std::fmt::Debug>(
     ap: &[T], bp: &[T], eps: f64
 ) -> f64
-where f64: From<<T as std::ops::Sub>::Output>
+where T: Diff
 {
    let mut diff = 0_f64;
    let len = ap.len();
@@ -236,10 +289,7 @@ where f64: From<<T as std::ops::Sub>::Output>
    for i in 0..len {
        let a = ap[i];
        let b = bp[i];
-       let cur_diff_abs: f64 = <<T as std::ops::Sub>::Output as Into<f64>>::into(a-b).abs().into();
-       let cur_diff_rel: f64 = cur_diff_abs / b.into().abs();
-       let cur_diff = cur_diff_abs.min(cur_diff_rel);
-       ;
+       let cur_diff: f64 = a.diff(&b);
        if cur_diff > diff {
             diff_idx = i;
            diff = cur_diff;

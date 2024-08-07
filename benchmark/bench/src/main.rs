@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 
 use glare_dev::{
-    random_matrix_std, random_matrix_uniform
+    random_matrix_std, random_matrix_uniform, max_abs_diff
 };
 
 use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort, c_short};
@@ -681,58 +681,6 @@ pub unsafe fn dispatch_gemm_f16(
          }
      }
  }
-
-pub trait Norm {
-    fn norm(&self) -> f64;
-}
-
-impl Norm for Complex32 {
-    fn norm(&self) -> f64 {
-        self.norm_sqr().sqrt().into()
-    }
-}
-
-impl Norm for f64 {
-    fn norm(&self) -> f64 {
-        self.abs()
-    }
-}
-
-impl Norm for f32 {
-    fn norm(&self) -> f64 {
-        self.abs().into()
-    }
-}
-
-impl Norm for f16 {
-    fn norm(&self) -> f64 {
-        self.to_f32().abs().into()
-    }
-}
-
-impl Norm for i32 {
-    fn norm(&self) -> f64 {
-        (*self as f64).abs()
-    }
-}
-
-pub fn max_abs_diff<T: Copy + Norm + std::ops::Sub + std::fmt::Debug>(ap: &[T], bp: &[T], eps: f64) -> f64
-where <T as std::ops::Sub>::Output: Norm
-{
-   let mut diff = 0_f64;
-   let len = ap.len();
-   for i in 0..len {
-       let a = ap[i];
-       let b = bp[i];
-       let cur_diff = (a-b).norm().abs();
-       let b_norm = b.norm().max(1.0);
-       let cur_diff = cur_diff / (b_norm+0.1);
-       if cur_diff > diff && cur_diff > eps{
-           diff = cur_diff / (b_norm+0.1);
-       }
-   }
-   diff
-}
 
 pub unsafe fn gemm_fallback_f32(
 	m: usize, n: usize, k: usize,

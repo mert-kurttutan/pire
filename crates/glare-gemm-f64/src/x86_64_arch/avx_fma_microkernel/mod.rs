@@ -60,7 +60,7 @@ pub unsafe fn axpy<F: MyFn>(
        }
        return;
    }
-   if a_rs == 1 || true {
+   if a_rs == 1 {
        for i in 0..m {
            let y_cur = y.add(i*incy);
            let mut acc = 0.0;

@@ -270,7 +270,7 @@ pub(crate) unsafe fn axpy_d(
            x_cur = x_cur.add(VS);
            p += 1;
        }
-       let x_left_v = v_loadu_n(x, n_left_vec);
+       let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
        // accumulate to scalar
        seq!(q in 0..3 {
@@ -324,7 +324,7 @@ pub(crate) unsafe fn axpy_d(
         x_cur = x_cur.add(VS);
         p += 1;
     }
-    let x_left_v = v_loadu_n(x, n_left_vec);
+    let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
     // accumulate to scalar
     seq!(q in 0..1 {

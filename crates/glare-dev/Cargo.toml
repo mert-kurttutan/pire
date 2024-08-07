@@ -9,6 +9,7 @@ edition = "2021"
 libc = "0.2"
 rand = "0.8.5"
 half = { version = "2.4.1", features = ["rand_distr", "num-traits"] }
+num-complex = { version = "0.4.6"}
 
 [features]
 default = ["mkl"]

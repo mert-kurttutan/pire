@@ -236,6 +236,7 @@ pub(crate) unsafe fn axpy_d(
    beta: *const TC,
    y: *mut TC, incy: usize
 ) {
+    println!("m: {}, n: {}", m, n);
    let n_iter_unroll_vec = n / (K_UNROLL * VS);
    let n_left_unroll_vec = n % (K_UNROLL * VS);
    let n_iter_vec = n_left_unroll_vec / VS;
@@ -270,7 +271,7 @@ pub(crate) unsafe fn axpy_d(
            x_cur = x_cur.add(VS);
            p += 1;
        }
-       let x_left_v = v_loadu_n(x, n_left_vec);
+       let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
        // accumulate to scalar
        seq!(q in 0..3 {
@@ -299,50 +300,50 @@ pub(crate) unsafe fn axpy_d(
    }
 
    while i < m {
-    let mut a_cur = a_cur0;
-    let mut x_cur = x;
-    let mut acc_arr = [_mm256_setzero_pd(); 4];
-    let mut p = 0;
-    while p < n_iter_unroll_vec {
-     seq!(q in 0..1 {
-         acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
-         acc_arr[q*4+1] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
-         acc_arr[q*4+2] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
-         acc_arr[q*4+3] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
-     });
-        a_cur = a_cur.add(VS*K_UNROLL);
-        x_cur = x_cur.add(VS*K_UNROLL);
-        p += 1;
-    }
+        let mut a_cur = a_cur0;
+        let mut x_cur = x;
+        let mut acc_arr = [_mm256_setzero_pd(); 4];
+        let mut p = 0;
+        while p < n_iter_unroll_vec {
+        seq!(q in 0..1 {
+            acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+            acc_arr[q*4+1] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
+            acc_arr[q*4+2] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
+            acc_arr[q*4+3] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
+        });
+            a_cur = a_cur.add(VS*K_UNROLL);
+            x_cur = x_cur.add(VS*K_UNROLL);
+            p += 1;
+        }
 
-    p = 0;
-    while p < n_iter_vec {
-         seq!(q in 0..1 {
-             acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
-         });
-        a_cur = a_cur.add(VS);
-        x_cur = x_cur.add(VS);
-        p += 1;
-    }
-    let x_left_v = v_loadu_n(x, n_left_vec);
+        p = 0;
+        while p < n_iter_vec {
+            seq!(q in 0..1 {
+                acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+            });
+            a_cur = a_cur.add(VS);
+            x_cur = x_cur.add(VS);
+            p += 1;
+        }
+        let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
-    // accumulate to scalar
-    seq!(q in 0..1 {
-     let a_lef_v = v_loadu_n(a_cur.add(lda*q), n_left_vec);
-     acc_arr[q*4] = _mm256_fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
-     acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+1]);
-     acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+2]);
-     acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+3]);
-    });
+        // accumulate to scalar
+        seq!(q in 0..1 {
+        let a_lef_v = v_loadu_n(a_cur.add(lda*q), n_left_vec);
+        acc_arr[q*4] = _mm256_fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
+        acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+1]);
+        acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+2]);
+        acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+3]);
+        });
 
-    let acc1 = acc_vec(acc_arr[0]);
-    if *beta == 0.0 {
-        *y_cur = acc1 * *alpha;
-    } else {
-        *y_cur = *beta * *y_cur + acc1 * *alpha;
+        let acc1 = acc_vec(acc_arr[0]);
+        if *beta == 0.0 {
+            *y_cur = acc1 * *alpha;
+        } else {
+            *y_cur = *beta * *y_cur + acc1 * *alpha;
+        }
+        a_cur0 = a_cur0.add(lda);
+        y_cur = y_cur.add(incy);
+        i += 1;
     }
-      a_cur0 = a_cur0.add(lda);
-      y_cur = y_cur.add(incy);
-      i += 1;
-}
 }
