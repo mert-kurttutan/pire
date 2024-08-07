@@ -224,7 +224,7 @@ pub unsafe fn packa_f32(
 mod tests {
 	use super::*;
 	use glare_dev::{
-    	random_matrix,
+    	random_matrix_uniform,
     	check_gemm_f32,
 	};
 
@@ -262,9 +262,9 @@ mod tests {
                 	let mut b = vec![0.0; k * n];
                 	for alpha in ALPHA_ARR {
                     	for beta in BETA_ARR {
-                        	random_matrix(m, k, &mut a, m);
-                        	random_matrix(k, n, &mut b, k);
-                        	random_matrix(m, n, &mut c, m);
+                        	random_matrix_uniform(m, k, &mut a, m);
+                        	random_matrix_uniform(k, n, &mut b, k);
+                        	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
                         	unsafe {
                             	glare_sgemm(
@@ -317,9 +317,9 @@ mod tests {
 					let ap_ptr = ap_mut_ptr as *const f32;
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
-                        	random_matrix(m, k, &mut a, m);
-                        	random_matrix(k, n, &mut b, k);
-                        	random_matrix(m, n, &mut c, m);
+                        	random_matrix_uniform(m, k, &mut a, m);
+                        	random_matrix_uniform(k, n, &mut b, k);
+                        	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
 							unsafe {
 								packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr);

@@ -163,19 +163,63 @@ pub fn cblas_gemm_s16s16s32(
 
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::distributions::{Distribution, Uniform};
 
+pub trait Bound {
+    fn min_value() -> Self;
+    fn max_value() -> Self;
+}
 
-pub fn random_matrix<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+impl Bound for f32 {
+    fn min_value() -> Self { -10.0 }
+    fn max_value() -> Self { 10.0 }
+}
+
+impl Bound for f64 {
+    fn min_value() -> Self { -10.0 }
+    fn max_value() -> Self { 10.0 }
+}
+
+impl Bound for i16 {
+    fn min_value() -> Self { -10 }
+    fn max_value() -> Self { 10 }
+}
+
+impl Bound for i32 {
+    fn min_value() -> Self { -10 }
+    fn max_value() -> Self { 10 }
+}
+
+impl Bound for f16 {
+    fn min_value() -> Self { f16::from_f32(-5.0) }
+    fn max_value() -> Self { f16::from_f32(5.0) }
+}
+
+pub fn random_matrix_std<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
 where rand::distributions::Standard: rand::prelude::Distribution<T>,
 {
    let mut x = StdRng::seed_from_u64(43);
    for j in 0..n {
        for i in 0..m {
-           // arr[j * ld + i] = rand::random::<T>();
            arr[j * ld + i] = x.gen::<T>();
        }
    }
 }
+
+pub fn random_matrix_uniform<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+where T: rand::distributions::uniform::SampleUniform + Bound
+{
+    let t0 = T::min_value();
+    let t1 = T::max_value();
+   let mut x = StdRng::seed_from_u64(43);
+   let un_dist = Uniform::new(t0, t1);
+   for j in 0..n {
+       for i in 0..m {
+            arr[j * ld + i] = un_dist.sample(&mut x);
+       }
+   }
+}
+
 
 
 
