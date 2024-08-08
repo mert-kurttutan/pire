@@ -1,5 +1,6 @@
 pub(crate) mod avx_fma_microkernel;
 pub(crate) mod avx512f_microkernel;
+pub(crate) mod pack_avx;
 
 use crate::f16;
 // use avx_fma_microkernel::axpy;
@@ -180,11 +181,11 @@ T: MyFn
 > GemmPackA<f16,f32> for F32Dispatcher<T> {
     unsafe fn packa_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_48(m, k, x, rs, cs, y);
             return;
         } 
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
             return;
         }
     }
@@ -194,11 +195,11 @@ T: MyFn
 > GemmPackB<f16,f32> for F32Dispatcher<T> {
     unsafe fn packb_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, x, cs, rs, y);
+            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
         }
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, x, cs, rs, y);
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
     }
@@ -296,11 +297,11 @@ F32Dispatcher<T>: GemmPackA<f16, f32> + GemmPackB<f16, f32>
    ) {
         let my_func = self.func;
         if self.features.avx512f {
-            avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
+            avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
             return;
         }
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
+            avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
             return;
         }
    }

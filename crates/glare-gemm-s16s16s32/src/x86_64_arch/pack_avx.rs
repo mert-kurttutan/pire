@@ -422,7 +422,7 @@ macro_rules! def_packb {
    ($nr:tt) => {
         paste! {
         #[target_feature(enable = "avx,avx2")]
-        pub(crate) unsafe fn [<packb_panel_$nr>](
+        pub(crate) unsafe fn [<packb_panel_ $nr>](
                 n: usize, k: usize,
                 b: *const TB, b_rs: usize, b_cs: usize,
                 bp: *mut TB,
@@ -475,10 +475,10 @@ macro_rules! def_packb {
 def_packb!(4);
 
 macro_rules! def_packa {
-    ($mr:tt) => {
+    ($mr:tt, $vs:tt) => {
         paste! {
             #[target_feature(enable = "avx,avx2")]
-            pub(crate) unsafe fn [<packa_panel_$mr>](
+            pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
                 ap: *mut TA,
@@ -525,7 +525,7 @@ macro_rules! def_packa {
                     let m_left = m_left - m_idx;
                     seq!(mr_left in 1..$mr {
                         if m_left == mr_left {
-                            pack_scalar_k::<{(mr_left+7)/ 8 * 8}>(
+                            pack_scalar_k::<{(mr_left+$vs-1)/ $vs * $vs}>(
                                 mr_left, k,
                                 a, a_rs, a_cs,
                                 ap
@@ -539,4 +539,4 @@ macro_rules! def_packa {
     };
 }
 
-def_packa!(16);
+def_packa!(16,8);

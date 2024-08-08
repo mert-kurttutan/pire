@@ -1,6 +1,7 @@
 pub(crate) mod avx_fma_microkernel;
 pub(crate) mod avx512f_microkernel;
 pub(crate) mod avx_microkernel;
+pub(crate) mod pack_avx;
 
 use glare_base::GemmArray;
 use glare_base::GemmOut;
@@ -86,15 +87,15 @@ T: MyFn
 > GemmPackA<TA,TA> for X86_64dispatcher<T> {
     unsafe fn packa_fn(self: &X86_64dispatcher<T>, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_48(m, k, x, rs, cs, y);
             return;
         } 
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
             return;
         }
         if self.features.avx {
-            avx_microkernel::packa_panel::<AVX_GOTO_MR>(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
             return;
         }
     }
@@ -105,15 +106,15 @@ T: MyFn
 > GemmPackB<TA,TA> for X86_64dispatcher<T> {
     unsafe fn packb_fn(self: &X86_64dispatcher<T>, x: *const TA, y: *mut TA, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, x, cs, rs, y);
+            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
         }
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, x, cs, rs, y);
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
         if self.features.avx {
-            avx_microkernel::packb_panel::<AVX_GOTO_NR>(n, k, x, cs, rs, y);
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
     }
@@ -201,15 +202,15 @@ F: MyFn + Sync,
        _kc_last: bool
    ) {
     if self.features.avx512f {
-        avx512f_microkernel::kernel::<AVX512F_GOTO_MR, AVX512F_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
+        avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
         return;
     }
     if self.features.avx && self.features.fma {
-        avx_fma_microkernel::kernel::<AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
+        avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
         return;
     }
     if self.features.avx {
-        avx_microkernel::kernel::<AVX_GOTO_MR, AVX_GOTO_NR, _>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
+        avx_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, self.func);
         return;
     }
    }

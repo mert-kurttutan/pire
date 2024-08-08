@@ -1,13 +1,6 @@
 pub mod asm_ukernel;
-pub(crate) mod intrinsics_pack;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use intrinsics_pack::{
-    packa_panel_48,
-    packa_panel_32,
-    packb_panel_12,
-    packb_panel_8,
-};
 
 use half::f16;
 
@@ -118,7 +111,7 @@ macro_rules! def_kernel_bb {
 }
 
 def_kernel_bb!(48, 8, 48, 32, 16);
-def_kernel_bb!(32, 12, 32, 16);
+// def_kernel_bb!(32, 12, 32, 16);
 
 
 macro_rules! def_kernel_bb_strided {
@@ -212,9 +205,9 @@ macro_rules! def_kernel_bb_strided {
 }
 
 def_kernel_bb_strided!(48, 8, 48, 32, 16);
-def_kernel_bb_strided!(32, 12, 32, 16);
+// def_kernel_bb_strided!(32, 12, 32, 16);
 
-pub(crate) unsafe fn kernel<const MR: usize, const NR: usize, F: MyFn>(
+pub(crate) unsafe fn kernel<F: MyFn>(
    m: usize, n: usize, k: usize,
    alpha: *const f32, beta: *const f32,
    c: *mut f16,
@@ -222,55 +215,10 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize, F: MyFn>(
    ap: *const f32, bp: *const f32,
    f: F,
 ) {
-   if MR == 48 && NR == 8 {
-        if c_rs == 1 {
-            kernel_48x8(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
-        } else {
-            kernel_48x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-        }
-        return;
-   }
-   if MR == 32 && NR == 12 {
-        if c_rs == 1 {
-            kernel_32x12(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
-        } else {
-            kernel_32x12_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-        }
-        return;
+    if c_rs == 1 {
+        kernel_48x8(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
+    } else {
+        kernel_48x8_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
-    panic!("Kernel for MR = {} and NR = {} not implemented", MR, NR);
-}
-
-
-pub(crate) unsafe fn packa_panel<const MR: usize>(
-    m: usize, k: usize,
-    a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
-){
-    if MR == 48 {
-        packa_panel_48(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    if MR == 32 {
-        packa_panel_32(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    panic!("Packing for MR = {} not implemented", MR);
-}
-
-
-pub(crate) unsafe fn packb_panel<const NR: usize>(
-    m: usize, k: usize,
-    a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
-){
-    if NR == 8 {
-        packb_panel_8(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    if NR == 12 {
-        packb_panel_12(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    panic!("Packing for MR = {} not implemented", NR);
+    return;
 }

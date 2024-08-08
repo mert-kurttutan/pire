@@ -48,7 +48,7 @@ pub const MKL_INTERFACE: &str = if cfg!(target_pointer_width = "32") {
 pub const UNSUPPORTED_OS_ERROR: _ = "Target OS is not supported. Please contact me";
 
 pub const LINK_DIRS: &[&str] = &[
-    env_or!("CORENUM_MKL_PATH"),
+    env_or!("GLARE_MKL_PATH"),
 ];
 
 

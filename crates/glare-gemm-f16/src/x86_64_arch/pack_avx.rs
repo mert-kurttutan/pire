@@ -94,9 +94,80 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     }
 }
 
+// #[target_feature(enable = "avx,f16c")]
+// pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f16, b: *mut f32) {
+
+//     if M == 24 {
+//         let a = a as *const u16;
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
+//         _mm256_storeu_ps(b, x);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
+//         _mm256_storeu_ps(b.add(8), x);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(16) as *const __m128i));
+//         _mm256_storeu_ps(b.add(16), x);
+//         return;
+//     }
+//     if M > 16 && M < 24 {
+//         let mut at = [0u16; 8];
+//         let mut bt = [0f32; 8];
+//         let a = a as *const u16;
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
+//         _mm256_storeu_ps(b, x);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
+//         _mm256_storeu_ps(b.add(8), x);
+//         copy_nonoverlapping(a.add(16), at.as_mut_ptr(), M-16);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+//         _mm256_storeu_ps(bt.as_mut_ptr(), x);
+//         copy_nonoverlapping(bt.as_ptr(), b.add(16), M-16);
+//         return;
+//     }
+//     if M == 16 {
+//         let a = a as *const u16;
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
+//         _mm256_storeu_ps(b, x);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
+//         _mm256_storeu_ps(b.add(8), x);
+//         return;
+//     }
+//     if M > 8 && M < 16 {
+//         let mut at = [0u16; 8];
+//         let mut bt = [0f32; 8];
+//         let a = a as *const u16;
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
+//         _mm256_storeu_ps(b, x);
+//         copy_nonoverlapping(a.add(8), at.as_mut_ptr(), M-8);
+//         let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+//         _mm256_storeu_ps(bt.as_mut_ptr(), x);
+//         copy_nonoverlapping(bt.as_ptr(), b.add(8), M-8);
+//         return;
+//     }
+//     let mut at = [0u16; 8];
+//     let mut bt = [0f32; 8];
+//     copy_nonoverlapping(a as *const u16, at.as_mut_ptr(), M);
+//     let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+//     _mm256_storeu_ps(bt.as_mut_ptr(), x);
+//     copy_nonoverlapping(bt.as_ptr(), b, M);
+// }
+
 #[target_feature(enable = "avx,f16c")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f16, b: *mut f32) {
 
+    if M == 48 {
+        let a = a as *const u16;
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
+        _mm256_storeu_ps(b, x);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
+        _mm256_storeu_ps(b.add(8), x);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(16) as *const __m128i));
+        _mm256_storeu_ps(b.add(16), x);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(24) as *const __m128i));
+        _mm256_storeu_ps(b.add(24), x);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(32) as *const __m128i));
+        _mm256_storeu_ps(b.add(32), x);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(40) as *const __m128i));
+        _mm256_storeu_ps(b.add(40), x);
+        return;
+    }
     if M == 24 {
         let a = a as *const u16;
         let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
@@ -107,29 +178,63 @@ pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f16, b: *mut f32) {
         _mm256_storeu_ps(b.add(16), x);
         return;
     }
-    if M > 16 && M < 24 {
+    if M >= 40 {
         let mut at = [0u16; 8];
         let mut bt = [0f32; 8];
         let a = a as *const u16;
-        let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
-        _mm256_storeu_ps(b, x);
-        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
-        _mm256_storeu_ps(b.add(8), x);
+        seq!(i in 0..5 {
+            let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(i*8) as *const __m128i));
+            _mm256_storeu_ps(b.add(i*8), x);
+        });
+        copy_nonoverlapping(a.add(40), at.as_mut_ptr(), M-40);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+        _mm256_storeu_ps(bt.as_mut_ptr(), x);
+        copy_nonoverlapping(bt.as_ptr(), b.add(40), M-40);
+        return;
+    }
+    if M >= 32 {
+        let mut at = [0u16; 8];
+        let mut bt = [0f32; 8];
+        let a = a as *const u16;
+        seq!(i in 0..4 {
+            let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(i*8) as *const __m128i));
+            _mm256_storeu_ps(b.add(i*8), x);
+        });
+        copy_nonoverlapping(a.add(32), at.as_mut_ptr(), M-32);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+        _mm256_storeu_ps(bt.as_mut_ptr(), x);
+        copy_nonoverlapping(bt.as_ptr(), b.add(32), M-32);
+        return;
+    }
+    if M >= 24 {
+        let mut at = [0u16; 8];
+        let mut bt = [0f32; 8];
+        let a = a as *const u16;
+        seq!(i in 0..3 {
+            let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(i*8) as *const __m128i));
+            _mm256_storeu_ps(b.add(i*8), x);
+        });
+        copy_nonoverlapping(a.add(24), at.as_mut_ptr(), M-24);
+        let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
+        _mm256_storeu_ps(bt.as_mut_ptr(), x);
+        copy_nonoverlapping(bt.as_ptr(), b.add(24), M-24);
+        return;
+    }
+    if M >= 16 {
+        let mut at = [0u16; 8];
+        let mut bt = [0f32; 8];
+        let a = a as *const u16;
+        seq!(i in 0..2 {
+            let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(i*8) as *const __m128i));
+            _mm256_storeu_ps(b.add(i*8), x);
+        });
         copy_nonoverlapping(a.add(16), at.as_mut_ptr(), M-16);
         let x = _mm256_cvtph_ps(_mm_loadu_si128(at.as_ptr() as *const __m128i));
         _mm256_storeu_ps(bt.as_mut_ptr(), x);
         copy_nonoverlapping(bt.as_ptr(), b.add(16), M-16);
         return;
     }
-    if M == 16 {
-        let a = a as *const u16;
-        let x = _mm256_cvtph_ps(_mm_loadu_si128(a as *const __m128i));
-        _mm256_storeu_ps(b, x);
-        let x = _mm256_cvtph_ps(_mm_loadu_si128(a.add(8) as *const __m128i));
-        _mm256_storeu_ps(b.add(8), x);
-        return;
-    }
-    if M > 8 && M < 16 {
+    if M >= 8 {
         let mut at = [0u16; 8];
         let mut bt = [0f32; 8];
         let a = a as *const u16;
@@ -222,8 +327,75 @@ pub(crate) unsafe fn pack_kx24_v1(
     }
 }
 
+// #[target_feature(enable = "avx,f16c")]
+// pub(crate) unsafe fn pack_kx16_v1(
+//     k_iter: usize, k_left: usize,
+//     a: *const f16, lda: usize,
+//     ap: *mut f32,
+// ) {
+//     let mut k_i = 0;
+//     let mut a = a;
+//     let mut ap = ap;
+//     const MR: usize = 16;
+//     while k_i < k_iter {
+//         pack_t::<MR>(a, lda, ap);
+//         pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
+
+//         ap = ap.add(MR*8);
+//         a = a.add(8);
+//         k_i += 1;
+//     }
+
+//     k_i = 0;
+
+//     while k_i < k_left {
+//         seq!(i in 0..16 {
+//             copy_packed::<1>(a.add(i*lda), ap.add(i));
+//         });
+
+//         ap = ap.add(MR);
+//         a = a.add(1);
+//         k_i += 1;
+//     }
+// }
+
+
+// #[target_feature(enable = "avx")]
+// pub(crate) unsafe fn pack_kx6_v1(
+//     k_iter: usize, k_left: usize,
+//     a: *const f16, lda: usize,
+//     ap: *mut f32,
+// ) {
+//     let mut k_i = 0;
+//     let mut a = a;
+//     let mut ap = ap;
+//     const MR: usize = 6;
+//     while k_i < k_iter {
+//         pack_t::<4>(a, lda, ap);
+//         pack_t::<2>(a.add(4*lda), lda, ap.add(4));
+
+//         ap = ap.add(MR*8);
+//         a = a.add(8);
+//         k_i += 1;
+//     }
+
+//     k_i = 0;
+
+//     while k_i < k_left {
+//         seq!(i in 0..12 {
+//             copy_packed::<1>(a.add(i*lda), ap.add(i));
+//         });
+
+//         ap = ap.add(MR);
+//         a = a.add(1);
+//         k_i += 1;
+//     }
+// }
+
+
+
 #[target_feature(enable = "avx,f16c")]
-pub(crate) unsafe fn pack_kx16_v1(
+pub(crate) unsafe fn pack_kx48_v1(
     k_iter: usize, k_left: usize,
     a: *const f16, lda: usize,
     ap: *mut f32,
@@ -231,10 +403,14 @@ pub(crate) unsafe fn pack_kx16_v1(
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
-    const MR: usize = 16;
+    const MR: usize = 48;
     while k_i < k_iter {
         pack_t::<MR>(a, lda, ap);
         pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
+        pack_t::<MR>(a.add(16*lda), lda, ap.add(16));
+        pack_t::<MR>(a.add(24*lda), lda, ap.add(24));
+        pack_t::<MR>(a.add(32*lda), lda, ap.add(32));
+        pack_t::<MR>(a.add(40*lda), lda, ap.add(40));
 
         ap = ap.add(MR*8);
         a = a.add(8);
@@ -244,40 +420,7 @@ pub(crate) unsafe fn pack_kx16_v1(
     k_i = 0;
 
     while k_i < k_left {
-        seq!(i in 0..16 {
-            copy_packed::<1>(a.add(i*lda), ap.add(i));
-        });
-
-        ap = ap.add(MR);
-        a = a.add(1);
-        k_i += 1;
-    }
-}
-
-
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx6_v1(
-    k_iter: usize, k_left: usize,
-    a: *const f16, lda: usize,
-    ap: *mut f32,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 6;
-    while k_i < k_iter {
-        pack_t::<4>(a, lda, ap);
-        pack_t::<2>(a.add(4*lda), lda, ap.add(4));
-
-        ap = ap.add(MR*8);
-        a = a.add(8);
-        k_i += 1;
-    }
-
-    k_i = 0;
-
-    while k_i < k_left {
-        seq!(i in 0..12 {
+        seq!(i in 0..48 {
             copy_packed::<1>(a.add(i*lda), ap.add(i));
         });
 
@@ -352,12 +495,46 @@ pub(crate) unsafe fn pack_kx4_v1(
 }
 
 
+#[target_feature(enable = "avx,f16c")]
+pub(crate) unsafe fn pack_kx8_v1(
+    k_iter: usize, k_left: usize,
+    a: *const f16, lda: usize,
+    ap: *mut f32,
+) {
+    let mut k_i = 0;
+    let mut a = a;
+    let mut ap = ap;
+    const MR: usize = 8;
+    while k_i < k_iter {
+        pack_t::<MR>(a, lda, ap);
+
+        ap = ap.add(MR*8);
+        a = a.add(8);
+        k_i += 1;
+    }
+
+    k_i = 0;
+
+    while k_i < k_left {
+        seq!(i in 0..8 {
+            copy_packed::<1>(a.add(i*lda), ap.add(i));
+        });
+
+        ap = ap.add(MR);
+        a = a.add(1);
+        k_i += 1;
+    }
+}
+
+
+
+
 macro_rules! def_packb {
    ($nr:tt) => {
        seq!(NL in 1..$nr {
            paste! {
             #[target_feature(enable = "avx")]
-            pub(crate) unsafe fn [<packb_panel_$nr>](
+            pub(crate) unsafe fn [<packb_panel_ $nr>](
                    n: usize, k: usize,
                    b: *const f16, b_rs: usize, b_cs: usize,
                    bp: *mut f32,
@@ -412,48 +589,15 @@ macro_rules! def_packb {
 
 
 def_packb!(4);
-def_packb!(6);
+def_packb!(8);
+// def_packb!(6);
 
 
-macro_rules! mul8 {
-    (24) => { 24 };
-    (23) => { 24 };
-    (22) => { 24 };
-    (21) => { 24 };
-    (20) => { 24 };
-    (19) => { 24 };
-    (18) => { 24 };
-    (17) => { 24 };
-    (16) => { 16 };
-    (15) => { 16 };
-    (14) => { 16 };
-    (13) => { 16 };
-    (12) => { 16 };
-    (11) => { 16 };
-    (10) => { 16 };
-    (9) => { 16 };
-    (8) => { 8 };
-    (7) => { 8 };
-    (6) => { 8 };
-    (5) => { 8 };
-    (4) => { 8 };
-    (3) => { 8 };
-    (2) => { 8 };
-    (1) => { 8 };
-}
-macro_rules! mul8_2 {
-    (24) => { 16 };
-    (16) => { 8 };
-    (8) => { 0 };
-    (4) => { 0 };
-    (2) => { 0 };
-    (1) => { 0 };
-}
 macro_rules! def_packa {
-    ($mr:tt, $($mr_left:tt),*) => {
+    ($mr:tt, $vs:tt) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub(crate) unsafe fn [<packa_panel_$mr>](
+            pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const f16, a_rs: usize, a_cs: usize,
                 ap: *mut f32,
@@ -476,7 +620,7 @@ macro_rules! def_packa {
                     let m_left = m_left - m_idx;
                     seq!(mr_left in 1..$mr {
                         if m_left == mr_left {
-                            pack_k_v0::<mr_left, {mul8!(mr_left)}>(k_iter, k_left, a, lda, ap);
+                            pack_k_v0::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
                             return;
                         }
                     });
@@ -492,21 +636,23 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    $(
-                        if m_left > mul8_2!($mr_left) {
-                            pack_scalar_k::<$mr_left>(
-                                m_left, k,
+                    seq!(mr_left in 1..$mr {
+                        if m_left == mr_left {
+                            pack_scalar_k::<{(mr_left+$vs-1)/ $vs* $vs}>(
+                                mr_left, k,
                                 a, a_rs, a_cs,
                                 ap
                             );
                             return;
                         }
-                    )*
+                    });
                 }
             }
         }
     };
 }
 
-def_packa!(24, 24, 16, 8);
-def_packa!(16, 16, 8);
+def_packa!(24, 8);
+def_packa!(48, 16);
+
+// def_packa!(16, 16, 8);

@@ -24,3 +24,7 @@ mkl          2024.1.0
 cpu info
 CPU: 11th Gen Intel(R) Core(TM) i7-11850H @ 2.50GHz
 os: windows 10
+
+
+maybe: We need to set omp_num_threads=4, but I am sure it gives incorrect result for omp_num_threads
+but not sure aobut omp_num_threads=1

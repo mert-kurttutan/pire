@@ -1,14 +1,8 @@
 pub mod asm_ukernel;
 pub(crate) mod axpy_kernel;
-pub(crate) mod intrinsics_pack;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use intrinsics_pack::{
-    packa_panel_24,
-    packa_panel_16,
-    packb_panel_6,
-    packb_panel_4,
-};
+
 pub(crate) use axpy_kernel::*;
 
 use seq_macro::seq;
@@ -204,7 +198,7 @@ macro_rules! def_kernel_bb {
 }
 
 def_kernel_bb!(24, 4, 24, 16, 8);
-def_kernel_bb!(16, 6, 16, 8);
+// def_kernel_bb!(16, 6, 16, 8);
 
 macro_rules! def_kernel_bb_strided {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
@@ -298,11 +292,11 @@ macro_rules! def_kernel_bb_strided {
 }
 
 def_kernel_bb_strided!(24, 4, 24, 16, 8);
-def_kernel_bb_strided!(16, 6, 16, 8);
+// def_kernel_bb_strided!(16, 6, 16, 8);
 
 
 #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel<const MR: usize, const NR: usize, F: MyFn>(
+pub(crate) unsafe fn kernel<F: MyFn>(
    m: usize, n: usize, k: usize,
    alpha: *const f32, beta: *const f32,
    c: *mut f16,
@@ -310,56 +304,10 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize, F: MyFn>(
    ap: *const f32, bp: *const f32,
    f: F,
 ) {
-   if MR == 24 && NR == 4 {
-        if c_rs == 1 {
-            kernel_24x4(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
-        } else {
-            kernel_24x4_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-        }
-        return;
-   }
-   if MR == 16 && NR == 6 {
-        if c_rs == 1 {
-            kernel_16x6(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
-        } else {
-            kernel_16x6_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-        }
-        return;
+    if c_rs == 1 {
+        kernel_24x4(m, n, k, alpha, beta, c, c_cs, ap, bp, f)
+    } else {
+        kernel_24x4_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
-    panic!("Kernel for MR = {} and NR = {} not implemented", MR, NR);
-}
-
-#[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn packa_panel<const MR: usize>(
-    m: usize, k: usize,
-    a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
-){
-    if MR == 24 {
-        packa_panel_24(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    if MR == 16 {
-        packa_panel_16(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    panic!("Packing for MR = {} not implemented", MR);
-}
-
-
-#[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn packb_panel<const NR: usize>(
-    m: usize, k: usize,
-    a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
-){
-    if NR == 4 {
-        packb_panel_4(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    if NR == 6 {
-        packb_panel_6(m, k, a, a_rs, a_cs, ap);
-        return;
-    }
-    panic!("Packing for MR = {} not implemented", NR);
+    return;
 }

@@ -1519,14 +1519,14 @@ group_def_ukernel!(48, 1, 8, B, S, bs, def_ukernel, asm_48x8_step, asm_48x8_acc,
 group_def_ukernel!(48, 1, 8, B, B, bb_partial, def_ukernel_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 group_def_ukernel!(48, 1, 8, B, S, bs_partial, def_ukernel_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 
-group_def_ukernel!(32, 1, 12, B, B, bb, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+group_def_ukernel!(32, 1, 8, B, B, bb, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 // group_def_ukernel!(32, 1, 8, B, S, bs, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
-group_def_ukernel!(32, 1, 12, B, B, bb_partial, def_ukernel_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+group_def_ukernel!(32, 1, 8, B, B, bb_partial, def_ukernel_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 group_def_ukernel!(32, 1, 8, B, S, bs_partial, def_ukernel_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
 
 
-group_def_ukernel!(16, 1, 12, B, B, bb, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+group_def_ukernel!(16, 1, 8, B, B, bb, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
 // group_def_ukernel!(16, 1, 8, B, S, bs, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
-group_def_ukernel!(16, 1, 12, B, B, bb_partial, def_ukernel_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+group_def_ukernel!(16, 1, 8, B, B, bb_partial, def_ukernel_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
 group_def_ukernel!(16, 1, 8, B, S, bs_partial, def_ukernel_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
 

@@ -291,7 +291,6 @@ where T: Diff
        let b = bp[i];
        let cur_diff: f64 = a.diff(&b);
        if cur_diff > diff {
-            println!("diff: {:?} {:?}", a, b);
             diff_idx = i;
            diff = cur_diff;
        }

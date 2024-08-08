@@ -125,10 +125,10 @@ pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
     detect_hw_config()
 });
 
-pub static CORENUM_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
+pub static GLARE_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
     let n_core = std::thread::available_parallelism().unwrap().get();
-    // CORENUM_NUM_THREADS or the number of logical cores
-    let x = std::env::var("CORENUM_NUM_THREADS").unwrap_or(n_core.to_string());
+    // GLARE_NUM_THREADS or the number of logical cores
+    let x = std::env::var("GLARE_NUM_THREADS").unwrap_or(n_core.to_string());
     x.parse::<usize>().unwrap()
 });
 #[cfg(target_arch = "x86_64")]
@@ -283,7 +283,7 @@ impl<'a> GlareThreadConfig {
 // once this is read, this cannot be changed for the time being.
 #[inline(always)]
 pub fn glare_num_threads() -> usize {
-    return *CORENUM_NUM_THREADS;
+    return *GLARE_NUM_THREADS;
 }
 
 #[derive(Copy,Clone)]
