@@ -46,7 +46,7 @@ use glare_base::{
 	GemmArray,
 	StridedMatrixMut,
 	GemmOut,
-	is_null_f16,
+	is_simd_f16,
     hw_avx512f16,
 };
 pub use glare_base::GlarePar;
@@ -79,10 +79,10 @@ C: GemmOut<X=f16,Y=f16>,
 	c: C,
 ){	
 	let par = GlarePar::default();
-	if is_null_f16() {
-		// run reference implementation
-		return;
-	}
+	// if !is_simd_f16() {
+	// 	// run reference implementation
+	// 	return;
+	// }
 	#[cfg(target_arch = "x86_64")]
 	{
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;

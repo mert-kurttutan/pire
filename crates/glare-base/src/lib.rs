@@ -414,8 +414,8 @@ pub trait GemmArray<Y>: Copy + Send + 'static + Tensor2D{
 pub trait GemmArrayP<T,U>: Tensor2D
 {
     // type StridedArray;
-    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, x: &H, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U;
-    unsafe fn packb_dispatch_hw<H:GemmPackB<T,U>>(&self, x: &H, nc: usize, kc: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
+    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, x: &H, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, mr_i: usize, run: bool) -> *const U;
+    unsafe fn packb_dispatch_hw<H:GemmPackB<T,U>>(&self, x: &H, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, run: bool) -> *const U;
     unsafe fn add_p(&self, offset: usize) -> Self;
     unsafe fn get_data_p_ptr(&self) -> *mut U;
     fn get_data_ptr(&self) -> *const T;
@@ -437,16 +437,16 @@ pub trait GemmOut: Copy+Send+'static {
 pub trait GemmPackA<AX,AY> 
 where Self: Sized
 {
-    unsafe fn packa_fn(self: &Self, a: *const AX, b: *mut AY, m: usize, k: usize, a_rs: usize, a_cs: usize);
+    unsafe fn packa_fn(self: &Self, x: *const AX, y: *mut AY, m: usize, k: usize, rs: usize, cs: usize);
     unsafe fn packa<A: GemmArray<AY,X=AX>>(
-        x: &Self,
+        t: &Self,
         a: A::PackArray, 
-    mc_i: usize, kc_i: usize,
-    mc_len: usize, kc_len: usize,
-    t_cfg: &GlareThreadConfig
+        mc_i: usize, kc_i: usize,
+        mc_len: usize, kc_len: usize,
+        t_cfg: &GlareThreadConfig
     ) -> *const AY {
         t_cfg.wait_packa();
-        let x = a.packa_dispatch_hw::<Self>(x, mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
+        let x = a.packa_dispatch_hw::<Self>(t, mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
         t_cfg.wait_packa();
         x
     }
@@ -456,16 +456,16 @@ where Self: Sized
 pub trait GemmPackB<BX,BY> 
 where Self: Sized
 {
-    unsafe fn packb_fn(self: &Self, a: *const BX, b: *mut BY, m: usize, k: usize, b_rs: usize, b_cs: usize);
+    unsafe fn packb_fn(self: &Self, x: *const BX, y: *mut BY, n: usize, k: usize, rs: usize, cs: usize);
     unsafe fn packb<B: GemmArray<BY,X=BX>>(
         self: &Self,
         b: B::PackArray, 
-        nc: usize, kc: usize,
+        nc_i: usize, kc_i: usize,
         nc_len: usize, kc_len: usize,
         t_cfg: &GlareThreadConfig
     ) -> *const BY {
         t_cfg.wait_packb();
-        let x = b.packb_dispatch_hw::<Self>(self, nc, kc, nc_len, kc_len, t_cfg.run_packb);
+        let x = b.packb_dispatch_hw::<Self>(self, nc_i, kc_i, nc_len, kc_len, t_cfg.run_packb);
         t_cfg.wait_packb();
         x
     }
@@ -851,11 +851,11 @@ impl<T,U> Tensor2D for StridedMatrixP<T,U> {
 
 
 impl<T, U> GemmArrayP<T,U> for StridedMatrixP<T,U> {
-    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, x: &H, mc: usize, kc: usize, mc_len: usize, kc_len: usize, mc_i: usize, run: bool) -> *const U
+    unsafe fn packa_dispatch_hw<H:GemmPackA<T,U>>(&self, x: &H, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, mr_i: usize, run: bool) -> *const U
     {
         if run {
-            let a = self.data_ptr.add(mc*self.rs + kc*self.cs);
-            x.packa_fn(a, self.data_p_ptr.add(mc_i*kc_len), mc_len, kc_len , self.rs, self.cs);
+            let a = self.data_ptr.add(mc_i*self.rs + kc_i*self.cs);
+            x.packa_fn(a, self.data_p_ptr.add(mr_i*kc_len), mc_len, kc_len , self.rs, self.cs);
         }
         self.data_p_ptr
     }
@@ -950,20 +950,20 @@ impl<T> Tensor2D for PackedMatrix<T> {
 }
 
 impl<T> GemmArrayP<T,T> for PackedMatrix<T> {
-    unsafe fn packa_dispatch_hw<H>(&self, _x: &H, mc: usize, kc: usize, _mc_len: usize, kc_len: usize, _mc_i: usize, _run: bool) -> *const T
+    unsafe fn packa_dispatch_hw<H>(&self, _x: &H, mc_i: usize, kc_i: usize, _mc_len: usize, kc_len: usize, _mc_i: usize, _run: bool) -> *const T
     {
-        let ib = mc / self.mc;
-        let jb = kc / self.kc;
-        let mr_block = (mc % self.mc) / self.mr;
+        let ib = mc_i / self.mc;
+        let jb = kc_i / self.kc;
+        let mr_block = (mc_i % self.mc) / self.mr;
         let m_eff = ((self.m.min(self.mc)+self.mr-1) / self.mr) * self.mr;
 
         self.data_ptr.add(ib*self.k*self.mc + jb*m_eff*self.kc + mr_block * kc_len*self.mr)
     }
-    unsafe fn packb_dispatch_hw<H>(&self, _x: &H, nc: usize, kc: usize, _nc_len: usize, kc_len: usize, _run: bool) -> *const T
+    unsafe fn packb_dispatch_hw<H>(&self, _x: &H, nc_i: usize, kc_i: usize, _nc_len: usize, kc_len: usize, _run: bool) -> *const T
     {
-        let ib = nc / self.mc;
-        let jb = kc / self.kc;
-        let nr_block = (nc % self.mc) / self.mr;
+        let ib = nc_i / self.mc;
+        let jb = kc_i / self.kc;
+        let nr_block = (nc_i % self.mc) / self.mr;
 
         self.data_ptr.add(ib*self.k*self.mc + jb*self.m*self.kc + nr_block * kc_len*self.mr)
 

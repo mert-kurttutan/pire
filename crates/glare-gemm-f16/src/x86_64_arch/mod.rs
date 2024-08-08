@@ -178,17 +178,13 @@ B: GemmArray<BP>,
 impl<
 T: MyFn
 > GemmPackA<f16,f32> for F32Dispatcher<T> {
-    unsafe fn packa_fn(self: &F32Dispatcher<T>, a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+    unsafe fn packa_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, x, rs, cs, y);
             return;
         } 
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            return;
-        }
-        if self.features.avx {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, x, rs, cs, y);
             return;
         }
     }
@@ -196,17 +192,13 @@ T: MyFn
 impl<
 T: MyFn
 > GemmPackB<f16,f32> for F32Dispatcher<T> {
-    unsafe fn packb_fn(self: &F32Dispatcher<T>, b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+    unsafe fn packb_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, x, cs, rs, y);
             return;
         }
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            return;
-        }
-        if self.features.avx {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, x, cs, rs, y);
             return;
         }
     }

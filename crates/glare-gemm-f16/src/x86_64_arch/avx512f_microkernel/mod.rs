@@ -1,17 +1,13 @@
 pub mod asm_ukernel;
-// pub mod new_asm_ukernel;
-// pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
 
 pub(crate) use asm_ukernel::*;
-// pub(crate) use new_asm_ukernel::*;
 pub(crate) use intrinsics_pack::{
     packa_panel_48,
     packa_panel_32,
     packb_panel_12,
     packb_panel_8,
 };
-// pub(crate) use axpy_kernel::*;
 
 use half::f16;
 

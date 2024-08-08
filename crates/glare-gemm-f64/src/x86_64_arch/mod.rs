@@ -75,17 +75,13 @@ impl<F: MyFn> X86_64dispatcher<F> {
 impl<
 T: MyFn
 > GemmPackA<TA,TA> for X86_64dispatcher<T> {
-    unsafe fn packa_fn(self: &X86_64dispatcher<T>, a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
+    unsafe fn packa_fn(self: &X86_64dispatcher<T>, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            avx512f_microkernel::packa_panel::<AVX512F_GOTO_MR>(m, k, x, rs, cs, y);
             return;
         } 
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
-            return;
-        }
-        if self.features.avx {
-            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, a, a_rs, a_cs, ap);
+            avx_fma_microkernel::packa_panel::<AVX_FMA_GOTO_MR>(m, k, x, rs, cs, y);
             return;
         }
     }
@@ -94,17 +90,13 @@ T: MyFn
 impl<
 T: MyFn
 > GemmPackB<TA,TA> for X86_64dispatcher<T> {
-    unsafe fn packb_fn(self: &X86_64dispatcher<T>, b: *const TA, bp: *mut TA, n: usize, k: usize, b_rs: usize, b_cs: usize) {
+    unsafe fn packb_fn(self: &X86_64dispatcher<T>, x: *const TA, y: *mut TA, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            avx512f_microkernel::packb_panel::<AVX512F_GOTO_NR>(n, k, x, cs, rs, y);
             return;
         }
         if self.features.avx && self.features.fma {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
-            return;
-        }
-        if self.features.avx {
-            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, b, b_cs, b_rs, bp);
+            avx_fma_microkernel::packb_panel::<AVX_FMA_GOTO_NR>(n, k, x, cs, rs, y);
             return;
         }
     }
