@@ -48,7 +48,7 @@ use glare_base::{
 	StridedMatrixMut,
 	GemmOut,
 };
-pub use glare_base::CorenumPar;
+pub use glare_base::GlarePar;
 use glare_base::RUNTIME_HW_CONFIG;
 use glare_base::glare_gemm;
 
@@ -76,7 +76,7 @@ where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,
 	};
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	let par = CorenumPar::default();
+	let par = GlarePar::default();
 	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 

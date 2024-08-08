@@ -139,9 +139,16 @@ pub(crate) mod cpu_features{
     pub fn hw_model() -> HWModel {
         RUNTIME_HW_CONFIG.hw_model
     }
+
+    pub fn is_simd_f32() -> bool {
+        // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
+        // dont use above since some avx512f also rely on avx instructions 
+        // (even though avx512f should imply), we are being super conservative here
+        RUNTIME_HW_CONFIG.cpu_ft.avx
+    }
     
-    pub fn is_null_f16() -> bool {
-        !RUNTIME_HW_CONFIG.cpu_ft.avx512f16 && !RUNTIME_HW_CONFIG.cpu_ft.avx512f && !RUNTIME_HW_CONFIG.cpu_ft.avx
+    pub fn is_simd_f16() -> bool {
+        !RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
 
     pub fn hw_avx512f16() -> bool {
@@ -150,6 +157,10 @@ pub(crate) mod cpu_features{
 
     pub fn hw_avx512bf16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f
+    }
+    // TODO: Use actual info from cache info
+    pub fn get_cache_params() -> (usize, usize, usize) {
+        (4800, 256, 128)
     }
 }
 #[cfg(target_arch = "aarch64")]
@@ -196,7 +207,7 @@ pub fn extend<'a>(pool_vec: Vec<u8>) {
 }
 
 
-pub struct CorenumThreadConfig {
+pub struct GlareThreadConfig {
     ic_id: usize,
     // pc_id: usize,
     jc_id: usize,
@@ -207,12 +218,12 @@ pub struct CorenumThreadConfig {
     kc_eff: usize,
     run_packa: bool,
     run_packb: bool,
-   par: CorenumPar,
+   par: GlarePar,
    packa_barrier: Arc<Vec<Arc<Barrier>>>,
    packb_barrier: Arc<Vec<Arc<Barrier>>>,
 }
 
-fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
+fn get_apbp_barrier(par: &GlarePar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
     let mut packa_barrier = vec![];
     for _ in 0..par.ic_par {
         let barrier = Arc::new(Barrier::new(par.jc_par * par.pc_par * par.ir_par * par.jr_par));
@@ -229,8 +240,8 @@ fn get_apbp_barrier(par: &CorenumPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Ba
 }
 
 
-impl<'a> CorenumThreadConfig {
-   fn new(par: CorenumPar, packa_barrier: Arc<Vec<Arc<Barrier>>>, packb_barrier: Arc<Vec<Arc<Barrier>>>, t_id: usize, mc_eff: usize, nc_eff: usize, kc_eff: usize) -> Self {
+impl<'a> GlareThreadConfig {
+   fn new(par: GlarePar, packa_barrier: Arc<Vec<Arc<Barrier>>>, packb_barrier: Arc<Vec<Arc<Barrier>>>, t_id: usize, mc_eff: usize, nc_eff: usize, kc_eff: usize) -> Self {
          let ic_id = par.get_ic_id(t_id);
             // let pc_id = par.get_pc_id(t_id);
             let jc_id = par.get_jc_id(t_id);
@@ -276,7 +287,7 @@ pub fn glare_num_threads() -> usize {
 }
 
 #[derive(Copy,Clone)]
-pub struct CorenumPar {
+pub struct GlarePar {
    num_threads: usize,
    ic_par: usize,
    pc_par: usize,
@@ -286,7 +297,7 @@ pub struct CorenumPar {
 }
 
 
-impl CorenumPar {
+impl GlarePar {
    pub fn new(
        num_threads: usize,
        ic_par: usize,
@@ -432,7 +443,7 @@ where Self: Sized
         a: A::PackArray, 
     mc_i: usize, kc_i: usize,
     mc_len: usize, kc_len: usize,
-    t_cfg: &CorenumThreadConfig
+    t_cfg: &GlareThreadConfig
     ) -> *const AY {
         t_cfg.wait_packa();
         let x = a.packa_dispatch_hw::<Self>(x, mc_i, kc_i, mc_len, kc_len, 0, t_cfg.run_packa);
@@ -451,7 +462,7 @@ where Self: Sized
         b: B::PackArray, 
         nc: usize, kc: usize,
         nc_len: usize, kc_len: usize,
-        t_cfg: &CorenumThreadConfig
+        t_cfg: &GlareThreadConfig
     ) -> *const BY {
         t_cfg.wait_packb();
         let x = b.packb_dispatch_hw::<Self>(self, nc, kc, nc_len, kc_len, t_cfg.run_packb);
@@ -473,7 +484,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN<AP,BP,A,B,C>
->(hw_config: &HWConfig, par: &CorenumPar, m: usize, n: usize) -> usize
+>(hw_config: &HWConfig, par: &GlarePar, m: usize, n: usize) -> usize
 {
     if run_small_m::<BP,B>(m) && HWConfig::IS_EFFICIENT{
         return get_mem_pool_size_small_m(hw_config, par);
@@ -491,7 +502,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
->(hw_config: &HWConfig, par: &CorenumPar) -> usize
+>(hw_config: &HWConfig, par: &GlarePar) -> usize
 {
     let mut mem_pool_size = 0;
     if A::is_packing_needed() {
@@ -518,7 +529,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 HWConfig: GemmSmallM<AP,BP,A,B,C>
->(hw_config: &HWConfig,par: &CorenumPar) -> usize
+>(hw_config: &HWConfig,par: &GlarePar) -> usize
 {
     let mut mem_pool_size = 0;
     if A::is_packing_needed() {
@@ -540,7 +551,7 @@ A: GemmArray<AP>,
 B: GemmArray<BP>,
 C: GemmOut,
 HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C>
->(hw_config: &HWConfig, par: &CorenumPar) -> usize
+>(hw_config: &HWConfig, par: &GlarePar) -> usize
 {
     let mut mem_pool_size = 0;
     if A::is_packing_needed() {
@@ -595,7 +606,7 @@ HWConfig: GemmGotoPackaPackb<AP,BP,A,B,C> + GemmSmallM<AP,BP,A,B,C> + GemmSmallN
 	b: B,
 	beta: HWConfig::BS,
 	c: C,
-	par: &CorenumPar,
+	par: &GlarePar,
 )
 {
     if n == 1 && A::is_packing_needed() {
@@ -665,7 +676,7 @@ HWConfig: Gemv<AP,BP,A,B,C> + AccCoef,
 	x: B,
 	beta: HWConfig::BS,
 	y: C,
-	par: &CorenumPar
+	par: &GlarePar
 ) {
     HWConfig::gemv(
         hw_config, m, n, alpha, a, x, beta, y, par
@@ -1069,7 +1080,7 @@ Self: GemmPackA<A::X, AP>,
     b: B,
     beta: Self::BS,
     c: C,
-    par: &CorenumPar,
+    par: &GlarePar,
     pool_buf: *mut u8,
 )
 {
@@ -1085,7 +1096,7 @@ Self: GemmPackA<A::X, AP>,
 
     std::thread::scope(|s| {
         for t_id in 1..par.num_threads {
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+            let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
             let ic_id = t_cfg.ic_id;
             let jc_id = t_cfg.jc_id;
             let ap_cur = ap.add_p(ic_id*ap_pool_size);
@@ -1100,7 +1111,7 @@ Self: GemmPackA<A::X, AP>,
         }
         {
             let t_id: usize = 0;
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+            let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
             let alpha = &alpha as *const Self::AS;
             let beta = &beta as *const Self::BS;
             self.gemm_packa_packb_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
@@ -1116,7 +1127,7 @@ Self: GemmPackA<A::X, AP>,
        b: B::PackArray,
        beta: *const Self::BS,
        c: C,
-       t_cfg: &CorenumThreadConfig
+       t_cfg: &GlareThreadConfig
    ) {
        let ic_id = t_cfg.ic_id;
        let jc_id = t_cfg.jc_id;
@@ -1225,7 +1236,7 @@ Self: GemmPackA<A::X, AP> + AccCoef
         b: B,
         beta: Self::BS,
         c: C,
-        par: &CorenumPar,
+        par: &GlarePar,
         pack_pool: *mut u8,
     )
     {
@@ -1241,7 +1252,7 @@ Self: GemmPackA<A::X, AP> + AccCoef
         std::thread::scope(|s| {
             // let c 
             for t_id in 1..par.num_threads {
-                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+                let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
                 let ic_id = t_cfg.ic_id;
                 let ap_cur = ap.add_p(ic_id*ap_pool_size);
         
@@ -1255,7 +1266,7 @@ Self: GemmPackA<A::X, AP> + AccCoef
         
             {
                 let t_id: usize = 0;
-                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+                let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
                 let alpha = &alpha as *const Self::AS;
                 let beta = &beta as *const Self::BS;
                 self.gemm_small_m_serial(m, n, k, alpha, ap, b, beta, c, &t_cfg);
@@ -1271,7 +1282,7 @@ Self: GemmPackA<A::X, AP> + AccCoef
         b: B,
         beta: *const Self::BS,
         c: C,
-        t_cfg: &CorenumThreadConfig
+        t_cfg: &GlareThreadConfig
     ) {
         let par = &t_cfg.par;
         let ic_id = t_cfg.ic_id;
@@ -1371,7 +1382,7 @@ Self: GemmPackB<B::X, BP>,
         b: B,
         beta: Self::BS,
         c: C,
-        par: &CorenumPar,
+        par: &GlarePar,
         pack_pool: *mut u8,
     )
     {
@@ -1388,7 +1399,7 @@ Self: GemmPackB<B::X, BP>,
     
         std::thread::scope(|s| {
             for t_id in 1..par.num_threads {
-                let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
+                let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff);
                 let jc_id = t_cfg.jc_id;
                 let ap_cur = ap.add_p(t_id*ap_pool_size);
                 let bp_cur = bp.add_p(jc_id*bp_pool_size);
@@ -1401,7 +1412,7 @@ Self: GemmPackB<B::X, BP>,
             }
     
             let t_id: usize = 0;
-            let t_cfg = CorenumThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+            let t_cfg = GlareThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
             let alpha = &alpha as *const Self::AS;
             let beta = &beta as *const Self::BS;
             self.gemm_small_n_serial(m, n, k, alpha, ap, bp, beta, c, &t_cfg);
@@ -1416,7 +1427,7 @@ Self: GemmPackB<B::X, BP>,
         b: B::PackArray,
         beta: *const Self::BS,
         c: C,
-        t_cfg: &CorenumThreadConfig
+        t_cfg: &GlareThreadConfig
     ) {
         let par = &t_cfg.par;
         let ic_id = t_cfg.ic_id;
@@ -1520,7 +1531,7 @@ where Self: Sized + AccCoef,
        x: B,
        beta: Self::BS,
        y: C,
-       _par: &CorenumPar
+       _par: &GlarePar
    ) {
        let alpha = &alpha as *const Self::AS;
        let beta = &beta as *const Self::BS;

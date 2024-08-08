@@ -53,7 +53,7 @@ use glare_base::{
 	StridedMatrixMut,
 	GemmOut,
 };
-pub use glare_base::CorenumPar;
+pub use glare_base::GlarePar;
 use glare_base::RUNTIME_HW_CONFIG;
 use glare_base::glare_gemm;
 use glare_base::AccCoef;
@@ -75,7 +75,7 @@ F: MyFn,
 where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
 X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
 {
-	let par = CorenumPar::default();
+	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);

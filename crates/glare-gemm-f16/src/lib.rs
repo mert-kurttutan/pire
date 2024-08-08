@@ -49,7 +49,7 @@ use glare_base::{
 	is_null_f16,
     hw_avx512f16,
 };
-pub use glare_base::CorenumPar;
+pub use glare_base::GlarePar;
 
 pub use half::f16;
 
@@ -78,7 +78,7 @@ C: GemmOut<X=f16,Y=f16>,
 	beta: f16,
 	c: C,
 ){	
-	let par = CorenumPar::default();
+	let par = GlarePar::default();
 	if is_null_f16() {
 		// run reference implementation
 		return;
