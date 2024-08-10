@@ -206,8 +206,8 @@ AP, BP,
     }
 }
 
-unsafe fn kernel(
-    hw_cfg: &F32Dispatcher,
+unsafe fn kernel<F:MyFn>(
+    hw_cfg: &F32Dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
@@ -227,8 +227,8 @@ unsafe fn kernel(
 }
 
 #[allow(unused)]
-unsafe fn kernel_m(
-    hw_cfg: &F32Dispatcher,
+unsafe fn kernel_m<F:MyFn>(
+    hw_cfg: &F32Dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
@@ -247,8 +247,8 @@ unsafe fn kernel_m(
 }
 
 #[allow(unused)]
-unsafe fn kernel_n(
-    hw_cfg: &F32Dispatcher,
+unsafe fn kernel_n<F:MyFn>(
+    hw_cfg: &F32Dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
@@ -267,8 +267,8 @@ unsafe fn kernel_n(
     // }
 }
 
-unsafe fn glare_gemv(
-    hw_cfg: &F32Dispatcher,
+unsafe fn glare_gemv<F:MyFn>(
+    hw_cfg: &F32Dispatcher<F>,
     m: usize, n: usize,
     alpha: *const f32,
     a: Array<TA>,

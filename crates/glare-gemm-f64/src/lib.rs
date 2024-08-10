@@ -70,7 +70,7 @@ F: MyFn,
 	let (mc, nc, kc) = get_mcnckc();
 	if is_simd_f32() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
@@ -349,10 +349,10 @@ mod tests {
 								data_ptr: b.as_ptr(),
 								rs: b_rs, cs: b_cs,
 							};
-							let c_matrix = StridedMatrixMut{
-								data_ptr: c.as_mut_ptr(),
-								rs: c_rs, cs: c_cs,
-							};
+							// let c_matrix = StridedMatrixMut{
+							// 	data_ptr: c.as_mut_ptr(),
+							// 	rs: c_rs, cs: c_cs,
+							// };
                         	// unsafe {
                             // 	glare_gemm_f64f64f64(
                             //     	m, n, k,

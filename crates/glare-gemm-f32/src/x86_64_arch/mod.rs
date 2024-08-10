@@ -140,8 +140,8 @@ AP, BP,
     }
 }
 
-unsafe fn kernel(
-    hw_cfg: &X86_64dispatcher,
+unsafe fn kernel<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -164,8 +164,8 @@ unsafe fn kernel(
  }
 }
 
-unsafe fn kernel_m(
-    hw_cfg: &X86_64dispatcher,
+unsafe fn kernel_m<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -188,8 +188,8 @@ unsafe fn kernel_m(
 }
 
 
-unsafe fn kernel_n(
-    hw_cfg: &X86_64dispatcher,
+unsafe fn kernel_n<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -212,8 +212,8 @@ unsafe fn kernel_n(
     }
 }
 
-unsafe fn glare_gemv(
-    hw_cfg: &X86_64dispatcher,
+unsafe fn glare_gemv<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize,
     alpha: *const f32,
     a: Array<TA>,

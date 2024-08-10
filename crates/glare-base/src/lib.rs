@@ -800,7 +800,7 @@ impl<X,Y> PArray<X,Y> {
 #[macro_export]
 macro_rules! def_glare_gemm {
     (
-        $t_dispatcher:ty,
+        $t_dispatcher:tt,
         $ta:tt,$tap:ty,$tb:ty,$tbp:ty,$tc:ty,$t_as:ty,$t_bs:ty,
         $one:expr,
         $name:ident, $name_mt:ident,
@@ -811,8 +811,8 @@ macro_rules! def_glare_gemm {
         $run_small_m:expr, $run_small_n:expr,
     ) => {
 
-        pub unsafe fn $name(
-            hw_config: &$t_dispatcher,
+        pub unsafe fn $name <F:MyFn>(
+            hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
             a: Array<$ta>,
@@ -843,15 +843,15 @@ macro_rules! def_glare_gemm {
             let (gemm_mode, gemm_fun, mem_pool_size)
             : (
                 GemmPool, unsafe fn(
-                    &$t_dispatcher, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig),
+                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig),
                 usize
             )
              = if run_small_m(m) && $run_small_m {
-                (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher>(hw_config, par))
+                (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
             } else if run_small_n(n) && $run_small_n{
-                (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher>(hw_config, par))
+                (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
             } else {
-                (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher>(hw_config, par))
+                (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
             };
             
             if mem_pool_size == 0 {
@@ -882,8 +882,8 @@ macro_rules! def_glare_gemm {
             extend(pool_vec);
         }
         
-        pub unsafe fn $name_mt(
-            hw_config: &$t_dispatcher,
+        pub unsafe fn $name_mt<F:MyFn>(
+            hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
             a: Array<$ta>,
@@ -894,16 +894,16 @@ macro_rules! def_glare_gemm {
             pool_buf: *mut u8,
             gemm_mode: GemmPool,
             gemm_fn: unsafe fn(
-                &$t_dispatcher, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig
+                &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig
             )
         )
-        where $t_dispatcher: GemmCache<$tap,$tbp>
+        where $t_dispatcher <F>: GemmCache<$tap,$tbp>
         {
-            let mc_eff = <$t_dispatcher as GemmCache<$tap,$tbp>>::get_mc_eff(hw_config, par.ic_par);
-            let nc_eff = <$t_dispatcher as GemmCache<$tap,$tbp>>::get_nc_eff(hw_config, par.jc_par);
-            let kc_eff = <$t_dispatcher as GemmCache<$tap,$tbp>>::get_kc_eff(hw_config);
-            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher>(hw_config, par.ic_par);
-            let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher>(hw_config, par.jc_par);
+            let mc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_mc_eff(hw_config, par.ic_par);
+            let nc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_nc_eff(hw_config, par.jc_par);
+            let kc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_kc_eff(hw_config);
+            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.ic_par);
+            let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.jc_par);
             let (ap_ptr, bp_ptr) = get_ap_bp::<$tap,$tbp>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
             let ap = a.into_pack_array(ap_ptr);
             let bp = b.into_pack_array(bp_ptr);
@@ -942,8 +942,8 @@ macro_rules! def_glare_gemm {
             });
         }
 
-        unsafe fn $goto_name(
-            hw_cfg: &$t_dispatcher,
+        unsafe fn $goto_name<F:MyFn>(
+            hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
             a: PArray<$ta,$tap>,
@@ -1027,8 +1027,8 @@ macro_rules! def_glare_gemm {
              }
             }
         }
-        unsafe fn $small_m_name(
-            hw_cfg: &$t_dispatcher,
+        unsafe fn $small_m_name<F:MyFn>(
+            hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
             a: PArray<$ta,$tap>,
@@ -1104,8 +1104,8 @@ macro_rules! def_glare_gemm {
                 }
             }
         }
-        unsafe fn $small_n_name(
-            hw_cfg: &$t_dispatcher,
+        unsafe fn $small_n_name<F:MyFn>(
+            hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
             a: PArray<$ta,$tap>,
@@ -1197,7 +1197,7 @@ macro_rules! def_glare_gemm {
             }
         }
 
-        pub(crate) unsafe fn $packa_name(hw_cfg: &$t_dispatcher, x: PArray<$ta,$tap>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tap {
+        pub(crate) unsafe fn $packa_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: PArray<$ta,$tap>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tap {
             t_cfg.wait_packa();
             let ap_ptr = match x {
                 PArray::StridedMatrix(m) => {
@@ -1215,7 +1215,7 @@ macro_rules! def_glare_gemm {
             ap_ptr
         }
     
-        pub(crate) unsafe fn $packb_name(hw_cfg: &$t_dispatcher,x: PArray<$tb,$tbp>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tbp {
+        pub(crate) unsafe fn $packb_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: PArray<$tb,$tbp>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tbp {
             t_cfg.wait_packb();
             let bp_ptr = match x {
                 PArray::StridedMatrix(m) => {

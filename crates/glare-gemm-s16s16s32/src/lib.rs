@@ -71,7 +71,7 @@ F: MyFn,
 	let (mc, nc, kc) = get_mcnckc();
 	if is_simd_f32() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
@@ -106,30 +106,29 @@ pub unsafe fn glare_gemm_s16s16s32(
 	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
-// pub unsafe fn glare_gemm_s16s16s32_fused(
-// 	m: usize, n: usize, k: usize,
-// 	alpha: f32,
-// 	a: *const TA, a_rs: usize, a_cs: usize,
-// 	b: *const TB, b_rs: usize, b_cs: usize,
-// 	beta: f32,
-// 	c: *mut TC, c_rs: usize, c_cs: usize,
-// 	unary: fn(*mut TC, usize),
-// ) {
-// 	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
-// 	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-//     	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
-// 	} else {
-//     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
-// 	};
-// 	let a = StridedMatrix::new(a, a_rs, a_cs);
-// 	let a = Array::StridedMatrix(a);
-// 	let b = StridedMatrix::new(b, b_rs, b_cs);
-// 	let b = Array::StridedMatrix(b);
-// 	let c = StridedMatrix::new(c, c_rs, c_cs);
-// 	let c = Array::StridedMatrix(c);
-// 	let null_fn = NullFn{};
-// 	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
-// }
+pub unsafe fn glare_gemm_s16s16s32_fused(
+	m: usize, n: usize, k: usize,
+	alpha: f32,
+	a: *const TA, a_rs: usize, a_cs: usize,
+	b: *const TB, b_rs: usize, b_cs: usize,
+	beta: f32,
+	c: *mut TC, c_rs: usize, c_cs: usize,
+	unary: fn(*mut TC, usize),
+) {
+	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+	} else {
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
+	let c = StridedMatrix::new(c, c_rs, c_cs);
+	let c = Array::StridedMatrix(c);
+	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
+}
 
 pub unsafe fn glare_gemv_s16s16s32(
 	m: usize, n: usize,
