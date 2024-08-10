@@ -10,10 +10,23 @@ pub(crate) type TA = f16;
 pub(crate) type TB = f16;
 pub(crate) type TC = f16;
 
+pub use half::f16;
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::{
-	F32Dispatcher, F16Dispatcher,
+// #[cfg(target_arch = "x86_64")]
+// use x86_64_arch::{
+// 	F32Dispatcher, F16Dispatcher,
+// };
+
+use glare_base::{
+	GemmCache,
+	StridedMatrix,
+	StridedMatrixMut,
+	get_cache_params,
+	is_simd_f32,
+	Array,
+	ArrayMut,
+	GlarePar,
+	RUNTIME_HW_CONFIG,
 };
 
 #[derive(Copy, Clone)]
@@ -35,86 +48,45 @@ impl MyFn for fn(*mut TC, m: usize){
 	}
 }
 
-use glare_base::{
-    GemmGotoPackaPackb,
-	GemmSmallM,
-	GemmSmallN,
-	GemmCache,
-	Gemv,
-	glare_gemm,
-	StridedMatrix,
-	GemmArray,
-	StridedMatrixMut,
-	GemmOut,
-	is_simd_f16,
-    hw_avx512f16,
-};
-pub use glare_base::GlarePar;
-
-pub use half::f16;
-
-use glare_base::RUNTIME_HW_CONFIG;
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		(4800, 192, 512)
-	} else {
-		(4800, 320, 192)
-	};
-	(mc, nc, kc)
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		return (4800, 192, 512);
+	}
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
+		return (4800, 320, 192);
+	}
+	// reference cache params
+	get_cache_params()
 }
 
 
-pub unsafe fn glare_hgemm_generic<
-A: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>, 
-B: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>,
-C: GemmOut<X=f16,Y=f16>,
+pub(crate) unsafe fn glare_hgemm_generic<
+F: MyFn,
 >(
 	m: usize, n: usize, k: usize,
-	alpha: f16,
-	a: A,
-	b: B,
-	beta: f16,
-	c: C,
-){	
+	alpha: TA,
+	a: Array<TA>,
+	b: Array<TB>,
+	beta: TC,
+	c: ArrayMut<TC>,
+	f: F,
+) 
+{
 	let par = GlarePar::default();
-	// if !is_simd_f16() {
-	// 	// run reference implementation
-	// 	return;
-	// }
-	#[cfg(target_arch = "x86_64")]
-	{
+	let (mc, nc, kc) = get_mcnckc();
+	if is_simd_f32() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-        if hw_avx512f16() {
-            let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_features);
-            glare_gemm(
-                &hw_config, m, n, k, alpha, a, b, beta, c, &par
-            );
-            return;
-        }
-
-        // TODO: test compuation in bf16 for bf16 targets
-		let (mc, nc, kc) = get_mcnckc();
-		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
-		glare_gemm(
-			&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par
-		);
-	}
-
-	#[cfg(target_arch="aarch64")]
-	{
-		const MR: usize = 24;
-		const NR: usize = 4;
-		let hw_config = armv8::AvxFma::<MR,NR>{
-			goto_mc: 4800, goto_nc: 192, goto_kc: 512,
-			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-		};
-		glare_gemm(
-			&hw_config, m, n, k, alpha, a, b, beta, c, &par
-		);
+		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
 		return;
 	}
+
+	// if none of the optimized paths are available, use reference implementation
+	// let hw_config = RefGemm::new(&*RUNTIME_HW_CONFIG, mc, nc, kc);
+	// glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+
 }
 
 
@@ -134,10 +106,39 @@ pub unsafe fn glare_hgemm(
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
 	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c);
+	let c = ArrayMut::StridedMatrix(c);
+	let null_fn = NullFn{};
+	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
+
+pub unsafe fn glare_hgemm_fused(
+	m: usize, n: usize, k: usize,
+	alpha: f16,
+	a: *const f16, a_rs: usize, a_cs: usize,
+	b: *const f16, b_rs: usize, b_cs: usize,
+	beta: f16,
+	c: *mut f16, c_rs: usize, c_cs: usize,
+	unary: fn(*mut f16, usize),
+) {
+	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+	} else {
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
+	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
+}
+
 
 
 

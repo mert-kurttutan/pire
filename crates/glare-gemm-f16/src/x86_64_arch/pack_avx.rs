@@ -431,7 +431,7 @@ pub(crate) unsafe fn pack_kx48_v1(
 }
 
 
-#[target_feature(enable = "avx")]
+#[target_feature(enable = "avx,f16c")]
 pub(crate) unsafe fn pack_kx4_v1(
     k_iter: usize, k_left: usize,
     b: *const f16, ldb: usize,
@@ -533,7 +533,7 @@ macro_rules! def_packb {
    ($nr:tt) => {
        seq!(NL in 1..$nr {
            paste! {
-            #[target_feature(enable = "avx")]
+            // #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packb_panel_ $nr>](
                    n: usize, k: usize,
                    b: *const f16, b_rs: usize, b_cs: usize,
@@ -596,7 +596,7 @@ def_packb!(8);
 macro_rules! def_packa {
     ($mr:tt, $vs:tt) => {
         paste! {
-            #[target_feature(enable = "avx")]
+            // #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const f16, a_rs: usize, a_cs: usize,

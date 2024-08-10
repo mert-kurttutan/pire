@@ -33,55 +33,55 @@ impl MyFn for fn(*mut TC, m: usize){
 use x86_64_arch::X86_64dispatcher;
 
 use glare_base::{
-    GemmGotoPackaPackb,
-	GemmSmallM,
-	GemmSmallN,
 	GemmCache,
-	Gemv,
 	StridedMatrix,
-	GemmArray,
 	StridedMatrixMut,
-	GemmOut,
+	get_cache_params,
+	is_simd_f32,
+	Array,
+	ArrayMut,
+	GlarePar,
+	RUNTIME_HW_CONFIG,
 };
-pub use glare_base::GlarePar;
-use glare_base::RUNTIME_HW_CONFIG;
-use glare_base::glare_gemm;
-use glare_base::AccCoef;
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		(4800, 192, 512)
-	} else {
-		(4800, 320, 192)
-	};
-	(mc, nc, kc)
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		return (4800, 192, 512);
+	}
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
+		return (4800, 320, 192);
+	}
+	// reference cache params
+	get_cache_params()
 }
 
 pub(crate) unsafe fn glare_dgemm_generic<
-A: GemmArray<f64,X=f64>, 
-B: GemmArray<f64,X=f64>,
-C: GemmOut<X=f64,Y=f64>,
 F: MyFn,
 >(
 	m: usize, n: usize, k: usize,
 	alpha: TA,
-	a: A,
-	b: B,
-	beta: C::X,
-	c: C,
+	a: Array<TA>,
+	b: Array<TB>,
+	beta: TC,
+	c: ArrayMut<TC>,
 	f: F,
 ) 
-where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
-X86_64dispatcher<F>: AccCoef<AS=f64,BS=f64>
 {
 	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
-	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-}
+	if is_simd_f32() {
+		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+		return;
+	}
 
+	// if none of the optimized paths are available, use reference implementation
+	// let hw_config = RefGemm::new(&*RUNTIME_HW_CONFIG, mc, nc, kc);
+	// glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+
+}
 pub unsafe fn glare_dgemm(
 	m: usize, n: usize, k: usize,
 	alpha: TA,
@@ -97,8 +97,11 @@ pub unsafe fn glare_dgemm(
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
 	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	let null_fn = NullFn{};
 	glare_dgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
@@ -119,8 +122,11 @@ pub unsafe fn glare_dgemm_fused(
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
 	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	glare_dgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
@@ -345,10 +351,10 @@ mod tests {
 								data_ptr: b.as_ptr(),
 								rs: b_rs, cs: b_cs,
 							};
-							let c_matrix = StridedMatrixMut{
-								data_ptr: c.as_mut_ptr(),
-								rs: c_rs, cs: c_cs,
-							};
+							// let c_matrix = StridedMatrixMut{
+							// 	data_ptr: c.as_mut_ptr(),
+							// 	rs: c_rs, cs: c_cs,
+							// };
                         	// unsafe {
                             // 	glare_gemm_f64f64f64(
                             //     	m, n, k,
