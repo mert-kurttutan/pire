@@ -578,7 +578,7 @@ pub(crate) unsafe fn pack_kx8_v1(
 macro_rules! def_packb {
    ($nr:tt) => {
         paste! {
-        #[target_feature(enable = "avx")]
+        // #[target_feature(enable = "avx")]
         pub(crate) unsafe fn [<packb_panel_ $nr>](
                 n: usize, k: usize,
                 b: *const TB, b_rs: usize, b_cs: usize,
@@ -635,7 +635,7 @@ def_packb!(8);
 macro_rules! def_packa {
     ($mr:tt, $vs:tt) => {
         paste! {
-            #[target_feature(enable = "avx")]
+            // #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,

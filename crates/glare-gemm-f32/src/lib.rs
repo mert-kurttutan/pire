@@ -35,22 +35,14 @@ use x86_64_arch::X86_64dispatcher;
 // use reference::RefGemm;
 
 use glare_base::{
-    GemmGotoPackaPackb,
-	GemmSmallM,
-	GemmSmallN,
 	GemmCache,
-	Gemv,
 	StridedMatrix,
-	GemmArray,
-	StridedMatrixMut,
-	GemmOut,
 	get_cache_params,
 	is_simd_f32,
+	Array,
+	GlarePar,
+	RUNTIME_HW_CONFIG,
 };
-pub use glare_base::GlarePar;
-use glare_base::RUNTIME_HW_CONFIG;
-use glare_base::AccCoef;
-
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
@@ -63,9 +55,6 @@ fn get_mcnckc() -> (usize, usize, usize) {
 	// reference cache params
 	get_cache_params()
 }
-
-use x86_64_arch::glare_gemm;
-
 
 pub(crate) unsafe fn glare_sgemm_generic<
 F: MyFn,
@@ -84,7 +73,7 @@ F: MyFn,
 	if is_simd_f32() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
 
@@ -93,8 +82,6 @@ F: MyFn,
 	// glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 
 }
-
-use glare_base::Array;
 
 pub unsafe fn glare_sgemm(
 	m: usize, n: usize, k: usize,

@@ -3,9 +3,6 @@ pub(crate) mod avx512f_microkernel;
 pub(crate) mod avx_microkernel;
 pub(crate) mod pack_avx;
 
-use glare_base::GemmArray;
-use glare_base::GemmOut;
-
 const AVX_GOTO_MR: usize = 24; // register block size
 const AVX_GOTO_NR: usize = 4; // register block size
 
@@ -18,12 +15,25 @@ const AVX512F_GOTO_NR: usize = 8; // register block size
 
 const VS: usize = 8; // vector size in float, __m256
 
-use std::marker::Sync;
+use glare_base::split_c_range;
+use glare_base::split_range;
+use glare_base::def_glare_gemm;
 
 use glare_base::{
-   CpuFeatures
+    GlarePar, GlareThreadConfig,
+   CpuFeatures,
+   HWConfig,
+    Array,
+    PArray,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
 };
-
 
 use crate::{
    TA, TB, TC,
@@ -46,10 +56,6 @@ T: MyFn = NullFn
     func: T,
     features: CpuFeatures,
 }
-
-use glare_base::HWConfig;
-
-use glare_base::AccCoef;
 
 impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
@@ -104,42 +110,6 @@ impl<F: MyFn> X86_64dispatcher<F> {
             return;
         }
     }
-
-    pub(crate) unsafe fn packa(self: &Self, x: PArray<TA,TA>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const TA {
-        t_cfg.wait_packa();
-        let ap_ptr = match x {
-            PArray::StridedMatrix(m) => {
-                if t_cfg.run_packa {
-                    let a = m.data_ptr.add(mc_i*m.rs + kc_i*m.cs);
-                    self.packa_fn(a, m.data_p_ptr, mc_len, kc_len , m.rs, m.cs);
-                }
-                m.data_p_ptr
-            }
-            PArray::PackedMatrix(m) => {
-                m.data_ptr
-            }
-        };
-        t_cfg.wait_packa();
-        ap_ptr
-    }
-
-    pub(crate) unsafe fn packb(self: &Self, x: PArray<TA,TA>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const TA {
-        t_cfg.wait_packb();
-        let bp_ptr = match x {
-            PArray::StridedMatrix(m) => {
-                if t_cfg.run_packa {
-                    let a = m.data_ptr.add(kc_i*m.rs + nc_i*m.cs);
-                    self.packb_fn(a, m.data_p_ptr, nc_len, kc_len , m.rs, m.cs);
-                }
-                m.data_p_ptr
-            }
-            PArray::PackedMatrix(m) => {
-                m.data_ptr
-            }
-        };
-        t_cfg.wait_packb();
-        bp_ptr
-    }
 }
 
 impl<
@@ -169,8 +139,6 @@ AP, BP,
         }
     }
 }
-
-use glare_base::Array;
 
 unsafe fn kernel(
     hw_cfg: &X86_64dispatcher,
@@ -244,21 +212,6 @@ unsafe fn kernel_n(
     }
 }
 
-use glare_base::GlarePar;
-use glare_base::get_ap_bp;
-use glare_base::get_apbp_barrier;
-use glare_base::GemmPool;
-use glare_base::get_mem_pool_size;
-
-use glare_base::acquire;
-use glare_base::extend;
-use glare_base::PACK_POOL;
-
-use glare_base::run_small_m;
-use glare_base::run_small_n;
-
-
-
 unsafe fn glare_gemv(
     hw_cfg: &X86_64dispatcher,
     m: usize, n: usize,
@@ -283,53 +236,14 @@ unsafe fn glare_gemv(
 }
 
 
-use glare_base::PArray;
-use glare_base::GlareThreadConfig;
-use glare_base::split_c_range;
-use glare_base::split_range;
-
-
-
-use glare_base::{
-    def_gemm_goto,
-    def_gemm_small_m,
-    def_gemm_small_n,
-    def_gemm_mt,
-    def_glare_gemm,
-};
-
-
 def_glare_gemm!(
     X86_64dispatcher,
-    f32,f32,f32,f32,f32,f32,f32
-);
-
-
-def_gemm_mt!(
-    X86_64dispatcher,
     f32,f32,f32,f32,f32,f32,f32,
-    1_f32
+    1_f32,
+    glare_gemm, gemm_mt,
+    gemm_goto_serial, kernel,
+    gemm_small_m_serial, kernel_m,
+    gemm_small_n_serial, kernel_n,
+    packa, packb,
+    true, true,
 );
-
-def_gemm_small_m!(
-    X86_64dispatcher,
-    f32,f32,f32,f32,f32,f32,f32,
-    1_f32
-);
-
-
-def_gemm_small_n!(
-    X86_64dispatcher,
-    f32,f32,f32,f32,f32,f32,f32,
-    1_f32
-);
-
-
-def_gemm_goto!(
-    X86_64dispatcher,
-    f32,f32,f32,f32,f32,f32,f32,
-    1_f32
-);
-
-
-

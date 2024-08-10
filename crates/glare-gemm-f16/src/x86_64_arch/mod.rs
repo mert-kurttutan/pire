@@ -5,8 +5,6 @@ pub(crate) mod pack_avx;
 use crate::f16;
 // use avx_fma_microkernel::axpy;
 
-use glare_base::GemmArray;
-
 const AVX_FMA_GOTO_MR: usize = 24; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
 
@@ -16,16 +14,33 @@ const AVX512F_GOTO_NR: usize = 8; // register block size
 
 const VS: usize = 8; // vector size in float, __m256
 
+use glare_base::split_c_range;
+use glare_base::split_range;
+
+use glare_base::def_glare_gemm;
+
 use glare_base::{
-    GemmPackA, GemmPackB, HWConfig,
-   GemmOut, CpuFeatures
+    GlarePar, GlareThreadConfig,
+   CpuFeatures,
+   HWConfig,
+    Array,
+    PArray,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
 };
 
 
 use crate::{
-   GemmGotoPackaPackb, GemmSmallM, GemmSmallN, Gemv, TA, TB, TC,
-   GemmCache, NullFn, MyFn
-};
+    TA, TB, TC,
+    GemmCache,
+    MyFn, NullFn
+ };
 
 pub(crate) struct F32Dispatcher<
 T: MyFn = NullFn
@@ -41,21 +56,10 @@ T: MyFn = NullFn
     func: T,
     features: CpuFeatures,
 }
-use glare_base::AccCoef;
-
-impl<F: MyFn> AccCoef for F32Dispatcher<F> {
-    type AS = f32;
-    type BS = f32;
-}
-
-impl<F: MyFn> AccCoef for F16Dispatcher<F> {
-    type AS = f16;
-    type BS = f16;
-}
 
 
-impl F32Dispatcher {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures) -> Self {
+impl<F: MyFn> F32Dispatcher<F>{
+    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         
         let (goto_mr, goto_nr) = if features.avx512f {
@@ -72,10 +76,40 @@ impl F32Dispatcher {
             is_l1_shared,
             is_l2_shared,
             is_l3_shared,
-            func: NullFn,
+            func: f,
             features: features,
             goto_mr,
             goto_nr,
+        }
+    }
+
+    unsafe fn packa_fn(self: &Self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+        if self.features.avx512f {
+            pack_avx::packa_panel_48(m, k, x, rs, cs, y);
+            return;
+        } 
+        if self.features.avx && self.features.fma {
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
+            return;
+        }
+        if self.features.avx {
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
+            return;
+        }
+    }
+
+    unsafe fn packb_fn(self: &Self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+        if self.features.avx512f {
+            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx && self.features.fma {
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx {
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+            return;
         }
     }
 }
@@ -118,9 +152,7 @@ impl F16Dispatcher {
 impl<
 T: MyFn,
 AP, BP,
-A: GemmArray<AP>,
-B: GemmArray<BP>,
-> GemmCache<AP,BP,A,B> for F32Dispatcher<T> {
+> GemmCache<AP,BP> for F32Dispatcher<T> {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.goto_mr
@@ -149,9 +181,7 @@ B: GemmArray<BP>,
 impl<
 T: MyFn,
 AP, BP,
-A: GemmArray<AP>,
-B: GemmArray<BP>,
-> GemmCache<AP,BP,A,B> for F16Dispatcher<T> {
+> GemmCache<AP,BP> for F16Dispatcher<T> {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.goto_mr
@@ -176,260 +206,94 @@ B: GemmArray<BP>,
     }
 }
 
-impl<
-T: MyFn
-> GemmPackA<f16,f32> for F32Dispatcher<T> {
-    unsafe fn packa_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx512f {
-            pack_avx::packa_panel_48(m, k, x, rs, cs, y);
-            return;
-        } 
-        if self.features.avx && self.features.fma {
-            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
-            return;
-        }
+unsafe fn kernel(
+    hw_cfg: &F32Dispatcher,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    c: *mut f16,
+    c_rs: usize, c_cs: usize,
+    ap: *const f32, bp: *const f32,
+    _kc_last: bool
+) {
+ if hw_cfg.features.avx512f {
+     avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     return;
+ }
+ if hw_cfg.features.avx && hw_cfg.features.fma {
+     avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     return;
+ }
+}
+
+#[allow(unused)]
+unsafe fn kernel_m(
+    hw_cfg: &F32Dispatcher,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    b: *const f16, b_rs: usize, b_cs: usize,
+    c: *mut f16, c_rs: usize, c_cs: usize,
+    ap: *const f32,
+) {
+    // if hw_cfg.features.avx512f {
+    //     avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     return;
+    // }
+    // if hw_cfg.features.avx && hw_cfg.features.fma {
+    //     avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     return;
+    // }
+}
+
+#[allow(unused)]
+unsafe fn kernel_n(
+    hw_cfg: &F32Dispatcher,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    a: *const f16, a_rs: usize, a_cs: usize,
+    ap: *mut f32,
+    b: *const f32,
+    c: *mut f16, c_rs: usize, c_cs: usize,
+) {
+    // if hw_cfg.features.avx512f {
+    //     avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     return;
+    // }
+    // if hw_cfg.features.avx && hw_cfg.features.fma {
+    //     avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     return;
+    // }
+}
+
+unsafe fn glare_gemv(
+    hw_cfg: &F32Dispatcher,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<TA>,
+    x: Array<TB>,
+    beta: *const f32,
+    y: Array<TC>,
+) {
+    let x_ptr = x.get_data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.get_data_ptr() as usize as *mut f16;
+    let incy = y.rs();
+    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+        avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        return;
     }
 }
-impl<
-T: MyFn
-> GemmPackB<f16,f32> for F32Dispatcher<T> {
-    unsafe fn packb_fn(self: &F32Dispatcher<T>, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx512f {
-            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
-            return;
-        }
-        if self.features.avx && self.features.fma {
-            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
-            return;
-        }
-    }
-}
 
-impl<
-T: MyFn
-> GemmPackA<f16,f16> for F16Dispatcher<T> {
-    #[allow(unused_variables)]
-    unsafe fn packa_fn(self: &F16Dispatcher<T>, a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-    }
-}
-
-impl<
-T: MyFn
-> GemmPackB<f16,f16> for F16Dispatcher<T> {
-    #[allow(unused_variables)]
-    unsafe fn packb_fn(self: &F16Dispatcher<T>, b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-    }
-}
-
-
-impl<
-T: MyFn,
-A: GemmArray<f32, X=f16>, 
-B: GemmArray<f32, X=f16>,
-C: GemmOut<X=f16,Y=f16>,
-> Gemv<f32,f32,A,B,C> for F32Dispatcher<T>
-{
-    #[allow(unused_variables)]
-   unsafe fn gemv_serial(
-         self: &Self,
-       m: usize, n: usize,
-       alpha: *const f32,
-       a: A,
-       x: B,
-       beta: *const Self::BS,
-       y: C,
-   ) {
-        let x_ptr = x.get_data_ptr();
-        let inc_x = x.rs();
-        let y_ptr   = y.data_ptr();
-        let incy = y.rs();
-        if self.features.avx512f || (self.features.avx && self.features.fma) {
-            avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, self.func);
-            return;
-        }
-    }
-}
-
-impl<
-T: MyFn,
-A: GemmArray<f16, X=f16>, 
-B: GemmArray<f16, X=f16>,
-C: GemmOut<X=f16,Y=f16>,
-> Gemv<TA,TB,A,B,C> for F16Dispatcher<T>
-{
-    #[allow(unused_variables)]
-   unsafe fn gemv_serial(
-    self: &Self,
-       m: usize, n: usize,
-       alpha: *const TA,
-       a: A,
-       x: B,
-       beta: *const C::X,
-       y: C,
-   ) {
-        // let x_ptr = x.get_data_ptr();
-        // let inc_x = x.rs();
-        // let y_ptr   = y.data_ptr();
-        // let incy = y.rs();
-        // axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy);
-   }
-}
-
-impl<
-T: MyFn,
-A: GemmArray<f32,X=f16>,
-B: GemmArray<f32,X=f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmGotoPackaPackb<f32,f32,A,B,C> for F32Dispatcher<T>
-where 
-F32Dispatcher<T>: GemmPackA<f16, f32> + GemmPackB<f16, f32> 
-{
-   const ONE: f32 = 1_f32;
-   unsafe fn kernel(
-       self: &Self,
-       m: usize, n: usize, k: usize,
-       alpha: *const f32,
-       beta: *const f32,
-       c: *mut TC,
-       c_rs: usize, c_cs: usize,
-       ap: *const f32, bp: *const f32,
-       _kc_last: bool
-   ) {
-        let my_func = self.func;
-        if self.features.avx512f {
-            avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
-            return;
-        }
-        if self.features.avx && self.features.fma {
-            avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, my_func);
-            return;
-        }
-   }
-}
-
-
-impl<
-T: MyFn,
-A: GemmArray<f16, X=f16>, 
-B: GemmArray<f16, X=f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmGotoPackaPackb<f16,f16,A,B,C> for F16Dispatcher<T>
-where 
-F16Dispatcher<T>: GemmPackA<f16, f16> + GemmPackB<f16, f16> 
-{
-   const ONE: TC = f16::ONE;
-   #[allow(unused_variables)]
-   unsafe fn kernel(
-       self: &Self,
-       m: usize, n: usize, k: usize,
-       alpha: *const f16,
-       beta: *const TC,
-       c: *mut TC,
-       c_rs: usize, c_cs: usize,
-       ap: *const f16, bp: *const f16,
-       _kc_last: bool
-   ) {
-   }
-}
-
-
-
-impl<
-T: MyFn,
-A: GemmArray<f32, X = f16>, 
-B: GemmArray<f32, X = f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmSmallM<f32,f32,A,B,C> for F32Dispatcher<T>
-where F32Dispatcher<T>: GemmPackA<f16, f32>
-{
-    const ONE: f32 = 1_f32;
-    #[allow(unused_variables)]
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        b: *const f16, b_rs: usize, b_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const f32,
-   ) {
-   }
-}
-
-
-
-impl<
-T: MyFn,
-A: GemmArray<f32, X = f16>, 
-B: GemmArray<f32, X = f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmSmallN<f32,f32,A,B,C> for F32Dispatcher<T>
-where 
-F32Dispatcher<T>: GemmPackB<f16, f32>
-{
-    const ONE: f32 = 1_f32;
-    #[allow(unused_variables)]
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const f32,
-        beta: *const f32,
-        a: *const f16, a_rs: usize, a_cs: usize,
-        ap: *mut f32,
-        b: *const f32,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-   ) {
-   }
-}
-
-
-
-
-
-impl<
-T: MyFn,
-A: GemmArray<f16, X = f16>, 
-B: GemmArray<f16, X = f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmSmallM<TA,TB,A,B,C> for F16Dispatcher<T>
-where F16Dispatcher<T>: GemmPackA<A::X, TA>
-{
-    const ONE: TC = f16::ONE;
-    #[allow(unused_variables)]
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const f16,
-        beta: *const f16,
-        b: *const f16, b_rs: usize, b_cs: usize,
-        c: *mut f16, c_rs: usize, c_cs: usize,
-        ap: *const f16,
-   ) {
-   }
-}
-
-
-
-impl<
-T: MyFn,
-A: GemmArray<f16, X = f16>, 
-B: GemmArray<f16>,
-C: GemmOut<X=f16,Y=f16>,
-> GemmSmallN<TA,TB,A,B,C> for F16Dispatcher<T>
-where 
-F16Dispatcher<T>: GemmPackB<B::X, TB>
-{
-    const ONE: TC = f16::ONE;
-    #[allow(unused_variables)]
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const f16,
-        beta: *const f16,
-        a: *const f16, a_rs: usize, a_cs: usize,
-        ap: *mut f16,
-        b: *const f16,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-   ) {
-   }
-}
+def_glare_gemm!(
+    F32Dispatcher,
+    f16,f32,f16,f32,f16,f32,f32,
+    1_f32,
+    glare_gemm, gemm_mt,
+    gemm_goto_serial, kernel,
+    gemm_small_m_serial, kernel_m,
+    gemm_small_n_serial, kernel_n,
+    packa, packb,
+    false, false,
+);

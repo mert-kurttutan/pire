@@ -1,5 +1,5 @@
-// #[cfg(target_arch = "x86_64")]
-// pub(crate) mod x86_64_arch;
+#[cfg(target_arch = "x86_64")]
+pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
@@ -17,6 +17,16 @@ pub(crate) trait MyFn: Copy + std::marker::Sync {
 	fn call(self, c: *mut TC, m: usize);
 }
 
+use glare_base::{
+	GemmCache,
+	StridedMatrix,
+	get_cache_params,
+	is_simd_f32,
+	Array,
+	GlarePar,
+	RUNTIME_HW_CONFIG,
+};
+
 impl MyFn for NullFn{
 	#[inline(always)]
 	fn call(self, _c: *mut TC, _m: usize) {}
@@ -31,56 +41,46 @@ impl MyFn for fn(*mut TC, m: usize){
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	let (mc, nc, kc) = if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		(4800, 192, 512)
-	} else {
-		(4800, 320, 192)
-	};
-	(mc, nc, kc)
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+		return (4800, 192, 512);
+	}
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
+		return (4800, 320, 192);
+	}
+	// reference cache params
+	get_cache_params()
 }
 
-// #[cfg(target_arch = "x86_64")]
-// use x86_64_arch::X86_64dispatcher;
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::X86_64dispatcher;
 
-use glare_base::{
-    GemmGotoPackaPackb,
-	GemmSmallM,
-	GemmSmallN,
-	GemmCache,
-	Gemv,
-	StridedMatrix,
-	GemmArray,
-	StridedMatrixMut,
-	GemmOut,
-};
-pub use glare_base::GlarePar;
-use glare_base::RUNTIME_HW_CONFIG;
-use glare_base::glare_gemm;
-use glare_base::AccCoef;
 
-// pub(crate) unsafe fn glare_gemm_s16s16s32_generic<
-// A: GemmArray<i16,X=i16>, 
-// B: GemmArray<i16,X=i16>,
-// C: GemmOut<X=i32,Y=i32>,
-// F: MyFn,
-// >(
-// 	m: usize, n: usize, k: usize,
-// 	alpha: f32,
-// 	a: A,
-// 	b: B,
-// 	beta: f32,
-// 	c: C,
-// 	f: F,
-// ) 
-// where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
-// X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
-// {
-// 	let par = GlarePar::default();
-// 	let (mc, nc, kc) = get_mcnckc();
-// 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-// 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-// 	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-// }
+pub(crate) unsafe fn glare_gemm_s16s16s32_generic<
+F: MyFn,
+>(
+	m: usize, n: usize, k: usize,
+	alpha: f32,
+	a: Array<TA>,
+	b: Array<TB>,
+	beta: f32,
+	c: Array<TC>,
+	f: F,
+) 
+{
+	let par = GlarePar::default();
+	let (mc, nc, kc) = get_mcnckc();
+	if is_simd_f32() {
+		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+		return;
+	}
+
+	// if none of the optimized paths are available, use reference implementation
+	// let hw_config = RefGemm::new(&*RUNTIME_HW_CONFIG, mc, nc, kc);
+	// glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+
+}
 
 pub unsafe fn glare_gemm_s16s16s32(
 	m: usize, n: usize, k: usize,
@@ -97,32 +97,39 @@ pub unsafe fn glare_gemm_s16s16s32(
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
 	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
-	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let b = Array::StridedMatrix(b);
+	let c = StridedMatrix::new(c, c_rs, c_cs);
+	let c = Array::StridedMatrix(c);
 	let null_fn = NullFn{};
-	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
+	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
-pub unsafe fn glare_gemm_s16s16s32_fused(
-	m: usize, n: usize, k: usize,
-	alpha: f32,
-	a: *const TA, a_rs: usize, a_cs: usize,
-	b: *const TB, b_rs: usize, b_cs: usize,
-	beta: f32,
-	c: *mut TC, c_rs: usize, c_cs: usize,
-	unary: fn(*mut TC, usize),
-) {
-	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
-	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
-	} else {
-    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
-	};
-	let a = StridedMatrix::new(a, a_rs, a_cs);
-	let b = StridedMatrix::new(b, b_rs, b_cs);
-	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
-}
+// pub unsafe fn glare_gemm_s16s16s32_fused(
+// 	m: usize, n: usize, k: usize,
+// 	alpha: f32,
+// 	a: *const TA, a_rs: usize, a_cs: usize,
+// 	b: *const TB, b_rs: usize, b_cs: usize,
+// 	beta: f32,
+// 	c: *mut TC, c_rs: usize, c_cs: usize,
+// 	unary: fn(*mut TC, usize),
+// ) {
+// 	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+// 	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+//     	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+// 	} else {
+//     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+// 	};
+// 	let a = StridedMatrix::new(a, a_rs, a_cs);
+// 	let a = Array::StridedMatrix(a);
+// 	let b = StridedMatrix::new(b, b_rs, b_cs);
+// 	let b = Array::StridedMatrix(b);
+// 	let c = StridedMatrix::new(c, c_rs, c_cs);
+// 	let c = Array::StridedMatrix(c);
+// 	let null_fn = NullFn{};
+// 	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
+// }
 
 pub unsafe fn glare_gemv_s16s16s32(
 	m: usize, n: usize,
