@@ -21,6 +21,8 @@ use glare_base::{
 impl AccCoef for RefGemm {
     type AS = TA;
     type BS = TC;
+    type AP = TA;
+    type BP = TB;
 }
  
  
@@ -104,9 +106,9 @@ impl GemmPackB<TB,TB> for RefGemm {
 
 impl<
 AP, BP,
-A: GemmArray<AP>,
-B: GemmArray<BP>,
-> GemmCache<AP,BP,A,B> for RefGemm {
+// A: GemmArray<AP>,
+// B: GemmArray<BP>,
+> GemmCache<AP,BP> for RefGemm {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.mr
@@ -132,11 +134,11 @@ B: GemmArray<BP>,
 }
 
 impl<
-A: GemmArray<TA,X=TA>, 
-B: GemmArray<TB,X=TB>,
+// A: GemmArray<TA,X=TA>, 
+// B: GemmArray<TB,X=TB>,
 C: GemmOut<X=TC,Y=TC>,
 // F: MyFn + Sync,
-> GemmGotoPackaPackb<TA,TB,A,B,C> for RefGemm
+> GemmGotoPackaPackb<TA,TB,C> for RefGemm
 {
    const ONE: TC = 1.0;
    unsafe fn kernel(
@@ -194,11 +196,11 @@ C: GemmOut<X=TC,Y=TC>,
 
 
 impl<
-A: GemmArray<TA,X=TA>, 
-B: GemmArray<TB,X=TB>,
+// A: GemmArray<TA,X=TA>, 
+// B: GemmArray<TB,X=TB>,
 C: GemmOut<X=TC,Y=TC>,
 // F: MyFn + Sync,
-> GemmSmallM<TA,TB,A,B,C> for RefGemm
+> GemmSmallM<TA,TB,C> for RefGemm
 {
     const ONE: TC = 1.0;
    
@@ -252,11 +254,11 @@ C: GemmOut<X=TC,Y=TC>,
 }
 
 impl<
-A: GemmArray<TA,X=TA>, 
-B: GemmArray<TB,X=TB>,
+// A: GemmArray<TA,X=TA>, 
+// B: GemmArray<TB,X=TB>,
 C: GemmOut<X=TC,Y=TC>,
 // F: MyFn + Sync,
-> GemmSmallN<TA,TB,A,B,C> for RefGemm
+> GemmSmallN<TA,TB,C> for RefGemm
 {
     const ONE: TC = 1.0;
    unsafe fn kernel(
@@ -310,20 +312,21 @@ C: GemmOut<X=TC,Y=TC>,
    }
 }
 
+use glare_base::Array;
 
 impl<
-A: GemmArray<TA,X=TA>, 
-B: GemmArray<TB,X=TB>,
+// A: GemmArray<TA,X=TA>, 
+// B: GemmArray<TB,X=TB>,
 C: GemmOut<X=TC,Y=TC>,
 // F: MyFn + Sync,
-> Gemv<TA,TB,A,B,C> for RefGemm
+> Gemv<TA,TB,C> for RefGemm
 {
    unsafe fn gemv_serial(
     self: &Self,
        m: usize, n: usize,
        alpha: *const TA,
-       a: A,
-       x: B,
+       a: Array<TA>,
+       x: Array<TB>,
        beta: *const C::X,
        y: C,
    ) {

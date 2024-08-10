@@ -1,5 +1,5 @@
-#[cfg(target_arch = "x86_64")]
-pub(crate) mod x86_64_arch;
+// #[cfg(target_arch = "x86_64")]
+// pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
@@ -39,8 +39,8 @@ fn get_mcnckc() -> (usize, usize, usize) {
 	(mc, nc, kc)
 }
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
+// #[cfg(target_arch = "x86_64")]
+// use x86_64_arch::X86_64dispatcher;
 
 use glare_base::{
     GemmGotoPackaPackb,
@@ -58,29 +58,29 @@ use glare_base::RUNTIME_HW_CONFIG;
 use glare_base::glare_gemm;
 use glare_base::AccCoef;
 
-pub(crate) unsafe fn glare_gemm_s16s16s32_generic<
-A: GemmArray<i16,X=i16>, 
-B: GemmArray<i16,X=i16>,
-C: GemmOut<X=i32,Y=i32>,
-F: MyFn,
->(
-	m: usize, n: usize, k: usize,
-	alpha: f32,
-	a: A,
-	b: B,
-	beta: f32,
-	c: C,
-	f: F,
-) 
-where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
-X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
-{
-	let par = GlarePar::default();
-	let (mc, nc, kc) = get_mcnckc();
-	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-}
+// pub(crate) unsafe fn glare_gemm_s16s16s32_generic<
+// A: GemmArray<i16,X=i16>, 
+// B: GemmArray<i16,X=i16>,
+// C: GemmOut<X=i32,Y=i32>,
+// F: MyFn,
+// >(
+// 	m: usize, n: usize, k: usize,
+// 	alpha: f32,
+// 	a: A,
+// 	b: B,
+// 	beta: f32,
+// 	c: C,
+// 	f: F,
+// ) 
+// where X86_64dispatcher<F>: GemmGotoPackaPackb<TA,TB,A,B,C> + GemmSmallM<TA,TB,A,B,C> + GemmSmallN<TA,TB,A,B,C> + GemmCache<TA,TB,A,B> + Gemv<TA,TB,A,B,C> + Gemv<TB,TA,B,A,C>,
+// X86_64dispatcher<F>: AccCoef<AS=f32,BS=f32>
+// {
+// 	let par = GlarePar::default();
+// 	let (mc, nc, kc) = get_mcnckc();
+// 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+// 	let hw_config = X86_64dispatcher::<F>::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+// 	glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+// }
 
 pub unsafe fn glare_gemm_s16s16s32(
 	m: usize, n: usize, k: usize,
@@ -100,7 +100,7 @@ pub unsafe fn glare_gemm_s16s16s32(
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
 	let null_fn = NullFn{};
-	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
+	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
 pub unsafe fn glare_gemm_s16s16s32_fused(
@@ -121,7 +121,7 @@ pub unsafe fn glare_gemm_s16s16s32_fused(
 	let a = StridedMatrix::new(a, a_rs, a_cs);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
+	// glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
 pub unsafe fn glare_gemv_s16s16s32(

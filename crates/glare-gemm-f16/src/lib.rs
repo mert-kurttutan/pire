@@ -1,5 +1,5 @@
-#[cfg(target_arch = "x86_64")]
-pub(crate) mod x86_64_arch;
+// #[cfg(target_arch = "x86_64")]
+// pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
@@ -11,10 +11,10 @@ pub(crate) type TB = f16;
 pub(crate) type TC = f16;
 
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::{
-	F32Dispatcher, F16Dispatcher,
-};
+// #[cfg(target_arch = "x86_64")]
+// use x86_64_arch::{
+// 	F32Dispatcher, F16Dispatcher,
+// };
 
 #[derive(Copy, Clone)]
 pub(crate) struct NullFn;
@@ -66,56 +66,56 @@ fn get_mcnckc() -> (usize, usize, usize) {
 }
 
 
-pub unsafe fn glare_hgemm_generic<
-A: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>, 
-B: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>,
-C: GemmOut<X=f16,Y=f16>,
->(
-	m: usize, n: usize, k: usize,
-	alpha: f16,
-	a: A,
-	b: B,
-	beta: f16,
-	c: C,
-){	
-	let par = GlarePar::default();
-	// if !is_simd_f16() {
-	// 	// run reference implementation
-	// 	return;
-	// }
-	#[cfg(target_arch = "x86_64")]
-	{
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-        if hw_avx512f16() {
-            let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_features);
-            glare_gemm(
-                &hw_config, m, n, k, alpha, a, b, beta, c, &par
-            );
-            return;
-        }
+// pub unsafe fn glare_hgemm_generic<
+// A: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>, 
+// B: GemmArray<f16,X=f16> + GemmArray<f32,X=f16>,
+// C: GemmOut<X=f16,Y=f16>,
+// >(
+// 	m: usize, n: usize, k: usize,
+// 	alpha: f16,
+// 	a: A,
+// 	b: B,
+// 	beta: f16,
+// 	c: C,
+// ){	
+// 	let par = GlarePar::default();
+// 	// if !is_simd_f16() {
+// 	// 	// run reference implementation
+// 	// 	return;
+// 	// }
+// 	#[cfg(target_arch = "x86_64")]
+// 	{
+// 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+//         if hw_avx512f16() {
+//             let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, 4800, 192, 512, x86_64_features);
+//             glare_gemm(
+//                 &hw_config, m, n, k, alpha, a, b, beta, c, &par
+//             );
+//             return;
+//         }
 
-        // TODO: test compuation in bf16 for bf16 targets
-		let (mc, nc, kc) = get_mcnckc();
-		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
-		glare_gemm(
-			&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par
-		);
-	}
+//         // TODO: test compuation in bf16 for bf16 targets
+// 		let (mc, nc, kc) = get_mcnckc();
+// 		let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features);
+// 		glare_gemm(
+// 			&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par
+// 		);
+// 	}
 
-	#[cfg(target_arch="aarch64")]
-	{
-		const MR: usize = 24;
-		const NR: usize = 4;
-		let hw_config = armv8::AvxFma::<MR,NR>{
-			goto_mc: 4800, goto_nc: 192, goto_kc: 512,
-			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
-		};
-		glare_gemm(
-			&hw_config, m, n, k, alpha, a, b, beta, c, &par
-		);
-		return;
-	}
-}
+// 	#[cfg(target_arch="aarch64")]
+// 	{
+// 		const MR: usize = 24;
+// 		const NR: usize = 4;
+// 		let hw_config = armv8::AvxFma::<MR,NR>{
+// 			goto_mc: 4800, goto_nc: 192, goto_kc: 512,
+// 			is_l1_shared: false, is_l2_shared: false, is_l3_shared: true
+// 		};
+// 		glare_gemm(
+// 			&hw_config, m, n, k, alpha, a, b, beta, c, &par
+// 		);
+// 		return;
+// 	}
+// }
 
 
 
@@ -136,7 +136,7 @@ pub unsafe fn glare_hgemm(
 	let a = StridedMatrix::new(a, a_rs, a_cs);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c);
+	// glare_hgemm_generic(m, n, k, alpha, a, b, beta, c);
 }
 
 

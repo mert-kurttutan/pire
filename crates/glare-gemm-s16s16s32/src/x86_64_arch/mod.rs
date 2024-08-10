@@ -97,6 +97,7 @@ AP, BP,
 A: GemmArray<AP>,
 B: GemmArray<BP>,
 > GemmCache<AP,BP,A,B> for X86_64dispatcher<T> {
+    const IS_EFFICIENT: bool = false;
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.goto_mr
@@ -183,7 +184,6 @@ F: MyFn + Sync,
 > GemmSmallM<TA,TB,A,B,C> for X86_64dispatcher<F>
 {
     const ONE: f32 = 1_f32;
-   const IS_EFFICIENT: bool = false;
    #[allow(unused_variables)]
    unsafe fn kernel(
         self: &Self,
