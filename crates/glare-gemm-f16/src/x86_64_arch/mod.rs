@@ -23,7 +23,8 @@ use glare_base::{
     GlarePar, GlareThreadConfig,
    CpuFeatures,
    HWConfig,
-    Array,
+   Array,
+   ArrayMut,
     PArray,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
@@ -274,14 +275,14 @@ unsafe fn glare_gemv<F:MyFn>(
     a: Array<TA>,
     x: Array<TB>,
     beta: *const f32,
-    y: Array<TC>,
+    y: ArrayMut<TC>,
 ) {
-    let x_ptr = x.get_data_ptr();
+    let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.get_data_ptr() as usize as *mut f16;
+    let y_ptr   = y.data_ptr();
     let incy = y.rs();
     if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma_microkernel::axpy(m, n, alpha, a.get_data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
 }
@@ -294,6 +295,7 @@ def_glare_gemm!(
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
+    glare_gemv,
     packa, packb,
     false, false,
 );

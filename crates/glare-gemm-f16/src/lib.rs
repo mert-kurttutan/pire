@@ -20,9 +20,11 @@ pub use half::f16;
 use glare_base::{
 	GemmCache,
 	StridedMatrix,
+	StridedMatrixMut,
 	get_cache_params,
 	is_simd_f32,
 	Array,
+	ArrayMut,
 	GlarePar,
 	RUNTIME_HW_CONFIG,
 };
@@ -68,7 +70,7 @@ F: MyFn,
 	a: Array<TA>,
 	b: Array<TB>,
 	beta: TC,
-	c: Array<TC>,
+	c: ArrayMut<TC>,
 	f: F,
 ) 
 {
@@ -107,11 +109,36 @@ pub unsafe fn glare_hgemm(
 	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let b = Array::StridedMatrix(b);
-	let c = StridedMatrix::new(c, c_rs, c_cs);
-	let c = Array::StridedMatrix(c);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	let null_fn = NullFn{};
 	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
+
+pub unsafe fn glare_hgemm_fused(
+	m: usize, n: usize, k: usize,
+	alpha: f16,
+	a: *const f16, a_rs: usize, a_cs: usize,
+	b: *const f16, b_rs: usize, b_cs: usize,
+	beta: f16,
+	c: *mut f16, c_rs: usize, c_cs: usize,
+	unary: fn(*mut f16, usize),
+) {
+	// transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
+	let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
+    	(n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+	} else {
+    	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
+	};
+	let a = StridedMatrix::new(a, a_rs, a_cs);
+	let a = Array::StridedMatrix(a);
+	let b = StridedMatrix::new(b, b_rs, b_cs);
+	let b = Array::StridedMatrix(b);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
+	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
+}
+
 
 
 

@@ -20,9 +20,11 @@ pub(crate) trait MyFn: Copy + std::marker::Sync {
 use glare_base::{
 	GemmCache,
 	StridedMatrix,
+	StridedMatrixMut,
 	get_cache_params,
 	is_simd_f32,
 	Array,
+	ArrayMut,
 	GlarePar,
 	RUNTIME_HW_CONFIG,
 };
@@ -63,7 +65,7 @@ F: MyFn,
 	a: Array<TA>,
 	b: Array<TB>,
 	beta: f32,
-	c: Array<TC>,
+	c: ArrayMut<TC>,
 	f: F,
 ) 
 {
@@ -100,8 +102,8 @@ pub unsafe fn glare_gemm_s16s16s32(
 	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let b = Array::StridedMatrix(b);
-	let c = StridedMatrix::new(c, c_rs, c_cs);
-	let c = Array::StridedMatrix(c);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	let null_fn = NullFn{};
 	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
@@ -125,8 +127,8 @@ pub unsafe fn glare_gemm_s16s16s32_fused(
 	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let b = Array::StridedMatrix(b);
-	let c = StridedMatrix::new(c, c_rs, c_cs);
-	let c = Array::StridedMatrix(c);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 

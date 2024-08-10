@@ -35,9 +35,11 @@ use x86_64_arch::X86_64dispatcher;
 use glare_base::{
 	GemmCache,
 	StridedMatrix,
+	StridedMatrixMut,
 	get_cache_params,
 	is_simd_f32,
 	Array,
+	ArrayMut,
 	GlarePar,
 	RUNTIME_HW_CONFIG,
 };
@@ -62,7 +64,7 @@ F: MyFn,
 	a: Array<TA>,
 	b: Array<TB>,
 	beta: TC,
-	c: Array<TC>,
+	c: ArrayMut<TC>,
 	f: F,
 ) 
 {
@@ -98,8 +100,8 @@ pub unsafe fn glare_dgemm(
 	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let b = Array::StridedMatrix(b);
-	let c = StridedMatrix::new(c, c_rs, c_cs);
-	let c = Array::StridedMatrix(c);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	let null_fn = NullFn{};
 	glare_dgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
@@ -123,8 +125,8 @@ pub unsafe fn glare_dgemm_fused(
 	let a = Array::StridedMatrix(a);
 	let b = StridedMatrix::new(b, b_rs, b_cs);
 	let b = Array::StridedMatrix(b);
-	let c = StridedMatrix::new(c, c_rs, c_cs);
-	let c = Array::StridedMatrix(c);
+	let c = StridedMatrixMut::new(c, c_rs, c_cs);
+	let c = ArrayMut::StridedMatrix(c);
 	glare_dgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 

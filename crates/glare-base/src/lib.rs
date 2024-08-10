@@ -651,24 +651,23 @@ impl<X> Array<X> {
                 let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a };
                 PArray::<X,Y>::StridedMatrix(x)
             }
-            Array::PackedMatrix(_) => {
-            //     let x = PackedMatrix {
-            //         data_ptr: x.data_ptr,
-            //         mc: x.mc,
-            //         kc: x.kc,
-            //         mr: x.mr,
-            //         k: x.k,
-            //         m: x.m,
-            //         rs: x.rs,
-            //         cs: x.cs,
-            //     };
-            //     PArray::PackedMatrix(x)
-            panic!("Not implemented")
+            Array::PackedMatrix(x) => {
+                let x = PackedMatrix {
+                    data_ptr: x.data_ptr,
+                    mc: x.mc,
+                    kc: x.kc,
+                    mr: x.mr,
+                    k: x.k,
+                    m: x.m,
+                    rs: x.rs,
+                    cs: x.cs,
+                };
+                PArray::PackedMatrix(x)
             }
         }
     }
 
-    pub unsafe fn get_data_ptr(&self) -> *const X {
+    pub unsafe fn data_ptr(&self) -> *const X {
         match self {
             Array::StridedMatrix(x) => {
                 x.data_ptr
@@ -717,6 +716,49 @@ impl<X> Array<X> {
     }
 }
 
+
+#[derive(Copy,Clone)]
+pub enum ArrayMut<X> {
+    StridedMatrix(StridedMatrixMut<X>),
+}
+
+impl<X> ArrayMut<X> {
+
+    pub unsafe fn data_ptr(&self) -> *mut X {
+        match self {
+            ArrayMut::StridedMatrix(x) => {
+                x.data_ptr
+            }
+        }
+    }
+
+    pub unsafe fn transpose(&mut self) {
+        match self {
+            ArrayMut::StridedMatrix(x) => {
+                let temp = x.rs;
+                x.rs = x.cs;
+                x.cs = temp;
+            }
+        }
+    }
+
+    pub unsafe fn rs(&self) -> usize {
+        match self {
+            ArrayMut::StridedMatrix(x) => {
+                x.rs
+            }
+        }
+    }
+
+    pub unsafe fn cs(&self) -> usize {
+        match self {
+            ArrayMut::StridedMatrix(x) => {
+                x.cs
+            }
+        }
+    }
+}
+
 #[derive(Copy,Clone)]
 pub enum PArray<X,Y> {
     StridedMatrix(StridedMatrixP<X,Y>),
@@ -749,7 +791,7 @@ impl<X,Y> PArray<X,Y> {
         }
     }
 
-    pub unsafe fn get_data_ptr(&self) -> *const X {
+    pub unsafe fn data_ptr(&self) -> *const X {
         match self {
             PArray::StridedMatrix(x) => {
                 x.data_ptr
@@ -782,7 +824,7 @@ impl<X,Y> PArray<X,Y> {
         }
     }
 
-    pub unsafe fn get_data_p_ptr(&self) -> *mut Y {
+    pub unsafe fn data_p_ptr(&self) -> *mut Y {
         match self {
             PArray::StridedMatrix(x) => {
                 x.data_p_ptr
@@ -807,6 +849,7 @@ macro_rules! def_glare_gemm {
         $goto_name:ident, $goto_kernel:ident,
         $small_m_name:ident, $small_m_kernel:ident,
         $small_n_name:ident, $small_n_kernel:ident,
+        $gemv_name:ident,
         $packa_name:ident, $packb_name:ident,
         $run_small_m:expr, $run_small_n:expr,
     ) => {
@@ -818,14 +861,14 @@ macro_rules! def_glare_gemm {
             a: Array<$ta>,
             b: Array<$tb>,
             beta: $t_bs,
-            c: Array<$tc>,
+            c: ArrayMut<$tc>,
             par: &GlarePar,
         )
         {
             if n == 1 && true {
                 let alpha = &alpha as *const $t_as;
                 let beta = &beta as *const $t_bs;
-                glare_gemv(hw_config, m, k, alpha, a, b, beta, c);//, par);
+                $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
                 return;
             }
             if m == 1 && true {
@@ -837,13 +880,13 @@ macro_rules! def_glare_gemm {
                 b.transpose();
                 let mut c = c;
                 c.transpose();
-                glare_gemv(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
+                $gemv_name(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
                 return;
             }
             let (gemm_mode, gemm_fun, mem_pool_size)
             : (
                 GemmPool, unsafe fn(
-                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig),
+                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig),
                 usize
             )
              = if run_small_m(m) && $run_small_m {
@@ -889,12 +932,12 @@ macro_rules! def_glare_gemm {
             a: Array<$ta>,
             b: Array<$tb>,
             beta: $t_bs,
-            c: Array<$tc>,
+            c: ArrayMut<$tc>,
             par: &GlarePar,
             pool_buf: *mut u8,
             gemm_mode: GemmPool,
             gemm_fn: unsafe fn(
-                &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, Array<$tc>, &GlareThreadConfig
+                &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig
             )
         )
         where $t_dispatcher <F>: GemmCache<$tap,$tbp>
@@ -949,7 +992,7 @@ macro_rules! def_glare_gemm {
             a: PArray<$ta,$tap>,
             b: PArray<$tb,$tbp>,
             beta: *const $t_bs,
-            c: Array<$tc>,
+            c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
         ) {
             let ic_id = t_cfg.ic_id;
@@ -970,7 +1013,7 @@ macro_rules! def_glare_gemm {
             let mut mc_i = mc_start;
             let c_rs = c.rs();
             let c_cs = c.cs();
-            let c_ptr = c.get_data_ptr() as usize as *mut $tc;
+            let c_ptr = c.data_ptr();
             while mc_i < mc_end {
                 let mc_len = mc.min(mc_end - mc_i);
                 let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
@@ -1034,7 +1077,7 @@ macro_rules! def_glare_gemm {
             a: PArray<$ta,$tap>,
             b: PArray<$tb,$tbp>,
             beta: *const $t_bs,
-            c: Array<$tc>,
+            c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
         ) {
             let par = &t_cfg.par;
@@ -1056,12 +1099,12 @@ macro_rules! def_glare_gemm {
         
             let mut mc = mc_start;
             let mc_end = mc_end;
-            let b_ptr = b.get_data_ptr();
+            let b_ptr = b.data_ptr();
             let b_rs = b.rs();
             let b_cs = b.cs();
             let c_rs = c.rs();
             let c_cs = c.cs();
-            let c_ptr = c.get_data_ptr() as usize as *mut $tc;
+            let c_ptr = c.data_ptr();
             while mc < mc_end {
                 let mc_len = mc_eff.min(mc_end - mc);
                 let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
@@ -1111,7 +1154,7 @@ macro_rules! def_glare_gemm {
             a: PArray<$ta,$tap>,
             b: PArray<$tb,$tbp>,
             beta: *const $t_bs,
-            c: Array<$tc>,
+            c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
         ) {
             let par = &t_cfg.par;
@@ -1135,11 +1178,11 @@ macro_rules! def_glare_gemm {
             let mc_end = mc_end;
             let c_rs = c.rs();
             let c_cs = c.cs();
-            let c_ptr = c.get_data_ptr() as usize as *mut $tc;
-            let a_ptr = a.get_data_ptr();
+            let c_ptr = c.data_ptr();
+            let a_ptr = a.data_ptr();
             let a_rs = a.rs();
             let a_cs = a.cs();
-            let ap = a.get_data_p_ptr();
+            let ap = a.data_p_ptr();
             while mc < mc_end {
                 let mc_len = mc_eff.min(mc_end - mc);
                  let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
