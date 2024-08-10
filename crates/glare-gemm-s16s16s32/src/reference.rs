@@ -1,257 +1,341 @@
+unsafe fn packa_ref(a: *const i16, ap: *mut i16, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+    let mut a_cur = a;
+    let mut ap_cur = ap;
+    let mut i = 0;
+    while i < m / mr {
+        let mut j = 0;
+        while j < k {
+            for ix in 0..mr {
+                *ap_cur.add(ix+j*mr) = *a_cur.add(ix*a_rs+j*a_cs);
+            }
+            j += 1;
+        }
+        i += 1;
+        a_cur = a_cur.add(mr * a_rs);
+        ap_cur = ap_cur.add(mr * k);
+    }
 
-// #![allow(unused)]
+    let mut j = 0;
+    let mr_left = m % mr;
+    while j < k {
+        for ix in 0..mr_left {
+            *ap_cur.add(ix+j*mr_left) = *a_cur.add(ix*a_rs+j*a_cs);
+        }
+        j += 1;
+    }
+}
+
+unsafe fn packb_ref(b: *const i16, bp: *mut i16, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+    let mut b_cur = b;
+    let mut bp_cur = bp;
+    let mut i = 0;
+    while i < n / nr {
+        let mut j = 0;
+        while j < k {
+            for ix in 0..nr {
+                *bp_cur.add(ix+j*nr) = *b_cur.add(ix*b_cs+j*b_rs);
+            }
+            j += 1;
+        }
+        i += 1;
+        b_cur = b_cur.add(nr * b_cs);
+        bp_cur = bp_cur.add(nr * k);
+    }
+
+    let mut j = 0;
+    let n_left = n % nr;
+    while j < k {
+        for ix in 0..n_left {
+            *bp_cur.add(ix+j*n_left) = *b_cur.add(ix*b_cs+j*b_rs);
+        }
+        j += 1;
+    }
+}
 
 
- 
-//  use crate::{
-//     TA,TB,TC,
-//     GemmGotoPackaPackb,
-//     GemmSmallM,
-//     GemmSmallN,
-//     Gemv,
-//  };
- 
-// // pub const GOTO_MC: usize = env_or!("CORENUM_SGEMM_MC", 4800);
-// // pub const GOTO_NC: usize = env_or!("CORENUM_SGEMM_NC", 320);
-// // pub const GOTO_KC: usize = env_or!("CORENUM_SGEMM_KC", 192);
-// // pub const GOTO_MR: usize = env_or!("CORENUM_SGEMM_MR", 24);
-// // pub const GOTO_NR: usize = env_or!("CORENUM_SGEMM_NR", 4);
+const VS: usize = 8; // vector size in float, __m256
 
-// // pub const SGEMM_M_TH: usize = env_or!("CORENUM_SGEMM_SPM_TH", 128);
-// // pub const SGEMM_N_TH: usize = env_or!("CORENUM_SGEMM_SPN_TH", 256);
-// // pub const SGEMM_K_TH: usize = env_or!("CORENUM_SGEMM_SPK_TH", 256);
+use glare_base::split_c_range;
+use glare_base::split_range;
+use glare_base::def_glare_gemm;
 
-// // pub const SA_NC: usize = env_or!("CORENUM_SGEMM_NC_SA", 168);
-// // pub const SA_KC: usize = env_or!("CORENUM_SGEMM_KC_SA", 256);
-// // pub const SA_MR: usize = env_or!("CORENUM_SGEMM_MR_SA", 16);
-// // pub const SA_NR: usize = env_or!("CORENUM_SGEMM_NR_SA", 6);
+use glare_base::{
+    GlarePar, GlareThreadConfig,
+   CpuFeatures,
+   HWConfig,
+   Array,
+   ArrayMut,
+    PArray,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
+};
 
-// pub struct ReferenceGemv {}
- 
+use crate::{
+   TA, TB, TC,
+   GemmCache,
+   MyFn, NullFn
+};
 
- 
-//  pub struct ReferenceGemm {}
- 
- 
- 
-// //  impl Gemv<TA,TB,TC> for ReferenceGemv
-// //  {
-// //     unsafe fn gemv_serial(
-// //         m: usize, n: usize,
-// //         alpha: *const TA,
-// //         a: *const TA, a_rs: usize, a_cs: usize,
-// //         x: *const TB, incx: usize,
-// //         beta: *const TC,
-// //         y: *mut TC, incy: usize,
-// //         t_id: usize, t_par: &CorenumPar
-// //     ) {
-// //          for i in 0..m {
-// //              let mut sum = 0.0;
-// //              for j in 0..n {
-// //                  sum += *a.add(a_rs*i + a_cs*j) * *x.add(j*incx);
-// //              }
-// //              if *beta == 0.0 {
-// //                  *y.add(i*incy) = sum * *alpha;
-// //              } else {
-// //                  *y.add(i*incy) = sum * *alpha + *beta * *y.add(i*incy);
-// //              }
-// //          }   
-// //      }
-// //  }
- 
- 
- 
-// //  impl GemmSmallM<TA,TB,TC> for ReferenceGemm
-// //  {
-// //     const MC: usize = SGEMM_M_TH; const NC: usize = SA_NC; const KC: usize = SA_KC;
-// //     const MR: usize = SA_MR; const NR: usize = SA_NR;
-// //     const ONE: TC = 1.0;
-// //     unsafe fn packa(
-// //         m: usize, k: usize,
-// //         a: *const TA, a_rs: usize, a_cs: usize,
-// //         ap: *mut TA,
-// //     ) {
-// //      let mut i = 0;
-// //      let mut ap = ap;
-// //      let mut a = a;
-// //      while i < m {
-// //          let i_end = if m >= (i + SA_MR) {SA_MR} else {m - i}; 
-// //          for p in 0..k {
-// //              for i_i in 0..i_end {
-// //                  *ap.add(i_i + p * SA_MR) = *a.add(a_rs*i_i + a_cs*p)
-// //              }
-// //          }
-// //          ap = ap.add(k*SA_MR);
-// //          a = a.add(SA_MR*a_rs);
-// //          i += SA_MR
-// //      }
- 
-// //     }
-// //     unsafe fn kernel(
-// //         m: usize, n: usize, k: usize,
-// //         alpha: *const TA,
-// //         beta: *const TC,
-// //         b: *const TB, b_rs: usize, b_cs: usize,
-// //         c: *mut TC, c_rs: usize, c_cs: usize,
-// //         ap: *mut TA,
-// //     ) {
-// //          let mut m_iter = 0;
-// //          let mut b = b;
-// //          let mut c0 = c;
-// //          let mut n_iter = 0;
-// //         while n_iter < n {
-// //             let mut ab_cum = [[0_f32; SA_MR]; SA_NR];
-// //             for p in 0..k {
-// //                 for j in 0..SA_NR {
-// //                     for i in 0..SA_MR {
-// //                         ab_cum[j][i] += *ap.add(p*SA_MR + i) * *b.add(p*b_rs + j*b_cs);
-// //                     }
-// //                 }
-// //             }
-// //             let m_end = if m >= m_iter + SA_MR { SA_MR } else {m - m_iter};
-// //             let n_end = if n >= n_iter + SA_NR { SA_NR } else {n - n_iter};
-// //             if *beta == 0.0 {
-// //                 for j in 0..n_end {
-// //                     for i in 0..m_end {
-// //                         *c0.add(i*c_rs + c_cs*j) = *alpha * ab_cum[j][i];
-// //                     }
-// //                 }
-// //             } else {
-// //                 for j in 0..n_end {
-// //                     for i in 0..m_end {
-// //                         *c0.add(i*c_rs + c_cs*j) = *alpha * ab_cum[j][i] + *beta * *c0.add(i*c_rs + c_cs*j);
-// //                     }
-// //                 }
-// //             }
-// //             n_iter += SA_NR;
-// //             c0 = c0.add(SA_NR*c_cs);
-// //             b = b.add(b_cs*SA_NR);
-// //         }
- 
-// //     }
-// //  }
- 
- 
- 
- 
- 
- 
- 
-// //  // func signature rule
-// //  // 1 -> m, n, k params if exists
-// //  // 2 -> pointer a and lda
-// //  // 3 -> pointer b and ldb
-// //  // 4 -> pointer c and ldc
-// //  // 5 -> pointer packed a and b
-// //  // 6 -> m related blocking params
-// //  // 7 -> n related blocking params
- 
- 
- 
-// //  impl GemmGotoPackaPackb<TA,TB,TC> for ReferenceGemm
-// //  {
-// //     const MC: usize = GOTO_MC; const NC: usize = GOTO_NC; const KC: usize = GOTO_KC;
-// //     const MR: usize = GOTO_MR; const NR: usize = GOTO_NR;
-// //     const ONE: TC = 1.0;
-// //     fn is_packa(t_cfg: &CorenumThreadConfig) -> bool {
-// //         assert!(t_cfg.par.num_threads == 1, "Multithreading is not supported yet");
-// //         true
-// //     }
-// //     fn is_packb(t_cfg: &CorenumThreadConfig) -> bool {
-// //         assert!(t_cfg.par.num_threads == 1, "Multithreading is not supported yet");
-// //         true
-// //     }
-// //     unsafe fn packa(
-// //         m: usize, k: usize,
-// //         a: *const TA, a_rs: usize, a_cs: usize,
-// //         ap: *mut TA,
-// //     ) {
-// //      let mut i = 0;
-// //      let mut ap = ap;
-// //      let mut a = a;
-// //      while i < m {
-// //          let i_end = if m >= (i + GOTO_MR) {GOTO_MR} else {m - i}; 
-// //          for p in 0..k {
-// //              for i_i in 0..i_end {
-// //                  *ap.add(i_i + p * GOTO_MR) = *a.add(a_rs*i_i + a_cs*p)
-// //              }
-// //          }
-// //          ap = ap.add(k*GOTO_MR);
-// //          a = a.add(GOTO_MR*a_rs);
-// //          i += GOTO_MR
-// //      }
- 
-// //     }
-// //     unsafe fn packb(
-// //         n: usize, k: usize,
-// //         b: *const TA, b_rs: usize, b_cs: usize,
-// //         bp: *mut TA,
-// //     ) {
-// //          let mut j = 0;
-// //          let mut bp = bp;
-// //          let mut b = b;
-// //          while j < n {
-// //              let j_end = if n >= (j + GOTO_NR) {GOTO_NR} else {n - j}; 
-// //              for p in 0..k {
-// //                  for j_i in 0..j_end {
-// //                      *bp.add(j_i + p * GOTO_NR) = *b.add(b_rs*p + b_cs*j_i)
-// //                  }
-// //              }
-// //              bp = bp.add(k*GOTO_NR);
-// //              b = b.add(GOTO_NR*b_cs);
-// //              j += GOTO_NR
-// //          }
- 
-// //      }
-// //     unsafe fn kernel(
-// //         m: usize, n: usize, k: usize,
-// //         alpha: *const TA,
-// //         beta: *const TC,
-// //         c: *mut TC,
-// //         c_rs: usize, c_cs: usize,
-// //         ap: *const TA, bp: *const TB,
-// //     ) {
-// //          let mut m_iter = 0;
-// //          let mut ap = ap;
-// //          let mut c0 = c;
-// //          while m_iter < m {
-// //              let mut n_iter = 0;
-// //              let mut bp = bp;
-// //              let mut c1 = c0;
-// //              while n_iter < n {
-// //                  let mut ab_cum = [[0_f32; GOTO_MR]; GOTO_NR];
-// //                  for p in 0..k {
-// //                      for j in 0..GOTO_NR {
-// //                          for i in 0..GOTO_MR {
-// //                              ab_cum[j][i] += *ap.add(p*GOTO_MR + i) * *bp.add(p*GOTO_NR + j);
-// //                          }
-// //                      }
-// //                  }
-// //                  let m_end = if m >= m_iter + GOTO_MR { GOTO_NR } else {m - m_iter};
-// //                  let n_end = if n >= n_iter + GOTO_NR { GOTO_NR } else {n - n_iter};
-// //                  if *beta == 0.0 {
-// //                      for j in 0..n_end {
-// //                          for i in 0..m_end {
-// //                              *c1.add(i*c_rs + c_cs*j) = *alpha * ab_cum[j][i];
-// //                          }
-// //                      }
-// //                  } else {
-// //                      for j in 0..n_end {
-// //                          for i in 0..m_end {
-// //                              *c1.add(i*c_rs + c_cs*j) = *alpha * ab_cum[j][i] + *beta * *c1.add(i*c_rs + c_cs*j);
-// //                          }
-// //                      }
-// //                  }
-// //                  n_iter += GOTO_NR;
-// //                  c1 = c1.add(GOTO_NR*c_cs);
-// //                  bp = bp.add(k*GOTO_NR);
-// //              }
-// //              m_iter += GOTO_MR;
-// //              c0 = c0.add(GOTO_MR*c_rs);
-// //              ap = ap.add(k*GOTO_MR);
-// //          }
- 
-// //     }
-// //  }
- 
- 
+pub(crate) struct RefGemm<
+T: MyFn = NullFn
+> {
+    mc: usize,
+    nc: usize,
+    kc: usize,
+    mr: usize,
+    nr: usize,
+    // TODO: Cech jr parallelism is beneificial for perf
+    // is_l1_shared: bool,
+    is_l2_shared: bool,
+    is_l3_shared: bool,
+    func: T,
+}
+
+impl<F: MyFn> RefGemm<F> {
+    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (mr, nr) = (24, 4);
+        Self { 
+            mc, nc, kc, mr, nr, 
+            // is_l1_shared, 
+            is_l2_shared, is_l3_shared, 
+            func: f 
+        }
+    }
+
+    unsafe fn packa_fn(&self, x: *const i16, y: *mut i16, m: usize, k: usize, rs: usize, cs: usize) {
+        packa_ref(x, y, m, k, rs, cs, self.mr);
+    }
+
+    unsafe fn packb_fn(&self, x: *const i16, y: *mut i16, n: usize, k: usize, rs: usize, cs: usize) {
+        packb_ref(x, y, n, k, rs, cs, self.nr);
+    }
+}
+
+impl<
+T: MyFn,
+AP, BP,
+> GemmCache<AP,BP> for RefGemm<T> {
+    // const CACHELINE_PAD: usize = 256;
+    fn mr(&self) -> usize {
+        self.mr
+    }
+    fn nr(&self) -> usize {
+        self.nr
+    }
+    fn get_kc_eff(&self) -> usize {self.kc}
+    fn get_mc_eff(&self, par: usize) -> usize {
+        if self.is_l3_shared {
+            (self.mc / (self.mr * par)) * self.mr
+        } else {
+            self.mc
+        }
+    }
+    fn get_nc_eff(&self, par: usize) -> usize {
+        if self.is_l2_shared {
+            (self.nc / (self.nr * par)) * self.nr
+        } else {
+            self.nc
+        }
+    }
+}
+
+unsafe fn kernel<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    c: *mut i32,
+    c_rs: usize, c_cs: usize,
+    ap: *const i16, bp: *const i16,
+    _kc_last: bool
+) {
+    let mut i = 0;
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
+
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(i * k + p * mr_eff);
+                let b_cur = bp.add(j * k + p * nr_eff);
+                let mut ii = 0;
+                while ii < mr_eff {
+                    let mut jj = 0;
+                    while jj < nr_eff {
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj) as i32);
+                        jj += 1;
+                    }
+                    ii += 1;
+                }
+                p += 1;
+            }
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    acc[ii * nr_eff + jj] = 0;
+                    jj += 1;
+                }
+                ii += 1;
+            }
+            j += hw_cfg.nr;
+        }
+
+        i += hw_cfg.mr;
+    }
+}
+
+unsafe fn kernel_m<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    b: *const i16, b_rs: usize, b_cs: usize,
+    c: *mut i32, c_rs: usize, c_cs: usize,
+    ap: *const i16,
+) {
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
+    let mut i = 0;
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(i * k + p * mr_eff);
+                let b_cur = b.add(j * b_cs + p * b_rs);
+                let mut ii = 0;
+                while ii < mr_eff {
+                    let mut jj = 0;
+                    while jj < nr_eff {
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj*b_cs) as i32);
+                        jj += 1;
+                    }
+                    ii += 1;
+                }
+                p += 1;
+            }
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    acc[ii * nr_eff + jj] = 0;
+                    jj += 1;
+                }
+                ii += 1;
+            }
+            j += hw_cfg.nr;
+        }
+        i += hw_cfg.mr;
+    }
+}
+
+
+unsafe fn kernel_n<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    a: *const i16, a_rs: usize, a_cs: usize,
+    ap: *mut i16,
+    b: *const i16,
+    c: *mut i32, c_rs: usize, c_cs: usize,
+) {
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
+    let mut i = 0;
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        packa_ref(a.add(i * a_rs), ap, mr_eff, k, a_rs, a_cs, hw_cfg.mr);
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(p * mr_eff);
+                let b_cur = b.add(j * k + p * nr_eff);
+                let mut ii = 0;
+                while ii < mr_eff {
+                    let mut jj = 0;
+                    while jj < nr_eff {
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj) as i32);
+                        jj += 1;
+                    }
+                    ii += 1;
+                }
+                p += 1;
+            }
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    acc[ii * nr_eff + jj] = 0;
+                    jj += 1;
+                }
+                ii += 1;
+            }
+            j += hw_cfg.nr;
+        }
+        i += hw_cfg.mr;
+    }   
+}
+
+unsafe fn glare_gemv<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<i16>,
+    x: Array<i16>,
+    beta: *const f32,
+    y: ArrayMut<i32>,
+) {
+    let mut i = 0;
+    let a_rs = a.rs();
+    let a_cs = a.cs();
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    let a_ptr = a.data_ptr();
+
+    while i < m {
+        let mut j = 0;
+        let mut acc = 0_i32;
+        while j < n {
+            acc += (*a_ptr.add(i * a_rs + j * a_cs) as i32) * (*x_ptr.add(j * inc_x) as i32);
+            j += 1;
+        }
+        *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32* *alpha) as i32;
+        i += 1;
+    }
+}
+
+
+def_glare_gemm!(
+    RefGemm,
+    i16,i16,i16,i16,i32,f32,f32,
+    1_f32,
+    glare_gemm, gemm_mt,
+    gemm_goto_serial, kernel,
+    gemm_small_m_serial, kernel_m,
+    gemm_small_n_serial, kernel_n,
+    glare_gemv,
+    packa, packb,
+    true, true,
+);

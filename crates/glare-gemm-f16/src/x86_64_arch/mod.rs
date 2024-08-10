@@ -46,11 +46,11 @@ use crate::{
 pub(crate) struct F32Dispatcher<
 T: MyFn = NullFn
 > {
-    goto_mc: usize,
-    goto_nc: usize,
-    goto_kc: usize,
-    goto_mr: usize,
-    goto_nr: usize,
+    mc: usize,
+    nc: usize,
+    kc: usize,
+    mr: usize,
+    nr: usize,
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
@@ -63,7 +63,7 @@ impl<F: MyFn> F32Dispatcher<F>{
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         
-        let (goto_mr, goto_nr) = if features.avx512f {
+        let (mr, nr) = if features.avx512f {
             (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
         } else if features.avx && features.fma {
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
@@ -71,16 +71,16 @@ impl<F: MyFn> F32Dispatcher<F>{
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
         Self {
-            goto_mc: mc,
-            goto_nc: nc,
-            goto_kc: kc,
+            mc: mc,
+            nc: nc,
+            kc: kc,
             is_l1_shared,
             is_l2_shared,
             is_l3_shared,
             func: f,
             features: features,
-            goto_mr,
-            goto_nr,
+            mr,
+            nr,
         }
     }
 
@@ -118,11 +118,11 @@ impl<F: MyFn> F32Dispatcher<F>{
 pub(crate) struct F16Dispatcher<
 T: MyFn = NullFn
 > {
-    goto_mc: usize,
-    goto_nc: usize,
-    goto_kc: usize,
-    goto_mr: usize,
-    goto_nr: usize,
+    mc: usize,
+    nc: usize,
+    kc: usize,
+    mr: usize,
+    nr: usize,
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
@@ -133,18 +133,18 @@ T: MyFn = NullFn
 impl F16Dispatcher {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures) -> Self {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let goto_mr = AVX512F_GOTO_MR;
-        let goto_nr = AVX512F_GOTO_NR;
+        let mr = AVX512F_GOTO_MR;
+        let nr = AVX512F_GOTO_NR;
         Self {
-            goto_mc: mc,
-            goto_nc: nc,
-            goto_kc: kc,
+            mc: mc,
+            nc: nc,
+            kc: kc,
             is_l1_shared,
             is_l2_shared,
             is_l3_shared,
             func: NullFn,
-            goto_mr,
-            goto_nr,
+            mr,
+            nr,
             features: features,
         }
     }
@@ -156,24 +156,24 @@ AP, BP,
 > GemmCache<AP,BP> for F32Dispatcher<T> {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
-        self.goto_mr
+        self.mr
     }
     fn nr(&self) -> usize {
-        self.goto_nr
+        self.nr
     }
-    fn get_kc_eff(&self) -> usize {self.goto_kc}
+    fn get_kc_eff(&self) -> usize {self.kc}
     fn get_mc_eff(&self, par: usize) -> usize {
         if self.is_l3_shared {
-            (self.goto_mc / (self.goto_mr * par)) * self.goto_mr
+            (self.mc / (self.mr * par)) * self.mr
         } else {
-            self.goto_mc
+            self.mc
         }
     }
     fn get_nc_eff(&self, par: usize) -> usize {
         if self.is_l2_shared {
-            (self.goto_nc / (self.goto_nr * par)) * self.goto_nr
+            (self.nc / (self.nr * par)) * self.nr
         } else {
-            self.goto_nc
+            self.nc
         }
     }
 }
@@ -185,24 +185,24 @@ AP, BP,
 > GemmCache<AP,BP> for F16Dispatcher<T> {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
-        self.goto_mr
+        self.mr
     }
     fn nr(&self) -> usize {
-        self.goto_nr
+        self.nr
     }
-    fn get_kc_eff(&self) -> usize {self.goto_kc}
+    fn get_kc_eff(&self) -> usize {self.kc}
     fn get_mc_eff(&self, par: usize) -> usize {
         if self.is_l3_shared {
-            (self.goto_mc / (self.goto_mr * par)) * self.goto_mr
+            (self.mc / (self.mr * par)) * self.mr
         } else {
-            self.goto_mc
+            self.mc
         }
     }
     fn get_nc_eff(&self, par: usize) -> usize {
         if self.is_l2_shared {
-            (self.goto_nc / (self.goto_nr * par)) * self.goto_nr
+            (self.nc / (self.nr * par)) * self.nr
         } else {
-            self.goto_nc
+            self.nc
         }
     }
 }

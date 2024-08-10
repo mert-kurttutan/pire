@@ -139,17 +139,21 @@ pub(crate) mod cpu_features{
         RUNTIME_HW_CONFIG.hw_model
     }
 
-    pub fn is_simd_f32() -> bool {
+    pub fn has_f32_compute() -> bool {
         // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
         // dont use above since some avx512f also rely on avx instructions 
         // (even though avx512f should imply), we are being super conservative here
         RUNTIME_HW_CONFIG.cpu_ft.avx
     }
-    
-    pub fn is_simd_f16() -> bool {
-        !RUNTIME_HW_CONFIG.cpu_ft.avx512f16
+    pub fn has_f64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx
     }
-
+    pub fn has_f16_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx512f16
+    }
+    pub fn has_i16i32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx2
+    }
     pub fn hw_avx512f16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
@@ -1004,8 +1008,8 @@ macro_rules! def_glare_gemm {
             let mc = t_cfg.mc_eff;
             let nc = t_cfg.nc_eff;
             let kc = t_cfg.kc_eff;
-            let mr = hw_cfg.goto_mr;
-            let nr = hw_cfg.goto_nr;
+            let mr = hw_cfg.mr;
+            let nr = hw_cfg.nr;
             let (mc_start, mc_end, mc_left) = split_c_range(m, mc, mr, ic_id, t_cfg.par.ic_par);
             let (nc_start, nc_end, nc_left) = split_c_range(n, nc, nr, jc_id, t_cfg.par.jc_par);
             let (kc_start, kc_end) = (0, k);
@@ -1090,8 +1094,8 @@ macro_rules! def_glare_gemm {
             let mc_eff = t_cfg.mc_eff;
             let nc_eff = t_cfg.nc_eff;
             let kc_eff = t_cfg.kc_eff;
-            let mr = hw_cfg.goto_mr;
-            let nr = hw_cfg.goto_nr;
+            let mr = hw_cfg.mr;
+            let nr = hw_cfg.nr;
             let (mc_start, mc_end, mc_left) = split_c_range(m, mc_eff, mr, ic_id, par.ic_par);
             let (nc_start, nc_end, _) = split_c_range(n, nc_eff, nr, jc_id, par.jc_par);
             let (kc_start, kc_end) = (0, k);
@@ -1167,8 +1171,8 @@ macro_rules! def_glare_gemm {
             let mc_eff = t_cfg.mc_eff;
             let nc_eff = t_cfg.nc_eff;
             let kc_eff = t_cfg.kc_eff;
-            let mr = hw_cfg.goto_mr;
-            let nr = hw_cfg.goto_nr;
+            let mr = hw_cfg.mr;
+            let nr = hw_cfg.nr;
             let (mc_start, mc_end, mc_left) = split_c_range(m, mc_eff, mr, ic_id, par.ic_par);
             let (nc_start, nc_end, nc_left) = split_c_range(n, nc_eff, nr, jc_id, par.jc_par);
             let (kc_start, kc_end) = (0, k);

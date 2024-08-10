@@ -1,47 +1,3 @@
-
-use glare_base::{
-    GemmPackA,
-    GemmPackB,
-    GemmCache,
-    GemmArray,
-    HWConfig,
-    GemmOut,
-    AccCoef,
-};
- 
- 
- use crate::{
-    TA,TB,TC,
-    GemmGotoPackaPackb,
-    GemmSmallM,
-    GemmSmallN,
-    Gemv,
- };
-
-impl AccCoef for RefGemm {
-    type AS = TA;
-    type BS = TC;
-    type AP = TA;
-    type BP = TB;
-}
- 
- 
-pub struct RefGemm {
-    mc: usize, nc: usize, kc: usize,
-    mr: usize, nr: usize,
-    is_l1_shared: bool,
-    is_l2_shared: bool,
-    is_l3_shared: bool,
-}
-
-impl RefGemm {
-    pub fn new(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize) -> Self {
-        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let (mr, nr) = (24, 4);
-        Self { mc, nc, kc, mr, nr, is_l1_shared, is_l2_shared, is_l3_shared }
-    }
-}
- 
 unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
@@ -68,47 +24,104 @@ unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, 
         j += 1;
     }
 }
-impl GemmPackA<TA,TA> for RefGemm {
-    unsafe fn packa_fn(self: &RefGemm, a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
-        packa_ref(a, ap, m, k, a_rs, a_cs, self.mr);
-    }
-}
 
-impl GemmPackB<TB,TB> for RefGemm {
-    unsafe fn packb_fn(self: &RefGemm, b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, b_cs: usize) {
-        let mut b_cur = b;
-        let mut bp_cur = bp;
-        let mut i = 0;
-        while i < n / self.nr {
-            let mut j = 0;
-            while j < k {
-                for ix in 0..self.nr {
-                    *bp_cur.add(ix+j*self.nr) = *b_cur.add(ix*b_cs+j*b_rs);
-                }
-                j += 1;
-            }
-            i += 1;
-            b_cur = b_cur.add(self.nr * b_cs);
-            bp_cur = bp_cur.add(self.nr * k);
-        }
-
+unsafe fn packb_ref(b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+    let mut b_cur = b;
+    let mut bp_cur = bp;
+    let mut i = 0;
+    while i < n / nr {
         let mut j = 0;
-        let n_left = n % self.nr;
         while j < k {
-            for ix in 0..n_left {
-                *bp_cur.add(ix+j*n_left) = *b_cur.add(ix*b_cs+j*b_rs);
+            for ix in 0..nr {
+                *bp_cur.add(ix+j*nr) = *b_cur.add(ix*b_cs+j*b_rs);
             }
             j += 1;
         }
+        i += 1;
+        b_cur = b_cur.add(nr * b_cs);
+        bp_cur = bp_cur.add(nr * k);
+    }
+
+    let mut j = 0;
+    let n_left = n % nr;
+    while j < k {
+        for ix in 0..n_left {
+            *bp_cur.add(ix+j*n_left) = *b_cur.add(ix*b_cs+j*b_rs);
+        }
+        j += 1;
     }
 }
 
 
+const VS: usize = 8; // vector size in float, __m256
+
+use glare_base::split_c_range;
+use glare_base::split_range;
+use glare_base::def_glare_gemm;
+
+use glare_base::{
+    GlarePar, GlareThreadConfig,
+   CpuFeatures,
+   HWConfig,
+   Array,
+   ArrayMut,
+    PArray,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
+};
+
+use crate::{
+   TA, TB, TC,
+   GemmCache,
+   MyFn, NullFn
+};
+
+pub(crate) struct RefGemm<
+T: MyFn = NullFn
+> {
+    mc: usize,
+    nc: usize,
+    kc: usize,
+    mr: usize,
+    nr: usize,
+    // TODO: Cech jr parallelism is beneificial for perf
+    // is_l1_shared: bool,
+    is_l2_shared: bool,
+    is_l3_shared: bool,
+    func: T,
+}
+
+impl<F: MyFn> RefGemm<F> {
+    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (mr, nr) = (24, 4);
+        Self { 
+            mc, nc, kc, mr, nr, 
+            // is_l1_shared, 
+            is_l2_shared, is_l3_shared, 
+            func: f 
+        }
+    }
+
+    unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+        packa_ref(x, y, m, k, rs, cs, self.mr);
+    }
+
+    unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+        packb_ref(x, y, n, k, rs, cs, self.nr);
+    }
+}
+
 impl<
+T: MyFn,
 AP, BP,
-// A: GemmArray<AP>,
-// B: GemmArray<BP>,
-> GemmCache<AP,BP> for RefGemm {
+> GemmCache<AP,BP> for RefGemm<T> {
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.mr
@@ -133,221 +146,196 @@ AP, BP,
     }
 }
 
-impl<
-// A: GemmArray<TA,X=TA>, 
-// B: GemmArray<TB,X=TB>,
-C: GemmOut<X=TC,Y=TC>,
-// F: MyFn + Sync,
-> GemmGotoPackaPackb<TA,TB,C> for RefGemm
-{
-   const ONE: TC = 1.0;
-   unsafe fn kernel(
-       self: &Self,
-       m: usize, n: usize, k: usize,
-       alpha: *const TA,
-       beta: *const TC,
-       c: *mut TC,
-       c_rs: usize, c_cs: usize,
-       ap: *const TA, bp: *const TB,
-       _kc_last: bool
-   ) {
-        let mut i = 0;
-        let mut acc = vec![0.0; self.mr * self.nr];
+unsafe fn kernel<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    c: *mut TC,
+    c_rs: usize, c_cs: usize,
+    ap: *const TA, bp: *const TB,
+    _kc_last: bool
+) {
+    let mut i = 0;
+    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
 
-        while i < m {
-            let mr_eff = if i + self.mr > m { m - i } else { self.mr };
-            let mut j = 0;
-            while j < n {
-                let nr_eff = if j + self.nr > n { n - j } else { self.nr };
-                let mut p = 0;
-                while p < k {
-                    let a_cur = ap.add(i * k + p * mr_eff);
-                    let b_cur = bp.add(j * k + p * nr_eff);
-                    let mut ii = 0;
-                    while ii < mr_eff {
-                        let mut jj = 0;
-                        while jj < nr_eff {
-                            acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
-                            jj += 1;
-                        }
-                        ii += 1;
-                    }
-                    p += 1;
-                }
-                // store c
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(i * k + p * mr_eff);
+                let b_cur = bp.add(j * k + p * nr_eff);
                 let mut ii = 0;
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
-                        acc[ii * nr_eff + jj] = 0.0;
+                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
                         jj += 1;
                     }
                     ii += 1;
                 }
-                j += self.nr;
+                p += 1;
             }
-
-            i += self.mr;
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    acc[ii * nr_eff + jj] = 0.0;
+                    jj += 1;
+                }
+                ii += 1;
+            }
+            j += hw_cfg.nr;
         }
-   }
+
+        i += hw_cfg.mr;
+    }
 }
 
-
-
-impl<
-// A: GemmArray<TA,X=TA>, 
-// B: GemmArray<TB,X=TB>,
-C: GemmOut<X=TC,Y=TC>,
-// F: MyFn + Sync,
-> GemmSmallM<TA,TB,C> for RefGemm
-{
-    const ONE: TC = 1.0;
-   
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        b: *const TB, b_rs: usize, b_cs: usize,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-        ap: *const TA,
-   ) {
-        let mut acc = vec![0.0; self.mr * self.nr];
-        let mut i = 0;
-        while i < m {
-            let mr_eff = if i + self.mr > m { m - i } else { self.mr };
-            let mut j = 0;
-            while j < n {
-                let nr_eff = if j + self.nr > n { n - j } else { self.nr };
-                let mut p = 0;
-                while p < k {
-                    let a_cur = ap.add(i * k + p * mr_eff);
-                    let b_cur = b.add(j * b_cs + p * b_rs);
-                    let mut ii = 0;
-                    while ii < mr_eff {
-                        let mut jj = 0;
-                        while jj < nr_eff {
-                            acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj*b_cs);
-                            jj += 1;
-                        }
-                        ii += 1;
-                    }
-                    p += 1;
-                }
-                // store c
+unsafe fn kernel_m<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    b: *const TB, b_rs: usize, b_cs: usize,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+    ap: *const TA,
+) {
+    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
+    let mut i = 0;
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(i * k + p * mr_eff);
+                let b_cur = b.add(j * b_cs + p * b_rs);
                 let mut ii = 0;
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
-                        acc[ii * nr_eff + jj] = 0.0;
+                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj*b_cs);
                         jj += 1;
                     }
                     ii += 1;
                 }
-                j += self.nr;
+                p += 1;
             }
-            i += self.mr;
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    acc[ii * nr_eff + jj] = 0.0;
+                    jj += 1;
+                }
+                ii += 1;
+            }
+            j += hw_cfg.nr;
         }
-   }
+        i += hw_cfg.mr;
+    }
 }
 
-impl<
-// A: GemmArray<TA,X=TA>, 
-// B: GemmArray<TB,X=TB>,
-C: GemmOut<X=TC,Y=TC>,
-// F: MyFn + Sync,
-> GemmSmallN<TA,TB,C> for RefGemm
-{
-    const ONE: TC = 1.0;
-   unsafe fn kernel(
-        self: &Self,
-        m: usize, n: usize, k: usize,
-        alpha: *const TA,
-        beta: *const TC,
-        a: *const TA, a_rs: usize, a_cs: usize,
-        ap: *mut TA,
-        b: *const TB,
-        c: *mut TC, c_rs: usize, c_cs: usize,
-   ) {
-        let mut acc = vec![0.0; self.mr * self.nr];
-        let mut i = 0;
-        while i < m {
-            let mr_eff = if i + self.mr > m { m - i } else { self.mr };
-            packa_ref(a.add(i * a_rs), ap, mr_eff, k, a_rs, a_cs, self.mr);
-            let mut j = 0;
-            while j < n {
-                let nr_eff = if j + self.nr > n { n - j } else { self.nr };
-                let mut p = 0;
-                while p < k {
-                    let a_cur = ap.add(p * mr_eff);
-                    let b_cur = b.add(j * k + p * nr_eff);
-                    let mut ii = 0;
-                    while ii < mr_eff {
-                        let mut jj = 0;
-                        while jj < nr_eff {
-                            acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
-                            jj += 1;
-                        }
-                        ii += 1;
-                    }
-                    p += 1;
-                }
-                // store c
+
+unsafe fn kernel_n<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    a: *const TA, a_rs: usize, a_cs: usize,
+    ap: *mut TA,
+    b: *const TB,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+) {
+    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
+    let mut i = 0;
+    while i < m {
+        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
+        packa_ref(a.add(i * a_rs), ap, mr_eff, k, a_rs, a_cs, hw_cfg.mr);
+        let mut j = 0;
+        while j < n {
+            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
+            let mut p = 0;
+            while p < k {
+                let a_cur = ap.add(p * mr_eff);
+                let b_cur = b.add(j * k + p * nr_eff);
                 let mut ii = 0;
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
-                        acc[ii * nr_eff + jj] = 0.0;
+                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
                         jj += 1;
                     }
                     ii += 1;
                 }
-                j += self.nr;
+                p += 1;
             }
-            i += self.mr;
-        }   
-   }
-}
-
-use glare_base::Array;
-
-impl<
-// A: GemmArray<TA,X=TA>, 
-// B: GemmArray<TB,X=TB>,
-C: GemmOut<X=TC,Y=TC>,
-// F: MyFn + Sync,
-> Gemv<TA,TB,C> for RefGemm
-{
-   unsafe fn gemv_serial(
-    self: &Self,
-       m: usize, n: usize,
-       alpha: *const TA,
-       a: Array<TA>,
-       x: Array<TB>,
-       beta: *const C::X,
-       y: C,
-   ) {
-        let mut i = 0;
-        let a_rs = a.rs();
-        let a_cs = a.cs();
-        let x_ptr = x.get_data_ptr();
-        let inc_x = x.rs();
-        let y_ptr   = y.data_ptr();
-        let incy = y.rs();
-        let a_ptr = a.get_data_ptr();
-
-        while i < m {
-            let mut j = 0;
-            let mut acc = 0.0;
-            while j < n {
-                acc += *a_ptr.add(i * a_rs + j * a_cs) * *x_ptr.add(j * inc_x);
-                j += 1;
+            // store c
+            let mut ii = 0;
+            while ii < mr_eff {
+                let mut jj = 0;
+                while jj < nr_eff {
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    acc[ii * nr_eff + jj] = 0.0;
+                    jj += 1;
+                }
+                ii += 1;
             }
-            *y_ptr.add(i * incy) = *y_ptr.add(i * incy) * *beta + acc * *alpha;
-            i += 1;
+            j += hw_cfg.nr;
         }
-   }
+        i += hw_cfg.mr;
+    }   
 }
+
+unsafe fn glare_gemv<F:MyFn>(
+    hw_cfg: &RefGemm<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<TA>,
+    x: Array<TB>,
+    beta: *const f32,
+    y: ArrayMut<TC>,
+) {
+    let mut i = 0;
+    let a_rs = a.rs();
+    let a_cs = a.cs();
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    let a_ptr = a.data_ptr();
+
+    while i < m {
+        let mut j = 0;
+        let mut acc = 0.0;
+        while j < n {
+            acc += *a_ptr.add(i * a_rs + j * a_cs) * *x_ptr.add(j * inc_x);
+            j += 1;
+        }
+        *y_ptr.add(i * incy) = *y_ptr.add(i * incy) * *beta + acc * *alpha;
+        i += 1;
+    }
+}
+
+
+def_glare_gemm!(
+    RefGemm,
+    f32,f32,f32,f32,f32,f32,f32,
+    1_f32,
+    glare_gemm, gemm_mt,
+    gemm_goto_serial, kernel,
+    gemm_small_m_serial, kernel_m,
+    gemm_small_n_serial, kernel_n,
+    glare_gemv,
+    packa, packb,
+    true, true,
+);

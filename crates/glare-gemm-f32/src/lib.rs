@@ -4,7 +4,7 @@ pub(crate) mod x86_64_arch;
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
 
-// pub(crate) mod reference;
+pub(crate) mod reference;
 
 pub(crate) type TA = f32;
 pub(crate) type TB = f32;
@@ -32,18 +32,18 @@ impl MyFn for fn(*mut TC, m: usize){
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
-// use reference::RefGemm;
+use reference::RefGemm;
 
 use glare_base::{
 	GemmCache,
 	StridedMatrix,
 	StridedMatrixMut,
-	get_cache_params,
-	is_simd_f32,
 	Array,
 	ArrayMut,
 	GlarePar,
 	RUNTIME_HW_CONFIG,
+	get_cache_params,
+	has_f32_compute,
 };
 
 #[inline(always)]
@@ -72,16 +72,15 @@ F: MyFn,
 {
 	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
-	if is_simd_f32() {
+	if has_f32_compute() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
-
 	// if none of the optimized paths are available, use reference implementation
-	// let hw_config = RefGemm::new(&*RUNTIME_HW_CONFIG, mc, nc, kc);
-	// glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+	let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
+	reference::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 
 }
 
