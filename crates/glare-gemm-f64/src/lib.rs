@@ -106,6 +106,7 @@ pub unsafe fn glare_dgemm(
 	glare_dgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
+#[cfg(feature = "fuse")]
 pub unsafe fn glare_dgemm_fused(
 	m: usize, n: usize, k: usize,
 	alpha: TA,

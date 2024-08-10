@@ -9,8 +9,6 @@ edition = "2021"
 once_cell = "1.18"
 # latest version with bf16 is not released yet, fix when released
 raw-cpuid = {git = "https://github.com/gz/rust-cpuid.git" }
-half = { version = "2.4.1", optional = true }
 
 [features]
 default = []
-f16 = ["dep:half"]

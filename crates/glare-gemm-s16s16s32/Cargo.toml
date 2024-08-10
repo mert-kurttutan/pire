@@ -13,3 +13,4 @@ glare-dev = { path = "../../crates/glare-dev" }
 
 [features]
 default = []
+fuse = []

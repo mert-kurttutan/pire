@@ -108,6 +108,7 @@ pub unsafe fn glare_gemm_s16s16s32(
 	glare_gemm_s16s16s32_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 
+#[cfg(feature = "fuse")]
 pub unsafe fn glare_gemm_s16s16s32_fused(
 	m: usize, n: usize, k: usize,
 	alpha: f32,
