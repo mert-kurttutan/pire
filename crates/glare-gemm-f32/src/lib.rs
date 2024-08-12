@@ -189,7 +189,6 @@ pub unsafe fn packa_f32(
 			cs: m,
 		});
 	}
-	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});

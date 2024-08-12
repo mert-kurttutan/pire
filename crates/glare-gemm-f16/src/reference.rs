@@ -1,4 +1,35 @@
 use half::f16;
+
+const VS: usize = 8; // vector size in float, __m256
+
+use glare_base::split_c_range;
+use glare_base::split_range;
+use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
+
+use glare_base::{
+    GlarePar, GlareThreadConfig,
+   HWConfig,
+   Array,
+   ArrayMut,
+    // PArray,
+    PArrayMixed,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
+};
+
+use crate::{
+//    TA, TB, TC,
+   GemmCache,
+   MyFn, NullFn
+};
+
 unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
@@ -108,35 +139,7 @@ unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: u
     }
 }
 
-const VS: usize = 8; // vector size in float, __m256
 
-use glare_base::split_c_range;
-use glare_base::split_range;
-use glare_base::def_glare_gemm;
-use glare_base::include_mixed;
-
-use glare_base::{
-    GlarePar, GlareThreadConfig,
-   HWConfig,
-   Array,
-   ArrayMut,
-    PArray,
-    PArrayMixed,
-    get_mem_pool_size_goto,
-    get_mem_pool_size_small_m,
-    get_mem_pool_size_small_n,
-    run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
-    extend, acquire,
-    PACK_POOL,
-    GemmPool,
-};
-
-use crate::{
-   TA, TB, TC,
-   GemmCache,
-   MyFn, NullFn
-};
 
 pub(crate) struct RefGemm<
 T: MyFn = NullFn
@@ -184,6 +187,11 @@ impl<F: MyFn> RefGemm<F> {
     }
 
     unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
+        let mut i = 0;
+        while i < m {
+            *y.add(i) = (*x.add(i)).to_f32();
+            i += 1;
+        }
 
     }
     pub(crate) fn is_compute_native(&self) -> bool {
@@ -227,7 +235,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut f16,
     c_rs: usize, c_cs: usize,
     ap: *const f32, bp: *const f32,
-    _kc_last: bool
+    kc_last: bool
 ) {
     let mut i = 0;
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
@@ -257,7 +265,11 @@ unsafe fn kernel<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = f16::from_f32((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs)).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = f16::from_f32((*c_cur).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0.0;
                     jj += 1;
                 }
@@ -370,7 +382,7 @@ unsafe fn kernel_n<F:MyFn>(
 }
 
 unsafe fn glare_gemv<F:MyFn>(
-    hw_cfg: &RefGemm<F>,
+    _hw_cfg: &RefGemm<F>,
     m: usize, n: usize,
     alpha: *const f32,
     a: Array<f16>,

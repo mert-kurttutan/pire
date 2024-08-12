@@ -82,8 +82,8 @@ fn detect_hw_config() -> HWConfig {
         let cpuid = raw_cpuid::CpuId::new();
         let feature_info = cpuid.get_feature_info().unwrap();
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
-        let avx = feature_info.has_avx();
-        let fma = feature_info.has_fma();
+        let avx = feature_info.has_avx() && false;
+        let fma = feature_info.has_fma() && false;
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         let avx512bf16 = extended_feature_info.has_avx512_bf16();
@@ -726,7 +726,7 @@ impl<X> Array<X> {
                 x.cs = temp;
             }
             _ => {
-                panic!("PackedMatrix does not have transpose");
+                panic!("Only StridedMatrix has transpose");
             }
         }
     }
@@ -736,8 +736,8 @@ impl<X> Array<X> {
             Array::StridedMatrix(x) => {
                 x.rs
             }
-            Array::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have rs");
+            _ => {
+                panic!("Only StridedMatrix has rs");
             }
         }
     }
@@ -747,8 +747,8 @@ impl<X> Array<X> {
             Array::StridedMatrix(x) => {
                 x.cs
             }
-            Array::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have cs");
+            _ => {
+                panic!("Only StridedMatrix has cs");
             }
         }
     }
@@ -849,8 +849,8 @@ impl<X> PArray<X> {
             Self::StridedMatrix(x) => {
                 x.rs
             }
-            Self::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have rs");
+            _ => {
+                panic!("Only StridedMatrix has rs");
             }
         }
     }
@@ -860,8 +860,8 @@ impl<X> PArray<X> {
             Self::StridedMatrix(x) => {
                 x.cs
             }
-            Self::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have cs");
+            _ => {
+                panic!("Only StridedMatrix has cs");
             }
         }
     }
@@ -871,8 +871,8 @@ impl<X> PArray<X> {
             Self::StridedMatrix(x) => {
                 x.data_p_ptr
             }
-            Self::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have data_p_ptr");
+            _ => {
+                panic!("Only StridedMatrix has data_p_ptr");
             }
         }
     }
@@ -933,8 +933,8 @@ impl<X,Y> PArrayMixed<X,Y> {
             Self::StridedMatrix(x) => {
                 x.rs
             }
-            Self::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have rs");
+            _ => {
+                panic!("Only StridedMatrix has rs");
             }
         }
     }
@@ -944,8 +944,8 @@ impl<X,Y> PArrayMixed<X,Y> {
             Self::StridedMatrix(x) => {
                 x.cs
             }
-            Self::PackedMatrix(x) => {
-                panic!("PackedMatrix does not have cs");
+            _ => {
+                panic!("Only StridedMatrix has cs");
             }
         }
     }

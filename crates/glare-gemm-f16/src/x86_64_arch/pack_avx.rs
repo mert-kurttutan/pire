@@ -819,8 +819,8 @@ macro_rules! def_packb {
  
                  } else if a_cs == 1 {
                      let lda = a_rs;
-                     let k_iter = k / 8;
-                     let k_left = k % 8;
+                    //  let k_iter = k / 8;
+                    //  let k_left = k % 8;
                      while m_idx + MR_LAST_STEP <= m_left {
                         //  [<pack_kx$mr _v1>](k_iter, k_left, a, lda, ap);
                         pack_scalar_k_2::<{($mr+$vs-1)/ $vs* $vs}>(

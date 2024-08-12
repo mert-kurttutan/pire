@@ -27,7 +27,7 @@ use glare_base::{
 	RUNTIME_HW_CONFIG,
 	get_cache_params,
 	has_f32_compute,
-	has_f16_compute,
+	// has_f16_compute,
 };
 
 use reference::RefGemm;
@@ -179,7 +179,6 @@ pub unsafe fn packa_f16(
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let vs = hw_config.vs;
 		for i in (0..m).step_by(mc) {
 			let mc_len = if m >= (i + mc) {mc} else {m - i};
 			let mc_len_eff = (mc_len + vs-1) / vs * vs;
@@ -233,10 +232,9 @@ pub unsafe fn packb_f16(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		let nr = hw_config.nr;
 		for i in (0..n).step_by(nc) {
 			let nc_len = if n >= (i + nc) {nc} else {n - i};
-			let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
+			let nc_len_eff = nc_len;
 			for p in (0..k).step_by(kc) {
 				let kc_len = if k >= (p + kc) {kc} else {k - p};
 				let a_cur = b.add(i*b_cs+p*b_rs);
@@ -359,7 +357,6 @@ mod tests {
 					let mut ap = vec![f16::ZERO; (m+100)*k+512];
 					let ap_offset = ap.as_ptr().align_offset(512);
 					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
-					let ap_ptr = ap_mut_ptr as *const f16;
                 	for alphax in ALPHA_ARR {
                     	for betax in ALPHA_ARR {
 							let alpha = f16::from_f32(alphax);
@@ -427,7 +424,6 @@ mod tests {
 					let mut bp = vec![f16::ZERO; (n+100)*k+512];
 					let bp_offset = bp.as_ptr().align_offset(512);
 					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
-					let bp_ptr = bp_mut_ptr as *const f16;
                 	for alphax in ALPHA_ARR {
                     	for betax in ALPHA_ARR {
 							let alpha = f16::from_f32(alphax);
