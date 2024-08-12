@@ -205,10 +205,10 @@ pub unsafe fn packa_f32(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		let mr = 16;
+		let vs = hw_config.vs;
 		for i in (0..m).step_by(mc) {
 			let mc_len = if m >= (i + mc) {mc} else {m - i};
-			let mc_len_eff = (mc_len + mr-1) / mr * mr;
+			let mc_len_eff = (mc_len + vs-1) / vs * vs;
 			for p in (0..k).step_by(kc) {
 				let kc_len = if k >= (p + kc) {kc} else {k - p};
 				hw_config.packa_fn(a.add(i*a_rs+p*a_cs), ap, mc_len, kc_len, a_rs, a_cs);

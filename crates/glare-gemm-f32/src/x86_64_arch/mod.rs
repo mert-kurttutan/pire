@@ -57,7 +57,7 @@ T: MyFn = NullFn
     is_l3_shared: bool,
     func: T,
     features: CpuFeatures,
-    vs: usize,
+    pub vs: usize,
 }
 
 impl<F: MyFn> X86_64dispatcher<F> {
