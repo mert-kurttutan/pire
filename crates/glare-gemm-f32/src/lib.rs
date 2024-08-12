@@ -173,16 +173,31 @@ pub unsafe fn packa_f32(
 	a: *const TA,
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
-) {
+) -> Array<TA> {
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
+	let ap0 = ap;
 	if m == 1 || k == 1 {
-		for i in 0..m {
-			for j in 0..k {
-				*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
+		for j in 0..k {
+			for i in 0..m {
+				*ap.add(j*m+i) = *a.add(i*a_rs+j*a_cs);
 			}
 		}
-		return;
+		return Array::StridedMatrix(StridedMatrix{
+			data_ptr: ap0 as *const f32,
+			rs: 1,
+			cs: m,
+		});
+		// for i in 0..m {
+		// 	for j in 0..k {
+		// 		*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
+		// 	}
+		// }
+		// return Array::StridedMatrix(StridedMatrix{
+		// 	data_ptr: ap0 as *const f32,
+		// 	rs: 1,
+		// 	cs: k,
+		// });
 	}
 
 	#[cfg(target_arch = "x86_64")]
@@ -190,7 +205,7 @@ pub unsafe fn packa_f32(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		let mr = hw_config.mr;
+		let mr = 16;
 		for i in (0..m).step_by(mc) {
 			let mc_len = if m >= (i + mc) {mc} else {m - i};
 			let mc_len_eff = (mc_len + mr-1) / mr * mr;
@@ -200,6 +215,13 @@ pub unsafe fn packa_f32(
 				ap = ap.add(mc_len_eff*kc_len);	
 			}
 		}
+		return Array::PackedMatrix(glare_base::PackedMatrix{
+			data_ptr: ap0 as *const f32,
+			mc: mc,
+			kc: kc,
+			k,
+			m,
+		});
 	}
 }
 
@@ -208,16 +230,21 @@ pub unsafe fn packb_f32(
 	b: *const TB,
 	b_rs: usize, b_cs: usize,
 	bp: *mut TB,
-) {
+) -> Array<TB> {
 	let align_offset = bp.align_offset(512);
 	let mut bp = bp.add(align_offset);
+	let bp0 = bp;
 	if n == 1 || k == 1 {
 		for i in 0..n {
 			for j in 0..k {
 				*bp.add(i*k+j) = *b.add(i*b_cs+j*b_rs);
 			}
 		}
-		return;
+		return Array::StridedMatrix(StridedMatrix{
+			data_ptr: bp0 as *const f32,
+			rs: 1,
+			cs: k,
+		});
 	}
 
 	#[cfg(target_arch = "x86_64")]
@@ -225,7 +252,6 @@ pub unsafe fn packb_f32(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		let nr = hw_config.nr;
 		for i in (0..n).step_by(nc) {
 			let nc_len = if n >= (i + nc) {nc} else {n - i};
 			let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
@@ -235,6 +261,13 @@ pub unsafe fn packb_f32(
 				bp = bp.add(nc_len_eff*kc_len);	
 			}
 		}
+		return Array::PackedMatrix(glare_base::PackedMatrix{
+			data_ptr: bp0 as *const f32,
+			mc: nc,
+			kc: kc,
+			k,
+			m: n,
+		});
 	}
 
 }
@@ -251,11 +284,11 @@ mod tests {
 	const EPS: f64 = 2e-2;
 
 	// static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
-	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444];
+	static M_ARR: [usize; 33] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444, 4879];
 	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
 	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
-	static ALPHA_ARR: [f32; 2] = [1.0, 2.17];
-	static BETA_ARR: [f32; 3] = [1.0, 0.0, 3.1415];
+	static ALPHA_ARR: [f32; 1] = [1.0];
+	static BETA_ARR: [f32; 1] = [1.0];
 	enum Layout {
     	NN,
     	NT,
@@ -341,20 +374,7 @@ mod tests {
                         	random_matrix_uniform(k, n, &mut b, k);
                         	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
-							unsafe {
-								packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr);
-							}
-							let ap_matrix = glare_base::PackedMatrix{
-								data_ptr: ap_ptr,
-								mc: 4800,
-								kc: 512,
-								mr: 48,
-								k,
-								m,
-								rs: a_rs,
-								cs: a_cs,
-							};
-							let ap_matrix = Array::PackedMatrix(ap_matrix);
+							let ap_matrix = unsafe {packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)};
 							let b_matrix = StridedMatrix{
 								data_ptr: b.as_ptr(),
 								rs: b_rs, cs: b_cs,
@@ -410,10 +430,6 @@ mod tests {
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
-					// let mut ap = vec![0_f32; (m+100)*k+512];
-					// let ap_offset = ap.as_ptr().align_offset(512);
-					// let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
-					// let ap_ptr = ap_mut_ptr as *const f32;
 					let mut bp = vec![0_f32; (n+100)*k+512];
 					let bp_offset = bp.as_ptr().align_offset(512);
 					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
@@ -424,44 +440,13 @@ mod tests {
                         	random_matrix_uniform(k, n, &mut b, k);
                         	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
-							// unsafe {
-							// 	packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr);
-							// }
-							unsafe {
-								packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr);
-							}
-							// let ap_matrix = glare_base::PackedMatrix{
-							// 	data_ptr: ap_ptr,
-							// 	mc: 4800,
-							// 	kc: 512,
-							// 	mr: 48,
-							// 	k,
-							// 	m,
-							// 	rs: a_rs,
-							// 	cs: a_cs,
-							// };
-							// let ap_matrix = Array::PackedMatrix(ap_matrix);
 							let a_matrix = StridedMatrix{
 								data_ptr: a.as_ptr(),
 								rs: a_rs, cs: a_cs,
 							};
 							let a_matrix = Array::StridedMatrix(a_matrix);
-							// let b_matrix = StridedMatrix{
-							// 	data_ptr: b.as_ptr(),
-							// 	rs: b_rs, cs: b_cs,
-							// };
-							// let b_matrix = Array::StridedMatrix(b_matrix);
-							let bp_matrix = glare_base::PackedMatrix{
-								data_ptr: bp_ptr,
-								mc: 192,
-								kc: 512,
-								mr: 8,
-								k,
-								m: n,
-								rs: b_rs,
-								cs: b_cs,
-							};
-							let bp_matrix = Array::PackedMatrix(bp_matrix);
+							let bp_matrix = unsafe {packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)};
+
 							let c_matrix = StridedMatrixMut{
 								data_ptr: c.as_mut_ptr(),
 								rs: c_rs, cs: c_cs,

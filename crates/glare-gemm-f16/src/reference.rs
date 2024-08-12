@@ -97,6 +97,7 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
+    pub vs: usize,
 }
 
 impl<F: MyFn> RefGemm<F> {
@@ -107,7 +108,8 @@ impl<F: MyFn> RefGemm<F> {
             mc, nc, kc, mr, nr, 
             // is_l1_shared, 
             is_l2_shared, is_l3_shared, 
-            func: f 
+            func: f,
+            vs: 1,
         }
     }
 

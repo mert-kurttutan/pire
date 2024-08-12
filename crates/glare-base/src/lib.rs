@@ -409,7 +409,6 @@ HWConfig: GemmCache<AP,BP>
 >(hw_config: &HWConfig, par: &GlarePar, a_need_pool: bool, b_need_pool: bool) -> usize
 {
     let mut mem_pool_size = 0;
-    println!("a_need_pool: {}, b_need_pool: {}", a_need_pool, b_need_pool);
     if a_need_pool {
         let ap_pool_multiplicity = par.num_threads;
         let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
@@ -581,11 +580,8 @@ pub struct PackedMatrix<T> {
     pub data_ptr : *const T,
     pub mc: usize,
     pub kc: usize,
-    pub mr: usize,
     pub k: usize,
     pub m: usize,
-    pub rs: usize,
-    pub cs: usize,
 }
 
 unsafe impl<T> Send for PackedMatrix<T> {}
@@ -599,11 +595,8 @@ pub struct PackedMatrixMixed<X,Y> {
     pub data_p_ptr: *mut Y,
     pub mc: usize,
     pub kc: usize,
-    pub mr: usize,
     pub k: usize,
     pub m: usize,
-    pub rs: usize,
-    pub cs: usize,
 }
 
 unsafe impl<X,Y> Send for PackedMatrixMixed<X,Y> {}
@@ -686,11 +679,8 @@ impl<X> Array<X> {
                     data_ptr: x.data_ptr,
                     mc: x.mc,
                     kc: x.kc,
-                    mr: x.mr,
                     k: x.k,
                     m: x.m,
-                    rs: x.rs,
-                    cs: x.cs,
                 };
                 PArray::PackedMatrix(x)
             }
@@ -709,11 +699,8 @@ impl<X> Array<X> {
                     data_p_ptr: a,
                     mc: x.mc,
                     kc: x.kc,
-                    mr: x.mr,
                     k: x.k,
                     m: x.m,
-                    rs: x.rs,
-                    cs: x.cs,
                 };
                 PArrayMixed::PackedMatrix(x)
             }
@@ -738,10 +725,8 @@ impl<X> Array<X> {
                 x.rs = x.cs;
                 x.cs = temp;
             }
-            Array::PackedMatrix(x) => {
-                let temp = x.rs;
-                x.rs = x.cs;
-                x.cs = temp;
+            _ => {
+                panic!("PackedMatrix does not have transpose");
             }
         }
     }
@@ -752,7 +737,7 @@ impl<X> Array<X> {
                 x.rs
             }
             Array::PackedMatrix(x) => {
-                x.rs
+                panic!("PackedMatrix does not have rs");
             }
         }
     }
@@ -763,7 +748,7 @@ impl<X> Array<X> {
                 x.cs
             }
             Array::PackedMatrix(x) => {
-                x.cs
+                panic!("PackedMatrix does not have cs");
             }
         }
     }
@@ -841,11 +826,8 @@ impl<X> PArray<X> {
                     data_ptr: x.data_ptr.add(offset*0),
                     mc: x.mc,
                     kc: x.kc,
-                    mr: x.mr,
                     k: x.k,
                     m: x.m,
-                    rs: x.rs,
-                    cs: x.cs,
                 }
             ),
         }
@@ -868,7 +850,7 @@ impl<X> PArray<X> {
                 x.rs
             }
             Self::PackedMatrix(x) => {
-                x.rs
+                panic!("PackedMatrix does not have rs");
             }
         }
     }
@@ -879,7 +861,7 @@ impl<X> PArray<X> {
                 x.cs
             }
             Self::PackedMatrix(x) => {
-                x.cs
+                panic!("PackedMatrix does not have cs");
             }
         }
     }
@@ -928,11 +910,8 @@ impl<X,Y> PArrayMixed<X,Y> {
                     data_p_ptr: x.data_p_ptr.add(offset),
                     mc: x.mc,
                     kc: x.kc,
-                    mr: x.mr,
                     k: x.k,
                     m: x.m,
-                    rs: x.rs,
-                    cs: x.cs,
                 }
             ),
         }
@@ -955,7 +934,7 @@ impl<X,Y> PArrayMixed<X,Y> {
                 x.rs
             }
             Self::PackedMatrix(x) => {
-                x.rs
+                panic!("PackedMatrix does not have rs");
             }
         }
     }
@@ -966,7 +945,7 @@ impl<X,Y> PArrayMixed<X,Y> {
                 x.cs
             }
             Self::PackedMatrix(x) => {
-                x.cs
+                panic!("PackedMatrix does not have cs");
             }
         }
     }
@@ -1417,12 +1396,9 @@ macro_rules! def_glare_gemm {
                     m.data_p_ptr
                 }
                 $packa_ty::PackedMatrix(m) => {
-                    let ib = mc_i / m.mc;
-                    let jb = kc_i / m.kc;
-                    let mr_block = (mc_i % m.mc) / m.mr;
-                    let m_eff = ((m.m.min(m.mc)+m.mr-1) / m.mr) * m.mr;
-                    let mc_eff = (mc_len + 16 - 1) / 16 * 16;
-                    let src = m.data_ptr.add(ib*m.k*m.mc + jb*m_eff*m.kc + mr_block * kc_len*m.mr);
+                    let vs = hw_cfg.vs;
+                    let mc_eff = (mc_len + vs - 1) / vs * vs;
+                    let src = m.data_ptr.add(mc_i*m.k+kc_i*mc_eff);
                     include_mixed!(
                         $include_flag,          
                         {
@@ -1455,10 +1431,6 @@ macro_rules! def_glare_gemm {
                     m.data_p_ptr
                 }
                 $packb_ty::PackedMatrix(m) => {
-                    let ib = nc_i / m.mc;
-                    let jb = kc_i / m.kc;
-                    let nr_block = (nc_i % m.mc) / m.mr;
-                    let n_eff = m.m;
                     let src = m.data_ptr.add(nc_i*m.k + kc_i*nc_len);
                     include_mixed!(
                         $include_flag,          

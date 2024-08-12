@@ -52,6 +52,7 @@ T: MyFn = NullFn
     is_l3_shared: bool,
     func: T,
     features: CpuFeatures,
+    pub vs: usize,
 }
 
 impl<F: MyFn> X86_64dispatcher<F> {
@@ -64,6 +65,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         } else {
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
+        let vs = 8;
         Self {
             mc: mc,
             nc: nc,
@@ -75,6 +77,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
             features: features,
             mr,
             nr,
+            vs,
         }
     }
 
