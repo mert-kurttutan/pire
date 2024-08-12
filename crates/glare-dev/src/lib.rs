@@ -564,3 +564,36 @@ pub fn cblas_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(
     }
  }
  
+
+pub fn generate_m_dims(mc: usize, mr: usize) -> Vec<usize> {
+    let mut a_dims = vec![];
+    for m in 1..mr {
+        a_dims.push(m);
+        a_dims.push(m+100);
+        // a_dims.push(m+mc);
+    }
+    a_dims.push(mc+29);
+    a_dims
+}
+
+pub fn generate_n_dims(nc: usize, nr: usize) -> Vec<usize> {
+    let mut a_dims = vec![];
+    for n in 1..nr {
+        a_dims.push(n);
+        a_dims.push(n+200);
+        a_dims.push(n+nc);
+    }
+    a_dims
+}
+// kr does not really exist, it is to have the same patter as other dims, also
+// it might be also be thought of as being tested against k_unrolling parameter
+pub fn generate_k_dims(kc: usize, kr: usize) -> Vec<usize> {
+    let mut a_dims = vec![];
+    let kr = 8;
+    for k in 1..kr {
+        a_dims.push(k);
+        a_dims.push(k+50);
+        a_dims.push(k+kc);
+    }
+    a_dims
+}

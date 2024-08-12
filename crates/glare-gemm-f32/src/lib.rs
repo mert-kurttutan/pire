@@ -284,14 +284,11 @@ mod tests {
 	use glare_dev::{
     	random_matrix_uniform,
     	check_gemm_f32,
+		generate_m_dims, generate_n_dims, generate_k_dims,
 	};
 
 	const EPS: f64 = 2e-2;
 
-	// static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
-	static M_ARR: [usize; 33] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444, 4879];
-	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
-	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
 	static ALPHA_ARR: [f32; 1] = [1.0];
 	static BETA_ARR: [f32; 1] = [1.0];
 	enum Layout {
@@ -309,149 +306,57 @@ mod tests {
         	Layout::TT => (k, 1, n, 1, 1, m),
     	}
 	}
-	fn test_gemm(layout: &Layout) {
-    	for m in M_ARR {
-        	for n in N_ARR {
+	fn test_gemm(layout: &Layout, is_a_packed: bool, is_b_packed: bool) {
+		let (mc, nc, kc) = get_mcnckc();
+		let (mr, nr, kr) = (48, 8, 8);
+		let m_dims = generate_m_dims(mc, mr);
+		let n_dims = generate_n_dims(nc, nr);
+		let k_dims = generate_k_dims(kc, kr);
+    	for m in m_dims.iter() {
+			let m = *m;
+        	for n in n_dims.iter() {
+				let n = *n;
             	let mut c = vec![0.0; m * n];
             	let mut c_ref = vec![0.0; m * n];
-            	for k in K_ARR {
+            	for k in k_dims.iter() {
+					let k = *k;
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
-                	for alpha in ALPHA_ARR {
-                    	for beta in BETA_ARR {
-                        	random_matrix_uniform(m, k, &mut a, m);
-                        	random_matrix_uniform(k, n, &mut b, k);
-                        	random_matrix_uniform(m, n, &mut c, m);
-                        	c_ref.copy_from_slice(&c);
-                        	unsafe {
-                            	glare_sgemm(
-                                	m, n, k,
-                                	alpha,
-                                	a.as_ptr(), a_rs, a_cs,
-                                	b.as_ptr(), b_rs, b_cs,
-                                	beta,
-                                	c.as_mut_ptr(), c_rs, c_cs,
-                            	);
-                        	}
-                        	let diff_max = unsafe { 
-								check_gemm_f32(
-									m, n, k,
-									alpha,
-									a.as_ptr(), a_rs, a_cs,
-									b.as_ptr(), b_rs, b_cs,
-									beta,
-									&mut c, c_rs, c_cs,
-									&mut c_ref,
-									EPS,
-								)
-							};
-                        	// if diff_max >= EPS {
-                            // 	println!("a: {:?}", a);
-                            // 	println!("b: {:?}", b);
-                            // 	println!("c: {:?}", c);
-                            // 	println!("c_ref: {:?}", c_ref);
-                        	// }
-                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
-                    	}
-                	}
-            	}
-        	}
-    	}
-	}
-
-	fn test_gemm_ap(layout: &Layout) {
-    	for m in M_ARR {
-        	for n in N_ARR {
-            	let mut c = vec![0.0; m * n];
-            	let mut c_ref = vec![0.0; m * n];
-            	for k in K_ARR {
-                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
-                	let mut a = vec![0.0; m * k];
-                	let mut b = vec![0.0; k * n];
-					let mut ap = vec![0_f32; (m+100)*k+512];
+					random_matrix_uniform(m, k, &mut a, m);
+					random_matrix_uniform(k, n, &mut b, k);
+					let ap_size = if is_a_packed { (m+100)*k+512 } else {1024};
+					let mut ap = vec![0_f32; ap_size];
 					let ap_offset = ap.as_ptr().align_offset(512);
 					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
-					let ap_ptr = ap_mut_ptr as *const f32;
-                	for alpha in ALPHA_ARR {
-                    	for beta in ALPHA_ARR {
-                        	random_matrix_uniform(m, k, &mut a, m);
-                        	random_matrix_uniform(k, n, &mut b, k);
-                        	random_matrix_uniform(m, n, &mut c, m);
-                        	c_ref.copy_from_slice(&c);
-							let ap_matrix = unsafe {packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)};
-							let b_matrix = StridedMatrix{
-								data_ptr: b.as_ptr(),
-								rs: b_rs, cs: b_cs,
-							};
-							let b_matrix = Array::StridedMatrix(b_matrix);
-							let c_matrix = StridedMatrixMut{
-								data_ptr: c.as_mut_ptr(),
-								rs: c_rs, cs: c_cs,
-							};
-							let c_matrix = ArrayMut::StridedMatrix(c_matrix);
-                        	unsafe {
-                            	glare_sgemm_generic(
-                                	m, n, k,
-                                	alpha,
-                                	ap_matrix,
-                                	b_matrix,
-                                	beta,
-                                	c_matrix,
-									NullFn{},
-                            	);
-                        	}
-                        	let diff_max = unsafe { 
-								check_gemm_f32(
-									m, n, k,
-									alpha,
-									a.as_ptr(), a_rs, a_cs,
-									b.as_ptr(), b_rs, b_cs,
-									beta,
-									&mut c, c_rs, c_cs,
-									&mut c_ref,
-									EPS,
-								)
-							};
-                        	// if diff_max >= EPS {
-                            // 	println!("a: {:?}", a);
-                            // 	println!("b: {:?}", b);
-                            // 	println!("c:     {:?}", c);
-                            // 	println!("c_ref: {:?}", c_ref);
-                        	// }
-                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
-                    	}
-                	}
-            	}
-        	}
-    	}
-	}
-	fn test_gemm_bp(layout: &Layout) {
-    	for m in M_ARR {
-        	for n in N_ARR {
-            	let mut c = vec![0.0; m * n];
-            	let mut c_ref = vec![0.0; m * n];
-            	for k in K_ARR {
-                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
-                	let mut a = vec![0.0; m * k];
-                	let mut b = vec![0.0; k * n];
-					let mut bp = vec![0_f32; (n+100)*k+512];
-					let bp_offset = bp.as_ptr().align_offset(512);
-					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
-					let bp_ptr = bp_mut_ptr as *const f32;
-                	for alpha in ALPHA_ARR {
-                    	for beta in ALPHA_ARR {
-                        	random_matrix_uniform(m, k, &mut a, m);
-                        	random_matrix_uniform(k, n, &mut b, k);
-                        	random_matrix_uniform(m, n, &mut c, m);
-                        	c_ref.copy_from_slice(&c);
-							let a_matrix = StridedMatrix{
+					let a_matrix = if is_a_packed {
+						unsafe {packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
+					} else {
+						Array::StridedMatrix(
+							StridedMatrix{
 								data_ptr: a.as_ptr(),
 								rs: a_rs, cs: a_cs,
-							};
-							let a_matrix = Array::StridedMatrix(a_matrix);
-							let bp_matrix = unsafe {packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)};
-
+							}
+						)
+					};
+					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
+					let mut bp = vec![0_f32; bp_size];
+					let bp_offset = bp.as_ptr().align_offset(512);
+					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
+					let b_matrix = if is_b_packed {
+						unsafe {packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
+					} else {
+						Array::StridedMatrix(
+							StridedMatrix{
+								data_ptr: b.as_ptr(),
+								rs: b_rs, cs: b_cs,
+							}
+						)
+					};
+                	for alpha in ALPHA_ARR {
+                    	for beta in ALPHA_ARR {
+                        	random_matrix_uniform(m, n, &mut c, m);
+                        	c_ref.copy_from_slice(&c);
 							let c_matrix = StridedMatrixMut{
 								data_ptr: c.as_mut_ptr(),
 								rs: c_rs, cs: c_cs,
@@ -462,7 +367,7 @@ mod tests {
                                 	m, n, k,
                                 	alpha,
                                 	a_matrix,
-                                	bp_matrix,
+                                	b_matrix,
                                 	beta,
                                 	c_matrix,
 									NullFn{},
@@ -495,54 +400,71 @@ mod tests {
 	}
 	#[test]
 	fn test_nn_col_ap() {
-    	test_gemm_ap(&Layout::NN);
+    	test_gemm(&Layout::NN, true, false);
 	}
 	#[test]
 	fn test_nt_col_ap() {
-    	test_gemm_ap(&Layout::NN);
+    	test_gemm(&Layout::NT, true, false);
 	}
 	#[test]
 	fn test_tn_col_ap() {
-    	test_gemm_ap(&Layout::NN);
+    	test_gemm(&Layout::TN, true, false);
 	}
 	#[test]
 	fn test_tt_col_ap() {
-    	test_gemm_ap(&Layout::NN);
+    	test_gemm(&Layout::TT, true, false);
 	}
 	#[test]
 	fn test_nn_col_bp() {
-    	test_gemm_bp(&Layout::NN);
+    	test_gemm(&Layout::NN, false, true);
 	}
 	#[test]
 	fn test_nt_col_bp() {
-    	test_gemm_bp(&Layout::NT);
+    	test_gemm(&Layout::NT, false, true);
 	}
 	#[test]
 	fn test_tn_col_bp() {
-    	test_gemm_bp(&Layout::TN);
+    	test_gemm(&Layout::TN, false, true);
 	}
 	#[test]
 	fn test_tt_col_bp() {
-    	test_gemm_bp(&Layout::TT);
+    	test_gemm(&Layout::TT, false, true);
 	}
 	#[test]
 	fn test_nn_col() {
-    	test_gemm(&Layout::NN);
+    	test_gemm(&Layout::NN, false, false);
 	}
 
 	#[test]
 	fn test_nt_col() {
-    	test_gemm(&Layout::NT);
+    	test_gemm(&Layout::NT, false, false);
 	}
 
 	#[test]
 	fn test_tn_col() {
-    	test_gemm(&Layout::TN);
+    	test_gemm(&Layout::TN, false, false);
 	}
 
 	#[test]
 	fn test_tt_col() {
-    	test_gemm(&Layout::TT);
+    	test_gemm(&Layout::TT, false, false);
+	}
+
+	#[test]
+	fn test_nn_col_apbp() {
+		test_gemm(&Layout::NN, true, true);
+	}
+	#[test]
+	fn test_nt_col_apbp() {
+		test_gemm(&Layout::NT, true, true);
+	}
+	#[test]
+	fn test_tn_col_apbp() {
+		test_gemm(&Layout::TN, true, true);
+	}
+	#[test]
+	fn test_tt_col_apbp() {
+		test_gemm(&Layout::TT, true, true);
 	}
 
 }
