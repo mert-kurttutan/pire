@@ -18,6 +18,7 @@ use glare_base::split_c_range;
 use glare_base::split_range;
 
 use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
 
 use glare_base::{
     GlarePar, GlareThreadConfig,
@@ -26,6 +27,7 @@ use glare_base::{
    Array,
    ArrayMut,
     PArray,
+    PArrayMixed,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
@@ -49,8 +51,8 @@ T: MyFn = NullFn
     mc: usize,
     nc: usize,
     kc: usize,
-    mr: usize,
-    nr: usize,
+    pub(crate) mr: usize,
+    pub(crate) nr: usize,
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
@@ -84,7 +86,11 @@ impl<F: MyFn> F32Dispatcher<F>{
         }
     }
 
-    unsafe fn packa_fn(self: &Self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) fn is_compute_native(&self) -> bool {
+        false
+    }
+
+    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packa_panel_48(m, k, x, rs, cs, y);
             return;
@@ -99,7 +105,7 @@ impl<F: MyFn> F32Dispatcher<F>{
         }
     }
 
-    unsafe fn packb_fn(self: &Self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
@@ -111,6 +117,57 @@ impl<F: MyFn> F32Dispatcher<F>{
         if self.features.avx {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
+        }
+    }
+
+    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+        let x = x as *const u16;
+        let y = y as *mut u16;
+        if self.features.avx512f {
+            pack_avx::packa_panel_48_same(m, k, x, rs, cs, y);
+            return;
+        } 
+        if self.features.avx && self.features.fma {
+            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y);
+            return;
+        }
+        if self.features.avx {
+            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y);
+            return;
+        }
+    }
+
+    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+        let x = x as *const u16;
+        let y = y as *mut u16;
+        if self.features.avx512f {
+            pack_avx::packb_panel_8_same(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx && self.features.fma {
+            pack_avx::packb_panel_4_same(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx {
+            pack_avx::packb_panel_4_same(n, k, x, cs, rs, y);
+            return;
+        }
+    }
+
+    unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
+        use std::arch::x86_64::*;
+        let m_iter = m / 8;
+        let m_rem = m % 8;
+        for i in 0..m_iter {
+            let x_ptr = x.add(i * 8);
+            let y_ptr = y.add(i * 8);
+            let v_f32 = _mm256_cvtph_ps(_mm_loadu_si128(x_ptr as *const __m128i));
+            _mm256_storeu_ps(y_ptr, v_f32);
+        }
+        for i in 0..m_rem {
+            let x_ptr = x.add(m_iter * 8 + i);
+            let y_ptr = y.add(m_iter * 8 + i);
+            *y_ptr = (*x_ptr).to_f32();
         }
     }
 }
@@ -286,10 +343,12 @@ unsafe fn glare_gemv<F:MyFn>(
         return;
     }
 }
+type F16Pack = PArrayMixed<f16,f32>;
 
 def_glare_gemm!(
     F32Dispatcher,
     f16,f32,f16,f32,f16,f32,f32,
+    F16Pack, F16Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -298,4 +357,5 @@ def_glare_gemm!(
     glare_gemv,
     packa, packb,
     false, false,
+    into_pack_array2, T,
 );

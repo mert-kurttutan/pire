@@ -94,6 +94,20 @@ pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
     }
 }
 
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_scalar_k_2<const MR: usize>(
+    m_left: usize, k: usize,
+    a: *const u16, a_rs: usize, a_cs: usize,
+    ap: *mut u16,
+) {
+    for i in 0..m_left  {
+        for j in 0..k {
+            *ap.add(j*MR+i) = *a.add(j*a_cs + i*a_rs);
+        }
+    }
+}
+
+
 // #[target_feature(enable = "avx,f16c")]
 // pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f16, b: *mut f32) {
 
@@ -293,6 +307,44 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 
 }
 
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_k_v0_2<const M: usize, const MR: usize>(
+    k_iter: usize, k_left: usize,
+    a: *const u16, lda: usize,
+    ap: *mut u16,
+) {
+    let mut k_i = 0;
+    let mut a = a;
+    let mut ap = ap;
+    while k_i < k_iter {
+        // use vector intrinscs
+        std::ptr::copy_nonoverlapping(a, ap, M);
+        std::ptr::copy_nonoverlapping(a.add(lda), ap.add(MR), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*2), ap.add(MR*2), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*3), ap.add(MR*3), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*4), ap.add(MR*4), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*5), ap.add(MR*5), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*6), ap.add(MR*6), M);
+        std::ptr::copy_nonoverlapping(a.add(lda*7), ap.add(MR*7), M);
+
+        ap = ap.add(MR*8);
+        a = a.add(8*lda);
+
+        k_i += 1;
+    }
+
+    k_i = 0;
+
+    while k_i < k_left {
+        std::ptr::copy_nonoverlapping(a, ap, M);
+
+        ap = ap.add(MR);
+        a = a.add(lda);
+        k_i += 1;
+    }
+
+}
 
 #[target_feature(enable = "avx,f16c")]
 pub(crate) unsafe fn pack_kx24_v1(
@@ -656,3 +708,149 @@ def_packa!(24, 8);
 def_packa!(48, 16);
 
 // def_packa!(16, 16, 8);
+
+
+
+
+
+
+
+
+macro_rules! def_packb {
+    ($nr:tt) => {
+        seq!(NL in 1..$nr {
+            paste! {
+             // #[target_feature(enable = "avx")]
+             pub(crate) unsafe fn [<packb_panel_ $nr _same>](
+                    n: usize, k: usize,
+                    b: *const u16, b_rs: usize, b_cs: usize,
+                    bp: *mut u16,
+                ) {
+                    let k_iter = k / 8;
+                    let k_left = k % 8;
+                    let mut bp = bp;
+                    let mut b = b;
+                    const NR: usize = $nr;
+                    const NR_LAST_STEP: usize = $nr;
+                    let mut n_idx = 0;
+                    if b_rs == 1 {
+                        let ldb = b_cs;
+                        while n_idx + NR_LAST_STEP <= n {
+                             pack_k_v0_2::<$nr, $nr>(k_iter, k_left, b, ldb, bp);
+                            n_idx += NR;
+                            bp = bp.add(k*NR);
+                            b = b.add(NR);
+                        }
+                        let n_left = n - n_idx;
+                        #(
+                            if n_left == NL {
+                                pack_k_v0_2::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                                return;
+                            }
+                        )*
+                    } else if b_cs == 1 {
+                        let ldb = b_rs;
+                        while n_idx + NR_LAST_STEP <= n {
+                            // [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
+                            pack_scalar_k_2::<$nr>(
+                                $nr, k,
+                                b, b_rs, b_cs,
+                                bp
+                            );
+                            n_idx += NR;
+                            bp = bp.add(k*NR);
+                            b =  b.add(NR*ldb);
+                        }
+                        let n_left = n - n_idx;
+                        #(
+                            if n_left == NL {
+                                 pack_scalar_k_2::<NL>(
+                                     NL, k,
+                                     b, b_rs, b_cs,
+                                     bp
+                                 );
+                                return;
+                            }
+                        )*
+                    }
+                }   
+            }
+        });
+    };
+ }
+ 
+ 
+ def_packb!(4);
+ def_packb!(8);
+ // def_packb!(6);
+ 
+ 
+ macro_rules! def_packa {
+     ($mr:tt, $vs:tt) => {
+         paste! {
+             // #[target_feature(enable = "avx")]
+             pub(crate) unsafe fn [<packa_panel_ $mr _same>](
+                 m_left: usize, k: usize,
+                 a: *const u16, a_rs: usize, a_cs: usize,
+                 ap: *mut u16,
+             ) {
+                 let mut ap = ap;
+                 let mut a = a;
+                 const MR: usize = $mr;
+                 const MR_LAST_STEP: usize = $mr;
+                 let mut m_idx = 0;
+                 if a_rs == 1 {
+                     let lda = a_cs;
+                     let k_iter = k / 8;
+                     let k_left = k % 8;
+                     while m_idx + MR_LAST_STEP <= m_left {
+                         pack_k_v0_2::<$mr, $mr>(k_iter, k_left, a, lda, ap);
+                         m_idx += MR;
+                         ap = ap.add(k * MR);
+                         a = a.add(MR);
+                     }
+                     let m_left = m_left - m_idx;
+                     seq!(mr_left in 1..$mr {
+                         if m_left == mr_left {
+                             pack_k_v0_2::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
+                             return;
+                         }
+                     });
+ 
+                 } else if a_cs == 1 {
+                     let lda = a_rs;
+                     let k_iter = k / 8;
+                     let k_left = k % 8;
+                     while m_idx + MR_LAST_STEP <= m_left {
+                        //  [<pack_kx$mr _v1>](k_iter, k_left, a, lda, ap);
+                        pack_scalar_k_2::<{($mr+$vs-1)/ $vs* $vs}>(
+                            $mr, k,
+                            a, a_rs, a_cs,
+                            ap
+                        );
+                         m_idx += MR;
+                         ap = ap.add(k * MR);
+                         a = a.add(MR*lda);
+                     }
+                     let m_left = m_left - m_idx;
+                     seq!(mr_left in 1..$mr {
+                         if m_left == mr_left {
+                             pack_scalar_k_2::<{(mr_left+$vs-1)/ $vs* $vs}>(
+                                 mr_left, k,
+                                 a, a_rs, a_cs,
+                                 ap
+                             );
+                             return;
+                         }
+                     });
+                 }
+             }
+         }
+     };
+ }
+ 
+ def_packa!(24, 8);
+ def_packa!(48, 16);
+ 
+ // def_packa!(16, 16, 8);
+ 

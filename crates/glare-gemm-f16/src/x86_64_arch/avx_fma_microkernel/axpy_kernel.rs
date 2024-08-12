@@ -17,8 +17,8 @@ const K_UNROLL: usize = 4;
 
 #[inline(always)]
 unsafe fn v_loadu_n(mem_addr: *const TC, n: usize) -> __m256 {
-   let mut a_arr = [0_u16; 8];
-   copy_nonoverlapping(mem_addr as *const u16, a_arr.as_mut_ptr(), n);
+   let mut a_arr = [f16::ZERO; 8];
+   copy_nonoverlapping(mem_addr, a_arr.as_mut_ptr(), n);
    _mm256_cvtph_ps(_mm_loadu_si128(a_arr.as_ptr() as *const __m128i))
    // _mm256_loadu_ps(a_arr.as_ptr())
 }
@@ -286,7 +286,7 @@ pub(crate) unsafe fn axpy_d(
            x_cur = x_cur.add(VS);
            p += 1;
        }
-       let x_left_v = v_loadu_n(x, n_left_vec);
+       let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
        // accumulate to scalar
        seq!(q in 0..3 {
@@ -340,7 +340,7 @@ pub(crate) unsafe fn axpy_d(
         x_cur = x_cur.add(VS);
         p += 1;
     }
-    let x_left_v = v_loadu_n(x, n_left_vec);
+    let x_left_v = v_loadu_n(x_cur, n_left_vec);
 
     // accumulate to scalar
     seq!(q in 0..1 {

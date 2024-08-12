@@ -406,15 +406,16 @@ pub fn get_mem_pool_size_goto<
 AP: BaseNum,
 BP: BaseNum,
 HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig, par: &GlarePar) -> usize
+>(hw_config: &HWConfig, par: &GlarePar, a_need_pool: bool, b_need_pool: bool) -> usize
 {
     let mut mem_pool_size = 0;
-    if true {
+    println!("a_need_pool: {}, b_need_pool: {}", a_need_pool, b_need_pool);
+    if a_need_pool {
         let ap_pool_multiplicity = par.num_threads;
         let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
         mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
     }
-    if true {
+    if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
         let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
         mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
@@ -430,10 +431,10 @@ pub fn get_mem_pool_size_small_m<
 AP: BaseNum,
 BP: BaseNum,
 HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig,par: &GlarePar) -> usize
+>(hw_config: &HWConfig,par: &GlarePar, is_a_strided: bool) -> usize
 {
     let mut mem_pool_size = 0;
-    if true {
+    if is_a_strided {
         let ap_pool_multiplicity = par.ic_par;
         let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
         mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
@@ -449,7 +450,7 @@ pub fn get_mem_pool_size_small_n<
 AP: BaseNum,
 BP: BaseNum,
 HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig, par: &GlarePar) -> usize
+>(hw_config: &HWConfig, par: &GlarePar, is_b_strided: bool) -> usize
 {
     let mut mem_pool_size = 0;
     if true {
@@ -457,7 +458,7 @@ HWConfig: GemmCache<AP,BP>
         let ap_pool_size = hw_config.get_ap_pool_size2();
         mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
     }
-    if true {
+    if is_b_strided {
         let bp_pool_multiplicity = par.jc_par;
         let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
         mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
@@ -494,7 +495,10 @@ pub enum GemmPool {
 }
 
 impl GemmPool {
-    pub fn get_ap_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize) -> usize {
+    pub fn get_ap_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize, need_pool: bool) -> usize {
+        if !need_pool {
+            return 0;
+        }
         match self {
             GemmPool::Goto => hw_config.get_ap_pool_size(par),
             GemmPool::SmallM => hw_config.get_ap_pool_size(par),
@@ -502,7 +506,10 @@ impl GemmPool {
         }
     }
 
-    pub fn get_bp_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize) -> usize {
+    pub fn get_bp_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize, need_pool: bool) -> usize {
+        if !need_pool {
+            return 0;
+        }
         match self {
             GemmPool::Goto => hw_config.get_bp_pool_size(par),
             GemmPool::SmallM => 0,
@@ -585,6 +592,25 @@ unsafe impl<T> Send for PackedMatrix<T> {}
 // unsafe impl<T> Sync for PackedMatrix<T> {}
 
 
+
+#[derive(Clone, Copy)]
+pub struct PackedMatrixMixed<X,Y> {
+    pub data_ptr : *const X,
+    pub data_p_ptr: *mut Y,
+    pub mc: usize,
+    pub kc: usize,
+    pub mr: usize,
+    pub k: usize,
+    pub m: usize,
+    pub rs: usize,
+    pub cs: usize,
+}
+
+unsafe impl<X,Y> Send for PackedMatrixMixed<X,Y> {}
+// unsafe impl<T> Sync for PackedMatrix<T> {}
+
+
+
 const AP_ALIGN: usize = 1024;
 const BP_ALIGN: usize = 1024;
 
@@ -649,11 +675,11 @@ pub enum Array<X> {
 
 impl<X> Array<X> {
 
-    pub unsafe fn into_pack_array<Y>(&self, a: *mut Y) -> PArray<X,Y> {
+    pub unsafe fn into_pack_array(&self, a: *mut X) -> PArray<X> {
         match self {
             Array::StridedMatrix(x) => {
                 let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a };
-                PArray::<X,Y>::StridedMatrix(x)
+                PArray::<X>::StridedMatrix(x)
             }
             Array::PackedMatrix(x) => {
                 let x = PackedMatrix {
@@ -667,6 +693,29 @@ impl<X> Array<X> {
                     cs: x.cs,
                 };
                 PArray::PackedMatrix(x)
+            }
+        }
+    }
+    pub unsafe fn into_pack_array2<Y>(&self, a: *mut Y) -> PArrayMixed<X,Y> {
+        match self {
+            Array::StridedMatrix(x) => {
+                let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a };
+                PArrayMixed::<X,Y>::StridedMatrix(x)
+            }
+            Array::PackedMatrix(x) => {
+                // panic!("PackedMatrix does not have data_p_ptr");
+                let x = PackedMatrixMixed {
+                    data_ptr: x.data_ptr,
+                    data_p_ptr: a,
+                    mc: x.mc,
+                    kc: x.kc,
+                    mr: x.mr,
+                    k: x.k,
+                    m: x.m,
+                    rs: x.rs,
+                    cs: x.cs,
+                };
+                PArrayMixed::PackedMatrix(x)
             }
         }
     }
@@ -716,6 +765,13 @@ impl<X> Array<X> {
             Array::PackedMatrix(x) => {
                 x.cs
             }
+        }
+    }
+
+    pub fn is_strided(&self) -> bool {
+        match self {
+            Array::StridedMatrix(_) => true,
+            _ => false,
         }
     }
 }
@@ -764,15 +820,15 @@ impl<X> ArrayMut<X> {
 }
 
 #[derive(Copy,Clone)]
-pub enum PArray<X,Y> {
-    StridedMatrix(StridedMatrixP<X,Y>),
+pub enum PArray<X> {
+    StridedMatrix(StridedMatrixP<X,X>),
     PackedMatrix(PackedMatrix<X>),
 }
 
-impl<X,Y> PArray<X,Y> {
+impl<X> PArray<X> {
     pub unsafe fn add_p(&self, offset: usize) -> Self {
         match self {
-            PArray::StridedMatrix(x) => PArray::StridedMatrix({
+            Self::StridedMatrix(x) => PArray::StridedMatrix({
                 StridedMatrixP {
                     data_ptr: x.data_ptr,
                     rs: x.rs,
@@ -780,7 +836,7 @@ impl<X,Y> PArray<X,Y> {
                     data_p_ptr: x.data_p_ptr.add(offset),
                 }
             }),
-            PArray::PackedMatrix(x) => PArray::PackedMatrix(
+            Self::PackedMatrix(x) => PArray::PackedMatrix(
                 PackedMatrix {
                     data_ptr: x.data_ptr.add(offset*0),
                     mc: x.mc,
@@ -797,10 +853,10 @@ impl<X,Y> PArray<X,Y> {
 
     pub unsafe fn data_ptr(&self) -> *const X {
         match self {
-            PArray::StridedMatrix(x) => {
+            Self::StridedMatrix(x) => {
                 x.data_ptr
             }
-            PArray::PackedMatrix(x) => {
+            Self::PackedMatrix(x) => {
                 x.data_ptr
             }
         }
@@ -808,10 +864,10 @@ impl<X,Y> PArray<X,Y> {
 
     pub unsafe fn rs(&self) -> usize {
         match self {
-            PArray::StridedMatrix(x) => {
+            Self::StridedMatrix(x) => {
                 x.rs
             }
-            PArray::PackedMatrix(x) => {
+            Self::PackedMatrix(x) => {
                 x.rs
             }
         }
@@ -819,10 +875,97 @@ impl<X,Y> PArray<X,Y> {
 
     pub unsafe fn cs(&self) -> usize {
         match self {
-            PArray::StridedMatrix(x) => {
+            Self::StridedMatrix(x) => {
                 x.cs
             }
-            PArray::PackedMatrix(x) => {
+            Self::PackedMatrix(x) => {
+                x.cs
+            }
+        }
+    }
+
+    pub unsafe fn data_p_ptr(&self) -> *mut X {
+        match self {
+            Self::StridedMatrix(x) => {
+                x.data_p_ptr
+            }
+            Self::PackedMatrix(x) => {
+                panic!("PackedMatrix does not have data_p_ptr");
+            }
+        }
+    }
+
+    pub fn is_strided(&self) -> bool {
+        match self {
+            Self::StridedMatrix(_) => true,
+            _ => false,
+        }
+    }
+}
+
+
+
+#[derive(Copy,Clone)]
+pub enum PArrayMixed<X,Y> {
+    StridedMatrix(StridedMatrixP<X,Y>),
+    PackedMatrix(PackedMatrixMixed<X,Y>),
+}
+
+impl<X,Y> PArrayMixed<X,Y> {
+    pub unsafe fn add_p(&self, offset: usize) -> Self {
+        match self {
+            Self::StridedMatrix(x) => Self::StridedMatrix({
+                StridedMatrixP {
+                    data_ptr: x.data_ptr,
+                    rs: x.rs,
+                    cs: x.cs,
+                    data_p_ptr: x.data_p_ptr.add(offset),
+                }
+            }),
+            Self::PackedMatrix(x) => Self::PackedMatrix(
+                PackedMatrixMixed {
+                    data_ptr: x.data_ptr,
+                    data_p_ptr: x.data_p_ptr.add(offset),
+                    mc: x.mc,
+                    kc: x.kc,
+                    mr: x.mr,
+                    k: x.k,
+                    m: x.m,
+                    rs: x.rs,
+                    cs: x.cs,
+                }
+            ),
+        }
+    }
+
+    pub unsafe fn data_ptr(&self) -> *const X {
+        match self {
+            Self::StridedMatrix(x) => {
+                x.data_ptr
+            }
+            Self::PackedMatrix(x) => {
+                x.data_ptr
+            }
+        }
+    }
+
+    pub unsafe fn rs(&self) -> usize {
+        match self {
+            Self::StridedMatrix(x) => {
+                x.rs
+            }
+            Self::PackedMatrix(x) => {
+                x.rs
+            }
+        }
+    }
+
+    pub unsafe fn cs(&self) -> usize {
+        match self {
+            Self::StridedMatrix(x) => {
+                x.cs
+            }
+            Self::PackedMatrix(x) => {
                 x.cs
             }
         }
@@ -830,24 +973,39 @@ impl<X,Y> PArray<X,Y> {
 
     pub unsafe fn data_p_ptr(&self) -> *mut Y {
         match self {
-            PArray::StridedMatrix(x) => {
+            Self::StridedMatrix(x) => {
                 x.data_p_ptr
             }
-            PArray::PackedMatrix(x) => {
-                x.data_ptr as usize as *mut Y
+            Self::PackedMatrix(x) => {
+                x.data_p_ptr
             }
+        }
+    }
+
+    pub fn is_strided(&self) -> bool {
+        match self {
+            Self::StridedMatrix(_) => true,
+            _ => false,
         }
     }
 }
 
-
-
+#[macro_export]
+macro_rules! include_mixed{
+    (T, $st1:stmt, $st2:stmt) => {
+        $st1
+    };
+    (F, $src:stmt, $st2:stmt) => {
+        $st2
+    }
+}
 
 #[macro_export]
 macro_rules! def_glare_gemm {
     (
         $t_dispatcher:tt,
         $ta:tt,$tap:ty,$tb:ty,$tbp:ty,$tc:ty,$t_as:ty,$t_bs:ty,
+        $packa_ty:tt,$packb_ty:tt,
         $one:expr,
         $name:ident, $name_mt:ident,
         $goto_name:ident, $goto_kernel:ident,
@@ -856,8 +1014,8 @@ macro_rules! def_glare_gemm {
         $gemv_name:ident,
         $packa_name:ident, $packb_name:ident,
         $run_small_m:expr, $run_small_n:expr,
+        $pack_fn:tt, $include_flag:tt,
     ) => {
-
         pub unsafe fn $name <F:MyFn>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
@@ -869,13 +1027,15 @@ macro_rules! def_glare_gemm {
             par: &GlarePar,
         )
         {
-            if n == 1 && true {
+            let a_need_pool = a.is_strided() || !hw_config.is_compute_native();
+            let b_need_pool = b.is_strided() || !hw_config.is_compute_native();
+            if n == 1 && a.is_strided() {
                 let alpha = &alpha as *const $t_as;
                 let beta = &beta as *const $t_bs;
                 $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
                 return;
             }
-            if m == 1 && true {
+            if m == 1 && b.is_strided() {
                 let alpha = &alpha as *const $t_as;
                 let beta = &beta as *const $t_bs;
                 let mut a = a;
@@ -890,15 +1050,15 @@ macro_rules! def_glare_gemm {
             let (gemm_mode, gemm_fun, mem_pool_size)
             : (
                 GemmPool, unsafe fn(
-                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig),
+                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig),
                 usize
             )
-             = if run_small_m(m) && $run_small_m {
-                (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
-            } else if run_small_n(n) && $run_small_n{
-                (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
+             = if run_small_m(m) && $run_small_m && b.is_strided() {
+                (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool))
+            } else if run_small_n(n) && $run_small_n && a.is_strided() {
+                (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, b_need_pool))
             } else {
-                (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par))
+                (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool, b_need_pool))
             };
             
             if mem_pool_size == 0 {
@@ -941,19 +1101,21 @@ macro_rules! def_glare_gemm {
             pool_buf: *mut u8,
             gemm_mode: GemmPool,
             gemm_fn: unsafe fn(
-                &$t_dispatcher <F>, usize, usize, usize, *const $t_as, PArray<$ta,$tap>,  PArray<$tb,$tbp>, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig
+                &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig
             )
         )
         where $t_dispatcher <F>: GemmCache<$tap,$tbp>
         {
+            let a_need_pool = a.is_strided() || !hw_config.is_compute_native();
+            let b_need_pool = b.is_strided() || !hw_config.is_compute_native();
             let mc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_mc_eff(hw_config, par.ic_par);
             let nc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_nc_eff(hw_config, par.jc_par);
             let kc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_kc_eff(hw_config);
-            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.ic_par);
-            let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.jc_par);
+            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.ic_par, a_need_pool);
+            let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.jc_par, b_need_pool);
             let (ap_ptr, bp_ptr) = get_ap_bp::<$tap,$tbp>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
-            let ap = a.into_pack_array(ap_ptr);
-            let bp = b.into_pack_array(bp_ptr);
+            let ap = a.$pack_fn(ap_ptr);
+            let bp = b.$pack_fn(bp_ptr);
             let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
 
             std::thread::scope(|s| {
@@ -993,8 +1155,8 @@ macro_rules! def_glare_gemm {
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
-            a: PArray<$ta,$tap>,
-            b: PArray<$tb,$tbp>,
+            a: $packa_ty,
+            b: $packb_ty,
             beta: *const $t_bs,
             c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
@@ -1078,8 +1240,8 @@ macro_rules! def_glare_gemm {
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
-            a: PArray<$ta,$tap>,
-            b: PArray<$tb,$tbp>,
+            a: $packa_ty,
+            b: $packb_ty,
             beta: *const $t_bs,
             c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
@@ -1155,8 +1317,8 @@ macro_rules! def_glare_gemm {
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
-            a: PArray<$ta,$tap>,
-            b: PArray<$tb,$tbp>,
+            a: $packa_ty,
+            b: $packb_ty,
             beta: *const $t_bs,
             c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
@@ -1244,36 +1406,73 @@ macro_rules! def_glare_gemm {
             }
         }
 
-        pub(crate) unsafe fn $packa_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: PArray<$ta,$tap>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tap {
+        pub(crate) unsafe fn $packa_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: $packa_ty, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tap {
             t_cfg.wait_packa();
             let ap_ptr = match x {
-                PArray::StridedMatrix(m) => {
+                $packa_ty::StridedMatrix(m) => {
                     if t_cfg.run_packa {
                         let a = m.data_ptr.add(mc_i*m.rs + kc_i*m.cs);
                         hw_cfg.packa_fn(a, m.data_p_ptr, mc_len, kc_len , m.rs, m.cs);
                     }
                     m.data_p_ptr
                 }
-                PArray::PackedMatrix(m) => {
-                    m.data_ptr as usize as *const $tap
+                $packa_ty::PackedMatrix(m) => {
+                    let ib = mc_i / m.mc;
+                    let jb = kc_i / m.kc;
+                    let mr_block = (mc_i % m.mc) / m.mr;
+                    let m_eff = ((m.m.min(m.mc)+m.mr-1) / m.mr) * m.mr;
+                    let mc_eff = (mc_len + 16 - 1) / 16 * 16;
+                    let src = m.data_ptr.add(ib*m.k*m.mc + jb*m_eff*m.kc + mr_block * kc_len*m.mr);
+                    include_mixed!(
+                        $include_flag,          
+                        {
+                            if t_cfg.run_packa {
+                                hw_cfg.cvt_mixed(src, m.data_p_ptr, mc_eff*kc_len);
+                            }
+                            return m.data_p_ptr;
+                        },
+                        {
+                            return src;
+                        }
+                    
+                    );
+
+
                 }
             };
             t_cfg.wait_packa();
             ap_ptr
         }
     
-        pub(crate) unsafe fn $packb_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: PArray<$tb,$tbp>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tbp {
+        pub(crate) unsafe fn $packb_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: $packb_ty, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tbp {
             t_cfg.wait_packb();
             let bp_ptr = match x {
-                PArray::StridedMatrix(m) => {
-                    if t_cfg.run_packa {
+                $packb_ty::StridedMatrix(m) => {
+                    if t_cfg.run_packb {
                         let a = m.data_ptr.add(kc_i*m.rs + nc_i*m.cs);
                         hw_cfg.packb_fn(a, m.data_p_ptr, nc_len, kc_len , m.rs, m.cs);
                     }
                     m.data_p_ptr
                 }
-                PArray::PackedMatrix(m) => {
-                    m.data_ptr as usize as *const $tbp
+                $packb_ty::PackedMatrix(m) => {
+                    let ib = nc_i / m.mc;
+                    let jb = kc_i / m.kc;
+                    let nr_block = (nc_i % m.mc) / m.mr;
+                    let n_eff = m.m;
+                    let src = m.data_ptr.add(nc_i*m.k + kc_i*nc_len);
+                    include_mixed!(
+                        $include_flag,          
+                        {
+                            if t_cfg.run_packb {
+                                hw_cfg.cvt_mixed(src, m.data_p_ptr, nc_len*kc_len);
+                            }
+                            return m.data_p_ptr;
+                        },
+                        {
+                            return src;
+                        }
+                    
+                    );                
                 }
             };
             t_cfg.wait_packb();

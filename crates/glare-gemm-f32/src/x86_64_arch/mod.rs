@@ -18,6 +18,7 @@ const VS: usize = 8; // vector size in float, __m256
 use glare_base::split_c_range;
 use glare_base::split_range;
 use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
 
 use glare_base::{
     GlarePar, GlareThreadConfig,
@@ -48,8 +49,8 @@ T: MyFn = NullFn
     mc: usize,
     nc: usize,
     kc: usize,
-    mr: usize,
-    nr: usize,
+    pub(crate) mr: usize,
+    pub(crate) nr: usize,
     // TODO: Cech jr parallelism is beneificial for perf
     // is_l1_shared: bool,
     is_l2_shared: bool,
@@ -82,7 +83,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packa_panel_48(m, k, x, rs, cs, y);
             return;
@@ -97,7 +98,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
@@ -110,6 +111,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
+    }
+
+    pub(crate) fn is_compute_native(&self) -> bool {
+        true
     }
 }
 
@@ -236,10 +241,11 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-
+type F32Pack = PArray<TA>;
 def_glare_gemm!(
     X86_64dispatcher,
     f32,f32,f32,f32,f32,f32,f32,
+    F32Pack, F32Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -248,4 +254,5 @@ def_glare_gemm!(
     glare_gemv,
     packa, packb,
     true, true,
+    into_pack_array, F,
 );

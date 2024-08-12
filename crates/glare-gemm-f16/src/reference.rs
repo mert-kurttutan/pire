@@ -59,14 +59,15 @@ const VS: usize = 8; // vector size in float, __m256
 use glare_base::split_c_range;
 use glare_base::split_range;
 use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
 
 use glare_base::{
     GlarePar, GlareThreadConfig,
-   CpuFeatures,
    HWConfig,
    Array,
    ArrayMut,
     PArray,
+    PArrayMixed,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
@@ -116,6 +117,13 @@ impl<F: MyFn> RefGemm<F> {
 
     unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
+    }
+
+    unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
+
+    }
+    pub(crate) fn is_compute_native(&self) -> bool {
+        false
     }
 }
 
@@ -326,11 +334,13 @@ unsafe fn glare_gemv<F:MyFn>(
         i += 1;
     }
 }
+type F16Pack = PArrayMixed<f16,f32>;
 
 
 def_glare_gemm!(
     RefGemm,
     f16,f32,f16,f32,f16,f32,f32,
+    F16Pack, F16Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -339,4 +349,5 @@ def_glare_gemm!(
     glare_gemv,
     packa, packb,
     true, true,
+    into_pack_array2, T,
 );
