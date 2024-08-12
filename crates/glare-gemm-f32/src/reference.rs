@@ -1,3 +1,32 @@
+const VS: usize = 8; // vector size in float, __m256
+
+use glare_base::split_c_range;
+use glare_base::split_range;
+use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
+
+use glare_base::{
+    GlarePar, GlareThreadConfig,
+   HWConfig,
+   Array,
+   ArrayMut,
+    PArray,
+    get_mem_pool_size_goto,
+    get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n,
+    run_small_m, run_small_n,
+    get_ap_bp, get_apbp_barrier,
+    extend, acquire,
+    PACK_POOL,
+    GemmPool,
+};
+
+use crate::{
+   TA, TB, TC,
+   GemmCache,
+   MyFn, NullFn
+};
+
 unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
@@ -53,34 +82,7 @@ unsafe fn packb_ref(b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, 
 }
 
 
-const VS: usize = 8; // vector size in float, __m256
 
-use glare_base::split_c_range;
-use glare_base::split_range;
-use glare_base::def_glare_gemm;
-
-use glare_base::{
-    GlarePar, GlareThreadConfig,
-   CpuFeatures,
-   HWConfig,
-   Array,
-   ArrayMut,
-    PArray,
-    get_mem_pool_size_goto,
-    get_mem_pool_size_small_m,
-    get_mem_pool_size_small_n,
-    run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
-    extend, acquire,
-    PACK_POOL,
-    GemmPool,
-};
-
-use crate::{
-   TA, TB, TC,
-   GemmCache,
-   MyFn, NullFn
-};
 
 pub(crate) struct RefGemm<
 T: MyFn = NullFn
@@ -95,6 +97,7 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
+    pub(crate) vs: usize,
 }
 
 impl<F: MyFn> RefGemm<F> {
@@ -105,16 +108,21 @@ impl<F: MyFn> RefGemm<F> {
             mc, nc, kc, mr, nr, 
             // is_l1_shared, 
             is_l2_shared, is_l3_shared, 
-            func: f 
+            func: f,
+            vs: 1,
         }
     }
 
-    unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
+    }
+
+    pub(crate) fn is_compute_native(&self) -> bool {
+        true
     }
 }
 
@@ -154,7 +162,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut TC,
     c_rs: usize, c_cs: usize,
     ap: *const TA, bp: *const TB,
-    _kc_last: bool
+    kc_last: bool
 ) {
     let mut i = 0;
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
@@ -184,7 +192,11 @@ unsafe fn kernel<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = *c_cur * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0.0;
                     jj += 1;
                 }
@@ -297,7 +309,7 @@ unsafe fn kernel_n<F:MyFn>(
 }
 
 unsafe fn glare_gemv<F:MyFn>(
-    hw_cfg: &RefGemm<F>,
+    _hw_cfg: &RefGemm<F>,
     m: usize, n: usize,
     alpha: *const f32,
     a: Array<TA>,
@@ -326,10 +338,12 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
+type F32Pack = PArray<TA>;
 
 def_glare_gemm!(
     RefGemm,
     f32,f32,f32,f32,f32,f32,f32,
+    F32Pack, F32Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -338,4 +352,5 @@ def_glare_gemm!(
     glare_gemv,
     packa, packb,
     true, true,
+    into_pack_array, F,
 );

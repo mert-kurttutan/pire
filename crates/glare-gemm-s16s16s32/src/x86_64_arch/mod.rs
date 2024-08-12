@@ -13,6 +13,7 @@ const VS: usize = 8; // vector size in float, __m256
 use glare_base::split_c_range;
 use glare_base::split_range;
 use glare_base::def_glare_gemm;
+use glare_base::include_mixed;
 
 use glare_base::{
     GlarePar, GlareThreadConfig,
@@ -51,6 +52,7 @@ T: MyFn = NullFn
     is_l3_shared: bool,
     func: T,
     features: CpuFeatures,
+    pub(crate) vs: usize,
 }
 
 impl<F: MyFn> X86_64dispatcher<F> {
@@ -63,6 +65,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         } else {
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
+        let vs = 8;
         Self {
             mc: mc,
             nc: nc,
@@ -74,21 +77,26 @@ impl<F: MyFn> X86_64dispatcher<F> {
             features: features,
             mr,
             nr,
+            vs,
         }
     }
 
-    unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx2{
             pack_avx::packa_panel_16(m, k, x, rs, cs, y);
             return;
         }
     }
 
-    unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx2{
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
+    }
+
+    pub(crate) fn is_compute_native(&self) -> bool {
+        true
     }
 }
 
@@ -189,10 +197,11 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-
+type I16Pack = PArray<i16>;
 def_glare_gemm!(
     X86_64dispatcher,
     i16,i16,i16,i16,i32,f32,f32,
+    I16Pack, I16Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -201,4 +210,5 @@ def_glare_gemm!(
     glare_gemv,
     packa, packb,
     false, true,
+    into_pack_array, F,
 );
