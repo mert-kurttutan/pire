@@ -188,30 +188,29 @@ pub unsafe fn packa_f32(
 			rs: 1,
 			cs: m,
 		});
-		// for i in 0..m {
-		// 	for j in 0..k {
-		// 		*ap.add(i*k+j) = *a.add(i*a_rs+j*a_cs);
-		// 	}
-		// }
-		// return Array::StridedMatrix(StridedMatrix{
-		// 	data_ptr: ap0 as *const f32,
-		// 	rs: 1,
-		// 	cs: k,
-		// });
 	}
+	let par = GlarePar::default();
+	let (mc, nc, kc) = get_mcnckc();
+	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	// if none of the optimized paths are available, use reference implementation
+	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
+
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let (mc, nc, kc) = get_mcnckc();
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		let vs = hw_config.vs;
+		let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
 		for i in (0..m).step_by(mc) {
 			let mc_len = if m >= (i + mc) {mc} else {m - i};
 			let mc_len_eff = (mc_len + vs-1) / vs * vs;
 			for p in (0..k).step_by(kc) {
 				let kc_len = if k >= (p + kc) {kc} else {k - p};
-				hw_config.packa_fn(a.add(i*a_rs+p*a_cs), ap, mc_len, kc_len, a_rs, a_cs);
+				let a_cur = a.add(i*a_rs+p*a_cs);
+				if has_f32_compute() {
+					hw_config.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
+				} else {
+					hw_config_ref.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
+				}
 				ap = ap.add(mc_len_eff*kc_len);	
 			}
 		}
@@ -246,6 +245,8 @@ pub unsafe fn packb_f32(
 			cs: k,
 		});
 	}
+	let (mc, nc, kc) = get_mcnckc();
+	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 
 	#[cfg(target_arch = "x86_64")]
 	{
@@ -257,7 +258,12 @@ pub unsafe fn packb_f32(
 			let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
 			for p in (0..k).step_by(kc) {
 				let kc_len = if k >= (p + kc) {kc} else {k - p};
-				hw_config.packb_fn(b.add(i*b_cs+p*b_rs), bp, nc_len, kc_len, b_rs, b_cs);
+				let b_cur = b.add(i*b_cs+p*b_rs);
+				if has_f32_compute() {
+					hw_config.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
+				} else {
+					hw_config_ref.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
+				}
 				bp = bp.add(nc_len_eff*kc_len);	
 			}
 		}

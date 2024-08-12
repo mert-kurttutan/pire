@@ -96,7 +96,7 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    vs: usize,
+    pub(crate) vs: usize,
 }
 
 impl<F: MyFn> RefGemm<F> {
@@ -112,11 +112,11 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 

@@ -96,7 +96,7 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    pub vs: usize,
+    pub(crate) vs: usize,
 }
 
 impl<F: MyFn> RefGemm<F> {

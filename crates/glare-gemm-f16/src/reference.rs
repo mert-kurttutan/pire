@@ -54,6 +54,60 @@ unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize
 }
 
 
+unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+    let mut a_cur = a;
+    let mut ap_cur = ap;
+    let mut i = 0;
+    while i < m / mr {
+        let mut j = 0;
+        while j < k {
+            for ix in 0..mr {
+                *ap_cur.add(ix+j*mr) = *a_cur.add(ix*a_rs+j*a_cs);
+            }
+            j += 1;
+        }
+        i += 1;
+        a_cur = a_cur.add(mr * a_rs);
+        ap_cur = ap_cur.add(mr * k);
+    }
+
+    let mut j = 0;
+    let mr_left = m % mr;
+    while j < k {
+        for ix in 0..mr_left {
+            *ap_cur.add(ix+j*mr_left) = *a_cur.add(ix*a_rs+j*a_cs);
+        }
+        j += 1;
+    }
+}
+
+unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+    let mut b_cur = b;
+    let mut bp_cur = bp;
+    let mut i = 0;
+    while i < n / nr {
+        let mut j = 0;
+        while j < k {
+            for ix in 0..nr {
+                *bp_cur.add(ix+j*nr) = *b_cur.add(ix*b_cs+j*b_rs);
+            }
+            j += 1;
+        }
+        i += 1;
+        b_cur = b_cur.add(nr * b_cs);
+        bp_cur = bp_cur.add(nr * k);
+    }
+
+    let mut j = 0;
+    let n_left = n % nr;
+    while j < k {
+        for ix in 0..n_left {
+            *bp_cur.add(ix+j*n_left) = *b_cur.add(ix*b_cs+j*b_rs);
+        }
+        j += 1;
+    }
+}
+
 const VS: usize = 8; // vector size in float, __m256
 
 use glare_base::split_c_range;
@@ -97,7 +151,7 @@ T: MyFn = NullFn
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    pub vs: usize,
+    pub(crate) vs: usize,
 }
 
 impl<F: MyFn> RefGemm<F> {
@@ -113,12 +167,20 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
+    }
+
+    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+        packa_refsame(x, y, m, k, rs, cs, self.mr);
+    }
+
+    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+        packb_refsame(x, y, n, k, rs, cs, self.nr);
     }
 
     unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
