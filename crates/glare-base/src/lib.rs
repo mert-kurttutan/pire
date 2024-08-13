@@ -521,9 +521,9 @@ impl GemmPool {
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrix<T> {
-    pub data_ptr : *const T,
-    pub rs: usize,
-    pub cs: usize,
+    pub(crate) data_ptr : *const T,
+    pub(crate) rs: usize,
+    pub(crate) cs: usize,
 }
 
 impl<T> StridedMatrix<T> {
@@ -542,9 +542,9 @@ unsafe impl<T> Send for StridedMatrix<T> {}
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrixMut<T> {
-    pub data_ptr : *mut T,
-    pub rs: usize,
-    pub cs: usize,
+    pub(crate) data_ptr : *mut T,
+    pub(crate) rs: usize,
+    pub(crate) cs: usize,
 }
 
 unsafe impl<T> Send for StridedMatrixMut<T> {}
@@ -562,41 +562,72 @@ impl<T> StridedMatrixMut<T> {
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrixP<T,U> {
-    pub data_ptr : *const T,
-    pub rs: usize,
-    pub cs: usize,
-    pub data_p_ptr: *mut U,
+    pub(crate) data_ptr : *const T,
+    pub(crate) rs: usize,
+    pub(crate) cs: usize,
+    pub(crate) data_p_ptr: *mut U,
 }
 
 unsafe impl<T,U> Send for StridedMatrixP<T,U> {}
 // unsafe impl<T,U> Sync for StridedMatrixP<T,U> {}
 
-
-// #[cfg(feature = "f16")]
-// use half::f16;
+impl<T,U> StridedMatrixP<T,U> {
+    pub fn data_ptr(&self) -> *const T {
+        self.data_ptr
+    }
+    pub fn data_p_ptr(&self) -> *mut U {
+        self.data_p_ptr
+    }
+    pub fn rs(&self) -> usize {
+        self.rs
+    }
+    pub fn cs(&self) -> usize {
+        self.cs
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct PackedMatrix<T> {
-    pub data_ptr : *const T,
-    pub mc: usize,
-    pub kc: usize,
-    pub k: usize,
-    pub m: usize,
+    pub(crate) data_ptr : *const T,
+    pub(crate) mc: usize,
+    pub(crate) kc: usize,
+    pub(crate) k: usize,
+    pub(crate) m: usize,
 }
 
 unsafe impl<T> Send for PackedMatrix<T> {}
 // unsafe impl<T> Sync for PackedMatrix<T> {}
 
+impl<T> PackedMatrix<T> {
+    pub fn data_ptr(&self) -> *const T {
+        self.data_ptr
+    }
+    pub fn k(&self) -> usize {
+        self.k
+    }
+}
 
 
 #[derive(Clone, Copy)]
 pub struct PackedMatrixMixed<X,Y> {
-    pub data_ptr : *const X,
-    pub data_p_ptr: *mut Y,
-    pub mc: usize,
-    pub kc: usize,
-    pub k: usize,
-    pub m: usize,
+    pub(crate) data_ptr : *const X,
+    pub(crate) data_p_ptr: *mut Y,
+    pub(crate) mc: usize,
+    pub(crate) kc: usize,
+    pub(crate) k: usize,
+    pub(crate) m: usize,
+}
+
+impl<X,Y> PackedMatrixMixed<X,Y> {
+    pub fn data_p_ptr(&self) -> *mut Y {
+        self.data_p_ptr
+    }
+    pub fn data_ptr(&self) -> *const X {
+        self.data_ptr
+    }
+    pub fn k(&self) -> usize {
+        self.k
+    }
 }
 
 unsafe impl<X,Y> Send for PackedMatrixMixed<X,Y> {}
@@ -668,6 +699,19 @@ pub enum Array<X> {
 
 impl<X> Array<X> {
 
+    pub unsafe fn strided_matrix(data_ptr: *const X, rs: usize, cs: usize) -> Self {
+        Array::StridedMatrix(StridedMatrix::new(data_ptr, rs, cs))
+    }
+
+    pub unsafe fn packed_matrix(data_ptr: *const X, mc: usize, kc: usize, m: usize, k: usize) -> Self {
+        Array::PackedMatrix(PackedMatrix {
+            data_ptr,
+            mc,
+            kc,
+            k,
+            m,
+        })
+    }
     pub unsafe fn into_pack_array(&self, a: *mut X) -> PArray<X> {
         match self {
             Array::StridedMatrix(x) => {
@@ -769,6 +813,10 @@ pub enum ArrayMut<X> {
 
 impl<X> ArrayMut<X> {
 
+    pub unsafe fn strided_matrix(data_ptr: *mut X, rs: usize, cs: usize) -> Self {
+        ArrayMut::StridedMatrix(StridedMatrixMut::new(data_ptr, rs, cs))
+    }
+
     pub unsafe fn data_ptr(&self) -> *mut X {
         match self {
             ArrayMut::StridedMatrix(x) => {
@@ -823,7 +871,7 @@ impl<X> PArray<X> {
             }),
             Self::PackedMatrix(x) => PArray::PackedMatrix(
                 PackedMatrix {
-                    data_ptr: x.data_ptr.add(offset*0),
+                    data_ptr: x.data_ptr,
                     mc: x.mc,
                     kc: x.kc,
                     k: x.k,
@@ -1390,22 +1438,24 @@ macro_rules! def_glare_gemm {
             let ap_ptr = match x {
                 $packa_ty::StridedMatrix(m) => {
                     if t_cfg.run_packa {
-                        let a = m.data_ptr.add(mc_i*m.rs + kc_i*m.cs);
-                        hw_cfg.packa_fn(a, m.data_p_ptr, mc_len, kc_len , m.rs, m.cs);
+                        let rs = m.rs();
+                        let cs = m.cs();
+                        let a = m.data_ptr().add(mc_i*rs + kc_i*cs);
+                        hw_cfg.packa_fn(a, m.data_p_ptr(), mc_len, kc_len , rs, cs);
                     }
-                    m.data_p_ptr
+                    m.data_p_ptr()
                 }
                 $packa_ty::PackedMatrix(m) => {
                     let vs = hw_cfg.vs;
                     let mc_eff = (mc_len + vs - 1) / vs * vs;
-                    let src = m.data_ptr.add(mc_i*m.k+kc_i*mc_eff);
+                    let src = m.data_ptr().add(mc_i*m.k()+kc_i*mc_eff);
                     include_mixed!(
                         $include_flag,          
                         {
                             if t_cfg.run_packa {
-                                hw_cfg.cvt_mixed(src, m.data_p_ptr, mc_eff*kc_len);
+                                hw_cfg.cvt_mixed(src, m.data_p_ptr(), mc_eff*kc_len);
                             }
-                            return m.data_p_ptr;
+                            return m.data_p_ptr();
                         },
                         {
                             return src;
@@ -1425,20 +1475,22 @@ macro_rules! def_glare_gemm {
             let bp_ptr = match x {
                 $packb_ty::StridedMatrix(m) => {
                     if t_cfg.run_packb {
-                        let a = m.data_ptr.add(kc_i*m.rs + nc_i*m.cs);
-                        hw_cfg.packb_fn(a, m.data_p_ptr, nc_len, kc_len , m.rs, m.cs);
+                        let rs = m.rs();
+                        let cs = m.cs();
+                        let a = m.data_ptr().add(kc_i*rs + nc_i*cs);
+                        hw_cfg.packb_fn(a, m.data_p_ptr(), nc_len, kc_len , rs, cs);
                     }
-                    m.data_p_ptr
+                    m.data_p_ptr()
                 }
                 $packb_ty::PackedMatrix(m) => {
-                    let src = m.data_ptr.add(nc_i*m.k + kc_i*nc_len);
+                    let src = m.data_ptr().add(nc_i*m.k() + kc_i*nc_len);
                     include_mixed!(
                         $include_flag,          
                         {
                             if t_cfg.run_packb {
-                                hw_cfg.cvt_mixed(src, m.data_p_ptr, nc_len*kc_len);
+                                hw_cfg.cvt_mixed(src, m.data_p_ptr(), nc_len*kc_len);
                             }
-                            return m.data_p_ptr;
+                            return m.data_p_ptr();
                         },
                         {
                             return src;

@@ -19,8 +19,6 @@ pub use half::f16;
 
 use glare_base::{
 	GemmCache,
-	StridedMatrix,
-	StridedMatrixMut,
 	Array,
 	ArrayMut,
 	GlarePar,
@@ -113,12 +111,9 @@ pub unsafe fn glare_hgemm(
 	} else {
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
-	let a = StridedMatrix::new(a, a_rs, a_cs);
-	let a = Array::StridedMatrix(a);
-	let b = StridedMatrix::new(b, b_rs, b_cs);
-	let b = Array::StridedMatrix(b);
-	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	let c = ArrayMut::StridedMatrix(c);
+	let a = Array::strided_matrix(a, a_rs, a_cs);
+	let b = Array::strided_matrix(b, b_rs, b_cs);
+	let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
 	let null_fn = NullFn{};
 	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
@@ -139,12 +134,9 @@ pub unsafe fn glare_hgemm_fused(
 	} else {
     	(m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
 	};
-	let a = StridedMatrix::new(a, a_rs, a_cs);
-	let a = Array::StridedMatrix(a);
-	let b = StridedMatrix::new(b, b_rs, b_cs);
-	let b = Array::StridedMatrix(b);
-	let c = StridedMatrixMut::new(c, c_rs, c_cs);
-	let c = ArrayMut::StridedMatrix(c);
+	let a = Array::strided_matrix(a, a_rs, a_cs);
+	let b = Array::strided_matrix(b, b_rs, b_cs);
+	let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
 	glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
@@ -164,11 +156,7 @@ pub unsafe fn packa_f16(
 				*ap.add(j*m+i) = *a.add(i*a_rs+j*a_cs);
 			}
 		}
-		return Array::StridedMatrix(StridedMatrix{
-			data_ptr: ap0 as *const f16,
-			rs: 1,
-			cs: m,
-		});
+		return Array::strided_matrix(ap0, 1, m);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
@@ -193,13 +181,7 @@ pub unsafe fn packa_f16(
 				ap = ap.add(mc_len_eff*kc_len);	
 			}
 		}
-		return Array::PackedMatrix(glare_base::PackedMatrix{
-			data_ptr: ap0 as *const f16,
-			mc: mc,
-			kc: kc,
-			k,
-			m,
-		});
+		return Array::packed_matrix(ap0, mc, kc, m, k);
 	}
 }
 
@@ -218,11 +200,7 @@ pub unsafe fn packb_f16(
 				*bp.add(i*k+j) = *b.add(i*b_cs+j*b_rs);
 			}
 		}
-		return Array::StridedMatrix(StridedMatrix{
-			data_ptr: bp0 as *const f16,
-			rs: 1,
-			cs: k,
-		});
+		return Array::strided_matrix(bp0, 1, k);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
@@ -246,13 +224,7 @@ pub unsafe fn packb_f16(
 				bp = bp.add(nc_len_eff*kc_len);	
 			}
 		}
-		return Array::PackedMatrix(glare_base::PackedMatrix{
-			data_ptr: bp0 as *const f16,
-			mc: nc,
-			kc: kc,
-			k,
-			m: n,
-		});
+		return Array::packed_matrix(bp0, mc, kc, n, k);
 	}
 }
 
@@ -313,12 +285,7 @@ mod tests {
 					let a_matrix = if is_a_packed {
 						unsafe {packa_f16(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
 					} else {
-						Array::StridedMatrix(
-							StridedMatrix{
-								data_ptr: a.as_ptr(),
-								rs: a_rs, cs: a_cs,
-							}
-						)
+						unsafe{Array::strided_matrix(a.as_ptr(), a_rs, a_cs)}
 					};
 					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
 					let mut bp = vec![f16::ZERO; bp_size];
@@ -327,12 +294,7 @@ mod tests {
 					let b_matrix = if is_b_packed {
 						unsafe {packb_f16(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
 					} else {
-						Array::StridedMatrix(
-							StridedMatrix{
-								data_ptr: b.as_ptr(),
-								rs: b_rs, cs: b_cs,
-							}
-						)
+						unsafe{Array::strided_matrix(b.as_ptr(), b_rs, b_cs)}
 					};
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
@@ -340,11 +302,9 @@ mod tests {
 							let beta = f16::from_f32(beta);
                         	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
-							let c_matrix = StridedMatrixMut{
-								data_ptr: c.as_mut_ptr(),
-								rs: c_rs, cs: c_cs,
+							let c_matrix = unsafe {
+								ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs)
 							};
-							let c_matrix = ArrayMut::StridedMatrix(c_matrix);
                         	unsafe {
                             	glare_hgemm_generic(
                                 	m, n, k,
