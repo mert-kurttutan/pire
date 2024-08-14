@@ -9,7 +9,7 @@ use super::super::VS;
 // for each loop we use, less than optimal number of registers, less than 16
 // modify so that we use 16 registers for each loop step
 
-#[target_feature(enable = "avx,fma,avx2")]
+#[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave(
     a: *const TA, lda: usize,
 ) -> (__m256i, __m256i) {
@@ -22,7 +22,7 @@ pub(crate) unsafe fn interleave(
     (a0, b0)
 }
 
-#[target_feature(enable = "avx,fma,avx2")]
+#[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave2(
     a: *const TA,
 ) -> (__m256i, __m256i) {
@@ -35,7 +35,7 @@ pub(crate) unsafe fn interleave2(
     (a0, b0)
 }
 
-#[target_feature(enable = "avx,fma,avx2")]
+#[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave_single(
     a: *const TA, lda: usize,
 ) -> __m256i {
@@ -47,7 +47,7 @@ pub(crate) unsafe fn interleave_single(
     a0
 }
 
-#[target_feature(enable = "avx,fma,avx2")]
+#[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave_single2(
     a: *const TA,
 ) -> __m256i {

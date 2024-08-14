@@ -96,7 +96,7 @@ pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
 macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx,fma")]
             pub unsafe fn [<kernel_$MR x $NR>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -177,7 +177,7 @@ def_kernel_bb!(12, 4, 12, 8, 4);
 macro_rules! def_kernel_bb_strided {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx,fma")]
             pub unsafe fn [<kernel_$MR x $NR _strided>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -271,7 +271,7 @@ def_kernel_bb_strided!(12, 4, 12, 8, 4);
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx,fma")]
             pub unsafe fn [<kernel_bs _v0>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -377,7 +377,7 @@ use super::pack_avx::packa_panel_12;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx,fma")]
             pub unsafe fn [<kernel_sb_v0>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -459,7 +459,7 @@ macro_rules! def_kernel_sb {
 
 def_kernel_sb!(12, 4, 12, 8, 4);
 
-#[target_feature(enable = "avx,fma")]
+// #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
@@ -484,7 +484,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     }
  } 
 
-#[target_feature(enable = "avx,fma")]
+// #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn kernel<F: MyFn>(
    m: usize, n: usize, k: usize,
    alpha: *const TA, beta: *const TC,

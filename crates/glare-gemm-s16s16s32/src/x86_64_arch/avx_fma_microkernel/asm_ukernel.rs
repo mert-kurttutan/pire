@@ -641,7 +641,6 @@ macro_rules! def_ukernel {
 		$unroll:tt,
     	$func_name:ident
 	) => {
-		#[target_feature(enable = "avx,fma")]
     	pub(crate) unsafe fn $func_name<F: MyFn>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const f32, beta: *const f32,
@@ -795,7 +794,6 @@ macro_rules! def_ukernel_partial {
 		$unroll:tt,
     	$func_name:ident
 	) => {
-		#[target_feature(enable = "avx,fma")]
     	pub(crate) unsafe fn $func_name<F: MyFn>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const f32, beta: *const f32,

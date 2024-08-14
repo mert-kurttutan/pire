@@ -13,7 +13,7 @@ const VS: usize = 8;
 
 use crate::MyFn;
 
-#[target_feature(enable = "avx,fma,avx2")]
+#[target_feature(enable = "avx,avx2")]
 pub unsafe fn axpy<F: MyFn>(
    m: usize, n: usize,
    alpha: *const f32,
@@ -78,7 +78,7 @@ pub unsafe fn axpy<F: MyFn>(
    }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx2")]
 pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
     c: *const TC, ct: *mut TC,
     m: usize,
@@ -91,7 +91,7 @@ pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
     }
 }
 
-#[target_feature(enable = "avx,fma")]
+#[target_feature(enable = "avx2")]
 pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
     c: *mut TC, ct: *const TC,
     m: usize,
@@ -107,7 +107,7 @@ pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
 macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx2")]
             pub unsafe fn [<kernel_$MR x $NR>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
@@ -189,7 +189,7 @@ def_kernel_bb!(16, 4, 16, 8);
 macro_rules! def_kernel_bb_strided {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx2")]
             pub unsafe fn [<kernel_$MR x $NR _strided>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
@@ -283,7 +283,7 @@ use super::pack_avx::packa_panel_16;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         seq!( nr_left in 2..$NR { paste! {
-            #[target_feature(enable = "avx,fma")]
+            // #[target_feature(enable = "avx2")]
             pub unsafe fn [<kernel_sb_v0>]<F: MyFn>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
@@ -366,7 +366,7 @@ macro_rules! def_kernel_sb {
 
 def_kernel_sb!(16, 4, 16, 8);
 
-#[target_feature(enable = "avx,fma")]
+// #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const f32,
@@ -391,7 +391,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     }
  } 
 
-#[target_feature(enable = "avx,fma")]
+// #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel<F: MyFn>(
    m: usize, n: usize, k: usize,
    alpha: *const f32, beta: *const f32,
