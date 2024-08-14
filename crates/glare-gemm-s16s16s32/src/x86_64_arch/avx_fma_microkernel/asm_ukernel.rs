@@ -491,8 +491,8 @@ macro_rules! fmadd_2v {
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 3, 10, 12),
-			vfmadd231ps!(1, 3, 11, 13),
+			vfmadd231ps!(0, 3, 10, 14),
+			vfmadd231ps!(1, 3, 11, 15),
 		)
 	};
 }
