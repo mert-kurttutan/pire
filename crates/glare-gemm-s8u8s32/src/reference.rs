@@ -1,5 +1,3 @@
-use half::f16;
-
 const VS: usize = 8; // vector size in float, __m256
 
 use glare_base::split_c_range;
@@ -12,8 +10,7 @@ use glare_base::{
    HWConfig,
    Array,
    ArrayMut,
-    // PArray,
-    PArrayMixed,
+    PArray,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
@@ -25,67 +22,11 @@ use glare_base::{
 };
 
 use crate::{
-//    TA, TB, TC,
    GemmCache,
    MyFn, NullFn
 };
 
-unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
-    let mut a_cur = a;
-    let mut ap_cur = ap;
-    let mut i = 0;
-    while i < m / mr {
-        let mut j = 0;
-        while j < k {
-            for ix in 0..mr {
-                *ap_cur.add(ix+j*mr) = (*a_cur.add(ix*a_rs+j*a_cs)).to_f32();
-            }
-            j += 1;
-        }
-        i += 1;
-        a_cur = a_cur.add(mr * a_rs);
-        ap_cur = ap_cur.add(mr * k);
-    }
-
-    let mut j = 0;
-    let mr_left = m % mr;
-    while j < k {
-        for ix in 0..mr_left {
-            *ap_cur.add(ix+j*mr_left) = (*a_cur.add(ix*a_rs+j*a_cs)).to_f32();
-        }
-        j += 1;
-    }
-}
-
-unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
-    let mut b_cur = b;
-    let mut bp_cur = bp;
-    let mut i = 0;
-    while i < n / nr {
-        let mut j = 0;
-        while j < k {
-            for ix in 0..nr {
-                *bp_cur.add(ix+j*nr) = (*b_cur.add(ix*b_cs+j*b_rs)).to_f32();
-            }
-            j += 1;
-        }
-        i += 1;
-        b_cur = b_cur.add(nr * b_cs);
-        bp_cur = bp_cur.add(nr * k);
-    }
-
-    let mut j = 0;
-    let n_left = n % nr;
-    while j < k {
-        for ix in 0..n_left {
-            *bp_cur.add(ix+j*n_left) = (*b_cur.add(ix*b_cs+j*b_rs)).to_f32();
-        }
-        j += 1;
-    }
-}
-
-
-unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+unsafe fn packa_ref(a: *const i8, ap: *mut i8, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -112,7 +53,7 @@ unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: u
     }
 }
 
-unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+unsafe fn packb_ref(b: *const u8, bp: *mut u8, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -170,32 +111,16 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    unsafe fn packa_fn(&self, x: *const i8, y: *mut i8, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    unsafe fn packb_fn(&self, x: *const u8, y: *mut u8, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
-    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
-        packa_refsame(x, y, m, k, rs, cs, self.mr);
-    }
-
-    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
-        packb_refsame(x, y, n, k, rs, cs, self.nr);
-    }
-
-    unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
-        let mut i = 0;
-        while i < m {
-            *y.add(i) = (*x.add(i)).to_f32();
-            i += 1;
-        }
-
-    }
     pub(crate) fn is_compute_native(&self) -> bool {
-        false
+        true
     }
 }
 
@@ -232,13 +157,13 @@ unsafe fn kernel<F:MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
-    c: *mut f16,
+    c: *mut i32,
     c_rs: usize, c_cs: usize,
-    ap: *const f32, bp: *const f32,
-    kc_last: bool
+    ap: *const i8, bp: *const u8,
+    _kc_last: bool
 ) {
     let mut i = 0;
-    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
 
     while i < m {
         let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
@@ -253,7 +178,7 @@ unsafe fn kernel<F:MyFn>(
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj) as i32);
                         jj += 1;
                     }
                     ii += 1;
@@ -266,11 +191,9 @@ unsafe fn kernel<F:MyFn>(
                 let mut jj = 0;
                 while jj < nr_eff {
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
-                    *c_cur = f16::from_f32((*c_cur).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
-                    if kc_last {
-                        hw_cfg.func.call(c_cur, 1);
-                    }
-                    acc[ii * nr_eff + jj] = 0.0;
+                    *c_cur = ((*c_cur as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    hw_cfg.func.call(c_cur, 1);
+                    acc[ii * nr_eff + jj] = 0;
                     jj += 1;
                 }
                 ii += 1;
@@ -287,11 +210,11 @@ unsafe fn kernel_m<F:MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
-    b: *const f16, b_rs: usize, b_cs: usize,
-    c: *mut f16, c_rs: usize, c_cs: usize,
-    ap: *const f32,
+    b: *const u8, b_rs: usize, b_cs: usize,
+    c: *mut i32, c_rs: usize, c_cs: usize,
+    ap: *const i8,
 ) {
-    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
     while i < m {
         let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
@@ -306,7 +229,7 @@ unsafe fn kernel_m<F:MyFn>(
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * (*b_cur.add(jj*b_cs)).to_f32();
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj*b_cs) as i32);
                         jj += 1;
                     }
                     ii += 1;
@@ -318,8 +241,8 @@ unsafe fn kernel_m<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = f16::from_f32((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs)).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
-                    acc[ii * nr_eff + jj] = 0.0;
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    acc[ii * nr_eff + jj] = 0;
                     jj += 1;
                 }
                 ii += 1;
@@ -336,12 +259,12 @@ unsafe fn kernel_n<F:MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const f32,
     beta: *const f32,
-    a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
-    b: *const f32,
-    c: *mut f16, c_rs: usize, c_cs: usize,
+    a: *const i8, a_rs: usize, a_cs: usize,
+    ap: *mut i8,
+    b: *const u8,
+    c: *mut i32, c_rs: usize, c_cs: usize,
 ) {
-    let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
+    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
     while i < m {
         let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
@@ -357,7 +280,7 @@ unsafe fn kernel_n<F:MyFn>(
                 while ii < mr_eff {
                     let mut jj = 0;
                     while jj < nr_eff {
-                        acc[ii * nr_eff + jj] += *a_cur.add(ii) * *b_cur.add(jj);
+                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj) as i32);
                         jj += 1;
                     }
                     ii += 1;
@@ -369,8 +292,8 @@ unsafe fn kernel_n<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = f16::from_f32((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs)).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
-                    acc[ii * nr_eff + jj] = 0.0;
+                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    acc[ii * nr_eff + jj] = 0;
                     jj += 1;
                 }
                 ii += 1;
@@ -385,10 +308,10 @@ unsafe fn glare_gemv<F:MyFn>(
     _hw_cfg: &RefGemm<F>,
     m: usize, n: usize,
     alpha: *const f32,
-    a: Array<f16>,
-    x: Array<f16>,
+    a: Array<i8>,
+    x: Array<u8>,
     beta: *const f32,
-    y: ArrayMut<f16>,
+    y: ArrayMut<i32>,
 ) {
     let mut i = 0;
     let a_rs = a.rs();
@@ -401,29 +324,59 @@ unsafe fn glare_gemv<F:MyFn>(
 
     while i < m {
         let mut j = 0;
-        let mut acc = 0.0;
+        let mut acc = 0_i32;
         while j < n {
-            acc += (*a_ptr.add(i * a_rs + j * a_cs)).to_f32() * (*x_ptr.add(j * inc_x)).to_f32();
+            acc += (*a_ptr.add(i * a_rs + j * a_cs) as i32) * (*x_ptr.add(j * inc_x) as i32);
             j += 1;
         }
-        *y_ptr.add(i * incy) = f16::from_f32((*y_ptr.add(i * incy)).to_f32() * *beta + acc * *alpha);
+        *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32* *alpha) as i32;
         i += 1;
     }
 }
-type F16Pack = PArrayMixed<f16,f32>;
 
+unsafe fn glare_gemv2<F:MyFn>(
+    _hw_cfg: &RefGemm<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<u8>,
+    x: Array<i8>,
+    beta: *const f32,
+    y: ArrayMut<i32>,
+) {
+    let mut i = 0;
+    let a_rs = a.rs();
+    let a_cs = a.cs();
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    let a_ptr = a.data_ptr();
 
+    while i < m {
+        let mut j = 0;
+        let mut acc = 0_i32;
+        while j < n {
+            acc += (*a_ptr.add(i * a_rs + j * a_cs) as i32) * (*x_ptr.add(j * inc_x) as i32);
+            j += 1;
+        }
+        *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32* *alpha) as i32;
+        i += 1;
+    }
+}
+
+type I8Pack = PArray<i8>;
+type U8Pack = PArray<u8>;
 def_glare_gemm!(
     RefGemm,
-    f16,f32,f16,f32,f16,f32,f32,
-    F16Pack, F16Pack,
+    i8,i8,u8,u8,i32,f32,f32,
+    I8Pack, U8Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
-    glare_gemv, glare_gemv,
+    glare_gemv, glare_gemv2,
     packa, packb,
     true, true,
-    into_pack_array2, T,
+    into_pack_array, F,
 );

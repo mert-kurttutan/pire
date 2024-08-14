@@ -154,6 +154,9 @@ pub(crate) mod cpu_features{
     pub fn has_i16i32_compute() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx2
     }
+    pub fn has_i8i32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx2
+    }
     pub fn hw_avx512f16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
@@ -1032,7 +1035,7 @@ macro_rules! def_glare_gemm {
         $goto_name:ident, $goto_kernel:ident,
         $small_m_name:ident, $small_m_kernel:ident,
         $small_n_name:ident, $small_n_kernel:ident,
-        $gemv_name:ident,
+        $gemv_name:ident, $gemv_name2:ident,
         $packa_name:ident, $packb_name:ident,
         $run_small_m:expr, $run_small_n:expr,
         $pack_fn:tt, $include_flag:tt,
@@ -1065,7 +1068,7 @@ macro_rules! def_glare_gemm {
                 b.transpose();
                 let mut c = c;
                 c.transpose();
-                $gemv_name(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
+                $gemv_name2(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
                 return;
             }
             let (gemm_mode, gemm_fun, mem_pool_size)

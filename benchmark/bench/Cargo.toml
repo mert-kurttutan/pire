@@ -10,6 +10,7 @@ glare-gemm-f32 = { path = "../../crates/glare-gemm-f32" }
 glare-gemm-f64 = { path = "../../crates/glare-gemm-f64" }
 glare-gemm-f16 = { path = "../../crates/glare-gemm-f16" }
 glare-gemm-s16s16s32 = { path = "../../crates/glare-gemm-s16s16s32" }
+glare-gemm-s8u8s32 = { path = "../../crates/glare-gemm-s8u8s32" }
 glare-dev = { path = "../../crates/glare-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }

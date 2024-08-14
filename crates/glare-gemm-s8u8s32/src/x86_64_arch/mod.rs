@@ -5,8 +5,8 @@ pub(crate) mod pack_avx;
 const AVX_FMA_GOTO_MR: usize = 16; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
 
-const AVX512F_GOTO_MR: usize = 48; // register block size
-const AVX512F_GOTO_NR: usize = 8; // register block size
+const AVX512F_GOTO_MR: usize = 16; // register block size
+const AVX512F_GOTO_NR: usize = 4; // register block size
 
 const VS: usize = 8; // vector size in float, __m256
 
@@ -197,17 +197,37 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-type I16Pack = PArray<i16>;
+unsafe fn glare_gemv2<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<TB>,
+    x: Array<TA>,
+    beta: *const f32,
+    y: ArrayMut<TC>,
+) {
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    // if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+    //     avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    //     return;
+    // }
+}
+
+type I8Pack = PArray<i8>;
+type U8Pack = PArray<u8>;
 def_glare_gemm!(
     X86_64dispatcher,
-    i16,i16,i16,i16,i32,f32,f32,
-    I16Pack, I16Pack,
+    i8,i8,u8,u8,i32,f32,f32,
+    I8Pack, U8Pack,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
-    glare_gemv, glare_gemv,
+    glare_gemv, glare_gemv2,
     packa, packb,
     false, true,
     into_pack_array, F,
