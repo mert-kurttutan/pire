@@ -482,6 +482,39 @@ pub unsafe fn check_gemm_s16s16s32(
 }
 
 
+
+pub unsafe fn check_gemm_s8u8s32(
+	m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const i8, a_rs: usize, a_cs: usize,
+    b: *const u8, b_rs: usize, b_cs: usize,
+    beta: f32,
+    c: &[i32], c_rs: usize, c_cs: usize,
+    c_ref: &mut [i32],
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let oc_val = 0;
+        let oc = &oc_val as *const c_int;
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let a = a as *const c_void;
+        let b = b as *const c_void;
+        cblas_gemm_s8u8s32(
+            layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
+        );
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
+        return diff;
+    }
+    #[cfg(not(feature="mkl"))] {
+        // // calculate diff using fallback
+        // gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+        // let diff = max_abs_diff(&c, &c_ref, 1e-3);
+        // return diff;
+        return 0.;
+    }
+}
+
+
+
 pub unsafe fn check_gemm_f64(
 	m: usize, n: usize, k: usize,
 	alpha: f64,

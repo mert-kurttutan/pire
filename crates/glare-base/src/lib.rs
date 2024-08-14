@@ -1053,12 +1053,12 @@ macro_rules! def_glare_gemm {
         {
             let a_need_pool = a.is_strided() || !hw_config.is_compute_native();
             let b_need_pool = b.is_strided() || !hw_config.is_compute_native();
-            if n == 1 && a.is_strided() {
-                let alpha = &alpha as *const $t_as;
-                let beta = &beta as *const $t_bs;
-                $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
-                return;
-            }
+            // if n == 1 && a.is_strided() {
+            //     let alpha = &alpha as *const $t_as;
+            //     let beta = &beta as *const $t_bs;
+            //     $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
+            //     return;
+            // }
             // if m == 1 && b.is_strided() {
             //     let alpha = &alpha as *const $t_as;
             //     let beta = &beta as *const $t_bs;

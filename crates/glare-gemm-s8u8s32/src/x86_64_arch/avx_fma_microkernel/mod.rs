@@ -122,7 +122,7 @@ macro_rules! def_kernel_bb {
                 let m_left = m % MR;
                 let mut ap_cur = ap;
                 let mut c_cur0 = c;
-                let k = (k+1) / 2 *2;
+                let k = (k+3) / 4 * 4;
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
@@ -294,7 +294,7 @@ macro_rules! def_kernel_sb {
                 ap_buf: *mut TA,
                 f: F,
             ) {
-                let k_eff = (k+1) / 2 *2;
+                let k_eff = (k+3) / 4 * 4;
                 const MR: usize = $MR;
                 const NR: usize = $NR;
                 let mut m_iter = (m / MR) as u64;

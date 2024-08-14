@@ -650,24 +650,21 @@ macro_rules! def_ukernel {
 			ld_arr: [usize; 2],
 			f: F,
     	) {
-			let k = (k+1) / 2 *2;
+			let k = (k+3) / 4 * 4;
         	let k_iter = k / 16;
-        	let k_left = (k % 16) / 2;
-			// println!("k_iter: {}, k_left: {}", k_iter, k_left);
+        	let k_left = (k % 16) / 4;
             let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
         	let u64_ptr = u64_arr.as_ptr();
 			let one = 1_f32;
 			let one_i16 = 1_i16;
 			let cf = c;
 
-			// let a_slice = std::slice::from_raw_parts(a, $mr*k);
-			// println!("a: {:?}", a_slice);
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
 			prefetch_c!($mr,$nr,c,ldc);
         	asm!(
             	asm_vzeroall!($VER,$nr),
-   	 
+				"vpbroadcastw ({one_i16}), %ymm15",
             	asm_init_ab!($VER,$a_layout,$b_layout),
            	 
             	// 3 -> CONSIDKLEFT
@@ -675,7 +672,6 @@ macro_rules! def_ukernel {
            	 
             	// 2 -> KITER
             	"2:",
-				"vpbroadcastw ({one_i16}), %ymm15",
 				seq!( i in 0..$unroll{
 					concat!(
 						#(
@@ -773,8 +769,6 @@ macro_rules! def_ukernel {
             	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
             	options(att_syntax)
         	);
-			// println!("c: {:?}", c_slice);
-
 			for j in 0..$nr {
 				for i in 0..$mr/8 {
 					f.call(c.add(i*8+j*ldc), 8);
@@ -805,18 +799,18 @@ macro_rules! def_ukernel_partial {
 			mask: *const u32,
 			f: F,
     	) {
-			let k = (k+1) / 2 *2;
+			let k = (k+3) / 4 * 4;
         	let k_iter = k / 16;
-        	let k_left = (k % 16) / 2;
+        	let k_left = (k % 16) / 4;
             let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
         	let u64_ptr = u64_arr.as_ptr();
 			let cf = c;
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
-			prefetch_c!($mr,$nr,c,ldc);
+			let one_i16 = 1_i16;
         	asm!(
             	asm_vzeroall!($VER,$nr),
-   	 
+				"vpbroadcastw ({one_i16}), %ymm15",
             	asm_init_ab!($VER,$a_layout,$b_layout),
            	 
             	// 3 -> CONSIDKLEFT
@@ -895,6 +889,7 @@ macro_rules! def_ukernel_partial {
             	alphax = inout(reg) alpha => _,
             	betax = inout(reg) beta => _,
 				maskx = inout(reg) mask => _,
+				one_i16 = in(reg) &one_i16,
             	x0 = out(reg) _,
             	x1 = out(reg) _,
             	x2 = out(reg) _,

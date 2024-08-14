@@ -1393,8 +1393,8 @@ fn test_gemm_s8u8s32(
                 &mut c_ref
             )
         };
-        // println!("c: {:?}", c);
-        // println!("c_ref: {:?}", c_ref);
+        println!("c: {:?}", c);
+        println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }
 
