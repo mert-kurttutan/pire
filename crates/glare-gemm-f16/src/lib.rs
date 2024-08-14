@@ -53,7 +53,7 @@ impl MyFn for fn(*mut TC, m: usize){
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		return (480, 192, 512);
+		return (4800, 192, 512);
 	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
 		return (4800, 320, 192);
@@ -150,11 +150,9 @@ pub unsafe fn packa_f16(
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
 	let ap0 = ap;
-	if m == 1 || k == 1 {
+	if m == 1 {
 		for j in 0..k {
-			for i in 0..m {
-				*ap.add(j*m+i) = *a.add(i*a_rs+j*a_cs);
-			}
+			*ap.add(j) = *a.add(j*a_cs);
 		}
 		return Array::strided_matrix(ap0, 1, m);
 	}
@@ -167,11 +165,12 @@ pub unsafe fn packa_f16(
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		for i in (0..m).step_by(mc) {
-			let mc_len = if m >= (i + mc) {mc} else {m - i};
-			let mc_len_eff = (mc_len + vs-1) / vs * vs;
-			for p in (0..k).step_by(kc) {
-				let kc_len = if k >= (p + kc) {kc} else {k - p};
+		let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
+		for p in (0..k).step_by(kc) {
+			let kc_len = if k >= (p + kc) {kc} else {k - p};
+			for i in (0..m).step_by(mc) {
+				let mc_len = if m >= (i + mc) {mc} else {m - i};
+				let mc_len_eff = (mc_len + vs-1) / vs * vs;
 				let a_cur = a.add(i*a_rs+p*a_cs);
 				if has_f32_compute() {
 					hw_config.packa_fnsame(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
@@ -194,11 +193,9 @@ pub unsafe fn packb_f16(
 	let align_offset = bp.align_offset(512);
 	let mut bp = bp.add(align_offset);
 	let bp0 = bp;
-	if n == 1 || k == 1 {
-		for i in 0..n {
-			for j in 0..k {
-				*bp.add(i*k+j) = *b.add(i*b_cs+j*b_rs);
-			}
+	if n == 1 {
+		for j in 0..k {
+			*bp.add(j) = *b.add(j*b_rs);
 		}
 		return Array::strided_matrix(bp0, 1, k);
 	}
@@ -210,21 +207,21 @@ pub unsafe fn packb_f16(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		for i in (0..n).step_by(nc) {
-			let nc_len = if n >= (i + nc) {nc} else {n - i};
-			let nc_len_eff = nc_len;
-			for p in (0..k).step_by(kc) {
-				let kc_len = if k >= (p + kc) {kc} else {k - p};
-				let a_cur = b.add(i*b_cs+p*b_rs);
+		for p in (0..k).step_by(kc) {
+			let kc_len = if k >= (p + kc) {kc} else {k - p};
+			for i in (0..n).step_by(nc) {
+				let nc_len = if n >= (i + nc) {nc} else {n - i};
+				let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
+				let b_cur = b.add(i*b_cs+p*b_rs);
 				if has_f32_compute() {
-					hw_config.packb_fnsame(a_cur, bp, nc_len, kc_len, b_rs, b_cs);
+					hw_config.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
 				} else {
-					hw_config_ref.packb_fnsame(a_cur, bp, nc_len, kc_len, b_rs, b_cs);
+					hw_config_ref.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
 				}
-				bp = bp.add(nc_len_eff*kc_len);	
+				bp = bp.add(nc_len_eff*kc_len);	 
 			}
 		}
-		return Array::packed_matrix(bp0, mc, kc, n, k);
+		return Array::packed_matrix(bp0, nc, kc, n, k);
 	}
 }
 

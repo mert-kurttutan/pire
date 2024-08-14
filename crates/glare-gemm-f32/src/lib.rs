@@ -159,7 +159,11 @@ pub unsafe fn glare_sdot(
 		res, 1, 1,
 	)
 }
-
+// block idx for packa and packb is s.t.
+// m dim for block idx is contiguous and n dim is contiguous
+// this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
+// this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only 
+// in the special case of very large k and small m, n
 pub unsafe fn packa_f32(
 	m: usize, k: usize,
 	a: *const TA,
@@ -169,11 +173,9 @@ pub unsafe fn packa_f32(
 	let align_offset = ap.align_offset(256);
 	let mut ap = ap.add(align_offset);
 	let ap0 = ap;
-	if m == 1 || k == 1 {
+	if m == 1 {
 		for j in 0..k {
-			for i in 0..m {
-				*ap.add(j*m+i) = *a.add(i*a_rs+j*a_cs);
-			}
+			*ap.add(j) = *a.add(j*a_cs);
 		}
 		return Array::strided_matrix(ap0, 1, m);
 	}
@@ -187,11 +189,11 @@ pub unsafe fn packa_f32(
 	#[cfg(target_arch = "x86_64")]
 	{
 		let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
-		for i in (0..m).step_by(mc) {
-			let mc_len = if m >= (i + mc) {mc} else {m - i};
-			let mc_len_eff = (mc_len + vs-1) / vs * vs;
-			for p in (0..k).step_by(kc) {
-				let kc_len = if k >= (p + kc) {kc} else {k - p};
+		for p in (0..k).step_by(kc) {
+			let kc_len = if k >= (p + kc) {kc} else {k - p};
+			for i in (0..m).step_by(mc) {
+				let mc_len = if m >= (i + mc) {mc} else {m - i};
+				let mc_len_eff = (mc_len + vs-1) / vs * vs;
 				let a_cur = a.add(i*a_rs+p*a_cs);
 				if has_f32_compute() {
 					hw_config.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
@@ -214,11 +216,9 @@ pub unsafe fn packb_f32(
 	let align_offset = bp.align_offset(512);
 	let mut bp = bp.add(align_offset);
 	let bp0 = bp;
-	if n == 1 || k == 1 {
-		for i in 0..n {
-			for j in 0..k {
-				*bp.add(i*k+j) = *b.add(i*b_cs+j*b_rs);
-			}
+	if n == 1 {
+		for j in 0..k {
+			*bp.add(j) = *b.add(j*b_rs);
 		}
 		return Array::strided_matrix(bp0, 1, k);
 	}
@@ -230,11 +230,11 @@ pub unsafe fn packb_f32(
 		let (mc, nc, kc) = get_mcnckc();
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-		for i in (0..n).step_by(nc) {
-			let nc_len = if n >= (i + nc) {nc} else {n - i};
-			let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
-			for p in (0..k).step_by(kc) {
-				let kc_len = if k >= (p + kc) {kc} else {k - p};
+		for p in (0..k).step_by(kc) {
+			let kc_len = if k >= (p + kc) {kc} else {k - p};
+			for i in (0..n).step_by(nc) {
+				let nc_len = if n >= (i + nc) {nc} else {n - i};
+				let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
 				let b_cur = b.add(i*b_cs+p*b_rs);
 				if has_f32_compute() {
 					hw_config.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);

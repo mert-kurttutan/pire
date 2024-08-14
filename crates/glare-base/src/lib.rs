@@ -410,7 +410,7 @@ HWConfig: GemmCache<AP,BP>
 {
     let mut mem_pool_size = 0;
     if a_need_pool {
-        let ap_pool_multiplicity = par.num_threads;
+        let ap_pool_multiplicity = par.ic_par;
         let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
         mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
     }
@@ -605,6 +605,9 @@ impl<T> PackedMatrix<T> {
     pub fn k(&self) -> usize {
         self.k
     }
+    pub fn m(&self) -> usize {
+        self.m
+    }
 }
 
 
@@ -627,6 +630,9 @@ impl<X,Y> PackedMatrixMixed<X,Y> {
     }
     pub fn k(&self) -> usize {
         self.k
+    }
+    pub fn m(&self) -> usize {
+        self.m
     }
 }
 
@@ -663,31 +669,19 @@ BP,
     fn get_mc_eff(&self,par: usize) -> usize;
     fn get_kc_eff(&self) -> usize;
     fn get_nc_eff(&self,par: usize) -> usize;
-    fn get_ap_pool_size(&self,ic_par: usize) -> usize {
-        if true {
-            let mc_eff = self.get_mc_eff(ic_par);
-            let kc_eff = self.get_kc_eff();
-            mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
-        } else {
-            0
-        }
+    fn get_ap_pool_size(&self, ic_par: usize) -> usize {
+        let mc_eff = self.get_mc_eff(ic_par);
+        let kc_eff = self.get_kc_eff();
+        mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
     }
     fn get_ap_pool_size2(&self) -> usize {
-        if true {
-            let kc_eff = self.get_kc_eff();
-            self.mr() * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
-        } else {
-            0
-        }
+        let kc_eff = self.get_kc_eff();
+        self.mr() * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
     }
     fn get_bp_pool_size(&self,jc_par: usize) -> usize {
-        if true {
-            let nc_eff = self.get_nc_eff(jc_par);
-            let kc_eff = self.get_kc_eff();
-            nc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
-        } else {
-            0
-        }
+        let nc_eff = self.get_nc_eff(jc_par);
+        let kc_eff = self.get_kc_eff();
+        nc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
     }
 }
 
@@ -1018,11 +1012,11 @@ impl<X,Y> PArrayMixed<X,Y> {
 }
 
 #[macro_export]
-macro_rules! include_mixed{
-    (T, $st1:stmt, $st2:stmt) => {
+macro_rules! is_mixed{
+    (T, $st1:expr, $st2:expr) => {
         $st1
     };
-    (F, $src:stmt, $st2:stmt) => {
+    (F, $src:expr, $st2:expr) => {
         $st2
     }
 }
@@ -1138,9 +1132,14 @@ macro_rules! def_glare_gemm {
             let mc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_mc_eff(hw_config, par.ic_par);
             let nc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_nc_eff(hw_config, par.jc_par);
             let kc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_kc_eff(hw_config);
-            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.ic_par, a_need_pool);
+            let ap_par = match gemm_mode {
+                GemmPool::Goto => par.ic_par,
+                GemmPool::SmallM => par.ic_par,
+                GemmPool::SmallN => par.num_threads,
+            };
+            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, ap_par, a_need_pool);
             let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.jc_par, b_need_pool);
-            let (ap_ptr, bp_ptr) = get_ap_bp::<$tap,$tbp>(pool_buf, ap_pool_size, bp_pool_size, par.ic_par, par.jc_par);
+            let (ap_ptr, bp_ptr) = get_ap_bp::<$tap,$tbp>(pool_buf, ap_pool_size, bp_pool_size, ap_par, par.jc_par);
             let ap = a.$pack_fn(ap_ptr);
             let bp = b.$pack_fn(bp_ptr);
             let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
@@ -1432,7 +1431,11 @@ macro_rules! def_glare_gemm {
                 }
             }
         }
+        // for packed api mc_i(nc_i) should be multiple of mr (nr, which we ensure by the split_c_range
+        // for packed api kc_i should be multiple of kc_eff, which is always true since we dont parallelize over kc
+        // this is subject to change if we parallelize over kc, but this is not in the plan
 
+        // NOTE: dont return before the second packa as it ensures sync between threads
         pub(crate) unsafe fn $packa_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: $packa_ty, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tap {
             t_cfg.wait_packa();
             let ap_ptr = match x {
@@ -1447,29 +1450,30 @@ macro_rules! def_glare_gemm {
                 }
                 $packa_ty::PackedMatrix(m) => {
                     let vs = hw_cfg.vs;
-                    let mc_eff = (mc_len + vs - 1) / vs * vs;
-                    let src = m.data_ptr().add(mc_i*m.k()+kc_i*mc_eff);
-                    include_mixed!(
+                    let m_eff = (m.m() + vs - 1) / vs * vs;
+                    let src = m.data_ptr().add(mc_i*kc_len + kc_i*m_eff);
+                    let res = is_mixed!(
                         $include_flag,          
                         {
+                            let mc_eff = (mc_len + vs - 1) / vs * vs;
                             if t_cfg.run_packa {
                                 hw_cfg.cvt_mixed(src, m.data_p_ptr(), mc_eff*kc_len);
                             }
-                            return m.data_p_ptr();
+                            m.data_p_ptr()
                         },
                         {
-                            return src;
+                            src
                         }
                     
                     );
-
+                    res
 
                 }
             };
             t_cfg.wait_packa();
             ap_ptr
         }
-    
+        // NOTE: dont return before the second packa as it ensures sync between threads
         pub(crate) unsafe fn $packb_name<F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: $packb_ty, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlareThreadConfig) -> *const $tbp {
             t_cfg.wait_packb();
             let bp_ptr = match x {
@@ -1483,20 +1487,21 @@ macro_rules! def_glare_gemm {
                     m.data_p_ptr()
                 }
                 $packb_ty::PackedMatrix(m) => {
-                    let src = m.data_ptr().add(nc_i*m.k() + kc_i*nc_len);
-                    include_mixed!(
+                    let src = m.data_ptr().add(nc_i*kc_len + kc_i*m.m());
+                    let res = is_mixed!(
                         $include_flag,          
                         {
                             if t_cfg.run_packb {
                                 hw_cfg.cvt_mixed(src, m.data_p_ptr(), nc_len*kc_len);
                             }
-                            return m.data_p_ptr();
+                            m.data_p_ptr()
                         },
                         {
-                            return src;
+                            src
                         }
                     
-                    );                
+                    );
+                    res
                 }
             };
             t_cfg.wait_packb();

@@ -19,7 +19,7 @@ use glare_base::split_c_range;
 use glare_base::split_range;
 
 use glare_base::def_glare_gemm;
-use glare_base::include_mixed;
+use glare_base::is_mixed;
 
 use glare_base::{
     GlarePar, GlareThreadConfig,
