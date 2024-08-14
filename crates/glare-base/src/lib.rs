@@ -1035,7 +1035,7 @@ macro_rules! def_glare_gemm {
         $goto_name:ident, $goto_kernel:ident,
         $small_m_name:ident, $small_m_kernel:ident,
         $small_n_name:ident, $small_n_kernel:ident,
-        $gemv_name:ident,
+        $gemv_name:ident, $gemv_name2:ident,
         $packa_name:ident, $packb_name:ident,
         $run_small_m:expr, $run_small_n:expr,
         $pack_fn:tt, $include_flag:tt,
@@ -1053,24 +1053,24 @@ macro_rules! def_glare_gemm {
         {
             let a_need_pool = a.is_strided() || !hw_config.is_compute_native();
             let b_need_pool = b.is_strided() || !hw_config.is_compute_native();
-            // if n == 1 && a.is_strided() {
-            //     let alpha = &alpha as *const $t_as;
-            //     let beta = &beta as *const $t_bs;
-            //     $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
-            //     return;
-            // }
-            // if m == 1 && b.is_strided() {
-            //     let alpha = &alpha as *const $t_as;
-            //     let beta = &beta as *const $t_bs;
-            //     let mut a = a;
-            //     a.transpose();
-            //     let mut b = b;
-            //     b.transpose();
-            //     let mut c = c;
-            //     c.transpose();
-            //     $gemv_name(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
-            //     return;
-            // }
+            if n == 1 && a.is_strided() {
+                let alpha = &alpha as *const $t_as;
+                let beta = &beta as *const $t_bs;
+                $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
+                return;
+            }
+            if m == 1 && b.is_strided() {
+                let alpha = &alpha as *const $t_as;
+                let beta = &beta as *const $t_bs;
+                let mut a = a;
+                a.transpose();
+                let mut b = b;
+                b.transpose();
+                let mut c = c;
+                c.transpose();
+                $gemv_name2(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
+                return;
+            }
             let (gemm_mode, gemm_fun, mem_pool_size)
             : (
                 GemmPool, unsafe fn(

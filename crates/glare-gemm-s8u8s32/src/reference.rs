@@ -334,6 +334,36 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
+unsafe fn glare_gemv2<F:MyFn>(
+    _hw_cfg: &RefGemm<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<u8>,
+    x: Array<i8>,
+    beta: *const f32,
+    y: ArrayMut<i32>,
+) {
+    let mut i = 0;
+    let a_rs = a.rs();
+    let a_cs = a.cs();
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    let a_ptr = a.data_ptr();
+
+    while i < m {
+        let mut j = 0;
+        let mut acc = 0_i32;
+        while j < n {
+            acc += (*a_ptr.add(i * a_rs + j * a_cs) as i32) * (*x_ptr.add(j * inc_x) as i32);
+            j += 1;
+        }
+        *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32* *alpha) as i32;
+        i += 1;
+    }
+}
+
 type I8Pack = PArray<i8>;
 type U8Pack = PArray<u8>;
 def_glare_gemm!(
@@ -345,7 +375,7 @@ def_glare_gemm!(
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
-    glare_gemv,
+    glare_gemv, glare_gemv2,
     packa, packb,
     true, true,
     into_pack_array, F,

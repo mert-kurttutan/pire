@@ -207,7 +207,7 @@ def_glare_gemm!(
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
-    glare_gemv,
+    glare_gemv, glare_gemv,
     packa, packb,
     false, true,
     into_pack_array, F,

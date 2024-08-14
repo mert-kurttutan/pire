@@ -197,6 +197,25 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
+unsafe fn glare_gemv2<F:MyFn>(
+    hw_cfg: &X86_64dispatcher<F>,
+    m: usize, n: usize,
+    alpha: *const f32,
+    a: Array<TB>,
+    x: Array<TA>,
+    beta: *const f32,
+    y: ArrayMut<TC>,
+) {
+    let x_ptr = x.data_ptr();
+    let inc_x = x.rs();
+    let y_ptr   = y.data_ptr();
+    let incy = y.rs();
+    // if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+    //     avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    //     return;
+    // }
+}
+
 type I8Pack = PArray<i8>;
 type U8Pack = PArray<u8>;
 def_glare_gemm!(
@@ -208,7 +227,7 @@ def_glare_gemm!(
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
-    glare_gemv,
+    glare_gemv, glare_gemv2,
     packa, packb,
     false, true,
     into_pack_array, F,
