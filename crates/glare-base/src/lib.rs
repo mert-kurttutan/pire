@@ -154,6 +154,9 @@ pub(crate) mod cpu_features{
     pub fn has_i16i32_compute() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx2
     }
+    pub fn has_i8i32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx2
+    }
     pub fn hw_avx512f16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
@@ -1056,18 +1059,18 @@ macro_rules! def_glare_gemm {
                 $gemv_name(hw_config, m, k, alpha, a, b, beta, c);//, par);
                 return;
             }
-            if m == 1 && b.is_strided() {
-                let alpha = &alpha as *const $t_as;
-                let beta = &beta as *const $t_bs;
-                let mut a = a;
-                a.transpose();
-                let mut b = b;
-                b.transpose();
-                let mut c = c;
-                c.transpose();
-                $gemv_name(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
-                return;
-            }
+            // if m == 1 && b.is_strided() {
+            //     let alpha = &alpha as *const $t_as;
+            //     let beta = &beta as *const $t_bs;
+            //     let mut a = a;
+            //     a.transpose();
+            //     let mut b = b;
+            //     b.transpose();
+            //     let mut c = c;
+            //     c.transpose();
+            //     $gemv_name(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
+            //     return;
+            // }
             let (gemm_mode, gemm_fun, mem_pool_size)
             : (
                 GemmPool, unsafe fn(

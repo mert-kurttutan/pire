@@ -6,6 +6,6 @@ members = [
     "glare-gemm-f32", "glare-gemm-f64",
     "glare-gemm-c32", "glare-gemm-c64",
     "glare-gemm-s16s16s32"
-]
+, "glare-gemm-s8u8s32"]
 
 resolver = "2"

@@ -185,6 +185,16 @@ impl Bound for i16 {
     fn max_value() -> Self { 10 }
 }
 
+impl Bound for i8 {
+    fn min_value() -> Self { -10 }
+    fn max_value() -> Self { 10 }
+}
+
+impl Bound for u8 {
+    fn min_value() -> Self { 10 }
+    fn max_value() -> Self { 20 }
+}
+
 impl Bound for i32 {
     fn min_value() -> Self { -10 }
     fn max_value() -> Self { 10 }
@@ -245,6 +255,20 @@ impl Diff for f64 {
 impl Diff for i16 {
     fn diff(&self, other: &Self) -> f64 {
         let diff_abs = (*self - *other).abs() as f64;
+        diff_abs
+    }
+}
+
+impl Diff for i8 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (*self as i16 - *other as i16).abs() as f64;
+        diff_abs
+    }
+}
+
+impl Diff for u8 {
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_abs = (*self as i16 - *other as i16).abs() as f64;
         diff_abs
     }
 }

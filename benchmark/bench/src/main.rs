@@ -254,6 +254,7 @@ pub enum BenchType {
     HGemm,
     CGemm,
     GemmS16S16S32,
+    GemmS8U8S32,
 }
 
 pub unsafe fn dispatch_dgemm(
@@ -678,6 +679,60 @@ pub unsafe fn dispatch_gemm_f16(
      }
  }
 
+ pub unsafe fn dispatch_gemm_s8u8s32(
+    backend: GemmBackend,
+    m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const i8, a_rs: isize, a_cs: isize,
+    b: *const u8, b_rs: isize, b_cs: isize,
+    beta: f32,
+    c: *mut i32, c_rs: isize, c_cs: isize,
+ ) {
+    match backend {
+        GemmBackend::Blis => {
+             #[cfg(feature="blis")]
+                panic!("s16s16s32 is not supported in blis");
+        }
+        GemmBackend::Mkl => {
+             #[cfg(feature="mkl")]
+             {
+                let oc_val = 0;
+                let oc = &oc_val as *const c_int;
+                let a = a as *const c_void;
+                let b = b as *const c_void;
+                 let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
+                 cblas_gemm_s8u8s32(
+                     layout,
+                     transa,
+                     transb,
+                     CblasFixOffset,
+                     m as i32, n as i32, k as i32,
+                     alpha,
+                     a, lda as i32, 0,
+                     b, ldb as i32, 0,
+                     beta,
+                     c, ldc as i32, oc,
+                 );
+             }
+        }
+        GemmBackend::RustGemm => {
+             #[cfg(feature="rustgemm")]
+                panic!("s16s16s32 is not supported in rustgemm");
+          }
+          GemmBackend::Corenum => {
+             use glare_gemm_s8u8s32::glare_gemm_s8u8s32 as gemm_s8u8s32;
+            gemm_s8u8s32(
+                m, n, k,
+                alpha,
+                a, a_rs as usize, a_cs as usize,
+                b, b_rs as usize, b_cs as usize,
+                beta,
+                c, c_rs as usize, c_cs as usize,
+            );
+         }
+     }
+ }
+
 pub unsafe fn gemm_fallback_f32(
 	m: usize, n: usize, k: usize,
 	alpha: f32,
@@ -788,6 +843,37 @@ pub unsafe fn check_gemm_s16s16s32(
         let oc = &oc_val as *const c_int;
         let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         cblas_gemm_s16s16s32(
+            layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
+        );
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
+        return diff;
+    }
+    // #[cfg(not(feature="mkl"))] {
+    //     // calculate diff using fallback
+    //     gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+    //     let diff = max_abs_diff(&c, &c_ref, 1e-3);
+    //     return diff;
+    // }
+}
+
+
+
+pub unsafe fn check_gemm_s8u8s32(
+	m: usize, n: usize, k: usize,
+    alpha: f32,
+    a: *const i8, a_rs: usize, a_cs: usize,
+    b: *const u8, b_rs: usize, b_cs: usize,
+    beta: f32,
+    c: &[i32], c_rs: usize, c_cs: usize,
+    c_ref: &mut [i32],
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let oc_val = 0;
+        let oc = &oc_val as *const c_int;
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let a = a as *const c_void;
+        let b = b as *const c_void;
+        cblas_gemm_s8u8s32(
             layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
         );
         let diff = max_abs_diff(&c, &c_ref, 1e-3);
@@ -952,6 +1038,9 @@ pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
     }
     if bench_type_str == "gemm_s16s16s32" {
         return BenchType::GemmS16S16S32;
+    }
+    if bench_type_str == "gemm_s8u8s32" {
+        return BenchType::GemmS8U8S32;
     }
     panic!("Unsupported bench type str");
 }
@@ -1262,6 +1351,59 @@ fn test_gemm_s16s16s32(
 }
 
 
+
+
+fn test_gemm_s8u8s32(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f32,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+) -> f64 {
+    let mut a = vec![0_i8; m * k];
+    let mut b = vec![0_u8; k * n];
+    let mut c = vec![0_i32; m * n];
+    random_matrix_uniform(m, k, &mut a, m);
+    random_matrix_uniform(k, n, &mut b, k);
+    // println!("a: {:?}", a);
+    let mut c_ref = vec![0_i32; m * n];
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    unsafe {
+        dispatch_gemm_s8u8s32(
+            gemm_backend,
+            m, n, k,
+            alpha,
+            a.as_ptr(), a_rs, a_cs,
+            b.as_ptr(), b_rs, b_cs,
+            beta,
+            c.as_mut_ptr(), c_rs, c_cs,
+        );
+    }
+    if args.check {
+        let diff = unsafe {
+            check_gemm_s8u8s32(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref
+            )
+        };
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
+        println!("diff: {}", diff);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
+
  
 use clap::Parser;
  
@@ -1335,6 +1477,7 @@ struct Args {
             BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
             BenchType::CGemm => test_cgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
             BenchType::GemmS16S16S32 => test_gemm_s16s16s32(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::GemmS8U8S32 => test_gemm_s8u8s32(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
         };
         total_time += end_time;
 
