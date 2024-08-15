@@ -940,7 +940,8 @@ macro_rules! prefetch_c {
 }
 
 use crate::MyFn;
- 
+
+// Buf generic improves 1.2 gflops at the cost of ~2 sec more compilation time (per crate)
 macro_rules! def_ukernel {
 	(
 		$VER:tt,
@@ -953,7 +954,7 @@ macro_rules! def_ukernel {
 		$unroll:tt,
     	$func_name:ident
 	) => {
-		#[target_feature(enable = "avx")]
+		// #[target_feature(enable = "avx")]
     	pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
