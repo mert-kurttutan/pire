@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 
 use crate::{TA, TB, TC};
+const VS: usize = 8;
 
 use paste::paste;
 macro_rules! beta_fmaddps {
@@ -952,21 +953,38 @@ macro_rules! def_ukernel {
 		$unroll:tt,
     	$func_name:ident
 	) => {
-    	pub(crate) unsafe fn $func_name<F: MyFn>(
+		#[target_feature(enable = "avx")]
+    	pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
         	k: usize,
-        	ldc: usize,
-			ld_arr: [usize; 2],
+			ld_arr: [usize; 4],
+			m: usize, _n: usize,
 			f: F,
     	) {
-        	let k_iter = k / $unroll;
+         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ldc*4, k_iter, k_left];
-			let cf = c;
+            let mut dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ld_arr[3]*4, k_iter, k_left];
+			let mut cf = c;
+			let mut c_buf = [0f32;$mr*$nr];
+			let c_cs = ld_arr[3];
+			if BUF {
+				let c_rs = ld_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..$nr {
+						for i in 0..m {
+							c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
+						}
+					}
+					cf = c_buf.as_mut_ptr();
+					dim_arr[2] = $mr*4;
+				}
+			}
+
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
-			prefetch_c!($mr,$nr,c,ldc);
+			prefetch_c!($mr,$nr,c,c_cs);
+
         	asm!(
             	asm_vzeroall!($VER,$nr),
    	 
@@ -1054,10 +1072,21 @@ macro_rules! def_ukernel {
             	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
             	options(att_syntax)
         	);
+			if BUF {
+				let c_rs = ld_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..$nr {
+						for i in 0..m {
+							*c.add(i*c_rs+j*c_cs) = c_buf[j*$mr+i];
+						}
+					}
+				}
+			}
+
 
 			for j in 0..$nr {
 				for i in 0..$mr/8 {
-					f.call(c.add(i*8+j*ldc), 8);
+					f.call(c.add(i*8+j*c_cs), 8);
 				}
 			}
     	}
@@ -1076,22 +1105,42 @@ macro_rules! def_ukernel_partial {
 		$unroll:tt,
     	$func_name:ident
 	) => {
-    	pub(crate) unsafe fn $func_name<F: MyFn>(
+    	pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
         	k: usize,
-        	ldc: usize,
-			ld_arr: [usize; 2],
-			mask: *const u32,
+			ld_arr: [usize; 4],
+			// mask: *const u32,
+			m: usize, _n: usize,
 			f: F,
     	) {
+			let mask: [u32; 16] = [
+				u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
+				0, 0, 0, 0, 0, 0, 0, 0,
+			];
+			let mask_offset = if m % VS == 0 { 0 } else { VS - (m %VS)};
+			let mask_ptr = mask.as_ptr().add(mask_offset);
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ldc*4, k_iter, k_left];
-			let cf = c;
+            let mut dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ld_arr[3]*4, k_iter, k_left];
+			let mut cf = c;
+			let mut c_buf = [0f32;$mr*$nr];
+			let c_cs = ld_arr[3];
+			if BUF {
+				let c_rs = ld_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..$nr {
+						for i in 0..$mr {
+							c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
+						}
+					}
+					cf = c_buf.as_mut_ptr();
+					dim_arr[2] = $mr*4;
+				}
+			}
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
-			prefetch_c!($mr,$nr,c,ldc);
+			prefetch_c!($mr,$nr,c,c_cs);
         	asm!(
             	asm_vzeroall!($VER,$nr),
    	 
@@ -1171,7 +1220,7 @@ macro_rules! def_ukernel_partial {
             	dim_arrx = inout(reg) dim_arr.as_ptr() => _,
             	alphax = inout(reg) alpha => _,
             	betax = inout(reg) beta => _,
-				maskx = inout(reg) mask => _,
+				maskx = inout(reg) mask_ptr => _,
             	x0 = out(reg) _,
             	x1 = out(reg) _,
             	x2 = out(reg) _,
@@ -1182,10 +1231,19 @@ macro_rules! def_ukernel_partial {
             	out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
             	options(att_syntax)
         	);
-
+			if BUF {
+				let c_rs = ld_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..$nr {
+						for i in 0..$mr {
+							*c.add(i*c_rs+j*c_cs) = c_buf[j*$mr+i];
+						}
+					}
+				}
+			}
 			for j in 0..$nr {
 				for i in 0..$mr/8 {
-					f.call(c.add(i*8+j*ldc), 8);
+					f.call(c.add(i*8+j*c_cs), 8);
 				}
 			}
     	}
@@ -1228,11 +1286,13 @@ group_def_ukernel!(24, 1, 4, B, B, bb_partial, def_ukernel_partial, asm_24x4_ste
 group_def_ukernel!(24, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_24x4_step, asm_24x4_acc, asm_24x4_store, VER24);
 
 
-group_def_ukernel!(16, 1, 4, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+// group_def_ukernel!(16, 1, 4, B, B, bb, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
+// group_def_ukernel!(16, 1, 4, B, S, bs, def_ukernel, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 4, B, B, bb_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 group_def_ukernel!(16, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_16x6_step, asm_16x6_acc, asm_16x6_store, VER16);
 
-group_def_ukernel!(8, 1, 4, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+// group_def_ukernel!(8, 1, 4, B, B, bb, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
+// group_def_ukernel!(8, 1, 4, B, S, bs, def_ukernel, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 group_def_ukernel!(8, 1, 4, B, B, bb_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 group_def_ukernel!(8, 1, 4, B, S, bs_partial, def_ukernel_partial, asm_8x6_step, asm_8x6_acc, asm_8x6_store, VER8);
 

@@ -6,6 +6,12 @@ use seq_macro::seq;
 use super::super::VS;
 
 
+#[target_feature(enable = "avx,avx2")]
+unsafe fn load_v<const N: usize>(a: *const TA) -> __m256i {
+    _mm256_castps_si256(_mm256_broadcast_ss(&*(a as *const f32)))
+}
+
+
 // TODO: optimize axpy for m=1 case,
 // for each loop we use, less than optimal number of registers, less than 16
 // modify so that we use 16 registers for each loop step
