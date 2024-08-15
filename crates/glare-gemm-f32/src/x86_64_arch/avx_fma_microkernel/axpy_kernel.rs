@@ -1,16 +1,10 @@
-
-
 use std::{arch::x86_64::*, ptr::copy_nonoverlapping};
-
 
 use crate::{TA,TB,TC};
 
-
 use super::super::VS;
 
-
 const K_UNROLL: usize = 4;
-
 
 // TODO: optimize axpy for m=1 case,
 // for each loop we use, less than optimal number of registers, less than 16
@@ -38,44 +32,57 @@ pub(crate) unsafe fn acc_store(
 }
 
 #[target_feature(enable = "avx,fma")]
+pub(crate) unsafe fn acc_start<const BETA: usize>(
+    a: *const TA, y: *const TC,
+    xt0: __m256, beta_v: __m256,
+) -> __m256 {
+    if BETA == 1 {
+        _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, _mm256_loadu_ps(y))
+    } else if BETA == 0 {
+        _mm256_mul_ps(_mm256_loadu_ps(a), xt0)
+    } else {
+        let cx0 = _mm256_mul_ps(_mm256_loadu_ps(y), beta_v);
+        _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, cx0)
+    }
+}
+
+#[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
-    m_lane4: usize, m_lane: usize, m: usize,
+    m: usize,
     a: *const TA, lda: usize,
     y: *mut TC,
-    xt0: __m256, xt1: __m256, xt2: __m256, xt3: __m256,
-    x: *const TB,
+    x_cur: *const TB,
+    incx: usize,
     beta_v: __m256,
     beta: f32,
+    alpha: *const f32,
 ) {
+    const K_UNROLL: usize = 4;
+    const MR: usize = 4;
+    let m_lane4 = m / (VS*MR) * VS*MR;
+    let m_lane = m / VS * VS;
     let mut a = a;
     let mut y = y;
     let mut mi = 0usize;
+    let mut xt_arr = [0.0; K_UNROLL];
+    let mut xtv_arr = [_mm256_setzero_ps(); K_UNROLL];
+    for i in 0..K_UNROLL {
+        xt_arr[i] = *alpha * *x_cur.add(i*incx);
+        xtv_arr[i] = _mm256_broadcast_ss(&xt_arr[i]);
+    }
+    let x = xt_arr.as_ptr();
     while mi < m_lane4 {
         seq!(i in 0..4 {
-            let c~i = if BETA == 1 {
-                _mm256_fmadd_ps(_mm256_loadu_ps(a.add(VS*i)), xt0, _mm256_loadu_ps(y.add(VS*i)))
-            } else if BETA == 0 {
-                _mm256_mul_ps(_mm256_loadu_ps(a.add(VS*i)), xt0)
-            } else {
-                let cx~i = _mm256_mul_ps(_mm256_loadu_ps(y.add(VS*i)), beta_v);
-                _mm256_fmadd_ps(_mm256_loadu_ps(a.add(VS*i)), xt0, cx~i)
-            };
-            acc_store(a.add(VS*i), lda, y.add(VS*i), c~i, xt1, xt2, xt3);
+            let c~i = acc_start::<BETA>(a.add(VS*i), y.add(VS*i), xtv_arr[0], beta_v);
+            acc_store(a.add(VS*i), lda, y.add(VS*i), c~i, xtv_arr[1], xtv_arr[2], xtv_arr[3]);
         });
         a = a.add(VS*4);
         y = y.add(VS*4);
         mi += VS*4;
     }
     while mi < m_lane {
-        let c0 = if BETA == 1 {
-            _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, _mm256_loadu_ps(y))
-        } else if BETA == 0 {
-            _mm256_mul_ps(_mm256_loadu_ps(a), xt0)
-        } else {
-            let cx0 = _mm256_mul_ps(_mm256_loadu_ps(y), beta_v);
-            _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, cx0)
-        };
-        acc_store(a, lda, y, c0, xt1, xt2, xt3);
+        let c0 = acc_start::<BETA>(a, y, xtv_arr[0], beta_v);
+        acc_store(a, lda, y, c0, xtv_arr[1], xtv_arr[2], xtv_arr[3]);
         a = a.add(VS);
         y = y.add(VS);
         mi += VS;
@@ -99,27 +106,26 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
 
 #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
-    m_lane4: usize, m_lane: usize, m: usize,
+    m: usize,
     a: *const TA,
     y: *mut TC,
-    xt0: __m256,
-    x: *const TB,
+    x_cur: *const TB,
     beta_v: __m256,
     beta: f32,
+    alpha: *const f32,
 ) {
+    const MR: usize = 4;
+    let m_lane4 = m / (VS*MR) * VS*MR;
+    let m_lane = m / VS * VS;
     let mut a = a;
     let mut y = y;
     let mut mi = 0usize;
+    let xt = *x_cur * *alpha;
+    let x = &xt as *const f32;
+    let xt0 = _mm256_broadcast_ss(&*x);
     while mi < m_lane4 {
         seq!(i in 0..4 {
-            let c~i = if BETA == 1 {
-                _mm256_fmadd_ps(_mm256_loadu_ps(a.add(VS*i)), xt0, _mm256_loadu_ps(y.add(VS*i)))
-            } else if BETA == 0 {
-                _mm256_mul_ps(_mm256_loadu_ps(a.add(VS*i)), xt0)
-            } else {
-                let cx~i = _mm256_mul_ps(_mm256_loadu_ps(y.add(VS*i)), beta_v);
-                _mm256_fmadd_ps(_mm256_loadu_ps(a.add(VS*i)), xt0, cx~i)
-            };
+            let c~i = acc_start::<BETA>(a.add(VS*i), y.add(VS*i), xt0, beta_v);
             _mm256_storeu_ps(y.add(VS*i), c~i);
         });
         a = a.add(VS*4);
@@ -127,14 +133,7 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
         mi += VS*4;
     }
     while mi < m_lane {
-        let c0 = if BETA == 1 {
-            _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, _mm256_loadu_ps(y))
-        } else if BETA == 0 {
-            _mm256_mul_ps(_mm256_loadu_ps(a), xt0)
-        } else {
-            let cx0 = _mm256_mul_ps(_mm256_loadu_ps(y), beta_v);
-            _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, cx0)
-        };
+        let c0 = acc_start::<BETA>(a, y, xt0, beta_v);
         _mm256_storeu_ps(y, c0);
         a = a.add(VS);
         y = y.add(VS);
@@ -166,31 +165,20 @@ pub(crate) unsafe fn axpy_v(
    y: *mut TC,
 ) {
     const K_UNROLL: usize = 4;
-    const MR: usize = 4;
    let mut beta = *beta;
    let beta_v = _mm256_broadcast_ss(&beta);
     let n_lane = n / K_UNROLL * K_UNROLL;
-   let m_lane4 = m / (VS*MR) * VS*MR;
-   let m_lane = m / VS * VS;
 
     let mut ni = 0;
     let mut a_cur = a;
     let mut x_cur = x;
-    let mut xtv_arr = [_mm256_setzero_ps(); K_UNROLL];
-   while ni < n_lane {
-       let mut xt_arr = [0.0; K_UNROLL];
-        for i in 0..K_UNROLL {
-            xt_arr[i] = *alpha * *x_cur.add(i*incx);
-            xtv_arr[i] = _mm256_broadcast_ss(&xt_arr[i]);
-        }
-        let xt = xt_arr.as_ptr();
-
+    while ni < n_lane {
         if beta == 1.0 {
-            axpy_v_inner::<1>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
+            axpy_v_inner::<1>(m, a_cur, lda, y, x_cur, incx, beta_v, beta, alpha);
         } else if beta == 0.0 {
-            axpy_v_inner::<0>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
+            axpy_v_inner::<0>(m, a_cur, lda, y, x_cur, incx, beta_v, beta, alpha);
         } else {
-            axpy_v_inner::<2>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
+            axpy_v_inner::<2>(m, a_cur, lda, y, x_cur, incx, beta_v, beta, alpha);
         }
         a_cur = a_cur.add(lda*K_UNROLL);
         x_cur = x_cur.add(incx*K_UNROLL);
@@ -199,15 +187,12 @@ pub(crate) unsafe fn axpy_v(
    }
 
    while ni < n {
-      let xt = *x_cur * *alpha;
-        let xt_ptr = &xt as *const f32;
-     let xt0 = _mm256_broadcast_ss(&*xt_ptr);
      if beta == 1.0 {
-        axpy_v_inner2::<1>(m_lane4, m_lane, m, a_cur, y, xt0, xt_ptr, beta_v, beta);
+        axpy_v_inner2::<1>(m, a_cur, y, x_cur, beta_v, beta, alpha);
     } else if beta == 0.0 {
-        axpy_v_inner2::<0>(m_lane4, m_lane, m, a_cur, y, xt0, xt_ptr, beta_v, beta);
+        axpy_v_inner2::<0>(m, a_cur, y, x_cur, beta_v, beta, alpha);
     } else {
-        axpy_v_inner2::<2>(m_lane4, m_lane, m, a_cur, y, xt0, xt_ptr, beta_v, beta);
+        axpy_v_inner2::<2>(m, a_cur, y, x_cur, beta_v, beta, alpha);
     }
      a_cur = a_cur.add(lda);
      x_cur = x_cur.add(incx);

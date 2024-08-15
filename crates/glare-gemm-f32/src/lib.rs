@@ -359,6 +359,25 @@ mod tests {
     	}
 	}
 	#[test]
+	fn test_nn_col() {
+    	test_gemm(&Layout::NN, false, false);
+	}
+
+	#[test]
+	fn test_nt_col() {
+    	test_gemm(&Layout::NT, false, false);
+	}
+
+	#[test]
+	fn test_tn_col() {
+    	test_gemm(&Layout::TN, false, false);
+	}
+
+	#[test]
+	fn test_tt_col() {
+    	test_gemm(&Layout::TT, false, false);
+	}
+	#[test]
 	fn test_nn_col_ap() {
     	test_gemm(&Layout::NN, true, false);
 	}
@@ -389,25 +408,6 @@ mod tests {
 	#[test]
 	fn test_tt_col_bp() {
     	test_gemm(&Layout::TT, false, true);
-	}
-	#[test]
-	fn test_nn_col() {
-    	test_gemm(&Layout::NN, false, false);
-	}
-
-	#[test]
-	fn test_nt_col() {
-    	test_gemm(&Layout::NT, false, false);
-	}
-
-	#[test]
-	fn test_tn_col() {
-    	test_gemm(&Layout::TN, false, false);
-	}
-
-	#[test]
-	fn test_tt_col() {
-    	test_gemm(&Layout::TT, false, false);
 	}
 
 	#[test]
