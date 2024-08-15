@@ -1366,7 +1366,6 @@ fn test_gemm_s8u8s32(
     let mut c = vec![0_i32; m * n];
     random_matrix_uniform(m, k, &mut a, m);
     random_matrix_uniform(k, n, &mut b, k);
-    // println!("a: {:?}", a);
     let mut c_ref = vec![0_i32; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -1393,8 +1392,8 @@ fn test_gemm_s8u8s32(
                 &mut c_ref
             )
         };
-        println!("c: {:?}", c);
-        println!("c_ref: {:?}", c_ref);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }
 

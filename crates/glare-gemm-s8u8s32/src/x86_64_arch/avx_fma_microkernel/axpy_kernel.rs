@@ -1,6 +1,7 @@
 use std::arch::x86_64::*;
 
 use crate::{TA,TB,TC};
+use seq_macro::seq;
 
 use super::super::VS;
 
@@ -10,114 +11,174 @@ use super::super::VS;
 // modify so that we use 16 registers for each loop step
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave(
-    a: *const TA, lda: usize,
+pub(crate) unsafe fn interleave<const PARTIAL: bool>(
+    a: *const TA, lda: usize, kl: usize,
 ) -> (__m256i, __m256i) {
-    let a0 = _mm256_loadu_si256(a as *const __m256i);
-    let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
-    let t0 = _mm256_unpacklo_epi16(a0, b0);
-    let t1 = _mm256_unpackhi_epi16(a0, b0);
-    let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-    let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-    (a0, b0)
+
+    let (a0, b0, c0, d0) = if PARTIAL {
+        let mut a0 = if kl > 0 { _mm256_castsi128_si256(_mm_loadu_si128(a as *const __m128i)) } else { _mm256_setzero_si256() };
+        let mut b0 = if kl > 1 { _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda) as *const __m128i)) } else { _mm256_setzero_si256() };
+        let mut c0 = if kl > 2 { _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda*2) as *const __m128i)) } else { _mm256_setzero_si256() };
+        let mut d0 = if kl > 3 { _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda*3) as *const __m128i)) } else { _mm256_setzero_si256() };
+        (a0, b0, c0, d0)
+    } else {
+        (
+            _mm256_castsi128_si256(_mm_loadu_si128(a as *const __m128i)),
+            _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda) as *const __m128i)),
+            _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda*2) as *const __m128i)),
+            _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda*3) as *const __m128i))
+        )
+    };
+
+    let t0 = _mm256_unpacklo_epi8(a0, b0);
+    let t1 = _mm256_unpackhi_epi8(a0, b0);
+    
+    let p0 = _mm256_unpacklo_epi8(c0, d0);
+    let p1 = _mm256_unpackhi_epi8(c0, d0);
+
+    let d0 = _mm256_unpacklo_epi16(t0, p0);
+    let d1 = _mm256_unpackhi_epi16(t0, p0);
+
+    let e0 = _mm256_unpacklo_epi16(t1, p1);
+    let e1 = _mm256_unpackhi_epi16(t1, p1);
+
+    let d1 = _mm256_castsi256_si128(d1);
+    let e1 = _mm256_castsi256_si128(e1);
+    let d0 = _mm256_insertf128_si256(d0,d1,0x1);
+    let e0 = _mm256_insertf128_si256(e0,e1,0x1);
+
+    (d0,e0)
+
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave2(
-    a: *const TA,
-) -> (__m256i, __m256i) {
-    let a0 = _mm256_loadu_si256(a as *const __m256i);
-    let b0 = _mm256_setzero_si256();
-    let t0 = _mm256_unpacklo_epi16(a0, b0);
-    let t1 = _mm256_unpackhi_epi16(a0, b0);
-    let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-    let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-    (a0, b0)
-}
-
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave_single(
-    a: *const TA, lda: usize,
+pub(crate) unsafe fn interleave_single<const PARTIAL: bool>(
+    a: *const TA, lda: usize, kl: usize,
 ) -> __m256i {
-    let a0 = _mm256_castsi128_si256(_mm_loadu_si128(a as *const __m128i));
-    let b0 = _mm256_castsi128_si256(_mm_loadu_si128(a.add(lda) as *const __m128i));
-    let t0 = _mm256_unpacklo_epi16(a0, b0);
-    let t1 = _mm256_unpackhi_epi16(a0, b0);
-    let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-    a0
+
+    let (a0, b0, c0, d0) = if PARTIAL {
+        let mut a0 = if kl > 0 { load_v::<8>(a) } else { _mm256_setzero_si256() };
+        let mut b0 = if kl > 1 { load_v::<8>(a.add(lda)) } else { _mm256_setzero_si256() };
+        let mut c0 = if kl > 2 { load_v::<8>(a.add(lda*2)) } else { _mm256_setzero_si256() };
+        let mut d0 = if kl > 3 { load_v::<8>(a.add(lda*3)) } else { _mm256_setzero_si256() };
+        (a0, b0, c0, d0)
+    } else {
+        (
+            load_v::<8>(a),
+            load_v::<8>(a.add(lda)),
+            load_v::<8>(a.add(lda*2)),
+            load_v::<8>(a.add(lda*3))
+        )
+    };
+
+    let t0 = _mm256_unpacklo_epi8(a0, b0);
+    
+    let p0 = _mm256_unpacklo_epi8(c0, d0);
+
+    let d0 = _mm256_unpacklo_epi16(t0, p0);
+    let d1 = _mm256_unpackhi_epi16(t0, p0);
+
+    let d1 = _mm256_castsi256_si128(d1);
+    let d0 = _mm256_insertf128_si256(d0,d1,0x1);
+
+    d0
 }
 
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave_single2(
-    a: *const TA,
+#[target_feature(enable = "avx,fma,avx2")]
+unsafe fn fmadd(a: __m256i, b: __m256i, c: __m256i, one_v: __m256i) -> __m256i {
+    let mut x = _mm256_maddubs_epi16(b, a);
+    x = _mm256_madd_epi16(x, one_v);
+    _mm256_add_epi32(x, c)
+}
+
+#[target_feature(enable = "avx,fma,avx2")]
+unsafe fn beta_store<const BETA: usize>(
+    dst: *mut TC,
+    acc_v: __m256i, beta_v: __m256,
+) {
+    if BETA == 0 {
+        _mm256_storeu_si256(dst as *mut __m256i, acc_v);
+    } else if BETA == 1 {
+        let acc_v = _mm256_add_epi32(acc_v, _mm256_loadu_si256(dst as *const __m256i));
+        _mm256_storeu_si256(dst as *mut __m256i, acc_v);
+    } else {
+        let dst_v = _mm256_cvtepi32_ps(_mm256_loadu_si256(dst as *const __m256i));
+        let acc_v = _mm256_cvtepi32_ps(acc_v);
+        let acc_v = _mm256_fmadd_ps(dst_v, beta_v, acc_v);
+        _mm256_storeu_si256(dst as *mut __m256i, _mm256_cvtps_epi32(acc_v));
+    }
+}
+
+#[target_feature(enable = "avx,fma,avx2")]
+unsafe fn load_b(
+    b: *const TB
 ) -> __m256i {
-    let a0 = _mm256_castsi128_si256(_mm_loadu_si128(a as *const __m128i));
-    let b0 = _mm256_setzero_si256();
-    let t0 = _mm256_unpacklo_epi16(a0, b0);
-    let t1 = _mm256_unpackhi_epi16(a0, b0);
-    let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-    // let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-    a0
+    _mm256_castps_si256(_mm256_broadcast_ss(&*(b as *const f32)))
 }
-
 
 #[target_feature(enable = "avx,fma,avx2")]
 pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     m_lane4: usize, m_lane: usize, m: usize,
     a: *const TA, lda: usize,
     y: *mut TC,
-    xt0: __m256i, xt1: __m256i, 
-    xt2: __m256i, xt3: __m256i,
-    x: *const TB,
-    beta_v: __m256,
+    x_cur: *const TB,
     beta: f32,
+    alpha: *const f32,
+    incx: usize,
 ) {
+    let beta_v = _mm256_broadcast_ss(&beta);
+    let one_v = _mm256_set1_epi16(1_i16);
+    const K_UNROLL: usize = 4;
+    let mut xt_arr = [0_u8; K_UNROLL*4];
+    let is_alpha_one = *alpha == 1.0;
+    for i in 0..K_UNROLL {
+        if is_alpha_one {
+            xt_arr[4*i] = *x_cur.add(i*incx*4);
+            xt_arr[4*i+1] = *x_cur.add((i*4+1)*incx);
+            xt_arr[4*i+2] = *x_cur.add((i*4+2)*incx);
+            xt_arr[4*i+3] = *x_cur.add((i*4+3)*incx);
+        } else {
+            xt_arr[4*i] = (*x_cur.add(i*incx*4) as f32 * *alpha) as u8;
+            xt_arr[4*i+1] = (*x_cur.add((i*4+1)*incx) as f32 * *alpha) as u8;
+            xt_arr[4*i+2] = (*x_cur.add((i*4+2)*incx) as f32 * *alpha) as u8;
+            xt_arr[4*i+3] = (*x_cur.add((i*4+3)*incx) as f32 * *alpha) as u8;
+        }
+    }
+    let xt0 = load_b(xt_arr.as_ptr());
+    let xt1 = load_b(xt_arr.as_ptr().add(4));
+    let xt2 = load_b(xt_arr.as_ptr().add(8));
+    let xt3 = load_b(xt_arr.as_ptr().add(12));
+    
+    let x = xt_arr.as_ptr();
+
     let mut a = a;
     let mut y = y;
     let mut mi = 0usize;
     while mi < m_lane4 {
         seq!(i in 0..2 {
-            let (a0, b0) = interleave(a.add(VS*i*2), lda);
-            let (q0, p0) = interleave(a.add(lda*2+VS*i*2), lda);
-            let (q10, p10) = interleave(a.add(lda*4+VS*i*2), lda);
-            let (q20, p20) = interleave(a.add(lda*6+VS*i*2), lda);
+            let (a0, b0) = interleave::<false>(a.add(VS*i*2), lda, 4);
+            let (q0, p0) = interleave::<false>(a.add(lda*4+VS*i*2), lda, 4);
+            let (q10, p10) = interleave::<false>(a.add(lda*8+VS*i*2), lda, 4);
+            let (q20, p20) = interleave::<false>(a.add(lda*12+VS*i*2), lda, 4);
             let c~i = {
-                let mut acc~i = _mm256_madd_epi16(a0, xt0);
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(q0, xt1));
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(q10, xt2));
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(q20, xt3));
+                let mut acc~i = _mm256_maddubs_epi16(xt0, a0);
+                acc~i = _mm256_madd_epi16(acc~i, one_v);
+                acc~i = fmadd(q0, xt1, acc~i, one_v);
+                acc~i = fmadd(q10, xt2, acc~i, one_v);
+                acc~i = fmadd(q20, xt3, acc~i, one_v);
                 acc~i
             };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
+            beta_store::<BETA>(y.add(VS*i*2), c~i, beta_v);
 
             let c~i = {
-                let mut acc~i = _mm256_madd_epi16(b0, xt0);
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(p0, xt1));
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(p10, xt2));
-                acc~i = _mm256_add_epi32(acc~i, _mm256_madd_epi16(p20, xt3));
+                let mut acc~i = _mm256_maddubs_epi16(xt0, b0);
+                acc~i = _mm256_madd_epi16(acc~i, one_v);
+                acc~i = fmadd(p0, xt1, acc~i, one_v);
+                acc~i = fmadd(p10, xt2, acc~i, one_v);
+                acc~i = fmadd(p20, xt3, acc~i, one_v);
                 acc~i
             };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
+            beta_store::<BETA>(y.add(VS*i*2+VS), c~i, beta_v);
         });
         a = a.add(VS*4);
         y = y.add(VS*4);
@@ -125,74 +186,48 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     }
 
     while mi < m_lane / (VS*2) * (VS*2) {
-        let (a0, b0) = interleave(a, lda);
-        let (q0, p0) = interleave(a.add(lda*2), lda);
-        let (q10, p10) = interleave(a.add(lda*4), lda);
-        let (q20, p20) = interleave(a.add(lda*6), lda);
+        let (a0, b0) = interleave::<false>(a, lda, 4);
+        let (q0, p0) = interleave::<false>(a.add(lda*4), lda, 4);
+        let (q10, p10) = interleave::<false>(a.add(lda*8), lda, 4);
+        let (q20, p20) = interleave::<false>(a.add(lda*12), lda, 4);
         let c0 = {
-            let mut acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q0, xt1));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q10, xt2));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q20, xt3));
+            let mut acc0 = _mm256_maddubs_epi16(xt0, a0);
+            acc0 = _mm256_madd_epi16(acc0, one_v);
+            acc0 = fmadd(q0, xt1, acc0, one_v);
+            acc0 = fmadd(q10, xt2, acc0, one_v);
+            acc0 = fmadd(q20, xt3, acc0, one_v);
             acc0
         };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        beta_store::<BETA>(y, c0, beta_v);
 
         let c0 = {
-            let mut acc0 = _mm256_madd_epi16(b0, xt0);
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(p0, xt1));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(p10, xt2));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(p20, xt3));
+            let mut acc0 =_mm256_maddubs_epi16(xt0, b0);
+            acc0 = _mm256_madd_epi16(acc0, one_v);
+            acc0 = fmadd(p0, xt1, acc0, one_v);
+            acc0 = fmadd(p10, xt2, acc0, one_v);
+            acc0 = fmadd(p20, xt3, acc0, one_v);
             acc0
         };
-        if BETA == 0 {
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y.add(VS) as *const __m256i));
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS) as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        beta_store::<BETA>(y.add(VS), c0, beta_v);
+
         a = a.add(VS*2);
         y = y.add(VS*2);
         mi += VS*2;
     }
     while mi < m_lane {
-        let a0 = interleave_single(a, lda);
-        let q0 = interleave_single(a.add(lda*2), lda);
-        let q10 = interleave_single(a.add(lda*4), lda);
-        let q20 = interleave_single(a.add(lda*6), lda);
+        let a0 = interleave_single::<false>(a, lda, 4);
+        let q0 = interleave_single::<false>(a.add(lda*4), lda, 4);
+        let q10 = interleave_single::<false>(a.add(lda*8), lda, 4);
+        let q20 = interleave_single::<false>(a.add(lda*12), lda, 4);
         let c0 = {
-            let mut acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q0, xt1));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q10, xt2));
-            acc0 = _mm256_add_epi32(acc0, _mm256_madd_epi16(q20, xt3));
+            let mut acc0 = _mm256_maddubs_epi16(xt0, a0);
+            acc0 = _mm256_madd_epi16(acc0, one_v);
+            acc0 = fmadd(q0, xt1, acc0, one_v);
+            acc0 = fmadd(q10, xt2, acc0, one_v);
+            acc0 = fmadd(q20, xt3, acc0, one_v);
             acc0
         };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        beta_store::<BETA>(y, c0, beta_v);
 
         a = a.add(VS);
         y = y.add(VS);
@@ -206,13 +241,9 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
         } else {
             *y = ((*a as f32) * (*x as f32) + *y as f32 * beta) as i32;
         }
-        *y = (*a.add(lda) as i32) * (*x.add(1) as i32) + *y;
-        *y = (*a.add(lda*2) as i32) * (*x.add(2) as i32) + *y;
-        *y = (*a.add(lda*3) as i32) * (*x.add(3) as i32) + *y;
-        *y = (*a.add(lda*4) as i32) * (*x.add(4) as i32) + *y;
-        *y = (*a.add(lda*5) as i32) * (*x.add(5) as i32) + *y;
-        *y = (*a.add(lda*6) as i32) * (*x.add(6) as i32) + *y;
-        *y = (*a.add(lda*7) as i32) * (*x.add(7) as i32) + *y;
+        seq!(i in 1..16 {
+            *y = (*a.add(lda*i) as i32) * (*x.add(i) as i32) + *y;
+        });
         a = a.add(1);
         y = y.add(1);
         mi += 1;
@@ -220,52 +251,42 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
 }
 
 #[target_feature(enable = "avx,fma,avx2")]
-pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
+pub(crate) unsafe fn axpy_v_inner2<const BETA: usize, const PARTIAL: bool>(
     m_lane4: usize, m_lane: usize, m: usize,
     a: *const TA, lda: usize,
     y: *mut TC,
-    xt0: __m256i,
-    x: *const TB,
-    beta_v: __m256,
+    x_cur: *const TB,
     beta: f32,
+    alpha: *const f32,
+    incx: usize,
+    kl: usize,
 ) {
+    let beta_v = _mm256_broadcast_ss(&beta);
+    const K_UNROLL: usize = 1;
+    let mut xt_arr = [0_u8; K_UNROLL*4];
+    let is_alpha_one = *alpha == 1.0;
+    for i in 0..K_UNROLL {
+        if is_alpha_one {
+            xt_arr[2*i] = *x_cur.add(i*incx*2);
+            xt_arr[2*i+1] = *x_cur.add((i*2+1)*incx);
+        } else {
+            xt_arr[2*i] = (*x_cur.add(i*incx*2) as f32 * *alpha) as u8;
+            xt_arr[2*i+1] = (*x_cur.add((i*2+1)*incx) as f32 * *alpha) as u8;
+        }
+    }
+    let xt0 = load_b(xt_arr.as_ptr());
+    let x = xt_arr.as_ptr();
     let mut a = a;
     let mut y = y;
     let mut mi = 0usize;
     while mi < m_lane4 {
         seq!(i in 0..2 {
-            let (a0, b0) = interleave(a.add(VS*i*2), lda);
-            let c~i = {
-                let acc~i = _mm256_madd_epi16(a0, xt0);
-                acc~i
-            };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
+            let (a0, b0) = interleave::<PARTIAL>(a.add(VS*i*2), lda, kl);
+            let c~i = _mm256_madd_epi16(a0, xt0);
+            beta_store::<BETA>(y.add(VS*i*2), c~i, beta_v);
 
-            let c~i = {
-                let acc~i = _mm256_madd_epi16(b0, xt0);
-                acc~i
-            };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
+            let c~i = _mm256_madd_epi16(b0, xt0);
+            beta_store::<BETA>(y.add(VS*i*2+VS), c~i, beta_v);
         });
         a = a.add(VS*4);
         y = y.add(VS*4);
@@ -273,59 +294,20 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
     }
 
     while mi < m_lane / (VS*2) * (VS*2) {
-        let (a0, b0) = interleave(a, lda);
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        let (a0, b0) = interleave::<PARTIAL>(a, lda, kl);
+        let c0 = _mm256_madd_epi16(a0, xt0);
+        beta_store::<BETA>(y, c0, beta_v);
 
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(b0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y.add(VS) as *const __m256i));
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS) as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        let c0 = _mm256_madd_epi16(b0, xt0);
+        beta_store::<BETA>(y.add(VS), c0, beta_v);
         a = a.add(VS*2);
         y = y.add(VS*2);
         mi += VS*2;
     }
     while mi < m_lane {
-        let a0 = interleave_single(a, lda);
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
+        let a0 = interleave_single::<PARTIAL>(a, lda, kl);
+        let c0 = _mm256_madd_epi16(a0, xt0);
+        beta_store::<BETA>(y, c0, beta_v);
 
         a = a.add(VS);
         y = y.add(VS);
@@ -339,134 +321,8 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
         } else {
             *y = ((*a as f32) * (*x as f32) + *y as f32 * beta) as i32;
         }
-        *y = (*a.add(lda) as i32) * (*x.add(1) as i32) + *y;
-        a = a.add(1);
-        y = y.add(1);
-        mi += 1;
-    }
-}
-
-
-
-#[target_feature(enable = "avx,fma,avx2")]
-pub(crate) unsafe fn axpy_v_inner3<const BETA: usize>(
-    m_lane4: usize, m_lane: usize, m: usize,
-    a: *const TA,
-    y: *mut TC,
-    xt0: __m256i,
-    x: *const TB,
-    beta_v: __m256,
-    beta: f32,
-) {
-    let mut a = a;
-    let mut y = y;
-    let mut mi = 0usize;
-    while mi < m_lane4 {
-        seq!(i in 0..2 {
-            let (a0, b0) = interleave2(a.add(VS*i*2));
-            let c~i = {
-                let acc~i = _mm256_madd_epi16(a0, xt0);
-                acc~i
-            };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
-
-            let c~i = {
-                let acc~i = _mm256_madd_epi16(b0, xt0);
-                acc~i
-            };
-            if BETA == 0 {
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else if BETA == 1 {
-                let c~i = _mm256_add_epi32(c~i, _mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, c~i);
-            } else {
-                let cx~i = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS*i*2+VS) as *const __m256i));
-                let c~i = _mm256_cvtepi32_ps(c~i);
-                let c~i = _mm256_fmadd_ps(cx~i, beta_v, c~i);
-                _mm256_storeu_si256(y.add(VS*i*2+VS) as *mut __m256i, _mm256_cvtps_epi32(c~i));
-            }
-        });
-        a = a.add(VS*4);
-        y = y.add(VS*4);
-        mi += VS*4;
-    }
-
-    while mi < m_lane / (VS*2) * (VS*2) {
-        let (a0, b0) = interleave2(a);
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
-
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(b0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y.add(VS) as *const __m256i));
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y.add(VS) as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y.add(VS) as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
-        a = a.add(VS*2);
-        y = y.add(VS*2);
-        mi += VS*2;
-    }
-    while mi < m_lane {
-        let a0 = interleave_single2(a);
-        let c0 = {
-            let acc0 = _mm256_madd_epi16(a0, xt0);
-            acc0
-        };
-        if BETA == 0 {
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else if BETA == 1 {
-            let c0 = _mm256_add_epi32(c0, _mm256_loadu_si256(y as *const __m256i));
-            _mm256_storeu_si256(y as *mut __m256i, c0);
-        } else {
-            let cx0 = _mm256_cvtepi32_ps(_mm256_loadu_si256(y as *const __m256i));
-            let c0 = _mm256_cvtepi32_ps(c0);
-            let c0 = _mm256_fmadd_ps(cx0, beta_v, c0);
-            _mm256_storeu_si256(y as *mut __m256i, _mm256_cvtps_epi32(c0));
-        }
-
-        a = a.add(VS);
-        y = y.add(VS);
-        mi += VS;
-    }
-    while mi < m {
-        if BETA == 1 {
-            *y = (*a as i32) * (*x as i32) + *y;
-        } else if BETA == 0 {
-            *y = (*a as i32) * (*x as i32);
-        } else {
-            *y = ((*a as f32) * (*x as f32) + *y as f32 * beta) as i32;
+        for i in 1..kl {
+            *y = (*a.add(lda*i) as i32) * (*x.add(i) as i32) + *y;
         }
         a = a.add(1);
         y = y.add(1);
@@ -485,96 +341,58 @@ pub(crate) unsafe fn axpy_v(
    beta: *const f32,
    y: *mut TC,
 ) {
-//     const K_UNROLL: usize = 4;
-//     const MR: usize = 4;
-//    let mut beta = *beta;
-//    let beta_v = _mm256_broadcast_ss(&beta);
-//     let n_lane = n / (K_UNROLL*2) * (K_UNROLL*2);
-//    let m_lane4 = m / (VS*MR) * VS*MR;
-//    let m_lane = m / VS * VS;
+    const K_UNROLL: usize = 4;
+    const MR: usize = 4;
+   let mut beta = *beta;
+    let n_lane = n / (K_UNROLL*4) * (K_UNROLL*4);
+   let m_lane4 = m / (VS*MR) * VS*MR;
+   let m_lane = m / VS * VS;
 
-//     let mut ni = 0;
-//     let mut a_cur = a;
-//     let mut x_cur = x;
-//     let mut xtv_arr = [_mm256_setzero_si256(); K_UNROLL];
-//     let is_alpha_one = *alpha == 1.0;
-//    while ni < n_lane {
-//        let mut xt_arr = [0_i16; K_UNROLL*2];
-//        if is_alpha_one {
-//            for i in 0..K_UNROLL {
-//                xt_arr[2*i] = *x_cur.add(i*incx*2);
-//                 xt_arr[2*i+1] = *x_cur.add((i*2+1)*incx);
-//                xtv_arr[i] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr().add(2*i) as *const f32)));
-//            }
-//         } else {
-//             for i in 0..K_UNROLL {
-//                 xt_arr[2*i] = (*x_cur.add(i*incx*2) as f32 * *alpha) as i16;
-//                 xt_arr[2*i+1] = (*x_cur.add((i*2+1)*incx) as f32 * *alpha) as i16;
-//                 xtv_arr[i] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr().add(2*i) as *const f32)));
-//             }
-//         }
+    let mut ni = 0;
+    let mut a_cur = a;
+    let mut x_cur = x;
+    let mut inner_v1 = if beta == 1.0 {
+        axpy_v_inner::<1>
+    } else if beta == 0.0 {
+        axpy_v_inner::<0>
+    } else {
+        axpy_v_inner::<2>
+    };
+    let mut inner_v2 = if beta == 1.0 {
+        axpy_v_inner2::<1,false>
+    } else if beta == 0.0 {
+        axpy_v_inner2::<0,false>
+    } else {
+        axpy_v_inner2::<2,false>
+    };
+    let mut inner_v3 = if beta == 1.0 {
+        axpy_v_inner2::<1,true>
+    } else if beta == 0.0 {
+        axpy_v_inner2::<0,true>
+    } else {
+        axpy_v_inner2::<2,true>
+    };
+   while ni < n_lane {
+        inner_v1(m_lane4, m_lane, m, a_cur, lda, y, x_cur, beta, alpha, incx);
+        a_cur = a_cur.add(lda*K_UNROLL*4);
+        x_cur = x_cur.add(incx*K_UNROLL*4);
+       beta = 1.0;
+       inner_v1 = axpy_v_inner::<1>;
+       inner_v2 = axpy_v_inner2::<1,false>;
+       inner_v3 = axpy_v_inner2::<1,true>;
+       ni += K_UNROLL*4;
+   }
 
-//         let xt = xt_arr.as_ptr();
-
-//         if beta == 1.0 {
-//             axpy_v_inner::<1>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
-//         } else if beta == 0.0 {
-//             axpy_v_inner::<0>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
-//         } else {
-//             axpy_v_inner::<2>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta);
-//         }
-//         a_cur = a_cur.add(lda*K_UNROLL*2);
-//         x_cur = x_cur.add(incx*K_UNROLL*2);
-//        beta = 1.0;
-//        ni += K_UNROLL*2;
-//    }
-
-//    while ni < (n / 2) *2 {
-//         let mut xt_arr = [0_i16; 2];
-//         if is_alpha_one {
-//             xt_arr[0] = *x_cur;
-//             xt_arr[1] = *x_cur.add(incx);
-//             xtv_arr[0] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr() as *const f32)));
-//         } else {
-//             xt_arr[0] = (*x_cur as f32 * *alpha) as i16;
-//             xt_arr[1] = (*x_cur.add(incx) as f32 * *alpha) as i16;
-//             xtv_arr[0] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr() as *const f32)));
-//         }
-
-//         let xt = xt_arr.as_ptr();
-
-//         if beta == 1.0 {
-//             axpy_v_inner2::<1>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xt, beta_v, beta);
-//         } else if beta == 0.0 {
-//             axpy_v_inner2::<0>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xt, beta_v, beta);
-//         } else {
-//             axpy_v_inner2::<2>(m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xt, beta_v, beta);
-//         }
-//         a_cur = a_cur.add(lda*2);
-//         x_cur = x_cur.add(incx*2);
-//         beta = 1.0;
-//         ni += 2;
-//     }
-//     if n % 2 != 0 {
-//         let mut xt_arr = [0_i16; 2];
-//         if is_alpha_one {
-//             xt_arr[0] = *x_cur;
-//             xtv_arr[0] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr() as *const f32)));
-//         } else {
-//             xt_arr[0] = (*x_cur as f32 * *alpha) as i16;
-//             xtv_arr[0] = _mm256_castps_si256(_mm256_broadcast_ss(&*(xt_arr.as_ptr() as *const f32)));
-//         }
-
-//         let xt = xt_arr.as_ptr();
-
-//         if beta == 1.0 {
-//             axpy_v_inner3::<1>(m_lane4, m_lane, m, a_cur, y, xtv_arr[0], xt, beta_v, beta);
-//         } else if beta == 0.0 {
-//             axpy_v_inner3::<0>(m_lane4, m_lane, m, a_cur, y, xtv_arr[0], xt, beta_v, beta);
-//         } else {
-//             axpy_v_inner3::<2>(m_lane4, m_lane, m, a_cur, y, xtv_arr[0], xt, beta_v, beta);
-//         }
-//     }
+   while ni < (n / 4) * 4 {
+        inner_v2(m_lane4, m_lane, m, a_cur, lda, y, x_cur, beta, alpha, incx, 4);
+        a_cur = a_cur.add(lda*4);
+        x_cur = x_cur.add(incx*4);
+        beta = 1.0;
+        inner_v2 = axpy_v_inner2::<1,false>;
+        inner_v3 = axpy_v_inner2::<1,true>;
+        ni += 4;
+    }
+    if n % 4 != 0 {
+        inner_v3(m_lane4, m_lane, m, a_cur, lda, y, x_cur, beta, alpha, incx, n % 4);
+    }
 }
-
-use seq_macro::seq;

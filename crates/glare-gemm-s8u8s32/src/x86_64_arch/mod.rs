@@ -210,10 +210,10 @@ unsafe fn glare_gemv2<F:MyFn>(
     let inc_x = x.rs();
     let y_ptr   = y.data_ptr();
     let incy = y.rs();
-    // if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-    //     avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
-    //     return;
-    // }
+    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+        avx_fma_microkernel::axpy2(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        return;
+    }
 }
 
 type I8Pack = PArray<i8>;
