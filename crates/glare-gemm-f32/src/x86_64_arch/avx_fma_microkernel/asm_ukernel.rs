@@ -232,19 +232,19 @@ macro_rules! asm_init_ab {
 			"/* {x3} */", "\n",
 			"/* {x2} */", "\n",
 			"/* {x1} */", "\n",
-        	"mov 24({int_arrx}),{x0}", "\n",
+        	"mov 24({dim_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
 	};
 	($ker:tt,B,S) => {
     	concat!(
         	// mov cs_b to reg
-			"mov ({int_arrx}), {x1}", "\n",
-        	"mov 8({int_arrx}), {x2}", "\n",
+			"mov ({dim_arrx}), {x1}", "\n",
+        	"mov 8({dim_arrx}), {x2}", "\n",
         	"lea ({x2}, {x2}, 2), {x3}", "\n",
         	"lea ({bx}, {x3}, 1), {x3}", "\n",
 
-        	"mov 24({int_arrx}),{x0}", "\n",
+        	"mov 24({dim_arrx}),{x0}", "\n",
         	"test {x0},{x0}", "\n",
     	)
 	};
@@ -254,44 +254,38 @@ macro_rules! asm_init_ab {
 macro_rules! asm_c_load {
 	(6) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
 	};
 	(5) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
 	};
 	(4) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}", "\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
 	};
 	(3) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}", "\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
     	)
 	};
 	(2) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
     	)
 	};
 	(1) => {
     	concat!(
-        	"mov 16({int_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
+        	"mov 16({dim_arrx}),{x0}", "\n",
     	)
 	};
 }
@@ -750,34 +744,22 @@ macro_rules! fmadd_2v {
 
 macro_rules! fmadd_1v {
 	(0) => {
-		concat!(
-			vfmadd231ps!(0, 1, 7),
-		)
+		concat!(vfmadd231ps!(0, 1, 7))
 	};
 	(1) => {
-		concat!(
-			vfmadd231ps!(0, 2, 8),
-		)
+		concat!(vfmadd231ps!(0, 2, 8))
 	};
 	(2) => {
-		concat!(
-			vfmadd231ps!(0, 3, 9),
-		)
+		concat!(vfmadd231ps!(0, 3, 9))
 	};
 	(3) => {
-		concat!(
-			vfmadd231ps!(0, 4, 10),
-		)
+		concat!(vfmadd231ps!(0, 4, 10))
 	};
 	(4) => {
-		concat!(
-			vfmadd231ps!(0, 5, 11),
-		)
+		concat!(vfmadd231ps!(0, 5, 11))
 	};
 	(5) => {
-		concat!(
-			vfmadd231ps!(0, 6, 12),
-		)
+		concat!(vfmadd231ps!(0, 6, 12))
 	};
 }
 
@@ -980,8 +962,7 @@ macro_rules! def_ukernel {
     	) {
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
+            let dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ldc*4, k_iter, k_left];
 			let cf = c;
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
@@ -1017,7 +998,7 @@ macro_rules! def_ukernel {
 
             	// 3 -> CONSIDKLEFT
             	"3:",
-            	"mov 32({int_arrx}),{x0}",
+            	"mov 32({dim_arrx}),{x0}",
             	"test {x0},{x0}",
 
             	// 5 -> POSTACCUM
@@ -1060,7 +1041,7 @@ macro_rules! def_ukernel {
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
-            	int_arrx = inout(reg) u64_ptr => _,
+            	dim_arrx = inout(reg) dim_arr.as_ptr() => _,
             	alphax = inout(reg) alpha => _,
             	betax = inout(reg) beta => _,
             	x0 = out(reg) _,
@@ -1106,8 +1087,7 @@ macro_rules! def_ukernel_partial {
     	) {
         	let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let u64_arr = [ld_arr[0], ld_arr[1], ldc, k_iter, k_left];
-        	let u64_ptr = u64_arr.as_ptr();
+            let dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ldc*4, k_iter, k_left];
 			let cf = c;
 			// prefetch for c
 			use std::arch::x86_64::_mm_prefetch;
@@ -1143,7 +1123,7 @@ macro_rules! def_ukernel_partial {
 
             	// 3 -> CONSIDKLEFT
             	"3:",
-            	"mov 32({int_arrx}),{x0}",
+            	"mov 32({dim_arrx}),{x0}",
             	"test {x0},{x0}",
 
             	// 5 -> POSTACCUM
@@ -1188,7 +1168,7 @@ macro_rules! def_ukernel_partial {
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
-            	int_arrx = inout(reg) u64_ptr => _,
+            	dim_arrx = inout(reg) dim_arr.as_ptr() => _,
             	alphax = inout(reg) alpha => _,
             	betax = inout(reg) beta => _,
 				maskx = inout(reg) mask => _,

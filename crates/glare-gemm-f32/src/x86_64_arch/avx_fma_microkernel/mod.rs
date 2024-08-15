@@ -290,7 +290,7 @@ macro_rules! def_kernel_bs {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [b_rs*4, b_cs*4];
+                let ld_arr = [b_rs, b_cs];
                 // use blocking since rrc kernel is hard to implement to current macro choices
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -396,7 +396,7 @@ macro_rules! def_kernel_sb {
                 
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
-                let ld_arr = [0*4, 0*4];
+                let ld_arr = [0, 0];
                 let ap_cur = ap_buf;
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
