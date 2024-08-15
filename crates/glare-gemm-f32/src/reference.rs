@@ -1,5 +1,3 @@
-const VS: usize = 8; // vector size in float, __m256
-
 use glare_base::split_c_range;
 use glare_base::split_range;
 use glare_base::def_glare_gemm;
@@ -102,7 +100,7 @@ T: MyFn = NullFn
 
 impl<F: MyFn> RefGemm<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
-        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = (24, 4);
         Self { 
             mc, nc, kc, mr, nr, 

@@ -87,7 +87,7 @@ fn detect_hw_config() -> HWConfig {
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        let avx512f = extended_feature_info.has_avx512f() && false;
+        let avx512f = extended_feature_info.has_avx512f();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
@@ -164,7 +164,7 @@ pub(crate) mod cpu_features{
     pub fn hw_avx512bf16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f
     }
-    // TODO: Use actual info from cache info
+    // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {
         (4800, 256, 128)
     }

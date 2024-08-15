@@ -164,37 +164,6 @@ macro_rules! def_kernel_bs {
 
 def_kernel_bs!(48, 8, 48, 32, 16);
 
-pub(crate) unsafe fn kernel_bs<F: MyFn>(
-    m: usize, n: usize, k: usize,
-    alpha: *const TA,
-    beta: *const TC,
-    b: *const TB, b_rs: usize, b_cs: usize,
-    c: *mut TC, c_rs: usize, c_cs: usize,
-    ap: *const TA,
-    f: F,
-) {  
-    if c_rs == 1 {
-        kernel_bs_v0::<_, false>(
-            m, n, k,
-            alpha, beta,
-            b, b_rs, b_cs,
-            c, c_rs, c_cs,
-            ap,
-            f
-        );
-        return;
-    } else {
-        kernel_bs_v0::<_, true>(
-            m, n, k,
-            alpha, beta,
-            b, b_rs, b_cs,
-            c, c_rs, c_cs,
-            ap,
-            f
-        );
-    }
-
-}
 use super::pack_avx::packa_panel_48;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
@@ -274,6 +243,37 @@ macro_rules! def_kernel_sb {
 
 def_kernel_sb!(48, 8, 48, 32, 16);
 
+pub(crate) unsafe fn kernel_bs<F: MyFn>(
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    b: *const TB, b_rs: usize, b_cs: usize,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+    ap: *const TA,
+    f: F,
+) {  
+    if c_rs == 1 {
+        kernel_bs_v0::<_, false>(
+            m, n, k,
+            alpha, beta,
+            b, b_rs, b_cs,
+            c, c_rs, c_cs,
+            ap,
+            f
+        );
+    } else {
+        kernel_bs_v0::<_, true>(
+            m, n, k,
+            alpha, beta,
+            b, b_rs, b_cs,
+            c, c_rs, c_cs,
+            ap,
+            f
+        );
+    }
+
+}
+
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
@@ -294,7 +294,6 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
             ap_buf,
             f
         );
-        return;
     } else {
         kernel_sb_v0::<_, true>(
             m, n, k,

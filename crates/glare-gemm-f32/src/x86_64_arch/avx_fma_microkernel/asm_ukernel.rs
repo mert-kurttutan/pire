@@ -1,10 +1,9 @@
 use seq_macro::seq;
-use std::arch::asm;
-
-use crate::{TA, TB, TC};
-const VS: usize = 8;
-
 use paste::paste;
+use std::arch::asm;
+use super::VS;
+use crate::{TA, TB, TC};
+
 macro_rules! beta_fmaddps {
     (C, $m0:expr, $r1:expr) => {
         concat!(
@@ -23,7 +22,7 @@ macro_rules! mem {
     ($m0:tt, $b0:tt) => {
         concat!($b0, "+", $m0)
     };
- }
+}
 macro_rules! vmovps {
     (B) => {
         "vmovaps "
@@ -208,7 +207,7 @@ macro_rules! storeps {
 	};
  }
 
-macro_rules! vfmadd231ps {
+macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr) => {
         concat!(
             "vfmadd231ps %ymm", $r1, ", %ymm", $r2,", %ymm", $r3, "\n",
@@ -676,30 +675,30 @@ macro_rules! load_a {
 macro_rules! fmadd_3v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 3, 4),
-			vfmadd231ps!(1, 3, 5),
-			vfmadd231ps!(2, 3, 6),
+			vfmadd!(0, 3, 4),
+			vfmadd!(1, 3, 5),
+			vfmadd!(2, 3, 6),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 3, 7),
-			vfmadd231ps!(1, 3, 8),
-			vfmadd231ps!(2, 3, 9),
+			vfmadd!(0, 3, 7),
+			vfmadd!(1, 3, 8),
+			vfmadd!(2, 3, 9),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 3, 10),
-			vfmadd231ps!(1, 3, 11),
-			vfmadd231ps!(2, 3, 12),
+			vfmadd!(0, 3, 10),
+			vfmadd!(1, 3, 11),
+			vfmadd!(2, 3, 12),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 3, 13),
-			vfmadd231ps!(1, 3, 14),
-			vfmadd231ps!(2, 3, 15),
+			vfmadd!(0, 3, 13),
+			vfmadd!(1, 3, 14),
+			vfmadd!(2, 3, 15),
 		)
 	};
 }
@@ -707,60 +706,60 @@ macro_rules! fmadd_3v {
 macro_rules! fmadd_2v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 2, 4),
-			vfmadd231ps!(1, 2, 5),
+			vfmadd!(0, 2, 4),
+			vfmadd!(1, 2, 5),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 3, 6),
-			vfmadd231ps!(1, 3, 7),
+			vfmadd!(0, 3, 6),
+			vfmadd!(1, 3, 7),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 2, 8),
-			vfmadd231ps!(1, 2, 9),
+			vfmadd!(0, 2, 8),
+			vfmadd!(1, 2, 9),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 3, 10),
-			vfmadd231ps!(1, 3, 11),
+			vfmadd!(0, 3, 10),
+			vfmadd!(1, 3, 11),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 2, 12),
-			vfmadd231ps!(1, 2, 13),
+			vfmadd!(0, 2, 12),
+			vfmadd!(1, 2, 13),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 3, 14),
-			vfmadd231ps!(1, 3, 15),
+			vfmadd!(0, 3, 14),
+			vfmadd!(1, 3, 15),
 		)
 	};
 }
 
 macro_rules! fmadd_1v {
 	(0) => {
-		concat!(vfmadd231ps!(0, 1, 7))
+		concat!(vfmadd!(0, 1, 7))
 	};
 	(1) => {
-		concat!(vfmadd231ps!(0, 2, 8))
+		concat!(vfmadd!(0, 2, 8))
 	};
 	(2) => {
-		concat!(vfmadd231ps!(0, 3, 9))
+		concat!(vfmadd!(0, 3, 9))
 	};
 	(3) => {
-		concat!(vfmadd231ps!(0, 4, 10))
+		concat!(vfmadd!(0, 4, 10))
 	};
 	(4) => {
-		concat!(vfmadd231ps!(0, 5, 11))
+		concat!(vfmadd!(0, 5, 11))
 	};
 	(5) => {
-		concat!(vfmadd231ps!(0, 6, 12))
+		concat!(vfmadd!(0, 6, 12))
 	};
 }
 

@@ -1,11 +1,10 @@
 use seq_macro::seq;
+use paste::paste;
 use std::arch::asm;
-
-const VS: usize = 16;
-
+use super::VS;
 use crate::{TA, TB, TC};
 
-use paste::paste;
+
 macro_rules! beta_fmaddps {
     (C, $m0:expr, $r1:expr) => {
         concat!(
@@ -153,7 +152,7 @@ macro_rules! storeps {
 	};
  }
 
-macro_rules! vfmadd231ps {
+macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr) => {
         concat!(
             "vfmadd231ps %zmm", $r1, ", %zmm", $r2,", %zmm", $r3, "\n",
@@ -205,7 +204,6 @@ macro_rules! asm_c_load {
 	(12) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -215,7 +213,6 @@ macro_rules! asm_c_load {
 	(11) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -225,7 +222,6 @@ macro_rules! asm_c_load {
 	(10) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -235,7 +231,6 @@ macro_rules! asm_c_load {
 	(9) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -244,7 +239,6 @@ macro_rules! asm_c_load {
 	(8) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -253,7 +247,6 @@ macro_rules! asm_c_load {
 	(7) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x3}", "\n",
         	"lea ({cx}, {x3},), {x1}", "\n",
 			"lea ({x1}, {x3},), {x2}", "\n",
@@ -262,7 +255,6 @@ macro_rules! asm_c_load {
 	(6) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
@@ -270,7 +262,6 @@ macro_rules! asm_c_load {
 	(5) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
@@ -278,7 +269,6 @@ macro_rules! asm_c_load {
 	(4) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}", "\n",
         	"lea ({x0}, {x0}, 2), {x1}", "\n",
         	"lea ({cx}, {x1},), {x1}", "\n",
     	)
@@ -286,19 +276,16 @@ macro_rules! asm_c_load {
 	(3) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}", "\n",
     	)
 	};
 	(2) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
     	)
 	};
 	(1) => {
     	concat!(
         	"mov 16({dim_arrx}),{x0}", "\n",
-        	"lea (,{x0}, 4), {x0}","\n",
     	)
 	};
 }
@@ -831,58 +818,58 @@ macro_rules! load_a {
 macro_rules! fmadd_3v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 3, 8),
-			vfmadd231ps!(1, 3, 9),
-			vfmadd231ps!(2, 3, 10),
+			vfmadd!(0, 3, 8),
+			vfmadd!(1, 3, 9),
+			vfmadd!(2, 3, 10),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 4, 11),
-			vfmadd231ps!(1, 4, 12),
-			vfmadd231ps!(2, 4, 13),
+			vfmadd!(0, 4, 11),
+			vfmadd!(1, 4, 12),
+			vfmadd!(2, 4, 13),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 5, 14),
-			vfmadd231ps!(1, 5, 15),
-			vfmadd231ps!(2, 5, 16),
+			vfmadd!(0, 5, 14),
+			vfmadd!(1, 5, 15),
+			vfmadd!(2, 5, 16),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 6, 17),
-			vfmadd231ps!(1, 6, 18),
-			vfmadd231ps!(2, 6, 19),
+			vfmadd!(0, 6, 17),
+			vfmadd!(1, 6, 18),
+			vfmadd!(2, 6, 19),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 7, 20),
-			vfmadd231ps!(1, 7, 21),
-			vfmadd231ps!(2, 7, 22),
+			vfmadd!(0, 7, 20),
+			vfmadd!(1, 7, 21),
+			vfmadd!(2, 7, 22),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 3, 23),
-			vfmadd231ps!(1, 3, 24),
-			vfmadd231ps!(2, 3, 25),
+			vfmadd!(0, 3, 23),
+			vfmadd!(1, 3, 24),
+			vfmadd!(2, 3, 25),
 		)
 	};
 	(6) => {
 		concat!(
-			vfmadd231ps!(0, 4, 26),
-			vfmadd231ps!(1, 4, 27),
-			vfmadd231ps!(2, 4, 28),
+			vfmadd!(0, 4, 26),
+			vfmadd!(1, 4, 27),
+			vfmadd!(2, 4, 28),
 		)
 	};
 	(7) => {
 		concat!(
-			vfmadd231ps!(0, 5, 29),
-			vfmadd231ps!(1, 5, 30),
-			vfmadd231ps!(2, 5, 31),
+			vfmadd!(0, 5, 29),
+			vfmadd!(1, 5, 30),
+			vfmadd!(2, 5, 31),
 		)
 	};
 }
@@ -890,74 +877,74 @@ macro_rules! fmadd_3v {
 macro_rules! fmadd_2v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 2, 8),
-			vfmadd231ps!(1, 2, 9),
+			vfmadd!(0, 2, 8),
+			vfmadd!(1, 2, 9),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 3, 10),
-			vfmadd231ps!(1, 3, 11),
+			vfmadd!(0, 3, 10),
+			vfmadd!(1, 3, 11),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 4, 12),
-			vfmadd231ps!(1, 4, 13),
+			vfmadd!(0, 4, 12),
+			vfmadd!(1, 4, 13),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 5, 14),
-			vfmadd231ps!(1, 5, 15),
+			vfmadd!(0, 5, 14),
+			vfmadd!(1, 5, 15),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 6, 16),
-			vfmadd231ps!(1, 6, 17),
+			vfmadd!(0, 6, 16),
+			vfmadd!(1, 6, 17),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 7, 18),
-			vfmadd231ps!(1, 7, 19),
+			vfmadd!(0, 7, 18),
+			vfmadd!(1, 7, 19),
 		)
 	};
 	(6) => {
 		concat!(
-			vfmadd231ps!(0, 2, 20),
-			vfmadd231ps!(1, 2, 21),
+			vfmadd!(0, 2, 20),
+			vfmadd!(1, 2, 21),
 		)
 	};
 	(7) => {
 		concat!(
-			vfmadd231ps!(0, 3, 22),
-			vfmadd231ps!(1, 3, 23),
+			vfmadd!(0, 3, 22),
+			vfmadd!(1, 3, 23),
 		)
 	};
 	(8) => {
 		concat!(
-			vfmadd231ps!(0, 4, 24),
-			vfmadd231ps!(1, 4, 25),
+			vfmadd!(0, 4, 24),
+			vfmadd!(1, 4, 25),
 		)
 	};
 	(9) => {
 		concat!(
-			vfmadd231ps!(0, 5, 26),
-			vfmadd231ps!(1, 5, 27),
+			vfmadd!(0, 5, 26),
+			vfmadd!(1, 5, 27),
 		)
 	};
 	(10) => {
 		concat!(
-			vfmadd231ps!(0, 6, 28),
-			vfmadd231ps!(1, 6, 29),
+			vfmadd!(0, 6, 28),
+			vfmadd!(1, 6, 29),
 		)
 	};
 	(11) => {
 		concat!(
-			vfmadd231ps!(0, 7, 30),
-			vfmadd231ps!(1, 7, 31),
+			vfmadd!(0, 7, 30),
+			vfmadd!(1, 7, 31),
 		)
 	};
 }
@@ -965,62 +952,62 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
 	(0) => {
 		concat!(
-			vfmadd231ps!(0, 1, 20),
+			vfmadd!(0, 1, 20),
 		)
 	};
 	(1) => {
 		concat!(
-			vfmadd231ps!(0, 2, 21),
+			vfmadd!(0, 2, 21),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd231ps!(0, 3, 22),
+			vfmadd!(0, 3, 22),
 		)
 	};
 	(3) => {
 		concat!(
-			vfmadd231ps!(0, 4, 23),
+			vfmadd!(0, 4, 23),
 		)
 	};
 	(4) => {
 		concat!(
-			vfmadd231ps!(0, 5, 24),
+			vfmadd!(0, 5, 24),
 		)
 	};
 	(5) => {
 		concat!(
-			vfmadd231ps!(0, 6, 25),
+			vfmadd!(0, 6, 25),
 		)
 	};
 	(6) => {
 		concat!(
-			vfmadd231ps!(0, 7, 26),
+			vfmadd!(0, 7, 26),
 		)
 	};
 	(7) => {
 		concat!(
-			vfmadd231ps!(0, 8, 27),
+			vfmadd!(0, 8, 27),
 		)
 	};
 	(8) => {
 		concat!(
-			vfmadd231ps!(0, 9, 28),
+			vfmadd!(0, 9, 28),
 		)
 	};
 	(9) => {
 		concat!(
-			vfmadd231ps!(0, 10, 29),
+			vfmadd!(0, 10, 29),
 		)
 	};
 	(10) => {
 		concat!(
-			vfmadd231ps!(0, 11, 30),
+			vfmadd!(0, 11, 30),
 		)
 	};
 	(11) => {
 		concat!(
-			vfmadd231ps!(0, 12, 31),
+			vfmadd!(0, 12, 31),
 		)
 	};
 }
