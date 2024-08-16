@@ -1323,7 +1323,7 @@ macro_rules! def_ukernel {
             	// 6 -> BETAZERO
             	"6:",
             	$asm_store_macro!($mr,$nr,C),
-   	 
+				
             	// 7 -> DDONE
             	"7:",
             	ax = inout(reg) a => _,

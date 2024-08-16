@@ -1,242 +1,24 @@
-
-#![allow(non_camel_case_types)]
-
 use glare_dev::{
-    random_matrix_std, random_matrix_uniform, max_abs_diff
+    random_matrix_std, random_matrix_uniform,
+    // CBLAS_LAYOUT, 
+    CBLAS_TRANSPOSE,
+    check_gemm_f16, check_gemm_f32, check_gemm_f64, check_gemm_s16s16s32, check_gemm_s8u8s32, 
+    //check_gemm_c32,
+};
+#[cfg(feature="mkl")]
+use glare_dev::{
+    stride_to_cblas, CBLAS_OFFSET::*,
 };
 
-use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort, c_short};
+#[cfg(feature="mkl")]
+use libc::{c_int, c_void, c_ushort};
+#[cfg(feature="blis")]
+use libc::c_void;
 
 use num_complex::{
     c32,
     Complex32
 };
-const BLIS_TRANS_SHIFT: usize = 3;
-const BLIS_CONJ_SHIFT: usize = 4;
-// const BLIS_UPLO_SHIFT: usize = 5;
-// const BLIS_UPPER_SHIFT: usize = 5;
-// const BLIS_DIAG_SHIFT: usize = 6;
-// const BLIS_LOWER_SHIFT: usize = 7;
-
-
-/// Conjugation enum
-#[repr(C)]
-pub enum conj_t {
-   BLIS_NO_CONJUGATE = 0,
-   BLIS_CONJUGATE = 1 << BLIS_CONJ_SHIFT,
-}
-
-
-pub use self::conj_t::*;
-
-
-/// Transpose enum
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub enum trans_t {
-   BLIS_NO_TRANSPOSE = 0,
-   BLIS_TRANSPOSE = 1 << BLIS_TRANS_SHIFT,
-   BLIS_CONJ_NO_TRANSPOSE = 1 << BLIS_CONJ_SHIFT,
-   BLIS_CONJ_TRANSPOSE = 1 << BLIS_TRANS_SHIFT | 1 << BLIS_CONJ_SHIFT
-}
-
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(clippy::enum_variant_names)]
-pub enum CBLAS_LAYOUT {
-   CblasRowMajor = 101,
-   CblasColMajor = 102,
-}
-pub use self::CBLAS_LAYOUT::*;
-
-
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(clippy::enum_variant_names)]
-pub enum CBLAS_TRANSPOSE {
-   CblasNoTrans = 111,
-   CblasTrans = 112,
-   CblasConjTrans = 113,
-}
-pub use self::CBLAS_TRANSPOSE::*;
-
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-#[allow(clippy::enum_variant_names)]
-pub enum CBLAS_OFFSET {
-   CblasRowOffset = 171,
-   CblasColOffset = 172,
-   CblasFixOffset = 173,
-}
-pub use self::CBLAS_OFFSET::*;
-
-
-pub use self::trans_t::*;
-
-#[cfg(feature="mkl")]
-#[allow(dead_code)]
-extern "C" {
-   #[allow(clippy::too_many_arguments)]
-   pub fn cblas_gemm_s16s16s32(
-       layout: CBLAS_LAYOUT,
-       transa: CBLAS_TRANSPOSE,
-       transb: CBLAS_TRANSPOSE,
-       offsetc: CBLAS_OFFSET,
-       m: c_int, n: c_int, k: c_int,
-       alpha: c_float,
-       a: *const c_short, lda: c_int, oa: c_short,
-       b: *const c_short, ldb: c_int, ob: c_short,
-       beta: c_float,
-       c: *mut c_int, ldc: c_int, oc: *const c_int,
-   );
-
-   #[allow(clippy::too_many_arguments)]
-   pub fn cblas_gemm_s8u8s32(
-       layout: CBLAS_LAYOUT,
-       transa: CBLAS_TRANSPOSE,
-       transb: CBLAS_TRANSPOSE,
-       offsetc: CBLAS_OFFSET,
-       m: c_int,
-       n: c_int,
-       k: c_int,
-       alpha: c_float,
-       a: *const c_void,
-       lda: c_int,
-       oa: c_schar,
-       b: *const c_void,
-       ldb: c_int,
-       ob: c_schar,
-       beta: c_float,
-       c: *mut c_int,
-       ldc: c_int,
-       oc: *const c_int,
-   );
-
-   pub fn cblas_dgemm(
-       layout: CBLAS_LAYOUT,
-       transa: CBLAS_TRANSPOSE,
-       transb: CBLAS_TRANSPOSE,
-       m: c_int, n: c_int, k: c_int,
-       alpha: c_double,
-       a: *const c_double, lda: c_int,
-       b: *const c_double, ldb: c_int,
-       beta: c_double,
-       c: *mut c_double, ldc: c_int,
-   );
-
-   pub fn cblas_sgemm(
-       layout: CBLAS_LAYOUT,
-       transa: CBLAS_TRANSPOSE,
-       transb: CBLAS_TRANSPOSE,
-       m: c_int,
-       n: c_int,
-       k: c_int,
-       alpha: c_float,
-       a: *const c_float,
-       lda: c_int,
-       b: *const c_float,
-       ldb: c_int,
-       beta: c_float,
-       c: *mut c_float,
-       ldc: c_int,
-   );
-
-   pub fn cblas_cgemm(
-    layout: CBLAS_LAYOUT,
-    transa: CBLAS_TRANSPOSE,
-    transb: CBLAS_TRANSPOSE,
-    m: c_int,
-    n: c_int,
-    k: c_int,
-    alpha: *const c_void,
-    a: *const c_void,
-    lda: c_int,
-    b: *const c_void,
-    ldb: c_int,
-    beta: *const c_void,
-    c: *mut c_void,
-    ldc: c_int,
-);
-
-   pub fn cblas_hgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_ushort,
-        a: *const c_ushort,
-        lda: c_int,
-        b: *const c_ushort,
-        ldb: c_int,
-        beta: c_ushort,
-        c: *mut c_ushort,
-        ldc: c_int,
-    );
-
-
-    pub fn cblas_sgemm_batch(
-        layout: CBLAS_LAYOUT,
-        transa: *const CBLAS_TRANSPOSE,
-        transb: *const CBLAS_TRANSPOSE,
-        m: *const c_int,
-        n: *const c_int,
-        k: *const c_int,
-        alpha: *const c_float,
-        a: *const *const c_float,
-        lda: *const c_int,
-        b: *const *const c_float,
-        ldb: *const c_int,
-        beta: *const c_float,
-        c: *const *mut c_float,
-        ldc: *const c_int,
-        group_count: c_int,
-        group_size: *const c_int,
-    );
-}
-
-
-#[cfg(feature="blis")]
-#[allow(dead_code)]
-extern "C" {
-    pub fn bli_cgemm(
-        transa: trans_t,
-        transb: trans_t,
-        m: c_int, n: c_int, k: c_int,
-        alpha: *const c_void,
-        a: *const c_void, rsa: i32, csa: i32,
-        b: *const c_void, rsb: i32, csb: i32,
-        beta: *const c_void,
-        c: *mut c_void, rsc: i32, csc: i32,
-    );
-   pub fn bli_sgemm(
-       transa: trans_t,
-       transb: trans_t,
-       m: c_int, n: c_int, k: c_int,
-       alpha: *const c_float,
-       a: *const c_float, rsa: i32, csa: i32,
-       b: *const c_float, rsb: i32, csb: i32,
-       beta: *const c_float,
-       c: *mut c_float, rsc: i32, csc: i32,
-   );
-
-   pub fn bli_dgemm(
-       // layout: CBLAS_LAYOUT,
-       transa: trans_t,
-       transb: trans_t,
-       m: c_int, n: c_int, k: c_int,
-       alpha: *const c_double,
-       a: *const c_double, rsa: i32, csa: i32,
-       b: *const c_double, rsb: i32, csb: i32,
-       beta: *const c_double,
-       c: *mut c_double, rsc: i32, csc: i32,
-   );
-
-}
 
 #[derive(Copy, Clone, Debug)]
 pub enum GemmBackend {
@@ -284,7 +66,7 @@ pub unsafe fn dispatch_dgemm(
              #[cfg(feature="mkl")]
              {
                  let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                 cblas_dgemm(
+                 glare_dev::cblas_dgemm(
                      layout,
                      transa,
                      transb,
@@ -351,7 +133,7 @@ pub unsafe fn dispatch_sgemm(
             #[cfg(feature="mkl")]
             {
                 let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                cblas_sgemm(
+                glare_dev::cblas_sgemm(
                     layout,
                     transa,
                     transb,
@@ -429,7 +211,7 @@ pub unsafe fn dispatch_cgemm(
                 let alpha_ptr = &alpha as *const Complex32 as *const c_void;
                 let beta_ptr = &beta as *const Complex32 as *const c_void;
                  let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                 cblas_cgemm(
+                 glare_dev::cblas_cgemm(
                      layout,
                      transa,
                      transb,
@@ -456,6 +238,16 @@ pub unsafe fn dispatch_cgemm(
                  );
           }
           GemmBackend::Corenum => {
+            // print all inputs
+            println!("m, n, k: {}, {}, {}", m, n, k);
+            println!("alpha: {}, {}", alpha.re, alpha.im);
+            println!("beta: {}, {}", beta.re, beta.im);
+            println!("a_rs, a_cs: {}, {}", a_rs, a_cs);
+            println!("b_rs, b_cs: {}, {}", b_rs, b_cs);
+            println!("c_rs, c_cs: {}, {}", c_rs, c_cs);
+            println!("a: {:?}", a);
+            println!("b: {:?}", b);
+            println!("c: {:?}", c);
             panic!("Not implemented for glare");
          }
      }
@@ -510,7 +302,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
                 let c_vec = (0..batch_size).map(|i| c.offset(i as isize * stridec)).collect::<Vec<*mut f32>>();
                 let stride_size_vec = [batch_size as i32; 1];
 
-                cblas_sgemm_batch(
+                glare_dev::cblas_sgemm_batch(
                     layout,
                     transa_vec.as_ptr(),
                     transb_vec.as_ptr(),
@@ -548,18 +340,15 @@ pub unsafe fn dispatch_gemm_batch_f32(
             }
         }
         GemmBackend::Corenum => {
-             #[cfg(feature="glare")]
-             {
-                for i in 0..batch_size {
-                    glare_gemm_f32::glare_sgemm(
-                        m, n, k,
-                        alpha,
-                        a.offset(i as isize * stridea), a_rs as usize, a_cs as usize,
-                        b.offset(i as isize * strideb), b_rs as usize, b_cs as usize,
-                        beta,
-                        c.offset(i as isize * stridec), c_rs as usize, c_cs as usize,
-                    );
-                }
+            for i in 0..batch_size {
+                glare_gemm_f32::glare_sgemm(
+                    m, n, k,
+                    alpha,
+                    a.offset(i as isize * stridea), a_rs as usize, a_cs as usize,
+                    b.offset(i as isize * strideb), b_rs as usize, b_cs as usize,
+                    beta,
+                    c.offset(i as isize * stridec), c_rs as usize, c_cs as usize,
+                );
             }
         }
     }
@@ -588,7 +377,7 @@ pub unsafe fn dispatch_gemm_f16(
                     let c = c as *mut c_ushort;
                     let alpha = alpha.to_bits();
                     let beta = beta.to_bits();
-                 cblas_hgemm(
+                 glare_dev::cblas_hgemm(
                      layout,
                      transa,
                      transb,
@@ -647,7 +436,7 @@ pub unsafe fn dispatch_gemm_f16(
                 let oc_val = 0;
                 let oc = &oc_val as *const c_int;
                  let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                 cblas_gemm_s16s16s32(
+                 glare_dev::cblas_gemm_s16s16s32(
                      layout,
                      transa,
                      transb,
@@ -701,7 +490,7 @@ pub unsafe fn dispatch_gemm_f16(
                 let a = a as *const c_void;
                 let b = b as *const c_void;
                  let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
-                 cblas_gemm_s8u8s32(
+                 glare_dev::cblas_gemm_s8u8s32(
                      layout,
                      transa,
                      transb,
@@ -771,209 +560,6 @@ pub unsafe fn gemm_fallback_f64(
         }
     }
 }
-
-
-
-fn stride_to_cblas(
-    m: usize, n: usize, k: usize,
-	a_rs: usize, a_cs: usize,
-	b_rs: usize, b_cs: usize,
-	c_rs: usize, c_cs: usize,
-) -> (CBLAS_LAYOUT, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE, c_int, c_int, c_int) {
-    let (a_rs, a_cs, b_rs, b_cs, _, c_cs) = if c_rs == 1 {
-        (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs)
-    } else if c_cs == 1 {
-        (a_cs, a_rs, b_cs, b_rs, c_cs, c_rs)
-    } else {
-        panic!("Non Trivial Stride is not available for Cblas Api");
-    };
-    // c_rs == 1
-    let ldc = c_cs as c_int;
-    let (a_trans, b_trans, lda, ldb) = if a_rs == 1 && b_rs == 1 && a_cs == m && b_cs == k {
-        (CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasNoTrans, a_cs as c_int, b_cs as c_int)
-    } else if a_rs == 1 && b_cs == 1 && a_cs == m && b_rs == n {
-        (CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasTrans, a_cs as c_int, b_rs as c_int)
-    } else if a_cs == 1 && b_rs == 1 && a_rs == k && b_cs == k {
-        (CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasNoTrans, a_rs as c_int, b_cs as c_int)
-    } else if a_cs == 1 && b_cs == 1 && a_rs == k && b_rs == n {
-        (CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasTrans, a_rs as c_int, b_rs as c_int)
-    } else {
-        panic!("Non Trivial Stride is not available for Cblas Api");
-    };
-    (CBLAS_LAYOUT::CblasColMajor, a_trans, b_trans, lda, ldb, ldc)
-}
-
-pub unsafe fn check_sgemm(
-	m: usize, n: usize, k: usize,
-	alpha: f32,
-	a: *const f32, a_rs: usize, a_cs: usize,
-	b: *const f32, b_rs: usize, b_cs: usize,
-	beta: f32,
-	c: &[f32], c_rs: usize, c_cs: usize,
-    c_ref: &mut [f32],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_sgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref.as_mut_ptr(), ldc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-    #[cfg(not(feature="mkl"))] {
-        // calculate diff using fallback
-        gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-}
-
-
-pub unsafe fn check_gemm_s16s16s32(
-	m: usize, n: usize, k: usize,
-    alpha: f32,
-    a: *const i16, a_rs: usize, a_cs: usize,
-    b: *const i16, b_rs: usize, b_cs: usize,
-    beta: f32,
-    c: &[i32], c_rs: usize, c_cs: usize,
-    c_ref: &mut [i32],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let oc_val = 0;
-        let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_gemm_s16s16s32(
-            layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-    // #[cfg(not(feature="mkl"))] {
-    //     // calculate diff using fallback
-    //     gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-    //     let diff = max_abs_diff(&c, &c_ref, 1e-3);
-    //     return diff;
-    // }
-}
-
-
-
-pub unsafe fn check_gemm_s8u8s32(
-	m: usize, n: usize, k: usize,
-    alpha: f32,
-    a: *const i8, a_rs: usize, a_cs: usize,
-    b: *const u8, b_rs: usize, b_cs: usize,
-    beta: f32,
-    c: &[i32], c_rs: usize, c_cs: usize,
-    c_ref: &mut [i32],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let oc_val = 0;
-        let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_void;
-        let b = b as *const c_void;
-        cblas_gemm_s8u8s32(
-            layout, transa, transb, CblasFixOffset, m as c_int, n as c_int, k as c_int, alpha, a, lda, 0, b, ldb, 0, beta, c_ref.as_mut_ptr(), ldc, oc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-    // #[cfg(not(feature="mkl"))] {
-    //     // calculate diff using fallback
-    //     gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-    //     let diff = max_abs_diff(&c, &c_ref, 1e-3);
-    //     return diff;
-    // }
-}
-
-
-
-pub unsafe fn check_cgemm(
-	m: usize, n: usize, k: usize,
-	alpha: Complex32,
-	a: *const Complex32, a_rs: usize, a_cs: usize,
-	b: *const Complex32, b_rs: usize, b_cs: usize,
-	beta: Complex32,
-	c: &[Complex32], c_rs: usize, c_cs: usize,
-    c_ref: &mut [Complex32],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_void;
-        let b = b as *const c_void;
-        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
-        let alpha_ptr = &alpha as *const Complex32 as *const c_void;
-        let beta_ptr = &beta as *const Complex32 as *const c_void;
-        cblas_cgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr, ldc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-    #[cfg(not(feature="mkl"))] {
-        // calculate diff using fallback
-        gemm_fallback_c32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-}
-
-pub unsafe fn check_dgemm(
-	m: usize, n: usize, k: usize,
-	alpha: f64,
-	a: *const f64, a_rs: usize, a_cs: usize,
-	b: *const f64, b_rs: usize, b_cs: usize,
-	beta: f64,
-	c: &[f64], c_rs: usize, c_cs: usize,
-    c_ref: &mut [f64],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_dgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref.as_mut_ptr(), ldc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-    #[cfg(not(feature="mkl"))] {
-        // calculate diff using fallback
-        gemm_fallback_f64(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
-    }
-}
-
-pub unsafe fn check_hgemm(
-	m: usize, n: usize, k: usize,
-	alpha: f16,
-	a: *const f16, a_rs: usize, a_cs: usize,
-	b: *const f16, b_rs: usize, b_cs: usize,
-	beta: f16,
-	c: &[f16], c_rs: usize, c_cs: usize,
-    c_ref: &mut [f16],
-) -> f64 {
-    #[cfg(feature="mkl")] {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_ushort;
-        let b = b as *const c_ushort;
-        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_ushort;
-        let alpha = alpha.to_bits();
-        let beta = beta.to_bits();
-        cblas_hgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc
-        );
-        let diff = max_abs_diff(&c, &c_ref, 1e-1);
-        return diff;
-    }
-    #[cfg(not(feature="mkl"))] {
-        // calculate diff using fallback
-        gemm_fallback_f16(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        let diff = max_abs_diff(&c, &c_ref, 1e-1);
-        return diff;
-    }
-}
-
 
 pub fn cblas_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(i32, i32, i32, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE) {
     if layout_str == "nn" {
@@ -1078,14 +664,15 @@ fn test_dgemm(
 
     if args.check {
         let diff = unsafe {
-            check_dgemm(
+            check_gemm_f64(
                 m, n, k, 
                 alpha, 
                 a.as_ptr(), a_rs as usize, a_cs as usize, 
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-3,
             )
         };
         println!("diff: {}", diff);
@@ -1126,14 +713,15 @@ fn test_sgemm(
     }
     if args.check {
         let diff = unsafe {
-            check_sgemm(
+            check_gemm_f32(
                 m, n, k, 
                 alpha, 
                 a.as_ptr(), a_rs as usize, a_cs as usize, 
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-3,
             )
         };
         println!("diff: {}", diff);
@@ -1146,7 +734,7 @@ fn test_sgemm(
 
 fn test_cgemm(
     m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
+    gemm_backend: GemmBackend, _args: &Args,
     alpha: f32, beta: f32,
     a_rs: isize, a_cs: isize,
     b_rs: isize, b_cs: isize,
@@ -1173,20 +761,21 @@ fn test_cgemm(
             c.as_mut_ptr(), c_rs, c_cs,
         );
     }
-    if args.check {
-        let diff = unsafe {
-            check_cgemm(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
-            )
-        };
-        println!("diff: {}", diff);
-    }
+    // if args.check {
+    //     let diff = unsafe {
+    //         check_gemm_c32(
+    //             m, n, k, 
+    //             alpha, 
+    //             a.as_ptr(), a_rs as usize, a_cs as usize, 
+    //             b.as_ptr(), b_rs as usize, b_cs as usize, 
+    //             beta, 
+    //             &c, c_rs as usize, c_cs as usize, 
+    //             &mut c_ref,
+    //             1e-3
+    //         )
+    //     };
+    //     println!("diff: {}", diff);
+    // }
 
     let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
 
@@ -1230,14 +819,15 @@ fn test_sgemm_batched(
 
     if args.check {
         let diff = unsafe {
-            check_sgemm(
+            check_gemm_f32(
                 m, n, k, 
                 alpha, 
                 a.as_ptr(), a_rs as usize, a_cs as usize, 
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-3,
             )
         };
         println!("diff: {}", diff);
@@ -1282,14 +872,15 @@ fn test_hgemm(
 
     if args.check {
         let diff = unsafe {
-            check_hgemm(
+            check_gemm_f16(
                 m, n, k, 
                 alpha, 
                 a.as_ptr(), a_rs as usize, a_cs as usize, 
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-1,
             )
         };
         println!("diff: {}", diff);
@@ -1337,7 +928,8 @@ fn test_gemm_s16s16s32(
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-3
             )
         };
         // println!("c: {:?}", c);
@@ -1389,7 +981,8 @@ fn test_gemm_s8u8s32(
                 b.as_ptr(), b_rs as usize, b_cs as usize, 
                 beta, 
                 &c, c_rs as usize, c_cs as usize, 
-                &mut c_ref
+                &mut c_ref,
+                1e-3,
             )
         };
         // println!("c: {:?}", c);

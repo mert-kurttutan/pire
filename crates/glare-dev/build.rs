@@ -44,11 +44,16 @@ pub const MKL_INTERFACE: &str = if cfg!(target_pointer_width = "32") {
      "mkl_intel_lp64"
  };
 
+pub const BLIS: &str = "blis";
+pub const BLASFEO: &str = "blasfeo";
+
 #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 pub const UNSUPPORTED_OS_ERROR: _ = "Target OS is not supported. Please contact me";
 
 pub const LINK_DIRS: &[&str] = &[
     env_or!("GLARE_MKL_PATH"),
+    env_or!("GLARE_BLIS_PATH"),
+    env_or!("GLARE_BLASFEO_PATH"),
 ];
 
 
@@ -87,7 +92,10 @@ fn main() -> Result<(), BuildError> {
         let lib_dir: std::path::PathBuf = rel_lib_dir.into();
         println!("cargo:rustc-link-search={}", lib_dir.display());
     }
-
+    #[cfg(feature = "blis")]
+    {
+        println!("cargo:rustc-link-lib={link_type}={BLIS}{lib_postfix}");
+    }
 
     #[cfg(feature = "mkl")]
     {
