@@ -766,6 +766,7 @@ macro_rules! def_ukernel {
    	 
             	// 7 -> DDONE
             	"7:",
+				"vzeroupper",
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
@@ -921,9 +922,10 @@ macro_rules! def_ukernel_partial {
             	// 6 -> BETAZERO
             	"6:",
             	$asm_store_macro!($mr,$nr,M),
-   	 
+
             	// 7 -> DDONE
             	"7:",
+				"vzeroupper",
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
