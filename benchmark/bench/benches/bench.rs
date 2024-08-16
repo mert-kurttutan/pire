@@ -18,6 +18,9 @@ use glare_dev::{
     //check_gemm_c32,
 };
 
+#[cfg(feature="blis")]
+use glare_dev::BLIS_NO_TRANSPOSE;
+
 // use libc::{c_int, c_void, c_ushort};
 
 // use num_complex::{
@@ -129,7 +132,7 @@ pub fn bench_blas_group<M: criterion::measurement::Measurement>(
     //     |x| {
     //         x.iter(|| unsafe {
     //             unsafe {
-    //                 bli_sgemm(
+    //                 glare_dev::bli_sgemm(
     //                     BLIS_NO_TRANSPOSE,
     //                     BLIS_NO_TRANSPOSE,
     //                     m as i32, n as i32, k as i32,
@@ -220,7 +223,7 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement>(
         BenchmarkId::new("f32-blis-gemm", dt), &dt, 
         |bench_b, _x| bench_b.iter(
             || unsafe {
-                bli_sgemm(
+                glare_dev::bli_sgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32, n as i32, k as i32,
@@ -309,7 +312,7 @@ pub fn bench_blas_group2(
         ),
         |x| {
             x.iter(|| unsafe {
-                bli_sgemm(
+                glare_dev::bli_sgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32, n as i32, k as i32,
@@ -380,8 +383,8 @@ fn bench_bbb(c: &mut Criterion) {
         // 128,
         // 256,
         // 320, 640, 960, 2048,
-        4800,   
-        // 2400, 3200, 4000, 4800, 5600, 6400, 
+        // 2400, 3200, 4000, 4800, 
+        5600, 6400, 
         // 7200, 8000,
     ];
     for dt in mnk_vec {

@@ -13,7 +13,7 @@ use glare_dev::{
 #[cfg(feature="mkl")]
 use libc::{c_int, c_void, c_ushort};
 #[cfg(feature="blis")]
-use libc::c_void;
+use glare_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{
     c32,
@@ -51,7 +51,7 @@ pub unsafe fn dispatch_dgemm(
     match backend {
         GemmBackend::Blis => {
              #[cfg(feature="blis")]
-                bli_dgemm(
+                glare_dev::bli_dgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32, n as i32, k as i32,
@@ -118,7 +118,7 @@ pub unsafe fn dispatch_sgemm(
    match backend {
        GemmBackend::Blis => {
             #[cfg(feature="blis")]
-               bli_sgemm(
+                glare_dev::bli_dgemm(
                    BLIS_NO_TRANSPOSE,
                    BLIS_NO_TRANSPOSE,
                    m as i32, n as i32, k as i32,
@@ -185,12 +185,12 @@ pub unsafe fn dispatch_cgemm(
         GemmBackend::Blis => {
              #[cfg(feature="blis")]
              {
-                let a = a as *const c_void;
-                let b = b as *const c_void;
-                let c = c as *mut c_void;
-                let alpha_ptr = &alpha as *const Complex32 as *const c_void;
-                let beta_ptr = &beta as *const Complex32 as *const c_void;
-                bli_cgemm(
+                let a = a as *const libc::c_void;
+                let b = b as *const libc::c_void;
+                let c = c as *mut libc::c_void;
+                let alpha_ptr = &alpha as *const Complex32 as *const libc::c_void;
+                let beta_ptr = &beta as *const Complex32 as *const libc::c_void;
+                glare_dev::bli_cgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32, n as i32, k as i32,
@@ -270,7 +270,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
              #[cfg(feature="blis")]
              {
                 for i in 0..batch_size {
-                    bli_sgemm(
+                    glare_dev::bli_sgemm(
                         BLIS_NO_TRANSPOSE,
                         BLIS_NO_TRANSPOSE,
                         m as i32, n as i32, k as i32,

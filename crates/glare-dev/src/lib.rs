@@ -49,39 +49,6 @@ pub enum CBLAS_OFFSET {
 }
 pub use self::CBLAS_OFFSET::*;
 
-// const BLIS_TRANS_SHIFT: usize = 3;
-// const BLIS_CONJ_SHIFT: usize = 4;
-// const BLIS_UPLO_SHIFT: usize = 5;
-// const BLIS_UPPER_SHIFT: usize = 5;
-// const BLIS_DIAG_SHIFT: usize = 6;
-// const BLIS_LOWER_SHIFT: usize = 7;
-
-
-// /// Conjugation enum
-// #[repr(C)]
-// pub enum conj_t {
-//    BLIS_NO_CONJUGATE = 0,
-//    BLIS_CONJUGATE = 1 << BLIS_CONJ_SHIFT,
-// }
-
-
-// pub use self::conj_t::*;
-
-
-// /// Transpose enum
-// #[repr(C)]
-// #[derive(Clone, Copy, Debug)]
-// pub enum trans_t {
-//    BLIS_NO_TRANSPOSE = 0,
-//    BLIS_TRANSPOSE = 1 << BLIS_TRANS_SHIFT,
-//    BLIS_CONJ_NO_TRANSPOSE = 1 << BLIS_CONJ_SHIFT,
-//    BLIS_CONJ_TRANSPOSE = 1 << BLIS_TRANS_SHIFT | 1 << BLIS_CONJ_SHIFT
-// }
-
-
-// pub use self::trans_t::*;
-
-
 #[cfg(feature="mkl")]
 #[allow(dead_code)]
 extern "C" {
@@ -231,7 +198,32 @@ pub fn cblas_gemm_s16s16s32(
 
 }
 
+const BLIS_TRANS_SHIFT: usize = 3;
+const BLIS_CONJ_SHIFT: usize = 4;
+const BLIS_UPLO_SHIFT: usize = 5;
+const BLIS_UPPER_SHIFT: usize = 5;
+const BLIS_DIAG_SHIFT: usize = 6;
+const BLIS_LOWER_SHIFT: usize = 7;
 
+/// Conjugation enum
+#[repr(C)]
+pub enum conj_t {
+    BLIS_NO_CONJUGATE = 0,
+    BLIS_CONJUGATE = 1 << BLIS_CONJ_SHIFT,
+}
+
+
+pub use self::conj_t::*;
+/// Transpose enum
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub enum trans_t {
+    BLIS_NO_TRANSPOSE = 0,
+    BLIS_TRANSPOSE = 1 << BLIS_TRANS_SHIFT,
+    BLIS_CONJ_NO_TRANSPOSE = 1 << BLIS_CONJ_SHIFT,
+    BLIS_CONJ_TRANSPOSE = 1 << BLIS_TRANS_SHIFT | 1 << BLIS_CONJ_SHIFT
+}
+pub use self::trans_t::*;
 #[cfg(feature="blis")]
 extern "C" {
     pub fn bli_cgemm(
