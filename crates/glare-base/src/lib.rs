@@ -1190,47 +1190,53 @@ macro_rules! def_glare_gemm {
             c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
         ) {
-            let ic_id = t_cfg.ic_id;
-            let jc_id = t_cfg.jc_id;
-            let ir_id = t_cfg.ir_id;
-            let jr_id = t_cfg.jr_id;
-            let ir_par = t_cfg.par.ir_par;
-            let jr_par = t_cfg.par.jr_par;
+            let d0 = m;
+            let d2 = n;
+            let d0c_id = t_cfg.ic_id;
+            let d2c_id = t_cfg.jc_id;
+            let d0r_id = t_cfg.ir_id;
+            let d2r_id = t_cfg.jr_id;
+            let d0r_par = t_cfg.par.ir_par;
+            let d2r_par = t_cfg.par.jr_par;
+            let d0c_par = t_cfg.par.ic_par;
+            let d2c_par = t_cfg.par.jc_par;
             let d0_c = t_cfg.mc_eff;
             let d2_c = t_cfg.nc_eff;
             let d1_c = t_cfg.kc_eff;
-            let mr = hw_cfg.mr;
-            let nr = hw_cfg.nr;
-            let (d0_start, d0_end, mc_left) = split_c_range(m, d0_c, mr, ic_id, t_cfg.par.ic_par);
-            let (d2_start, d2_end, nc_left) = split_c_range(n, d2_c, nr, jc_id, t_cfg.par.jc_par);
+            let d0r = hw_cfg.mr;
+            let d2r = hw_cfg.nr;
+            let (d0_start, d0_end, mc_left) = split_c_range(d0, d0_c, d0r, d0c_id, d0c_par);
+            let (d2_start, d2_end, nc_left) = split_c_range(d2, d2_c, d2r, d2c_id, d2c_par);
             let (d1_start, d1_end) = (0, k);
             let one = $one;
-            let mut d0_i = d0_start;
+            let d0_s = c.rs();
+            let d2_s = c.cs();
             let c_rs = c.rs();
             let c_cs = c.cs();
             let c_ptr = c.data_ptr();
+            let mut d0_i = d0_start;
             while d0_i < d0_end {
                 let d0_len = d0_c.min(d0_end - d0_i);
                 let mut d1_i = d1_start;
-                let (mr_start, mr_end) = split_range(d0_len, mr, ir_id, ir_par);
-                let mr_len = mr_end - mr_start;
-                let c_i = c_ptr.add((d0_i+mr_start) * c_rs);
+                let (d0r_start, d0r_end) = split_range(d0_len, d0r, d0r_id, d0r_par);
+                let d0r_len = d0r_end - d0r_start;
+                let c_i = c_ptr.add((d0_i+d0r_start) * d0_s);
                 while d1_i < d1_end {
                     let d1_len = d1_c.min(d1_end - d1_i);
                     let mut d2_i = d2_start;
                     let kc_last = d1_i + d1_len == d1_end;
                     let beta_t = if d1_i == d1_start { beta } else { &one as *const $t_bs};
                     let ap = $packa_name(hw_cfg, a, d0_i, d1_i, d0_len, d1_len, t_cfg);
-                    let ap = ap.add(mr_start*d1_len);
+                    let ap = ap.add(d0r_start*d1_len);
                     while d2_i < d2_end {
                         let d2_len = d2_c.min(d2_end - d2_i);
-                        let (nr_start, nr_end) = split_range(d2_len, nr, jr_id, jr_par);
-                        let nr_len = nr_end - nr_start;
-                        let c_ij = c_i.add((d2_i+nr_start) * c_cs);
+                        let (d2r_start, d2r_end) = split_range(d2_len, d2r, d2r_id, d2r_par);
+                        let d2r_len = d2r_end - d2r_start;
+                        let c_ij = c_i.add((d2_i+d2r_start) * d2_s);
                         let bp = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
-                        let bp = bp.add(nr_start*d1_len);
+                        let bp = bp.add(d2r_start*d1_len);
                         $goto_kernel(
-                             hw_cfg, mr_len, nr_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
+                             hw_cfg, d0r_len, d2r_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
                              ap, bp,
                              kc_last
                          );
