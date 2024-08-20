@@ -1446,7 +1446,6 @@ macro_rules! def_ukernel_partial {
 
             	// 5 -> POSTACCUM
             	"je 5f",
-   	 
             	// 4 -> KLEFT
             	"4:",
             	$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),

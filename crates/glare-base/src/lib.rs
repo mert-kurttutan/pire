@@ -1196,72 +1196,72 @@ macro_rules! def_glare_gemm {
             let jr_id = t_cfg.jr_id;
             let ir_par = t_cfg.par.ir_par;
             let jr_par = t_cfg.par.jr_par;
-            let mc = t_cfg.mc_eff;
-            let nc = t_cfg.nc_eff;
-            let kc = t_cfg.kc_eff;
+            let d0_c = t_cfg.mc_eff;
+            let d2_c = t_cfg.nc_eff;
+            let d1_c = t_cfg.kc_eff;
             let mr = hw_cfg.mr;
             let nr = hw_cfg.nr;
-            let (mc_start, mc_end, mc_left) = split_c_range(m, mc, mr, ic_id, t_cfg.par.ic_par);
-            let (nc_start, nc_end, nc_left) = split_c_range(n, nc, nr, jc_id, t_cfg.par.jc_par);
-            let (kc_start, kc_end) = (0, k);
+            let (d0_start, d0_end, mc_left) = split_c_range(m, d0_c, mr, ic_id, t_cfg.par.ic_par);
+            let (d2_start, d2_end, nc_left) = split_c_range(n, d2_c, nr, jc_id, t_cfg.par.jc_par);
+            let (d1_start, d1_end) = (0, k);
             let one = $one;
-            let mut mc_i = mc_start;
+            let mut d0_i = d0_start;
             let c_rs = c.rs();
             let c_cs = c.cs();
             let c_ptr = c.data_ptr();
-            while mc_i < mc_end {
-                let mc_len = mc.min(mc_end - mc_i);
-                let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
+            while d0_i < d0_end {
+                let d0_len = d0_c.min(d0_end - d0_i);
+                let mut d1_i = d1_start;
+                let (mr_start, mr_end) = split_range(d0_len, mr, ir_id, ir_par);
                 let mr_len = mr_end - mr_start;
-                let c_i = c_ptr.add((mc_i+mr_start) * c_rs);
-                let mut kc_i = kc_start;
-                while kc_i < kc_end {
-                    let kc_len = kc.min(kc_end - kc_i);
-                    let kc_last = kc_i + kc_len == kc_end;
-                    let beta_t = if kc_i == kc_start { beta } else { &one as *const $t_bs};
-                    let mut nc_i = nc_start;
-                    let ap = $packa_name(hw_cfg, a, mc_i, kc_i, mc_len, kc_len, t_cfg);
-                    let ap = ap.add(mr_start*kc_len);
-                    while nc_i < nc_end {
-                        let nc_len = nc.min(nc_end - nc_i);
-                        let (nr_start, nr_end) = split_range(nc_len, nr, jr_id, jr_par);
+                let c_i = c_ptr.add((d0_i+mr_start) * c_rs);
+                while d1_i < d1_end {
+                    let d1_len = d1_c.min(d1_end - d1_i);
+                    let mut d2_i = d2_start;
+                    let kc_last = d1_i + d1_len == d1_end;
+                    let beta_t = if d1_i == d1_start { beta } else { &one as *const $t_bs};
+                    let ap = $packa_name(hw_cfg, a, d0_i, d1_i, d0_len, d1_len, t_cfg);
+                    let ap = ap.add(mr_start*d1_len);
+                    while d2_i < d2_end {
+                        let d2_len = d2_c.min(d2_end - d2_i);
+                        let (nr_start, nr_end) = split_range(d2_len, nr, jr_id, jr_par);
                         let nr_len = nr_end - nr_start;
-                        let c_ij = c_i.add((nc_i+nr_start) * c_cs);
-                        let bp = $packb_name(hw_cfg, b, nc_i, kc_i, nc_len, kc_len, t_cfg);
-                        let bp = bp.add(nr_start*kc_len);
+                        let c_ij = c_i.add((d2_i+nr_start) * c_cs);
+                        let bp = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
+                        let bp = bp.add(nr_start*d1_len);
                         $goto_kernel(
-                             hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
+                             hw_cfg, mr_len, nr_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
                              ap, bp,
                              kc_last
                          );
         
-                        nc_i += nc;
+                        d2_i += d2_c;
                     }
                     if nc_left {
                      t_cfg.wait_packb();
                      t_cfg.wait_packb();
                     }
-                    kc_i += kc;
+                    d1_i += d1_c;
                 }
-                mc_i += mc;
+                d0_i += d0_c;
             }
             if mc_left {
-             let mut kc_i = kc_start;
-             while kc_i < kc_end {
-                 let kc_len = kc.min(kc_end - kc_i);
+             let mut d1_i = d1_start;
+             while d1_i < d1_end {
+                 let d1_len = d1_c.min(d1_end -d1_i);
                  t_cfg.wait_packa();
                  t_cfg.wait_packa();
-                 let mut nc_i = nc_start;
-                 while nc_i < nc_end {
-                     let nc_len = nc.min(nc_end - nc_i);
-                    let _ = $packb_name(hw_cfg, b, nc_i, kc_i, nc_len, kc_len, t_cfg);
-                     nc_i += nc;
+                 let mut d2_i = d2_start;
+                 while d2_i < d2_end {
+                     let d2_len = d2_c.min(d2_end - d2_i);
+                    let _ = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
+                     d2_i += d2_c;
                  }
                  if nc_left{
                      t_cfg.wait_packb();
                      t_cfg.wait_packb();
                  }
-                 kc_i += kc;
+                 d1_i += d1_c;
              }
             }
         }

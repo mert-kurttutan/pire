@@ -60,7 +60,7 @@ macro_rules! def_kernel_bb {
 
 
                 $(
-                    if m_left > ($mr_left - VS) {
+                    if (m_left+VS-1) / VS *VS == $mr_left {
                         let mut n_iter = n_iter0;
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
@@ -78,7 +78,6 @@ macro_rules! def_kernel_bb {
                             [<ukernel_$mr_left x nr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, m_left, nr_left, f);
                         }
                         )*
-                        return;
                     }
                 )*
             }        
@@ -87,7 +86,48 @@ macro_rules! def_kernel_bb {
 }
 
 def_kernel_bb!(48, 8, 48, 32, 16);
-// def_kernel_bb_strided!(16, 6, 16, 8);
+
+
+macro_rules! def_kernel_bb {
+    ($MR:tt, $NR:tt) => {
+        pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+            m: usize, n: usize, k: usize,
+            alpha: *const TA,
+            beta: *const TC,
+            c: *mut TC, c_rs: usize, c_cs: usize,
+            ap: *const TA, bp: *const TB,
+            f: F,
+        ) {
+            const MR: usize = $MR;
+            const NR: usize = $NR;
+            let mut d0_iter = m / MR;
+            let mut ap0 = ap;
+            let mut c0 = c;
+            
+            
+            let d1_iter0 = n / NR;
+            let ld_arr = [0, 0, c_rs, c_cs];
+            
+            while d0_iter > 0 {
+                let mut d1_iter = d1_iter0;
+                let mut bp0 = bp;
+                let mut c1 = c0;
+                while d1_iter > 0 { paste! {
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, ld_arr, MR, NR, f);
+                    }
+                    d1_iter -= 1;
+                    bp0 = bp0.add(NR*k);
+                    c1 = c1.add(NR*c_cs);
+                }
+                d0_iter -= 1;
+                ap0 = ap0.add(MR*k);
+                c0 = c0.add(MR*c_rs);
+            }
+        }
+    };
+}
+
+// def_kernel_bb!(48, 8);
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
