@@ -6,6 +6,7 @@ pub(crate) use axpy_kernel::*;
 
 use seq_macro::seq;
 use paste::paste;
+use std::arch::asm;
 
 use crate::{TA,TB,TC};
 
@@ -137,6 +138,8 @@ macro_rules! def_kernel_bb {
                         return;
                     }
                 )*
+
+                asm!("vzeroupper");
             }        
         }});
     };
@@ -214,6 +217,8 @@ macro_rules! def_kernel_bs {
                         return;
                     }
                 )*
+
+                asm!("vzeroupper");
             }        
         }});
     };
@@ -294,6 +299,8 @@ macro_rules! def_kernel_sb {
                         return;
                     }
                 )*
+
+                asm!("vzeroupper");
             }        
         }});
     };

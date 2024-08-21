@@ -4,6 +4,7 @@ pub(crate) use asm_ukernel::*;
 
 use seq_macro::seq;
 use paste::paste;
+use std::arch::asm;
 
 use crate::{TA,TB,TC};
 
@@ -81,10 +82,7 @@ macro_rules! def_kernel_bb {
                     }
                 )*
 
-                use std::arch::asm;
-                asm!(
-                    "vzeroupper"
-                );
+                asm!("vzeroupper");
             }        
         }});
     };
@@ -128,10 +126,8 @@ macro_rules! def_kernel_bb {
                 ap0 = ap0.add(MR*k);
                 c0 = c0.add(MR*c_rs);
             }
-            use std::arch::asm;
-            asm!(
-                "vzeroupper"
-            );
+
+            asm!("vzeroupper");
         }
     };
 }
@@ -206,6 +202,8 @@ macro_rules! def_kernel_bs {
                         return;
                     }
                 )*
+
+                asm!("vzeroupper");
             }        
         }});
     };
@@ -285,6 +283,8 @@ macro_rules! def_kernel_sb {
                         return;
                     }
                 )*
+
+                asm!("vzeroupper");
             }        
         }});
     };
