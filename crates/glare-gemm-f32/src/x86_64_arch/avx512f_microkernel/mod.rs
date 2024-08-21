@@ -25,14 +25,14 @@ macro_rules! def_kernel_bb {
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
-                let mut m_iter = (m / MR) as u64;
+                let mut m_iter = (m / MR);
                 let m_left = m % MR;
                 let mut ap_cur = ap;
                 let mut c_cur0 = c;
                 
                 
-                let n_iter0 = (n / NR) as u64;
-                let n_left = (n % NR) as u64;
+                let n_iter0 = (n / NR);
+                let n_left = (n % NR);
                 let ld_arr = [0, 0, c_rs, c_cs];
                 
                 while m_iter > 0 {
@@ -40,7 +40,7 @@ macro_rules! def_kernel_bb {
                     let mut bp_cur = bp;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, MR, ($MR+(n_iter0-n_iter)*2), f);
                         n_iter -= 1;
                         bp_cur = bp_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
@@ -80,6 +80,11 @@ macro_rules! def_kernel_bb {
                         )*
                     }
                 )*
+
+                use std::arch::asm;
+                asm!(
+                    "vzeroupper"
+                );
             }        
         }});
     };
@@ -113,7 +118,7 @@ macro_rules! def_kernel_bb {
                 let mut bp0 = bp;
                 let mut c1 = c0;
                 while d1_iter > 0 { paste! {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, ld_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, ld_arr, MR, ($MR+(d1_iter0-d1_iter)*2), f);
                     }
                     d1_iter -= 1;
                     bp0 = bp0.add(NR*k);
@@ -123,6 +128,10 @@ macro_rules! def_kernel_bb {
                 ap0 = ap0.add(MR*k);
                 c0 = c0.add(MR*c_rs);
             }
+            use std::arch::asm;
+            asm!(
+                "vzeroupper"
+            );
         }
     };
 }

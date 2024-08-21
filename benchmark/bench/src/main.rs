@@ -118,7 +118,7 @@ pub unsafe fn dispatch_sgemm(
    match backend {
        GemmBackend::Blis => {
             #[cfg(feature="blis")]
-                glare_dev::bli_dgemm(
+                glare_dev::bli_sgemm(
                    BLIS_NO_TRANSPOSE,
                    BLIS_NO_TRANSPOSE,
                    m as i32, n as i32, k as i32,
