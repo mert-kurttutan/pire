@@ -1391,6 +1391,156 @@ macro_rules! def_ukernel {
 	};
 }
 
+
+macro_rules! def_ukernelxn {
+	(
+		$VER:tt,
+		$asm_step_macro:tt,
+		$asm_acc_macro:tt,
+		$asm_store_macro:tt,
+    	$mr:tt, $nr:tt,
+    	$a_layout:tt, $b_layout:tt,
+		$is_partial:tt,
+		$pfa_dist:tt, $pfb_dist:tt,
+		$unroll:tt,
+    	$func_name:ident
+	) => {
+    	pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        	a: *const TA, b: *const TB, c: *mut TC,
+        	alpha: *const TA, beta: *const TB,
+        	k: usize,
+			d_arr: [usize; 4],
+			m: usize, n: usize,
+			f: F,
+    	) {
+			mask_ptr!($is_partial, m, x);
+			let mask_ptr = (&x) as *const u16;
+			let k_iter = k / $unroll;
+        	let k_left = k % $unroll;
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+			let mut cf = c;
+			let mut c_buf = [0f32;$mr*$nr];
+			let c_cs = d_arr[3];
+			if BUF {
+				let c_rs = d_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..$nr {
+						for i in 0..m {
+							c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
+						}
+					}
+					cf = c_buf.as_mut_ptr();
+					dim_arr[2] = $mr*4;
+				}
+			}
+			use std::arch::x86_64::_mm_prefetch;
+			let _ = 'blk: {
+				seq!(ni in 1..$nr {
+					if ni == n {
+						// prefetch for c
+						prefetch_c!($mr,ni,c,c_cs);
+						asm!(
+							asm_vzeroall!($VER,ni),
+				
+							asm_init_ab!($VER,$a_layout,$b_layout),
+						
+							// 3 -> CONSIDKLEFT
+							"je 3f",
+						
+							// 2 -> KITER
+							"2:",
+							$asm_step_macro!($mr, ni, $a_layout, $b_layout),
+							$asm_step_macro!($mr, ni, $a_layout, $b_layout),
+							$asm_step_macro!($mr, ni, $a_layout, $b_layout),
+							$asm_step_macro!($mr, ni, $a_layout, $b_layout),
+				
+							"dec {x0}",
+							// 2 -> KITER
+							"jne 2b",
+
+							// 3 -> CONSIDKLEFT
+							"3:",
+							"mov 32({dim_arrx}),{x0}",
+							"test {x0},{x0}",
+
+							// 5 -> POSTACCUM
+							"je 5f",
+							// 4 -> KLEFT
+							"4:",
+							$asm_step_macro!($mr, ni, $a_layout, $b_layout),
+
+							"dec {x0}",
+				
+							// 4 -> KLEFT
+							"jne 4b",
+				
+							// 5 -> POSTACCUM
+							"5:",
+							asm_c_load!(ni),
+							// scale by alpha
+							asm_alpha_scale!($VER, ni),
+
+							"vbroadcastss ({betax}), %zmm0",
+
+							"vxorps %ymm3,%ymm3,%ymm3",
+							"vucomiss %xmm3,%xmm0",
+
+							load_mask_ptr_asm!($is_partial),				
+							// 6 -> BETAZERO
+							"je 6f",
+							$asm_acc_macro!($mr,ni,$is_partial),
+
+							// 6 -> BETAZERO
+							"6:",
+							$asm_store_macro!($mr,ni,$is_partial),
+							
+							// 7 -> DDONE
+							"7:",
+							// "vzeroupper",
+							ax = inout(reg) a => _,
+							bx = inout(reg) b => _,
+							cx = inout(reg) cf => _,
+							dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+							alphax = inout(reg) alpha => _,
+							betax = inout(reg) beta => _,
+							maskx = inout(reg) mask_ptr => _,
+							x0 = out(reg) _,
+							x1 = out(reg) _,
+							x2 = out(reg) _,
+							x3 = out(reg) _,
+							x4 = out(reg) _,
+							x5 = out(reg) _,
+							out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+							out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+							out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+							out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+							out("k1") _,
+							options(att_syntax)
+						);
+						break 'blk;
+					}
+				});
+			};
+			if BUF {
+				let c_rs = d_arr[2];
+				if m != $mr || c_rs != 1 {
+					for j in 0..n {
+						for i in 0..m {
+							*c.add(i*c_rs+j*c_cs) = c_buf[j*$mr+i];
+						}
+					}
+				}
+			}
+			for j in 0..n {
+				for i in 0..$mr/8 {
+					f.call(c.add(i*8+j*c_cs), 8);
+				}
+			}
+    	}
+	};
+}
+
+
 macro_rules! group_def_ukernel {
 	(
     	$mr:tt,
@@ -1422,24 +1572,54 @@ macro_rules! group_def_ukernel {
 	};
 }
 
-group_def_ukernel!(48, 1, 7, B, B, C, bb, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
-group_def_ukernel!(48, 1, 8, B, S, C, bs, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
-group_def_ukernel!(48, 1, 8, B, B, M, bb_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
-group_def_ukernel!(48, 1, 8, B, S, M, bs_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+// def_ukernel!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, B, C, 0, 128, 4, ukernel_48x8_bb);
+// def_ukernel!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 8, B, B, C, 0, 128, 4, ukernel_32x8_bb);
+// def_ukernel!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 8, B, B, C, 0, 128, 4, ukernel_16x8_bb);
 
-// group_def_ukernel!(32, 1, 8, B, B, bb, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
-// group_def_ukernel!(32, 1, 8, B, S, bs, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
-group_def_ukernel!(32, 1, 8, B, B, M, bb_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
-group_def_ukernel!(32, 1, 8, B, S, M, bs_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+def_ukernel!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, B, M, 0, 128, 4, ukernel_48x8_bb_partial);
+def_ukernel!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 8, B, B, M, 0, 128, 4, ukernel_32x8_bb_partial);
+def_ukernel!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 8, B, B, M, 0, 128, 4, ukernel_16x8_bb_partial);
 
+def_ukernel!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, S, C, 0, 128, 4, ukernel_48x8_bs);
 
-// group_def_ukernel!(16, 1, 8, B, B, bb, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
-// group_def_ukernel!(16, 1, 8, B, S, bs, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
-group_def_ukernel!(16, 1, 8, B, B, M, bb_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
-group_def_ukernel!(16, 1, 8, B, S, M, bs_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+def_ukernel!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, S, M, 0, 128, 4, ukernel_48x8_bs_partial);
+def_ukernel!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 8, B, S, M, 0, 128, 4, ukernel_32x8_bs_partial);
+def_ukernel!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 8, B, S, M, 0, 128, 4, ukernel_16x8_bs_partial);
 
 
-// based on l1 prefetching is from openblas impl for skylax
+def_ukernelxn!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, B, C, 0, 128, 4, ukernel_48xn_bb);
+// def_ukernelxn!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 7, B, B, C, 0, 128, 4, ukernel_32xn_bb);
+// def_ukernelxn!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 7, B, B, C, 0, 128, 4, ukernel_16xn_bb);
+
+def_ukernelxn!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, B, M, 0, 128, 4, ukernel_48xn_bb_partial);
+def_ukernelxn!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 8, B, B, M, 0, 128, 4, ukernel_32xn_bb_partial);
+def_ukernelxn!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 8, B, B, M, 0, 128, 4, ukernel_16xn_bb_partial);
+
+def_ukernelxn!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, S, C, 0, 128, 4, ukernel_48xn_bs);
+
+def_ukernelxn!(VER48, asm_48x8_step, asm_48x8_acc, asm_48x8_store, 48, 8, B, S, M, 0, 128, 4, ukernel_48xn_bs_partial);
+def_ukernelxn!(VER32, asm_32x12_step, asm_32x12_acc, asm_32x12_store, 32, 8, B, S, M, 0, 128, 4, ukernel_32xn_bs_partial);
+def_ukernelxn!(VER16, asm_16x12_step, asm_16x12_acc, asm_16x12_store, 16, 8, B, S, M, 0, 128, 4, ukernel_16xn_bs_partial);
+
+
+// group_def_ukernel!(48, 1, 7, B, B, C, bb, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+// group_def_ukernel!(48, 1, 1, B, S, C, bs, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+// group_def_ukernel!(48, 1, 8, B, B, M, bb_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+// group_def_ukernel!(48, 1, 8, B, S, M, bs_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+
+// // group_def_ukernel!(32, 1, 8, B, B, bb, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+// // group_def_ukernel!(32, 1, 8, B, S, bs, def_ukernel, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+// group_def_ukernel!(32, 1, 8, B, B, M, bb_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+// group_def_ukernel!(32, 1, 8, B, S, M, bs_partial, asm_32x12_step, asm_32x12_acc, asm_32x12_store, VER32);
+
+
+// // group_def_ukernel!(16, 1, 8, B, B, bb, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+// // group_def_ukernel!(16, 1, 8, B, S, bs, def_ukernel, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+// group_def_ukernel!(16, 1, 8, B, B, M, bb_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+// group_def_ukernel!(16, 1, 8, B, S, M, bs_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
+
+
+// based on l1 prefetching scheme is from openblas impl for skylax
 // see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
 // this is adapted to our ukernel of 48x8
 // seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell

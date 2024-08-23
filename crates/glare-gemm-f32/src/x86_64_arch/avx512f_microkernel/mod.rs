@@ -2,7 +2,6 @@ pub mod asm_ukernel;
 
 pub(crate) use asm_ukernel::*;
 
-use seq_macro::seq;
 use paste::paste;
 use std::arch::asm;
 
@@ -15,8 +14,8 @@ use crate::MyFn;
 
 macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
-        seq!( nr_left in 2..$NR { paste! {
-            pub unsafe fn [<kernel_bb>]<F: MyFn, const STRIDED: bool>(
+        paste! {
+            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -47,14 +46,10 @@ macro_rules! def_kernel_bb {
                         bp_cur = bp_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
-                    if n_left == 1 {
-                        [<ukernel_$MR x 1 _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
+                    // let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
+                    if n_left != 0 {
+                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
-                    #(
-                        else if n_left == nr_left {
-                            [<ukernel_$MR x nr_left _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
-                        }
-                    )*
                     m_iter -= 1;
                     ap_cur = ap_cur.add(MR*k);
                     c_cur0 = c_cur0.add(MR*c_rs);
@@ -72,20 +67,15 @@ macro_rules! def_kernel_bb {
                             bp_cur = bp_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
-                        if n_left == 1 {
-                            [<ukernel_$mr_left x 1 _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
+                        if n_left !=0 {
+                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
                         }
-                        #(
-                        else if n_left == nr_left {
-                            [<ukernel_$mr_left x nr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
-                        }
-                        )*
                     }
                 )*
 
                 asm!("vzeroupper");
-            }        
-        }});
+            }
+        }   
     };
 }
 
@@ -138,7 +128,7 @@ macro_rules! def_kernel_bb {
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
-        seq!( nr_left in 2..$NR { paste! {
+        paste! {
             pub unsafe fn [<kernel_bs _v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -168,14 +158,9 @@ macro_rules! def_kernel_bs {
                         b_cur = b_cur.add(NR*b_cs);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
-                    if n_left == 1 {
-                        [<ukernel_$MR x1_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
+                    if n_left != 0 {
+                        [<ukernel_$MR xn_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
-                    #(
-                        else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
-                        }
-                    )*
                     m_iter -= 1;
                     ap_cur = ap_cur.add(MR*k);
                     c_cur0 = c_cur0.add(MR*c_rs);
@@ -193,21 +178,16 @@ macro_rules! def_kernel_bs {
                             b_cur = b_cur.add(NR*b_cs);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
-                        if n_left == 1 {
-                            [<ukernel_$mr_left x1_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
+                        if n_left != 0 {
+                            [<ukernel_$mr_left xn_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
                         }
-                        #(
-                        else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
-                        }
-                        )*
                         return;
                     }
                 )*
 
                 asm!("vzeroupper");
             }        
-        }});
+        }
     };
 }
 
@@ -216,7 +196,7 @@ def_kernel_bs!(48, 8, 48, 32, 16);
 use super::pack_avx::packa_panel_48;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
-        seq!( nr_left in 2..$NR { paste! {
+        paste! {
             pub unsafe fn [<kernel_sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -249,14 +229,9 @@ macro_rules! def_kernel_sb {
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
-                    if n_left == 1 {
-                        [<ukernel_$MR x1_bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
-                    }
-                    #(
-                        else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
-                        }
-                    )*
+                    if n_left != 0 {
+                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                    }   
                     m_iter -= 1;
                     a_cur = a_cur.add(MR*a_rs);
                     c_cur0 = c_cur0.add(MR*c_rs);
@@ -274,21 +249,16 @@ macro_rules! def_kernel_sb {
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
-                        if n_left == 1 {
-                            [<ukernel_$mr_left x1_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
+                        if n_left != 0 {
+                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
                         }
-                        #(
-                        else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
-                        }
-                        )*
                         return;
                     }
                 )*
 
                 asm!("vzeroupper");
             }        
-        }});
+        }
     };
 }
 
