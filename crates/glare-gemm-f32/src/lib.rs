@@ -51,7 +51,7 @@ fn get_mcnckc() -> (usize, usize, usize) {
 		// let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
 		// let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
 		// return (mc, nc, kc);
-		return (4800, 192, 512);
+		return (4800, 192, 768);
 	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
 		return (4800, 320, 192);

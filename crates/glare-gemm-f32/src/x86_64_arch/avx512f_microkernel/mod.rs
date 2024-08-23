@@ -34,24 +34,25 @@ macro_rules! def_kernel_bb {
                 
                 let n_iter0 = (n / NR);
                 let n_left = (n % NR);
-                let ld_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs, c_cs];
                 
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut bp_cur = bp;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, MR, ($MR+(n_iter0-n_iter)*2), f);
+                        let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
                         n_iter -= 1;
                         bp_cur = bp_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     if n_left == 1 {
-                        [<ukernel_$MR x 1 _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, MR, 1, f);
+                        [<ukernel_$MR x 1 _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
                     }
                     #(
                         else if n_left == nr_left {
-                            [<ukernel_$MR x nr_left _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, MR, nr_left, f);
+                            [<ukernel_$MR x nr_left _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
                         }
                     )*
                     m_iter -= 1;
@@ -66,17 +67,17 @@ macro_rules! def_kernel_bb {
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             bp_cur = bp_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x 1 _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, m_left, 1, f);
+                            [<ukernel_$mr_left x 1 _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
                         }
                         #(
                         else if n_left == nr_left {
-                            [<ukernel_$mr_left x nr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, ld_arr, m_left, nr_left, f);
+                            [<ukernel_$mr_left x nr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
                         }
                         )*
                     }
@@ -109,14 +110,15 @@ macro_rules! def_kernel_bb {
             
             
             let d1_iter0 = n / NR;
-            let ld_arr = [0, 0, c_rs, c_cs];
+            let d_arr = [0, 0, c_rs, c_cs];
             
             while d0_iter > 0 {
                 let mut d1_iter = d1_iter0;
                 let mut bp0 = bp;
                 let mut c1 = c0;
                 while d1_iter > 0 { paste! {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, ld_arr, MR, ($MR+(d1_iter0-d1_iter)*2), f);
+                        let a_pft1_offset = ($MR+(d1_iter0-d1_iter)*2)*4*k;
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, d_arr, MR, a_pft1_offset, f);
                     }
                     d1_iter -= 1;
                     bp0 = bp0.add(NR*k);
@@ -148,30 +150,30 @@ macro_rules! def_kernel_bs {
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
-                let mut m_iter = (m / MR) as u64;
+                let mut m_iter = (m / MR);
                 let m_left = m % MR;
                 let mut c_cur0 = c;
                 let mut ap_cur = ap_cur;
                 
-                let n_iter0 = (n / NR) as u64;
-                let n_left = (n % NR) as u64;
-                let ld_arr = [b_rs, b_cs, c_rs, c_cs];
+                let n_iter0 = (n / NR);
+                let n_left = (n % NR);
+                let d_arr = [b_rs, b_cs, c_rs, c_cs];
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, ($MR+(n_iter0-n_iter)*2), f);
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*b_cs);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     if n_left == 1 {
-                        [<ukernel_$MR x1_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, 1, f);
+                        [<ukernel_$MR x1_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
                     }
                     #(
                         else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, nr_left, f);
+                            [<ukernel_$MR x~nr_left _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
                         }
                     )*
                     m_iter -= 1;
@@ -180,23 +182,23 @@ macro_rules! def_kernel_bs {
                 }
 
                 $(
-                    if m_left > ($mr_left - VS) {
+                    if (m_left+VS-1) / VS *VS == $mr_left {
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, NR, f);
-                            // [<ukernel_$mr_left x $NR _bs>]::<_, true>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
+                            // [<ukernel_$mr_left x $NR _bs>]::<_, true>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*b_cs);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x1_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, 1, f);
+                            [<ukernel_$mr_left x1_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
                         }
                         #(
                         else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, nr_left, f);
+                            [<ukernel_$mr_left x~nr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
                         }
                         )*
                         return;
@@ -227,14 +229,14 @@ macro_rules! def_kernel_sb {
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
-                let mut m_iter = (m / MR) as u64;
+                let mut m_iter = (m / MR);
                 let m_left = m % MR;
                 let mut c_cur0 = c;
                 let mut a_cur = a;
                 
-                let n_iter0 = (n / NR) as u64;
-                let n_left = (n % NR) as u64;
-                let ld_arr = [0, 0, c_rs, c_cs];
+                let n_iter0 = (n / NR);
+                let n_left = (n % NR);
+                let d_arr = [0, 0, c_rs, c_cs];
                 let ap_cur = ap_buf;
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
@@ -242,17 +244,17 @@ macro_rules! def_kernel_sb {
                     let mut c_cur1 = c_cur0;
                     packa_panel_48(MR, k, a_cur, a_rs, a_cs, ap_cur);
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, NR, f);
-                        n_iter -= 1;
+                        let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);                        n_iter -= 1;
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     if n_left == 1 {
-                        [<ukernel_$MR x1_bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, 1, f);
+                        [<ukernel_$MR x1_bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, 1, f);
                     }
                     #(
                         else if n_left == nr_left {
-                            [<ukernel_$MR x~nr_left _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, MR, nr_left, f);
+                            [<ukernel_$MR x~nr_left _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, nr_left, f);
                         }
                     )*
                     m_iter -= 1;
@@ -261,23 +263,23 @@ macro_rules! def_kernel_sb {
                 }
 
                 $(
-                    if m_left > ($mr_left - VS) {
+                    if (m_left+VS-1) / VS *VS == $mr_left {
                         packa_panel_48(m_left, k, a_cur, a_rs, a_cs, ap_cur);
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left == 1 {
-                            [<ukernel_$mr_left x1_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, 1, f);
+                            [<ukernel_$mr_left x1_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, 1, f);
                         }
                         #(
                         else if n_left == nr_left {
-                            [<ukernel_$mr_left x~nr_left _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, ld_arr, m_left, nr_left, f);
+                            [<ukernel_$mr_left x~nr_left _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, nr_left, f);
                         }
                         )*
                         return;

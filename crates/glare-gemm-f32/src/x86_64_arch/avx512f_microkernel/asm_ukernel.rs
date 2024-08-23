@@ -372,10 +372,9 @@ macro_rules! inc_a {
     	"add {x1}, {ax} \n"
 	};
 	(B, $mr:tt) => {
-		""
-    	// concat!(
-		// 	"add $4*", $mr, ",{ax}", "\n",
-		// )
+    	concat!(
+        	"add $4*", $mr, ", {ax}", "\n",
+    	)
 	};
 }
 
@@ -417,28 +416,8 @@ macro_rules! inc_b {
     	"add {x1},{bx} \n"
 	};
 	(B,$nr:tt) => {
-    	""
-	};
-}
-
-macro_rules! inc_a_k_unroll {
-	(C, $X:tt, $K:tt) => {
-    	""
-	};
-	(B, $X:tt, $K:tt) => {
     	concat!(
-        	"add $4*", $K, "*", $X, ",{ax}", "\n",
-    	)
-	};
-}
-
-macro_rules! inc_b_k_unroll {
-	(S, $X:tt, $K:tt) => {
-    	""
-	};
-	(B, $X:tt, $K:tt) => {
-    	concat!(
-        	"add $4*", $K, "*", $X, ", {bx}", "\n",
+        	"add $4*", $nr, ", {bx}", "\n",
     	)
 	};
 }
@@ -742,79 +721,81 @@ macro_rules! asm_16x12_store {
 }
 
 macro_rules! load_b {
-	(S, 0, $K:tt, $X:tt, $r:expr) => {
+	(S, 0, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({bx}),%zmm", $r, "\n",
     	)
 	};
-	(S, 1, $K:tt, $X:tt, $r:expr) => {
+	(S, 1, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({bx},{x2},1),%zmm", $r, "\n",
     	)
 	};
-	(S, 2, $K:tt, $X:tt, $r:expr) => {
+	(S, 2, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({bx},{x2},2),%zmm", $r, "\n",
     	)
 	};
-	(S, 3, $K:tt, $X:tt, $r:expr) => {
+	(S, 3, $X:tt, $r:expr) => {
     	concat!(
+			"prefetcht0 64({x3}) \n",
         	"vbroadcastss ({x3}),%zmm", $r, "\n",
     	)
 	};
-	(S, 4, $K:tt, $X:tt, $r:expr) => {
+	(S, 4, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x3},{x2},1),%zmm", $r, "\n",
     	)
 	};
-	(S, 5, $K:tt, $X:tt, $r:expr) => {
+	(S, 5, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x3},{x2},2),%zmm", $r, "\n",
     	)
 	};
-	(S, 6, $K:tt, $X:tt, $r:expr) => {
+	(S, 6, $X:tt, $r:expr) => {
     	concat!(
+			"prefetcht0 64({x4}) \n",
         	"vbroadcastss ({x4}),%zmm", $r, "\n",
     	)
 	};
-	(S, 7, $K:tt, $X:tt, $r:expr) => {
+	(S, 7, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x4},{x2},1),%zmm", $r, "\n",
     	)
 	};
-	(S, 8, $K:tt, $X:tt, $r:expr) => {
+	(S, 8, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x4},{x2},2),%zmm", $r, "\n",
     	)
 	};
-	(S, 9, $K:tt, $X:tt, $r:expr) => {
+	(S, 9, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x5}),%zmm", $r, "\n",
     	)
 	};
-	(S, 10, $K:tt, $X:tt, $r:expr) => {
+	(S, 10, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x5},{x2},1),%zmm", $r, "\n",
     	)
 	};
-	(S, 11, $K:tt, $X:tt, $r:expr) => {
+	(S, 11, $X:tt, $r:expr) => {
     	concat!(
         	"vbroadcastss ({x5},{x2},2),%zmm", $r, "\n",
     	)
 	};
-	(B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+	(B, $N:tt, $X:tt, $r:expr) => {
     	concat!(
-        	"vbroadcastss ", $K, "*", $X, "*4+", $N, "*4({bx}), %zmm", $r, "\n",
+        	"vbroadcastss ", $N, "*4({bx}), %zmm", $r, "\n",
     	)
 	};
 }
 
 
 macro_rules! load_a {
-	($mr:tt, B, $K:tt) => {
-    	loadps!($mr, B, concat!($mr,"*4*",$K,"({ax})"))
+	($mr:tt, B) => {
+    	loadps!($mr, B, "0({ax})")
 	};
-	($mr:tt, C, $K:tt) => {
+	($mr:tt, C) => {
     	loadps!($mr, C, "0({ax})")
 	};
 }
@@ -1059,13 +1040,42 @@ macro_rules! b_num_16x12 {
 
 // ***************************** 48x8 ******************************* //
 macro_rules! asm_48x8_step {
-	($N:tt, $nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+	(48, 8, B, B) => {
+		concat!(
+			load_a!(48, B),
+			"addq $192, {ax} \n",
+			load_b!(B, 0, 8, 3),
+			fmadd_3v!(0),
+			load_b!(B, 1, 8, 4),
+			fmadd_3v!(1),
+			"prefetcht0 384({ax}) \n",
+			"prefetcht0 64({bx}) \n",
+			load_b!(B, 2, 8, 5),
+			fmadd_3v!(2),
+			load_b!(B, 3, 8, 6),
+			fmadd_3v!(3),
+			"prefetcht0 448({ax}) \n",
+			load_b!(B, 4, 8, 7),
+			fmadd_3v!(4),
+			load_b!(B, 5, 8, 3),
+			fmadd_3v!(5),
+			"prefetcht0 512({ax}) \n",
+			load_b!(B, 6, 8, 4),
+			fmadd_3v!(6),
+			load_b!(B, 7, 8, 5),
+			fmadd_3v!(7),
+			"addq $32, {bx} \n",
+		)
+		
+	};
+	($mr:tt, $nr:tt, $a_layout:tt, $b_layout:tt) => {
 		seq!(n in 0..$nr {
 			concat!(
-				load_a!($N, $a_layout, $K),
-				inc_a!($a_layout,$nr),
+				load_a!($mr, $a_layout),
+				inc_a!($a_layout,$mr),
+				"prefetcht0 64({bx}) \n",
 				#(
-					load_b!($b_layout, n, $K, $nr, b_num_48x8!(n)),
+					load_b!($b_layout, n, $nr, b_num_48x8!(n)),
 					fmadd_3v!(n),
 				)*
 				inc_b!($b_layout,$nr), 
@@ -1076,13 +1086,13 @@ macro_rules! asm_48x8_step {
 
 // ***************************** 32x12 ******************************* //
 macro_rules! asm_32x12_step {
-	($N:tt, $nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+	($mr:tt, $nr:tt, $a_layout:tt, $b_layout:tt) => {
 		seq!(n in 0..$nr {
 			concat!(
-				load_a!($N, $a_layout, $K),
-				inc_a!($a_layout,$nr),
+				load_a!($mr, $a_layout),
+				inc_a!($a_layout,$mr),
 				#(
-					load_b!($b_layout, n, $K, $nr, b_num_32x12!(n)),
+					load_b!($b_layout, n, $nr, b_num_32x12!(n)),
 					fmadd_2v!(n),
 				)*
 				inc_b!($b_layout,$nr), 
@@ -1093,13 +1103,13 @@ macro_rules! asm_32x12_step {
 
 // ***************************** 16x12 ******************************* //
 macro_rules! asm_16x12_step {
-	($N:tt, $nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+	($mr:tt, $nr:tt, $a_layout:tt, $b_layout:tt) => {
 		seq!(n in 0..$nr {
 			concat!(
-				load_a!($N, $a_layout, $K),
-				inc_a!($a_layout,$nr),
+				load_a!($mr, $a_layout),
+				inc_a!($a_layout,$mr),
 				#(
-					load_b!($b_layout, n, $K, $nr, b_num_16x12!(n)),
+					load_b!($b_layout, n, $nr, b_num_16x12!(n)),
 					fmadd_1v!(n),
 				)*
 				inc_b!($b_layout,$nr), 
@@ -1257,7 +1267,7 @@ macro_rules! def_ukernel {
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, beta: *const TB,
         	k: usize,
-			ld_arr: [usize; 4],
+			d_arr: [usize; 4],
 			m: usize, _n: usize,
 			f: F,
     	) {
@@ -1265,12 +1275,12 @@ macro_rules! def_ukernel {
 			let mask_ptr = (&x) as *const u16;
 			let k_iter = k / $unroll;
         	let k_left = k % $unroll;
-            let mut dim_arr = [ld_arr[0]*4, ld_arr[1]*4, ld_arr[3]*4, k_iter, k_left];
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
 			let mut cf = c;
 			let mut c_buf = [0f32;$mr*$nr];
-			let c_cs = ld_arr[3];
+			let c_cs = d_arr[3];
 			if BUF {
-				let c_rs = ld_arr[2];
+				let c_rs = d_arr[2];
 				if m != $mr || c_rs != 1 {
 					for j in 0..$nr {
 						for i in 0..m {
@@ -1294,15 +1304,10 @@ macro_rules! def_ukernel {
            	 
             	// 2 -> KITER
             	"2:",
-				// prefetch_b!($nr, $b_layout, $pfb_dist, $unroll, 0),
-				$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),
-				$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 1),
-				// prefetch_b!($nr, $b_layout, $pfb_dist, $unroll, 1),
-				$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 2),
-				$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 3),
-
-            	inc_a_k_unroll!($a_layout, $mr, $unroll),
-            	inc_b_k_unroll!($b_layout, $nr, $unroll),
+				$asm_step_macro!($mr, $nr, $a_layout, $b_layout),
+				$asm_step_macro!($mr, $nr, $a_layout, $b_layout),
+				$asm_step_macro!($mr, $nr, $a_layout, $b_layout),
+				$asm_step_macro!($mr, $nr, $a_layout, $b_layout),
    	 
             	"dec {x0}",
             	// 2 -> KITER
@@ -1317,9 +1322,7 @@ macro_rules! def_ukernel {
             	"je 5f",
             	// 4 -> KLEFT
             	"4:",
-            	$asm_step_macro!($mr, $nr, $a_layout, $b_layout, 0),
-            	inc_a_k_unroll!($a_layout, $mr, 1),
-            	inc_b_k_unroll!($b_layout, $nr, 1),
+            	$asm_step_macro!($mr, $nr, $a_layout, $b_layout),
 
             	"dec {x0}",
    	 
@@ -1370,7 +1373,7 @@ macro_rules! def_ukernel {
             	options(att_syntax)
         	);
 			if BUF {
-				let c_rs = ld_arr[2];
+				let c_rs = d_arr[2];
 				if m != $mr || c_rs != 1 {
 					for j in 0..$nr {
 						for i in 0..m {
@@ -1419,7 +1422,7 @@ macro_rules! group_def_ukernel {
 	};
 }
 
-group_def_ukernel!(48, 1, 8, B, B, C, bb, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
+group_def_ukernel!(48, 1, 7, B, B, C, bb, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 group_def_ukernel!(48, 1, 8, B, S, C, bs, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 group_def_ukernel!(48, 1, 8, B, B, M, bb_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
 group_def_ukernel!(48, 1, 8, B, S, M, bs_partial, asm_48x8_step, asm_48x8_acc, asm_48x8_store, VER48);
@@ -1436,3 +1439,144 @@ group_def_ukernel!(16, 1, 8, B, B, M, bb_partial, asm_16x12_step, asm_16x12_acc,
 group_def_ukernel!(16, 1, 8, B, S, M, bs_partial, asm_16x12_step, asm_16x12_acc, asm_16x12_store, VER16);
 
 
+// based on l1 prefetching is from openblas impl for skylax
+// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
+// this is adapted to our ukernel of 48x8
+// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
+// where the same l1 prefetching does not benefit as much)
+pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
+    a: *const TA, b: *const TB, c: *mut TC,
+    alpha: *const TA, beta: *const TB,
+    k: usize,
+    d_arr: [usize; 4],
+    a_pft1_offset: usize,
+    f: F,
+) {
+	let k_left0 = k % 8;
+	let k_left = if k_left0 == 0 {8} else {k_left0};
+	let k_iter = (k - k_left) / 4;
+    let mut dim_arr = [d_arr[3]*4, k_iter, k_left, a_pft1_offset];
+    let mut cf = c;
+    let mut c_buf = [0f32; 48 * 8];
+	let c_cs = d_arr[3];
+    if BUF {
+        let c_rs = d_arr[2];
+        if c_rs != 1 {
+            for j in 0..8 {
+                for i in 0..48 {
+                    c_buf[j * 48 + i] = *c.add(i * c_rs + j * c_cs);
+                }
+            }
+            cf = c_buf.as_mut_ptr();
+            dim_arr[2] = 48 * 4;
+        }
+    }
+    asm!(
+		asm_vzeroall!(VER48,8),
+		"mov 8({dim_arrx}),{x0}",
+		"test {x0},{x0}",
+		"je 3f",
+		// "je 3f",
+		"mov {cx}, {x2}",
+		"mov {ax}, {x5}",
+		"mov 24({dim_arrx}),{x1}",
+		"add {x1}, {x5}",
+		"mov ({dim_arrx}),{x1}",
+		"2:",
+		asm_48x8_step!(48, 8, B, B),
+
+		"movq $64*4, {x4}",
+		// divisiblity by 4
+		"testq $3, {x0}",
+		"cmovz {x1},{x4}",
+
+		asm_48x8_step!(48, 8, B, B),
+
+		"prefetcht1 ({x2})",
+
+		"subq $64*3, {x2}",
+		"addq {x4}, {x2}",
+
+		asm_48x8_step!(48, 8, B, B),
+
+		"prefetcht1 ({x5})",
+		"addq $32, {x5}",
+
+		"testq $63, {x0}",
+		"cmovz {cx},{x2}",
+
+		asm_48x8_step!(48, 8, B, B),
+
+		"dec {x0}",
+		"jne 2b",
+		"3:",
+		"mov 16({dim_arrx}),{x0}",
+		"test {x0},{x0}",
+
+		// 5 -> POSTACCUM
+		"je 5f",
+		"mov {cx}, {x2}",
+		"mov ({dim_arrx}),{x1}",
+		"4:",
+		"prefetcht0 ({x2})",
+		"prefetcht0 64({x2})",
+		"prefetcht0 128({x2})",
+		asm_48x8_step!(48, 8, B, B),
+
+		"add {x1}, {x2}",
+		"dec {x0}",
+		"jne 4b",
+		"5:",
+		"mov ({dim_arrx}),{x0}",
+		"lea ({x0}, {x0}, 2), {x3}",
+		"lea ({cx}, {x3},), {x1}",
+		"lea ({x1}, {x3},), {x2}",
+		// scale by alpha
+		asm_alpha_scale!(VER48, 8),
+		"vbroadcastss ({betax}), %zmm0",
+		"vxorps %ymm3,%ymm3,%ymm3",
+		"vucomiss %xmm3,%xmm0",
+
+		// 6 -> BETAZERO
+		"je 6f",
+		asm_48x8_acc!(48,8,C),
+
+		// 6 -> BETAZERO
+		"6:",
+		asm_48x8_store!(48,8,C),
+
+		"7:",
+        ax = inout(reg) a => _, 
+		bx = inout(reg) b => _, 
+		cx = inout(reg) cf => _,
+		dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
+		alphax = inout(reg) alpha => _, 
+		betax = inout(reg) beta => _, 
+		x0 = out(reg) _, 
+		x1 = out(reg)_, 
+		x2 = out(reg) _, 
+		x3 = out(reg) _, 
+		x4 = out(reg) _,
+		x5 = out(reg) _, 
+		out("xmm0") _, out("xmm1") _,
+        out("xmm2") _, out("xmm3") _, out("xmm4") _, out("xmm5") _, out("xmm6") _,
+        out("xmm7") _, out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+        out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+        options(att_syntax)
+    );
+    if BUF {
+        let c_rs = d_arr[2];
+        if c_rs != 1 {
+            for j in 0..8 {
+                for i in 0..48 {
+                    *c.add(i * c_rs + j * c_cs) = c_buf[j * 48 + i];
+                }
+            }
+        }
+    }
+    for j in 0..8 {
+        for i in 0..48 / 8 {
+            f.call(c.add(i * 8 + j * c_cs), 8);
+        }
+    }
+}
