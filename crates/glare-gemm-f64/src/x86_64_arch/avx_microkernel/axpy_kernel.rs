@@ -24,6 +24,11 @@ unsafe fn v_loadu_n(mem_addr: *const TC, n: usize) -> __m256d {
    _mm256_loadu_pd(a_arr.as_ptr())
 }
 
+unsafe fn fmadd_pd(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
+    let x = _mm256_mul_pd(a, b);
+    _mm256_add_pd(x, c)
+}
+
 #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn acc_store(
     a: *const TA, lda: usize,
@@ -31,9 +36,9 @@ pub(crate) unsafe fn acc_store(
     cv: __m256d, xt1: __m256d, xt2: __m256d, xt3: __m256d,
 ) {
     let mut cv = cv;
-    cv = _mm256_fmadd_pd(_mm256_loadu_pd(a.add(lda)), xt1, cv);
-    cv = _mm256_fmadd_pd(_mm256_loadu_pd(a.add(lda*2)), xt2, cv);
-    cv = _mm256_fmadd_pd(_mm256_loadu_pd(a.add(lda*3)), xt3, cv);
+    cv = fmadd_pd(_mm256_loadu_pd(a.add(lda)), xt1, cv);
+    cv = fmadd_pd(_mm256_loadu_pd(a.add(lda*2)), xt2, cv);
+    cv = fmadd_pd(_mm256_loadu_pd(a.add(lda*3)), xt3, cv);
     _mm256_storeu_pd(c, cv);
 }
 
@@ -53,12 +58,12 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     while mi < m_lane4 {
         seq!(i in 0..4 {
             let c~i = if BETA == 1 {
-                _mm256_fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, _mm256_loadu_pd(y.add(VS*i)))
+                fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, _mm256_loadu_pd(y.add(VS*i)))
             } else if BETA == 0 {
                 _mm256_mul_pd(_mm256_loadu_pd(a.add(VS*i)), xt0)
             } else {
                 let cx~i = _mm256_mul_pd(_mm256_loadu_pd(y.add(VS*i)), beta_v);
-                _mm256_fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, cx~i)
+                fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, cx~i)
             };
             acc_store(a.add(VS*i), lda, y.add(VS*i), c~i, xt1, xt2, xt3);
         });
@@ -68,12 +73,12 @@ pub(crate) unsafe fn axpy_v_inner<const BETA: usize>(
     }
     while mi < m_lane {
         let c0 = if BETA == 1 {
-            _mm256_fmadd_pd(_mm256_loadu_pd(a), xt0, _mm256_loadu_pd(y))
+            fmadd_pd(_mm256_loadu_pd(a), xt0, _mm256_loadu_pd(y))
         } else if BETA == 0 {
             _mm256_mul_pd(_mm256_loadu_pd(a), xt0)
         } else {
             let cx0 = _mm256_mul_pd(_mm256_loadu_pd(y), beta_v);
-            _mm256_fmadd_pd(_mm256_loadu_pd(a), xt0, cx0)
+            fmadd_pd(_mm256_loadu_pd(a), xt0, cx0)
         };
         acc_store(a, lda, y, c0, xt1, xt2, xt3);
         a = a.add(VS);
@@ -113,12 +118,12 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
     while mi < m_lane4 {
         seq!(i in 0..4 {
             let c~i = if BETA == 1 {
-                _mm256_fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, _mm256_loadu_pd(y.add(VS*i)))
+                fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, _mm256_loadu_pd(y.add(VS*i)))
             } else if BETA == 0 {
                 _mm256_mul_pd(_mm256_loadu_pd(a.add(VS*i)), xt0)
             } else {
                 let cx~i = _mm256_mul_pd(_mm256_loadu_pd(y.add(VS*i)), beta_v);
-                _mm256_fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, cx~i)
+                fmadd_pd(_mm256_loadu_pd(a.add(VS*i)), xt0, cx~i)
             };
             _mm256_storeu_pd(y.add(VS*i), c~i);
         });
@@ -128,12 +133,12 @@ pub(crate) unsafe fn axpy_v_inner2<const BETA: usize>(
     }
     while mi < m_lane {
         let c0 = if BETA == 1 {
-            _mm256_fmadd_pd(_mm256_loadu_pd(a), xt0, _mm256_loadu_pd(y))
+            fmadd_pd(_mm256_loadu_pd(a), xt0, _mm256_loadu_pd(y))
         } else if BETA == 0 {
             _mm256_mul_pd(_mm256_loadu_pd(a), xt0)
         } else {
             let cx0 = _mm256_mul_pd(_mm256_loadu_pd(y), beta_v);
-            _mm256_fmadd_pd(_mm256_loadu_pd(a), xt0, cx0)
+            fmadd_pd(_mm256_loadu_pd(a), xt0, cx0)
         };
         _mm256_storeu_pd(y, c0);
         a = a.add(VS);
@@ -251,10 +256,10 @@ pub(crate) unsafe fn axpy_d(
        let mut p = 0;
        while p < n_iter_unroll_vec {
         seq!(q in 0..3 {
-            acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
-            acc_arr[q*4+1] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
-            acc_arr[q*4+2] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
-            acc_arr[q*4+3] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
+            acc_arr[q*4] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+            acc_arr[q*4+1] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
+            acc_arr[q*4+2] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
+            acc_arr[q*4+3] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
         });
            a_cur = a_cur.add(VS*K_UNROLL);
            x_cur = x_cur.add(VS*K_UNROLL);
@@ -264,7 +269,7 @@ pub(crate) unsafe fn axpy_d(
        p = 0;
        while p < n_iter_vec {
             seq!(q in 0..3 {
-                acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+                acc_arr[q*4] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
             });
            a_cur = a_cur.add(VS);
            x_cur = x_cur.add(VS);
@@ -275,7 +280,7 @@ pub(crate) unsafe fn axpy_d(
        // accumulate to scalar
        seq!(q in 0..3 {
         let a_lef_v = v_loadu_n(a_cur.add(lda*q), n_left_vec);
-        acc_arr[q*4] = _mm256_fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
+        acc_arr[q*4] = fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+1]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+2]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+3]);
@@ -305,10 +310,10 @@ pub(crate) unsafe fn axpy_d(
         let mut p = 0;
         while p < n_iter_unroll_vec {
         seq!(q in 0..1 {
-            acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
-            acc_arr[q*4+1] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
-            acc_arr[q*4+2] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
-            acc_arr[q*4+3] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
+            acc_arr[q*4] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+            acc_arr[q*4+1] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS)), _mm256_loadu_pd(x_cur.add(VS)), acc_arr[q*4+1]);
+            acc_arr[q*4+2] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*2)), _mm256_loadu_pd(x_cur.add(VS*2)), acc_arr[q*4+2]);
+            acc_arr[q*4+3] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q+VS*3)), _mm256_loadu_pd(x_cur.add(VS*3)), acc_arr[q*4+3]);
         });
             a_cur = a_cur.add(VS*K_UNROLL);
             x_cur = x_cur.add(VS*K_UNROLL);
@@ -318,7 +323,7 @@ pub(crate) unsafe fn axpy_d(
         p = 0;
         while p < n_iter_vec {
             seq!(q in 0..1 {
-                acc_arr[q*4] = _mm256_fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
+                acc_arr[q*4] = fmadd_pd(_mm256_loadu_pd(a_cur.add(lda*q)), _mm256_loadu_pd(x_cur), acc_arr[q*4]);
             });
             a_cur = a_cur.add(VS);
             x_cur = x_cur.add(VS);
@@ -329,7 +334,7 @@ pub(crate) unsafe fn axpy_d(
         // accumulate to scalar
         seq!(q in 0..1 {
         let a_lef_v = v_loadu_n(a_cur.add(lda*q), n_left_vec);
-        acc_arr[q*4] = _mm256_fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
+        acc_arr[q*4] = fmadd_pd(a_lef_v, x_left_v, acc_arr[q*4]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+1]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+2]);
         acc_arr[q*4] = _mm256_add_pd(acc_arr[q*4], acc_arr[q*4+3]);

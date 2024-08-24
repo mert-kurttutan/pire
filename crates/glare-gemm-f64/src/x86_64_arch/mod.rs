@@ -1,6 +1,6 @@
 pub(crate) mod avx_fma_microkernel;
 pub(crate) mod avx512f_microkernel;
-// pub(crate) mod avx_microkernel;
+pub(crate) mod avx_microkernel;
 pub(crate) mod pack_avx;
 
 const AVX_GOTO_MR: usize = 8; // register block size
@@ -100,6 +100,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
             pack_avx::packa_panel_12(m, k, x, rs, cs, y);
             return;
         }
+        if self.features.avx {
+            pack_avx::packa_panel_8(m, k, x, rs, cs, y);
+            return;
+        }
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
@@ -108,6 +112,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
             return;
         }
         if self.features.avx && self.features.fma {
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
@@ -164,6 +172,10 @@ unsafe fn kernel<F:MyFn>(
      avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
+ if hw_cfg.features.avx {
+    avx_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    return;
+}
 }
 
 unsafe fn kernel_m<F:MyFn>(
@@ -181,6 +193,10 @@ unsafe fn kernel_m<F:MyFn>(
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx {
+        avx_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -204,6 +220,10 @@ unsafe fn kernel_n<F:MyFn>(
         avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
+    if hw_cfg.features.avx {
+        avx_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
 }
 
 unsafe fn glare_gemv<F:MyFn>(
@@ -217,10 +237,14 @@ unsafe fn glare_gemv<F:MyFn>(
 ) {
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
     if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
         avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx || hw_cfg.features.avx512f {
+        avx_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
 }

@@ -181,42 +181,42 @@ pub(crate) unsafe fn pack_kx12_v0(
     }
 }
 
-// #[target_feature(enable = "avx")]
-// pub(crate) unsafe fn pack_kx8_v0(
-//     k_iter: usize, k_left: usize,
-//     a: *const TA, lda: usize,
-//     ap: *mut TA,
-// ) {
-//     let mut k_i = 0;
-//     let mut a = a;
-//     let mut ap = ap;
-//     const MR: usize = 8;
-//     while k_i < k_iter {
-//         // use vector intrinscs
-//         seq!(i in 0..8 {
-//             let a0 = _mm256_loadu_pd(a.add(lda*i));
-//             let a1 = _mm256_loadu_pd(a.add(lda*i+8));
-//             _mm256_store_pd(ap.add(i*MR), a0);
-//             _mm256_store_pd(ap.add(i*MR+8), a1);
-//         });
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_kx8_v0(
+    k_iter: usize, k_left: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    let mut k_i = 0;
+    let mut a = a;
+    let mut ap = ap;
+    const MR: usize = 8;
+    while k_i < k_iter {
+        // use vector intrinscs
+        seq!(i in 0..8 {
+            let a0 = _mm256_loadu_pd(a.add(lda*i));
+            let a1 = _mm256_loadu_pd(a.add(lda*i+4));
+            _mm256_store_pd(ap.add(i*MR), a0);
+            _mm256_store_pd(ap.add(i*MR+4), a1);
+        });
 
-//         ap = ap.add(MR*8);
-//         a = a.add(8*lda);
+        ap = ap.add(MR*8);
+        a = a.add(8*lda);
 
-//         k_i += 1;
-//     }
-//     k_i = 0;
-//     while k_i < k_left {
-//         let a0 = _mm256_loadu_pd(a);
-//         let a1 = _mm256_loadu_pd(a.add(8));
-//         _mm256_store_pd(ap, a0);
-//         _mm256_store_pd(ap.add(8), a1);
+        k_i += 1;
+    }
+    k_i = 0;
+    while k_i < k_left {
+        let a0 = _mm256_loadu_pd(a);
+        let a1 = _mm256_loadu_pd(a.add(4));
+        _mm256_store_pd(ap, a0);
+        _mm256_store_pd(ap.add(4), a1);
 
-//         ap = ap.add(MR);
-//         a = a.add(lda);
-//         k_i += 1;
-//     }
-// }
+        ap = ap.add(MR);
+        a = a.add(lda);
+        k_i += 1;
+    }
+}
 
 
 
@@ -589,7 +589,7 @@ macro_rules! def_packa {
         }
     };
 }
-
+def_packa!(8,4);
 def_packa!(12,4);
 def_packa!(24,8);
 // def_packa!(8);
