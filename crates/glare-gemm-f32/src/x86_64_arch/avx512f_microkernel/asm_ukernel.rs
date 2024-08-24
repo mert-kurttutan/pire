@@ -1,5 +1,4 @@
 use seq_macro::seq;
-use paste::paste;
 use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC};
@@ -1537,38 +1536,6 @@ macro_rules! def_ukernelxn {
 				}
 			}
     	}
-	};
-}
-
-
-macro_rules! group_def_ukernel {
-	(
-    	$mr:tt,
-    	$n0:tt, $n1:tt,
-    	$a_layout:tt, $b_layout:tt,
-		$is_partial:tt,
-    	$func_name:ident,
-		$asm_step_macro:tt,
-		$asm_acc_macro:tt,
-		$asm_store_macro:tt,
-		$VER:tt
-	) => {
-		seq!(nr in $n0..=$n1 {
-			paste! {
-				def_ukernel!(
-					$VER,
-					$asm_step_macro,
-					$asm_acc_macro,
-					$asm_store_macro,
-					$mr, nr,
-					$a_layout, $b_layout,
-					$is_partial,
-					0, 128,
-					4,
-					[<ukernel_ $mr x nr _ $func_name>]
-				);
-			}
-		});
 	};
 }
 
