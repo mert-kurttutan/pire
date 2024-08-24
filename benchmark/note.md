@@ -28,3 +28,10 @@ os: windows 10
 
 maybe: We need to set omp_num_threads=4, but I am sure it gives incorrect result for omp_num_threads
 but not sure aobut omp_num_threads=1
+
+
+the following is slower than mkl and it is not slower when tn is used
+ .\target\release\bench.exe --m 4800 --n 91 --k 4800 --t-layout nn --bench-type sgemm --backend glare
+
+This is probably because of packing used in a regardless of whether it is transposed or not.
+We can easily fix this but more code

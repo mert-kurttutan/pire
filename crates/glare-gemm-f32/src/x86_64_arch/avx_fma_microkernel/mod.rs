@@ -4,7 +4,6 @@ pub(crate) mod axpy_kernel;
 pub(crate) use asm_ukernel::*;
 pub(crate) use axpy_kernel::*;
 
-use seq_macro::seq;
 use paste::paste;
 use std::arch::asm;
 
@@ -71,6 +70,7 @@ pub unsafe fn axpy<F: MyFn>(
 macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
+            #[target_feature(enable = "avx")]
             pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -140,7 +140,8 @@ def_kernel_bb!(24, 4, 24, 16, 8);
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
-            pub unsafe fn [<kernel_bs _v0>]<F: MyFn, const STRIDED: bool>(
+            #[target_feature(enable = "avx")]
+            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -208,7 +209,8 @@ use super::pack_avx::packa_panel_24;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
-            pub unsafe fn [<kernel_sb_v0>]<F: MyFn, const STRIDED: bool>(
+            #[target_feature(enable = "avx")]
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,

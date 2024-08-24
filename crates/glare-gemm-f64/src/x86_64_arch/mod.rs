@@ -3,7 +3,7 @@ pub(crate) mod avx512f_microkernel;
 // pub(crate) mod avx_microkernel;
 pub(crate) mod pack_avx;
 
-const AVX_GOTO_MR: usize = 12; // register block size
+const AVX_GOTO_MR: usize = 8; // register block size
 const AVX_GOTO_NR: usize = 4; // register block size
 
 const AVX_FMA_GOTO_MR: usize = 12; // register block size
@@ -91,7 +91,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packa_panel_24(m, k, x, rs, cs, y);
             return;
@@ -102,7 +102,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;

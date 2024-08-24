@@ -15,6 +15,7 @@ use crate::MyFn;
 macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
+            #[target_feature(enable = "avx")]
             pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
@@ -82,54 +83,56 @@ macro_rules! def_kernel_bb {
 def_kernel_bb!(48, 8, 48, 32, 16);
 
 
-macro_rules! def_kernel_bb {
-    ($MR:tt, $NR:tt) => {
-        pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
-            m: usize, n: usize, k: usize,
-            alpha: *const TA,
-            beta: *const TC,
-            c: *mut TC, c_rs: usize, c_cs: usize,
-            ap: *const TA, bp: *const TB,
-            f: F,
-        ) {
-            const MR: usize = $MR;
-            const NR: usize = $NR;
-            let mut d0_iter = m / MR;
-            let mut ap0 = ap;
-            let mut c0 = c;
+// macro_rules! def_kernel_bb {
+//     ($MR:tt, $NR:tt) => {
+//         #[target_feature(enable = "avx")]
+//         pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+//             m: usize, n: usize, k: usize,
+//             alpha: *const TA,
+//             beta: *const TC,
+//             c: *mut TC, c_rs: usize, c_cs: usize,
+//             ap: *const TA, bp: *const TB,
+//             f: F,
+//         ) {
+//             const MR: usize = $MR;
+//             const NR: usize = $NR;
+//             let mut d0_iter = m / MR;
+//             let mut ap0 = ap;
+//             let mut c0 = c;
             
             
-            let d1_iter0 = n / NR;
-            let d_arr = [0, 0, c_rs, c_cs];
+//             let d1_iter0 = n / NR;
+//             let d_arr = [0, 0, c_rs, c_cs];
             
-            while d0_iter > 0 {
-                let mut d1_iter = d1_iter0;
-                let mut bp0 = bp;
-                let mut c1 = c0;
-                while d1_iter > 0 { paste! {
-                        let a_pft1_offset = ($MR+(d1_iter0-d1_iter)*2)*4*k;
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, d_arr, MR, a_pft1_offset, f);
-                    }
-                    d1_iter -= 1;
-                    bp0 = bp0.add(NR*k);
-                    c1 = c1.add(NR*c_cs);
-                }
-                d0_iter -= 1;
-                ap0 = ap0.add(MR*k);
-                c0 = c0.add(MR*c_rs);
-            }
+//             while d0_iter > 0 {
+//                 let mut d1_iter = d1_iter0;
+//                 let mut bp0 = bp;
+//                 let mut c1 = c0;
+//                 while d1_iter > 0 { paste! {
+//                         let a_pft1_offset = ($MR+(d1_iter0-d1_iter)*2)*4*k;
+//                         [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, d_arr, MR, a_pft1_offset, f);
+//                     }
+//                     d1_iter -= 1;
+//                     bp0 = bp0.add(NR*k);
+//                     c1 = c1.add(NR*c_cs);
+//                 }
+//                 d0_iter -= 1;
+//                 ap0 = ap0.add(MR*k);
+//                 c0 = c0.add(MR*c_rs);
+//             }
 
-            asm!("vzeroupper");
-        }
-    };
-}
+//             asm!("vzeroupper");
+//         }
+//     };
+// }
 
 // def_kernel_bb!(48, 8);
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
-            pub unsafe fn [<kernel_bs _v0>]<F: MyFn, const STRIDED: bool>(
+            #[target_feature(enable = "avx")]
+            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -197,7 +200,8 @@ use super::pack_avx::packa_panel_48;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
-            pub unsafe fn [<kernel_sb_v0>]<F: MyFn, const STRIDED: bool>(
+            #[target_feature(enable = "avx")]
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -225,7 +229,8 @@ macro_rules! def_kernel_sb {
                     packa_panel_48(MR, k, a_cur, a_rs, a_cs, ap_cur);
                     while n_iter > 0 {
                         let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);                        n_iter -= 1;
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
+                        n_iter -= 1;
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
