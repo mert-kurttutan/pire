@@ -1039,7 +1039,7 @@ macro_rules! def_ukernelxn {
 			if BUF {
 				let c_rs = d_arr[2];
 				if m != $mr || c_rs != 1 {
-					for j in 0..$nr {
+					for j in 0..n {
 						for i in 0..m {
 							c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
 						}

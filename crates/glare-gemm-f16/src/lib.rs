@@ -239,7 +239,7 @@ mod tests {
 
 	const EPS: f64 = 3e-1;
 
-	static ALPHA_ARR: [f32; 1] = [1.0];
+	static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
 	static BETA_ARR: [f32; 1] = [1.0];
 	enum Layout {
     	NN,
