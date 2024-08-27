@@ -723,9 +723,11 @@ macro_rules! def_packb {
              // #[target_feature(enable = "avx")]
              pub(crate) unsafe fn [<packb_panel_ $nr _same>](
                     n: usize, k: usize,
-                    b: *const u16, b_rs: usize, b_cs: usize,
-                    bp: *mut u16,
+                    b: *const f16, b_rs: usize, b_cs: usize,
+                    bp: *mut f16,
                 ) {
+                    let mut b = b as *const u16;
+                    let mut bp = bp as *mut u16;
                     let k_iter = k / 8;
                     let k_left = k % 8;
                     let mut bp = bp;
@@ -782,6 +784,7 @@ macro_rules! def_packb {
  
  def_packb!(4);
  def_packb!(8);
+ def_packb!(15);
  // def_packb!(6);
  
  
@@ -791,11 +794,11 @@ macro_rules! def_packb {
              // #[target_feature(enable = "avx")]
              pub(crate) unsafe fn [<packa_panel_ $mr _same>](
                  m_left: usize, k: usize,
-                 a: *const u16, a_rs: usize, a_cs: usize,
-                 ap: *mut u16,
+                 a: *const f16, a_rs: usize, a_cs: usize,
+                 ap: *mut f16,
              ) {
-                 let mut ap = ap;
-                 let mut a = a;
+                 let mut ap = ap as *mut u16; 
+                 let mut a = a as *const u16;
                  const MR: usize = $mr;
                  const MR_LAST_STEP: usize = $mr;
                  let mut m_idx = 0;
@@ -851,6 +854,7 @@ macro_rules! def_packb {
  
  def_packa!(24, 8);
  def_packa!(48, 16);
+ def_packa!(64, 32);
  
  // def_packa!(16, 16, 8);
  

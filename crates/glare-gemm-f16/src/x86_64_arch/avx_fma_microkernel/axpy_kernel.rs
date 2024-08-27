@@ -4,7 +4,7 @@ use crate::{TA,TB,TC};
 
 use half::f16;
 
-use super::super::VS;
+const VS: usize = 8;
 
 
 const K_UNROLL: usize = 4;

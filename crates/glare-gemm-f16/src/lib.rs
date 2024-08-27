@@ -25,7 +25,7 @@ use glare_base::{
 	RUNTIME_HW_CONFIG,
 	get_cache_params,
 	has_f32_compute,
-	// has_f16_compute,
+	has_f16_compute,
 };
 
 use reference::RefGemm;
@@ -52,6 +52,13 @@ impl MyFn for fn(*mut TC, m: usize){
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f16 {
+		let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+		let nc = std::env::var("GLARE_NC").unwrap_or("180".to_string()).parse::<usize>().unwrap();
+		let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+		return (mc, nc, kc);
+		// return (4800, 192, 768);
+	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
 		return (4800, 192, 512);
 	}
@@ -77,12 +84,12 @@ F: MyFn,
 {
 	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
-	// if has_f16_compute() {
-	// 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	// 	let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
-	// 	x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-	// 	return;
-	// }
+	if has_f16_compute() {
+		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+		let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		x86_64_arch::glare_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+		return;
+	}
 	if has_f32_compute() {
 		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
@@ -159,20 +166,31 @@ pub unsafe fn packa_f16(
 	let (mc, nc, kc) = get_mcnckc();
 	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
 	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
 	// if none of the optimized paths are available, use reference implementation
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
-	let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
+	// let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
+	let vs = {
+		if has_f16_compute() {
+			hw_config_f16.vs
+		} else if has_f32_compute() {
+			hw_config.vs
+		} else {
+			hw_config_ref.vs
+		}
+	};
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..m).step_by(mc) {
 				let mc_len = if m >= (i + mc) {mc} else {m - i};
 				let mc_len_eff = (mc_len + vs-1) / vs * vs;
 				let a_cur = a.add(i*a_rs+p*a_cs);
-				if has_f32_compute() {
+				if has_f16_compute() {
+					hw_config_f16.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
+				} else if has_f32_compute() {
 					hw_config.packa_fnsame(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
 				} else {
 					hw_config_ref.packa_fnsame(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
@@ -201,19 +219,22 @@ pub unsafe fn packb_f16(
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
+	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
+	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
 
 	#[cfg(target_arch = "x86_64")]
 	{
 		let (mc, nc, kc) = get_mcnckc();
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {
 				let nc_len = if n >= (i + nc) {nc} else {n - i};
 				let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
 				let b_cur = b.add(i*b_cs+p*b_rs);
-				if has_f32_compute() {
+				if has_f16_compute() {
+					hw_config_f16.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
+				} else if has_f32_compute() {
 					hw_config.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
 				} else {
 					hw_config_ref.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
@@ -237,7 +258,7 @@ mod tests {
 		generate_m_dims, generate_n_dims, generate_k_dims,
 	};
 
-	const EPS: f64 = 3e-1;
+	const EPS: f64 = 4e-1;
 
 	static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
 	static BETA_ARR: [f32; 1] = [1.0];
