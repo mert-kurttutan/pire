@@ -83,11 +83,11 @@ fn detect_hw_config() -> HWConfig {
         let feature_info = cpuid.get_feature_info().unwrap();
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
         let avx = feature_info.has_avx();
-        let fma = feature_info.has_fma() && false;
+        let fma = feature_info.has_fma();
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        let avx512f = extended_feature_info.has_avx512f() && false;
+        let avx512f = extended_feature_info.has_avx512f();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
