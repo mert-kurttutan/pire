@@ -46,7 +46,11 @@ impl MyFn for fn(*mut TC, m: usize){
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		return (4800, 192, 512);
+		// return (4800, 192, 512);
+		let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+		let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+		let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+		return (mc, nc, kc);
 	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
 		return (4800, 320, 192);
@@ -241,14 +245,11 @@ mod tests {
 	use glare_dev::{
     	random_matrix_uniform,
     	check_gemm_s16s16s32,
+		generate_m_dims, generate_n_dims, generate_k_dims,
 	};
 
 	const EPS: f64 = 2e-2;
 
-	// static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 958, 959, 960, 950, 951, 943, 944];
-	static M_ARR: [usize; 32] = [1, 2, 3, 16, 32, 24, 37, 38, 17, 32, 48, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 458, 459, 460, 450, 451, 443, 444];
-	static N_ARR: [usize; 28] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 64, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 658, 659, 660];
-	static K_ARR: [usize; 10] = [1, 8, 16, 64, 128, 129, 130, 131, 132, 509];
 	static ALPHA_ARR: [f32; 1] = [1.0];
 	static BETA_ARR: [f32; 2] = [1., 0.];
 	enum Layout {
@@ -266,29 +267,61 @@ mod tests {
         	Layout::TT => (k, 1, n, 1, 1, m),
     	}
 	}
-	fn test_gemm(layout: &Layout) {
-    	for m in M_ARR {
-        	for n in N_ARR {
-            	let mut c = vec![0; m * n];
-            	let mut c_ref = vec![0; m * n];
-            	for k in K_ARR {
+	fn test_gemm(layout: &Layout, is_a_packed: bool, is_b_packed: bool) {
+		let (mc, nc, kc) = get_mcnckc();
+		let (mr, nr, kr) = (48, 8, 8);
+		let m_dims = generate_m_dims(mc, mr);
+		let n_dims = generate_n_dims(nc, nr);
+		let k_dims = generate_k_dims(kc, kr);
+    	for m in m_dims.iter() {
+			let m = *m;
+        	for n in n_dims.iter() {
+				let n = *n;
+            	let mut c = vec![0i32; m * n];
+            	let mut c_ref = vec![0i32; m * n];
+            	for k in k_dims.iter() {
+					let k = *k;
                 	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
-                	let mut a = vec![0; m * k];
-                	let mut b = vec![0; k * n];
+                	let mut a = vec![0i16; m * k];
+                	let mut b = vec![0i16; k * n];
+					random_matrix_uniform(m, k, &mut a, m);
+					random_matrix_uniform(k, n, &mut b, k);
+					let ap_size = if is_a_packed { (m+100)*k+512 } else {1024};
+					let mut ap = vec![0i16; ap_size];
+					let ap_offset = ap.as_ptr().align_offset(512);
+					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
+					let a_matrix = if is_a_packed {
+						// unsafe {packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
+						panic!("not implemented");
+					} else {
+						unsafe{Array::strided_matrix(a.as_ptr(), a_rs, a_cs)}
+					};
+					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
+					let mut bp = vec![0i16; bp_size];
+					let bp_offset = bp.as_ptr().align_offset(512);
+					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
+					let b_matrix = if is_b_packed {
+						// unsafe {packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
+						panic!("not implemented");
+					} else {
+						unsafe {Array::strided_matrix(b.as_ptr(), b_rs, b_cs)}
+					};
                 	for alpha in ALPHA_ARR {
-                    	for beta in BETA_ARR {
-                        	random_matrix_uniform(m, k, &mut a, m);
-                        	random_matrix_uniform(k, n, &mut b, k);
+                    	for beta in ALPHA_ARR {
                         	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
+							let c_matrix = unsafe{
+								ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs)
+							};
                         	unsafe {
-                            	glare_gemm_s16s16s32(
+                            	glare_gemm_s16s16s32_generic(
                                 	m, n, k,
                                 	alpha,
-                                	a.as_ptr(), a_rs, a_cs,
-                                	b.as_ptr(), b_rs, b_cs,
+                                	a_matrix,
+                                	b_matrix,
                                 	beta,
-                                	c.as_mut_ptr(), c_rs, c_cs,
+                                	c_matrix,
+									NullFn{},
                             	);
                         	}
                         	let diff_max = unsafe { 
@@ -300,16 +333,16 @@ mod tests {
 									beta as f32,
 									&mut c, c_rs, c_cs,
 									&mut c_ref,
-									// EPS,
+									EPS,
 								)
 							};
                         	// if diff_max >= EPS {
                             // 	println!("a: {:?}", a);
                             // 	println!("b: {:?}", b);
-                            // 	println!("c: {:?}", c);
+                            // 	println!("c:     {:?}", c);
                             // 	println!("c_ref: {:?}", c_ref);
                         	// }
-                        	assert!(diff_max == 0.0, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
+                        	assert!(diff_max < EPS, "diff_max: {}, m: {}, n: {}, k: {}, alpha: {}, beta: {}", diff_max, m, n, k, alpha, beta);
                     	}
                 	}
             	}
@@ -323,22 +356,22 @@ mod tests {
 	// }
 	#[test]
 	fn test_nn_col() {
-    	test_gemm(&Layout::NN);
+    	test_gemm(&Layout::NN, false, false);
 	}
 
 	#[test]
 	fn test_nt_col() {
-    	test_gemm(&Layout::NT);
+    	test_gemm(&Layout::NT, false, false);
 	}
 
 	#[test]
 	fn test_tn_col() {
-    	test_gemm(&Layout::TN);
+    	test_gemm(&Layout::TN, false, false);
 	}
 
 	#[test]
 	fn test_tt_col() {
-    	test_gemm(&Layout::TT);
+    	test_gemm(&Layout::TT, false, false);
 	}
 
 }

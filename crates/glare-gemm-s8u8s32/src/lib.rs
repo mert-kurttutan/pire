@@ -300,7 +300,7 @@ mod tests {
 									beta as f32,
 									&mut c, c_rs, c_cs,
 									&mut c_ref,
-									// EPS,
+									EPS,
 								)
 							};
                         	// if diff_max >= EPS {

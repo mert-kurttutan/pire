@@ -905,9 +905,11 @@ fn test_gemm_s16s16s32(
     let mut c = vec![0_i32; m * n];
     random_matrix_uniform(m, k, &mut a, m);
     random_matrix_uniform(k, n, &mut b, k);
+    random_matrix_uniform(m, n, &mut c, m);
     let mut c_ref = vec![0_i32; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
+    // let beta = beta * 13.4;
     unsafe {
         dispatch_gemm_s16s16s32(
             gemm_backend,
@@ -932,7 +934,7 @@ fn test_gemm_s16s16s32(
                 1e-3
             )
         };
-        // println!("c: {:?}", c);
+        // println!("c    : {:?}", c);
         // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }

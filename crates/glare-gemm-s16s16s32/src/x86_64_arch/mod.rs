@@ -1,5 +1,5 @@
 pub(crate) mod avx_fma_microkernel;
-// pub(crate) mod avx512f_microkernel;
+pub(crate) mod avx512f_microkernel;
 pub(crate) mod pack_avx;
 
 const AVX_FMA_GOTO_MR: usize = 16; // register block size
@@ -82,6 +82,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+        if self.features.avx512f {
+            pack_avx::packa_panel_32(m, k, x, rs, cs, y);
+            return;
+        }
         if self.features.avx2{
             pack_avx::packa_panel_16(m, k, x, rs, cs, y);
             return;
@@ -89,6 +93,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+        if self.features.avx512f {
+            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+            return;
+        }
         if self.features.avx2{
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
@@ -141,6 +149,10 @@ unsafe fn kernel<F:MyFn>(
     ap: *const TA, bp: *const TB,
     _kc_last: bool
 ) {
+    if hw_cfg.features.avx512f {
+        avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
     if hw_cfg.features.avx2 {
         avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
@@ -171,6 +183,10 @@ unsafe fn kernel_n<F:MyFn>(
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
 ) {
+    if hw_cfg.features.avx512f {
+        avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
     if hw_cfg.features.avx2 {
         avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
