@@ -55,3 +55,15 @@ neon:
 
 24x4:
 6x4+6+1
+
+
+
+
+
+
+
+
+
+Embedded broadcasting is import for perf of f16 (broadcastw is not on par in performance)
+
+getting compiler to return right assembly for embedded broadcasting is harder in intrinsics
