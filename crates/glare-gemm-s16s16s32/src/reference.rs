@@ -111,16 +111,20 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    unsafe fn packa_fn(&self, x: *const i16, y: *mut i16, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const i16, y: *mut i16, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    unsafe fn packb_fn(&self, x: *const i16, y: *mut i16, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const i16, y: *mut i16, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
     pub(crate) fn is_compute_native(&self) -> bool {
         true
+    }
+
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        (k + 1) / 2 * 2
     }
 }
 

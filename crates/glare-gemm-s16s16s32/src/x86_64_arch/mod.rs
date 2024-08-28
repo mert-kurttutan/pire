@@ -65,7 +65,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         } else {
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         };
-        let vs = 8;
+        let vs = if features.avx512f { 16 } else { 8 };
         Self {
             mc: mc,
             nc: nc,
@@ -81,7 +81,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packa_panel_32(m, k, x, rs, cs, y);
             return;
@@ -92,7 +92,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
@@ -105,6 +105,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
 
     pub(crate) fn is_compute_native(&self) -> bool {
         true
+    }
+
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        (k + 1) / 2 * 2
     }
 }
 

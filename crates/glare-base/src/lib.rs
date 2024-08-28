@@ -1223,18 +1223,19 @@ macro_rules! def_glare_gemm {
                 let c_i = c_ptr.add((d0_i+d0r_start) * d0_s);
                 while d1_i < d1_end {
                     let d1_len = d1_c.min(d1_end - d1_i);
+                    let d1_len_eff = hw_cfg.round_up(d1_len);
                     let mut d2_i = d2_start;
                     let kc_last = d1_i + d1_len == d1_end;
                     let beta_t = if d1_i == d1_start { beta } else { &one as *const $t_bs};
                     let ap = $packa_name(hw_cfg, a, d0_i, d1_i, d0_len, d1_len, t_cfg);
-                    let ap = ap.add(d0r_start*d1_len);
+                    let ap = ap.add(d0r_start*d1_len_eff);
                     while d2_i < d2_end {
                         let d2_len = d2_c.min(d2_end - d2_i);
                         let (d2r_start, d2r_end) = split_range(d2_len, d2r, d2r_id, d2r_par);
                         let d2r_len = d2r_end - d2r_start;
                         let c_ij = c_i.add((d2_i+d2r_start) * d2_s);
                         let bp = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
-                        let bp = bp.add(d2r_start*d1_len);
+                        let bp = bp.add(d2r_start*d1_len_eff);
                         $goto_kernel(
                              hw_cfg, d0r_len, d2r_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
                              ap, bp,
@@ -1315,10 +1316,11 @@ macro_rules! def_glare_gemm {
                 let mut kc = kc_start;
                 while kc < kc_end {
                     let kc_len = kc_eff.min(kc_end - kc);
+                    let kc_len_eff = hw_cfg.round_up(kc_len);
                     let beta_t = if kc == kc_start { beta } else { &one as *const $t_bs};
                     let mut nc = nc_start;
                     let ap = $packa_name(hw_cfg, a, mc, kc, mc_len, kc_len, t_cfg);
-                    let ap = ap.add(mr_start*kc_len);
+                    let ap = ap.add(mr_start*kc_len_eff);
                     let b_j = b_ptr.add(kc * b_rs);
                     while nc < nc_end {
                         let nc_len = nc_eff.min(nc_end - nc);
@@ -1458,6 +1460,7 @@ macro_rules! def_glare_gemm {
                     m.data_p_ptr()
                 }
                 $packa_ty::PackedMatrix(m) => {
+                    let kc_len = hw_cfg.round_up(kc_len);
                     let vs = hw_cfg.vs;
                     let m_eff = (m.m() + vs - 1) / vs * vs;
                     let src = m.data_ptr().add(mc_i*kc_len + kc_i*m_eff);
@@ -1496,6 +1499,7 @@ macro_rules! def_glare_gemm {
                     m.data_p_ptr()
                 }
                 $packb_ty::PackedMatrix(m) => {
+                    let kc_len = hw_cfg.round_up(kc_len);
                     let src = m.data_ptr().add(nc_i*kc_len + kc_i*m.m());
                     let res = is_mixed!(
                         $include_flag,          

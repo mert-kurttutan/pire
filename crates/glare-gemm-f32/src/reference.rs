@@ -122,6 +122,9 @@ impl<F: MyFn> RefGemm<F> {
     pub(crate) fn is_compute_native(&self) -> bool {
         true
     }
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        k
+    }
 }
 
 impl<

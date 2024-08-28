@@ -102,7 +102,10 @@ macro_rules! asm_alpha_scale_0 {
 	($r0:tt, $r1:tt) => {
 		seq!(r in $r0..=$r1 {
 			concat!(
+				// jmp to 8 if alpha is equal to onex
 				"vbroadcastss ({alphax}),%ymm1", "\n",
+				"vucomiss ({onex}), %xmm1 \n",
+				"je 8f \n",
 				#(
 					"vcvtdq2ps %ymm", r, ",%ymm", r, "\n",
 					"vmulps %ymm1, %ymm", r, ",%ymm", r, "\n",
@@ -241,24 +244,15 @@ macro_rules! asm_c_load {
 
 macro_rules! asm_vzeroall {
 
-	(VER2,4) => {vzeroall!(4,11)};
-	(VER2,3) => {vzeroall!(4,9)};
-	(VER2,2) => {vzeroall!(4,7)};
-	(VER2,1) => {vzeroall!(4,5)};
+	(16,4) => {vzeroall!(4,11)};
+	(16,3) => {vzeroall!(4,9)};
+	(16,2) => {vzeroall!(4,7)};
+	(16,1) => {vzeroall!(4,5)};
 
-	(VER1,4) => {vzeroall!(5,8)};
-	(VER1,3) => {vzeroall!(5,7)};
-	(VER1,2) => {vzeroall!(5,6)};
-	(VER1,1) => {vzeroall!(5,5)};
-}
-
-macro_rules! inc_a {
-	(C) => {
-    	"add {x1}, {ax} \n"
-	};
-	(B) => {
-    	""
-	};
+	(8,4) => {vzeroall!(5,8)};
+	(8,3) => {vzeroall!(5,7)};
+	(8,2) => {vzeroall!(5,6)};
+	(8,1) => {vzeroall!(5,5)};
 }
 
 macro_rules! inc_b {
@@ -291,29 +285,29 @@ macro_rules! inc_b_k_unroll {
 
 
 macro_rules! asm_alpha_scale {
-	(VER2, 4) => {
+	(16, 4) => {
     	asm_alpha_scale_0!(4,11)
 	};
-	(VER2, 3) => {
+	(16, 3) => {
     	asm_alpha_scale_0!(4,9)
 	};
-	(VER2, 2) => {
+	(16, 2) => {
     	asm_alpha_scale_0!(4,7)
 	};
-	(VER2, 1) => {
+	(16, 1) => {
     	asm_alpha_scale_0!(4,5)
 	};
 
-	(VER1, 4) => {
+	(8, 4) => {
     	asm_alpha_scale_0!(5,8)
 	};
-	(VER1, 3) => {
+	(8, 3) => {
     	asm_alpha_scale_0!(5,7)
 	};
-	(VER1, 2) => {
+	(8, 2) => {
     	asm_alpha_scale_0!(5,6)
 	};
-	(VER1, 1) => {
+	(8, 1) => {
     	asm_alpha_scale_0!(5,5)
 	};
 }
@@ -504,9 +498,9 @@ macro_rules! step_8x4 {
 }
 
 macro_rules! prefetch_0 {
-	($dist:tt, $reg:tt, $k_i:tt) => {
+	($dist:tt, $reg:tt) => {
 		concat!(
-			"prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
+			"prefetcht0 ", $dist, $reg, "\n"
 		)
 	};
 }
@@ -560,7 +554,6 @@ macro_rules! load_mask_ptr_asm {
 
 macro_rules! def_ukernel {
 	(
-		$VER:tt,
 		$step_macro:tt,
 		$acc_macro:tt,
 		$store_macro:tt,
@@ -604,16 +597,16 @@ macro_rules! def_ukernel {
 			use std::arch::x86_64::_mm_prefetch;
 			prefetch_c!($mr,$nr,c,c_cs);
         	asm!(
-            	asm_vzeroall!($VER,$nr),
+            	asm_vzeroall!($mr,$nr),
 				"vpbroadcastw ({one_i16}), %ymm15",
-            	asm_init_ab!($VER,$a_layout,$b_layout),
+            	asm_init_ab!($mr,$a_layout,$b_layout),
            	 
             	// 3 -> CONSIDKLEFT
             	"je 3f",
            	 
             	// 2 -> KITER
             	"2:",
-				prefetch_0!(128, "{bx}", 0),
+				prefetch_0!(128, "({bx})"),
 				$step_macro!($nr, $a_layout, $b_layout, 0),
 				$step_macro!($nr, $a_layout, $b_layout, 1),
 				$step_macro!($nr, $a_layout, $b_layout, 2),
@@ -647,12 +640,9 @@ macro_rules! def_ukernel {
             	// 5 -> POSTACCUM
             	"5:",
             	asm_c_load!($nr),
-				// jmp to 8 if alpha is equal to onex
-				"vmovss ({alphax}), %xmm0",
-				"vucomiss ({onex}), %xmm0",
-				"je 8f",
+
             	// scale by alpha
-            	asm_alpha_scale!($VER, $nr),
+            	asm_alpha_scale!($mr, $nr),
 
 				"8:",
 				load_mask_ptr_asm!($is_partial),
@@ -675,10 +665,7 @@ macro_rules! def_ukernel {
             	// 6 -> BETAZERO
             	"6:",
             	cum_seq!($store_macro,$nr,$is_partial),
-   	 
-            	// 7 -> DDONE
-            	"7:",
-				// "vzeroupper",
+
             	ax = inout(reg) a => _,
             	bx = inout(reg) b => _,
             	cx = inout(reg) cf => _,
@@ -721,7 +708,6 @@ macro_rules! def_ukernel {
 
 macro_rules! def_ukernelxn {
 	(
-		$VER:tt,
 		$step_macro:tt,
 		$acc_macro:tt,
 		$store_macro:tt,
@@ -768,16 +754,16 @@ macro_rules! def_ukernelxn {
 						// prefetch for c
 						prefetch_c!($mr,ni,c,c_cs);
 						asm!(
-							asm_vzeroall!($VER,ni),
+							asm_vzeroall!($mr,ni),
 							"vpbroadcastw ({one_i16}), %ymm15",
-							asm_init_ab!($VER,$a_layout,$b_layout),
+							asm_init_ab!($mr,$a_layout,$b_layout),
 						
 							// 3 -> CONSIDKLEFT
 							"je 3f",
 						
 							// 2 -> KITER
 							"2:",
-							prefetch_0!(128, "{bx}", 0),
+							prefetch_0!(128, "({bx})"),
 							$step_macro!(ni, $a_layout, $b_layout, 0),
 							$step_macro!(ni, $a_layout, $b_layout, 1),
 							$step_macro!(ni, $a_layout, $b_layout, 2),
@@ -811,12 +797,9 @@ macro_rules! def_ukernelxn {
 							// 5 -> POSTACCUM
 							"5:",
 							asm_c_load!(ni),
-							// jmp to 8 if alpha is equal to onex
-							"vmovss ({alphax}), %xmm0",
-							"vucomiss ({onex}), %xmm0",
-							"je 8f",
+
 							// scale by alpha
-							asm_alpha_scale!($VER, ni),
+							asm_alpha_scale!($mr, ni),
 
 							"8:",
 							load_mask_ptr_asm!($is_partial),
@@ -887,16 +870,16 @@ macro_rules! def_ukernelxn {
 	};
 }
 
-def_ukernel!(VER2, step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, ukernel_16x4_bb);
-// def_ukernel!(VER1, step_8x4, acc_8x4, store_8x4, 8, 4, B, B, C, 4, ukernel_16x8_bb);
+def_ukernel!(step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, ukernel_16x4_bb);
+// def_ukernel!(step_8x4, acc_8x4, store_8x4, 8, 4, B, B, C, 4, ukernel_16x8_bb);
 
-def_ukernel!(VER2, step_16x4, acc_16x4, store_16x4, 16, 4, B, B, M, ukernel_16x4_bb_partial);
-def_ukernel!(VER1, step_8x4, acc_8x4, store_8x4, 8, 4, B, B, M, ukernel_8x4_bb_partial);
+def_ukernel!(step_16x4, acc_16x4, store_16x4, 16, 4, B, B, M, ukernel_16x4_bb_partial);
+def_ukernel!(step_8x4, acc_8x4, store_8x4, 8, 4, B, B, M, ukernel_8x4_bb_partial);
 
 
-def_ukernelxn!(VER2, step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, ukernel_16xn_bb);
-// def_ukernelxn!(VER2, step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, 4, ukernel_16xn_bb);
-// def_ukernelxn!(VER1, step_8x4, acc_8x4, store_8x4, 8, 4, B, B, C, 4, ukernel_16xn_bb);
+def_ukernelxn!(step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, ukernel_16xn_bb);
+// def_ukernelxn!(step_16x4, acc_16x4, store_16x4, 16, 4, B, B, C, 4, ukernel_16xn_bb);
+// def_ukernelxn!(step_8x4, acc_8x4, store_8x4, 8, 4, B, B, C, 4, ukernel_16xn_bb);
 
-def_ukernelxn!(VER2, step_16x4, acc_16x4, store_16x4, 16, 4, B, B, M, ukernel_16xn_bb_partial);
-def_ukernelxn!(VER1, step_8x4, acc_8x4, store_8x4, 8, 4, B, B, M, ukernel_8xn_bb_partial);
+def_ukernelxn!(step_16x4, acc_16x4, store_16x4, 16, 4, B, B, M, ukernel_16xn_bb_partial);
+def_ukernelxn!(step_8x4, acc_8x4, store_8x4, 8, 4, B, B, M, ukernel_8xn_bb_partial);

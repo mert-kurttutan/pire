@@ -10,7 +10,6 @@ macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
         concat!(
 			"vpaddd ", $m0, ", %zmm", $r, ", %zmm", $r, "\n",
-            // "vfmadd231ps ", $m0, ",%zmm0,%zmm", $r1, "\n",
         ) 
     };
     (C, $m0:expr, $r:expr, 2) => {
@@ -18,7 +17,6 @@ macro_rules! beta_fmadd {
 			"vcvtdq2ps %zmm", $r, ",%zmm", $r, "\n",
 			"vcvtdq2ps ", $m0, ",%zmm30", "\n",
 			"vfmadd231ps %zmm30,%zmm0,%zmm", $r, "\n",
-			// "vfmadd231ps ", $m0, ",%zmm0,%zmm", $r, "\n",
 			"vcvtps2dq %zmm", $r, ",%zmm", $r, "\n",
         ) 
     };
@@ -102,6 +100,9 @@ macro_rules! asm_alpha_scale_0 {
 	($r0:tt, $r1:tt) => {
 		seq!(r in $r0..=$r1 {
 			concat!(
+				// jmp to 8 if alpha is equal to onex
+				"vbroadcastss ({alphax}),%ymm1", "\n",
+				"vucomiss ({onex}), %xmm1 \n",
 				"vbroadcastss ({alphax}),%zmm1", "\n",
 				#(
 					"vcvtdq2ps %zmm", r, ",%zmm", r, "\n",
@@ -281,66 +282,44 @@ macro_rules! asm_c_load {
 
 macro_rules! asm_vzeroall {
 
-	(VER2,8) => {vzeroall!(2,17)};
-	(VER2,7) => {vzeroall!(2,15)};
-	(VER2,6) => {vzeroall!(2,13)};
-	(VER2,5) => {vzeroall!(2,11)};
-	(VER2,4) => {vzeroall!(2,9)};
-	(VER2,3) => {vzeroall!(2,7)};
-	(VER2,2) => {vzeroall!(2,5)};
-	(VER2,1) => {vzeroall!(2,3)};
+	(32,8) => {vzeroall!(2,17)};
+	(32,7) => {vzeroall!(2,15)};
+	(32,6) => {vzeroall!(2,13)};
+	(32,5) => {vzeroall!(2,11)};
+	(32,4) => {vzeroall!(2,9)};
+	(32,3) => {vzeroall!(2,7)};
+	(32,2) => {vzeroall!(2,5)};
+	(32,1) => {vzeroall!(2,3)};
 
-	(VER1,8) => {vzeroall!(2,9)};
-	(VER1,7) => {vzeroall!(2,8)};
-	(VER1,6) => {vzeroall!(2,7)};
-	(VER1,5) => {vzeroall!(2,6)};
-	(VER1,4) => {vzeroall!(2,5)};
-	(VER1,3) => {vzeroall!(2,4)};
-	(VER1,2) => {vzeroall!(2,3)};
-	(VER1,1) => {vzeroall!(2,2)};
-}
-
-macro_rules! inc_a_k_unroll {
-	(C, $X:tt, $K:tt) => {
-    	""
-	};
-	(B, $X:tt, $K:tt) => {
-    	concat!(
-        	"add $4*", $K, "*", $X, ",{ax}", "\n",
-    	)
-	};
-}
-
-macro_rules! inc_b_k_unroll {
-	(S, $X:tt, $K:tt) => {
-    	""
-	};
-	(B, $X:tt, $K:tt) => {
-    	concat!(
-        	"add $4*", $K, "*", $X, ", {bx}", "\n",
-    	)
-	};
+	(16,8) => {vzeroall!(2,9)};
+	(16,7) => {vzeroall!(2,8)};
+	(16,6) => {vzeroall!(2,7)};
+	(16,5) => {vzeroall!(2,6)};
+	(16,4) => {vzeroall!(2,5)};
+	(16,3) => {vzeroall!(2,4)};
+	(16,2) => {vzeroall!(2,3)};
+	(16,1) => {vzeroall!(2,2)};
 }
 
 
 macro_rules! asm_alpha_scale {
-	(VER2, 8) => {asm_alpha_scale_0!(2,17)};
-	(VER2, 7) => {asm_alpha_scale_0!(2,15)};
-	(VER2, 6) => {asm_alpha_scale_0!(2,13)};
-	(VER2, 5) => {asm_alpha_scale_0!(2,11)};
-	(VER2, 4) => {asm_alpha_scale_0!(2,9)};
-	(VER2, 3) => {asm_alpha_scale_0!(2,7)};
-	(VER2, 2) => {asm_alpha_scale_0!(2,5)};
-	(VER2, 1) => {asm_alpha_scale_0!(2,3)};
+	(32, 8) => {asm_alpha_scale_0!(2,17)};
+	(32, 7) => {asm_alpha_scale_0!(2,15)};
+	(32, 6) => {asm_alpha_scale_0!(2,13)};
+	(32, 5) => {asm_alpha_scale_0!(2,11)};
+	(32, 4) => {asm_alpha_scale_0!(2,9)};
+	(32, 3) => {asm_alpha_scale_0!(2,7)};
+	(32, 2) => {asm_alpha_scale_0!(2,5)};
+	(32, 1) => {asm_alpha_scale_0!(2,3)};
 
-	(VER1, 8) => {asm_alpha_scale_0!(2,9)};
-	(VER1, 7) => {asm_alpha_scale_0!(2,8)};
-	(VER1, 6) => {asm_alpha_scale_0!(2,7)};
-	(VER1, 5) => {asm_alpha_scale_0!(2,6)};
-	(VER1, 4) => {asm_alpha_scale_0!(2,5)};
-	(VER1, 3) => {asm_alpha_scale_0!(2,4)};
-	(VER1, 2) => {asm_alpha_scale_0!(2,3)};
-	(VER1, 1) => {asm_alpha_scale_0!(2,2)};
+	(16, 8) => {asm_alpha_scale_0!(2,9)};
+	(16, 7) => {asm_alpha_scale_0!(2,8)};
+	(16, 6) => {asm_alpha_scale_0!(2,7)};
+	(16, 5) => {asm_alpha_scale_0!(2,6)};
+	(16, 4) => {asm_alpha_scale_0!(2,5)};
+	(16, 3) => {asm_alpha_scale_0!(2,4)};
+	(16, 2) => {asm_alpha_scale_0!(2,3)};
+	(16, 1) => {asm_alpha_scale_0!(2,2)};
 }
 
 macro_rules! acc_32x8 {
@@ -467,17 +446,17 @@ macro_rules! cum_seq {
 }
 
 macro_rules! load_b {
-	(B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+	(B, $N:tt, $r:expr) => {
     	concat!(
-        	vbroadcast!(), "  ", $K, "*", $X, "*4+", $N, "*4({bx}), %zmm", $r, "\n",
+        	vbroadcast!(), "  ", $N, "*4({bx}), %zmm", $r, "\n",
     	)
 	};
 }
 
 
 macro_rules! load_a {
-	($mr:tt, B, $K:tt) => {
-    	loadp!($mr, B, concat!($mr,"*4*",$K,"({ax})"))
+	($mr:tt, B) => {
+    	loadp!($mr, B, "0({ax})")
 	};
 	($mr:tt, C, $K:tt) => {
     	loadp!($mr, C, "0({ax})")
@@ -602,48 +581,48 @@ macro_rules! b_num_16x8 {
 
 // ***************************** 32x8 ******************************* //
 macro_rules! step_32x8 {
-	(8, B, B, $K:tt) => {
+	(8, B, B) => {
 		concat!(
 
-			load_a!(32, B, $K),
+			load_a!(32, B),
 			"add $128, {ax}\n",
-			load_b!(B, 0, $K, 8, 18),
+			load_b!(B, 0, 18),
 			fmadd_2v!(0),
 
-			load_b!(B, 1, $K, 8, 19),
+			load_b!(B, 1, 19),
 			fmadd_2v!(1),
 
-			load_b!(B, 2, $K, 8, 20),
+			load_b!(B, 2, 20),
 			"prefetcht0 256({ax}) \n",
 			fmadd_2v!(2),
 
-			load_b!(B, 3, $K, 8, 21),
+			load_b!(B, 3, 21),
 			fmadd_2v!(3),
 
-			load_b!(B, 4, $K, 8, 18),
+			load_b!(B, 4, 18),
 			"prefetcht0 320({ax}) \n",
 			fmadd_2v!(4),
 
-			load_b!(B, 5, $K, 8, 19),
+			load_b!(B, 5, 19),
 			"prefetcht0 64({bx}) \n",
 			fmadd_2v!(5),
 
-			load_b!(B, 6, $K, 8, 20),
+			load_b!(B, 6, 20),
 			fmadd_2v!(6),
 
-			load_b!(B, 7, $K, 8, 21),
+			load_b!(B, 7, 21),
 			fmadd_2v!(7),
 
 			"add $32, {bx}\n",	
 		)
 	};
-	($nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+	($nr:tt, $a_layout:tt, $b_layout:tt) => {
 		seq!(n in 0..$nr {
 			concat!(
-				load_a!(32, $a_layout, $K),
+				load_a!(32, $a_layout),
 				"add $128, {ax}\n",
 				#(
-					load_b!($b_layout, n, $K, $nr, b_num_32x8!(n)),
+					load_b!($b_layout, n, b_num_32x8!(n)),
 					fmadd_2v!(n),
 				)*
 				"add $4*", $nr, ", {bx}\n",
@@ -654,13 +633,13 @@ macro_rules! step_32x8 {
 
 // ***************************** 16x8 ******************************* //
 macro_rules! step_16x8 {
-	($nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+	($nr:tt, $a_layout:tt, $b_layout:tt) => {
 		seq!(n in 0..$nr {
 			concat!(
-				load_a!(16, $a_layout, $K),
+				load_a!(16, $a_layout),
 				"add $64, {ax}\n",
 				#(
-					load_b!($b_layout, n, $K, $nr, b_num_16x8!(n)),
+					load_b!($b_layout, n, b_num_16x8!(n)),
 					fmadd_1v!(n),
 				)*
 				"add $4*", $nr, ", {bx}\n",
@@ -716,7 +695,6 @@ macro_rules! load_mask_ptr_asm {
  
 macro_rules! def_ukernel {
 	(
-		$VER:tt,
 		$step_macro:tt,
 		$acc_macro:tt,
 		$store_macro:tt,
@@ -759,9 +737,9 @@ macro_rules! def_ukernel {
 			use std::arch::x86_64::_mm_prefetch;
 			prefetch_c!($mr,$nr,c,c_cs);
         	asm!(
-            	asm_vzeroall!($VER,$nr),
+            	asm_vzeroall!($mr,$nr),
    	 
-            	asm_init_ab!($VER,$a_layout,$b_layout),
+            	asm_init_ab!($mr,$a_layout,$b_layout),
            	 
             	// 3 -> CONSIDKLEFT
             	"je 3f",
@@ -769,13 +747,11 @@ macro_rules! def_ukernel {
             	// 2 -> KITER
             	"2:",
 				prefetch_0!(128, "{bx}", 0),
-				$step_macro!($nr, $a_layout, $b_layout, 0),
-				$step_macro!($nr, $a_layout, $b_layout, 0),
-				$step_macro!($nr, $a_layout, $b_layout, 0),
-				$step_macro!($nr, $a_layout, $b_layout, 0),
+				$step_macro!($nr, $a_layout, $b_layout),
+				$step_macro!($nr, $a_layout, $b_layout),
+				$step_macro!($nr, $a_layout, $b_layout),
+				$step_macro!($nr, $a_layout, $b_layout),
 
-            	// inc_a_k_unroll!($a_layout, $mr, 4),
-            	// inc_b_k_unroll!($b_layout, $nr, 4),
             	"dec {x0}",
             	// 2 -> KITER
             	"jne 2b",
@@ -790,9 +766,7 @@ macro_rules! def_ukernel {
    	 
             	// 4 -> KLEFT
             	"4:",
-            	$step_macro!($nr, $a_layout, $b_layout, 0),
-            	// inc_a_k_unroll!($a_layout, $mr, 1),
-            	// inc_b_k_unroll!($b_layout, $nr, 1),
+            	$step_macro!($nr, $a_layout, $b_layout),
 
             	"dec {x0}",
    	 
@@ -802,13 +776,8 @@ macro_rules! def_ukernel {
             	// 5 -> POSTACCUM
             	"5:",
             	asm_c_load!($nr),
-				// jmp to 8 if alpha is equal to onex
-				"vmovss ({alphax}), %xmm0",
-				"vucomiss ({onex}), %xmm0",
-				"je 8f",
-            	// scale by alpha
-				// "/* {alphax} */",
-            	asm_alpha_scale!($VER, $nr),
+
+            	asm_alpha_scale!($mr, $nr),
 
 				"8:",
 
@@ -869,7 +838,6 @@ macro_rules! def_ukernel {
 
 macro_rules! def_ukernelxn {
 	(
-		$VER:tt,
 		$step_macro:tt,
 		$acc_macro:tt,
 		$store_macro:tt,
@@ -915,9 +883,9 @@ macro_rules! def_ukernelxn {
 						// prefetch for c
 						prefetch_c!($mr,ni,c,c_cs);
 						asm!(
-							asm_vzeroall!($VER,ni),
+							asm_vzeroall!($mr,ni),
 				
-							asm_init_ab!($VER,$a_layout,$b_layout),
+							asm_init_ab!($mr,$a_layout,$b_layout),
 						
 							// 3 -> CONSIDKLEFT
 							"je 3f",
@@ -925,13 +893,10 @@ macro_rules! def_ukernelxn {
 							// 2 -> KITER
 							"2:",
 							prefetch_0!(128, "{bx}", 0),
-							$step_macro!(ni, $a_layout, $b_layout, 0),
-							$step_macro!(ni, $a_layout, $b_layout, 0),
-							$step_macro!(ni, $a_layout, $b_layout, 0),
-							$step_macro!(ni, $a_layout, $b_layout, 0),
-			
-							// inc_a_k_unroll!($a_layout, $mr, 4),
-							// inc_b_k_unroll!($b_layout, ni, 4),
+							$step_macro!(ni, $a_layout, $b_layout),
+							$step_macro!(ni, $a_layout, $b_layout),
+							$step_macro!(ni, $a_layout, $b_layout),
+							$step_macro!(ni, $a_layout, $b_layout),
 				
 							"dec {x0}",
 							// 2 -> KITER
@@ -946,9 +911,7 @@ macro_rules! def_ukernelxn {
 							"je 5f",
 							// 4 -> KLEFT
 							"4:",
-							$step_macro!(ni, $a_layout, $b_layout, 0),
-							// inc_a_k_unroll!($a_layout, $mr, 1),
-							// inc_b_k_unroll!($b_layout, ni, 1),
+							$step_macro!(ni, $a_layout, $b_layout),
 
 							"dec {x0}",
 				
@@ -963,7 +926,7 @@ macro_rules! def_ukernelxn {
 							"vucomiss ({onex}), %xmm0",
 							"je 8f",
 							// scale by alpha
-							asm_alpha_scale!($VER, ni),
+							asm_alpha_scale!($mr, ni),
 
 							"8:",
 							load_mask_ptr_asm!($is_partial),
@@ -1033,19 +996,19 @@ macro_rules! def_ukernelxn {
 	};
 }
 
-// def_ukernel!(VER2, step_32x8, acc_32x8, store_32x8, 32, 8, B, B, C, ukernel_32x8_bb);
-// def_ukernel!(VER1, step_16x8, acc_16x8, store_16x8, 8, 4, B, B, C, 4, ukernel_16x8_bb);
+// def_ukernel!(step_32x8, acc_32x8, store_32x8, 32, 8, B, B, C, ukernel_32x8_bb);
+// def_ukernel!(step_16x8, acc_16x8, store_16x8, 8, 4, B, B, C, 4, ukernel_16x8_bb);
 
-def_ukernel!(VER2, step_32x8, acc_32x8, store_32x8, 32, 8, B, B, M, ukernel_32x8_bb_partial);
-def_ukernel!(VER1, step_16x8, acc_16x8, store_16x8, 16, 8, B, B, M, ukernel_16x8_bb_partial);
+def_ukernel!(step_32x8, acc_32x8, store_32x8, 32, 8, B, B, M, ukernel_32x8_bb_partial);
+def_ukernel!(step_16x8, acc_16x8, store_16x8, 16, 8, B, B, M, ukernel_16x8_bb_partial);
 
 
-def_ukernelxn!(VER2, step_32x8, acc_32x8, store_32x8, 32, 8, B, B, C, ukernel_32xn_bb);
-// def_ukernelxn!(VER2, step_32x8, acc_32x8, store_32x8, 16, 4, B, B, C, 4, ukernel_16xn_bb);
-// def_ukernelxn!(VER1, step_16x8, acc_16x8, store_16x8, 8, 4, B, B, C, 4, ukernel_16xn_bb);
+def_ukernelxn!(step_32x8, acc_32x8, store_32x8, 32, 8, B, B, C, ukernel_32xn_bb);
+// def_ukernelxn!(32, step_32x8, acc_32x8, store_32x8, 16, 4, B, B, C, 4, ukernel_16xn_bb);
+// def_ukernelxn!(16, step_16x8, acc_16x8, store_16x8, 8, 4, B, B, C, 4, ukernel_16xn_bb);
 
-def_ukernelxn!(VER2, step_32x8, acc_32x8, store_32x8, 32, 8, B, B, M, ukernel_32xn_bb_partial);
-def_ukernelxn!(VER1, step_16x8, acc_16x8, store_16x8, 16, 8, B, B, M, ukernel_16xn_bb_partial);
+def_ukernelxn!(step_32x8, acc_32x8, store_32x8, 32, 8, B, B, M, ukernel_32xn_bb_partial);
+def_ukernelxn!(step_16x8, acc_16x8, store_16x8, 16, 8, B, B, M, ukernel_16xn_bb_partial);
 
 
 
@@ -1082,7 +1045,7 @@ pub(crate) unsafe fn ukernel_32x8_bb<F: MyFn, const BUF: bool>(
         }
     }
     asm!(
-		asm_vzeroall!(VER2,8),
+		asm_vzeroall!(32,8),
 		"mov 8({dim_arrx}),{x0}",
 		"test {x0},{x0}",
 		"je 3f",
@@ -1093,21 +1056,21 @@ pub(crate) unsafe fn ukernel_32x8_bb<F: MyFn, const BUF: bool>(
 		"add {x1}, {x5}",
 		"mov ({dim_arrx}),{x1}",
 		"2:",
-		step_32x8!(8, B, B,0),
+		step_32x8!(8, B, B),
 
 		"movq $64*4, {x4}",
 		// divisiblity by 4
 		"testq $3, {x0}",
 		"cmovz {x1},{x4}",
 
-		step_32x8!(8, B, B,0),
+		step_32x8!(8, B, B),
 
 		"prefetcht1 ({x2})",
 
 		"subq $64*3, {x2}",
 		"addq {x4}, {x2}",
 
-		step_32x8!(8, B, B,0),
+		step_32x8!(8, B, B),
 
 		"prefetcht1 ({x5})",
 		"addq $32, {x5}",
@@ -1115,7 +1078,7 @@ pub(crate) unsafe fn ukernel_32x8_bb<F: MyFn, const BUF: bool>(
 		"testq $63, {x0}",
 		"cmovz {cx},{x2}",
 
-		step_32x8!(8, B, B,0),
+		step_32x8!(8, B, B),
 
 		"dec {x0}",
 		"jne 2b",
@@ -1130,7 +1093,7 @@ pub(crate) unsafe fn ukernel_32x8_bb<F: MyFn, const BUF: bool>(
 		"4:",
 		"prefetcht0 ({x2})",
 		"prefetcht0 64({x2})",
-		step_32x8!(8, B, B,0),
+		step_32x8!(8, B, B),
 
 		"add {x1}, {x2}",
 		"dec {x0}",
@@ -1141,13 +1104,7 @@ pub(crate) unsafe fn ukernel_32x8_bb<F: MyFn, const BUF: bool>(
 		"lea ({x0}, {x0}, 2), {x4}",
 		"lea ({cx}, {x4},), {x1}",
 		"lea ({x1}, {x4},), {x2}",
-		// jmp to 8 if alpha is equal to onex
-		"vmovss ({alphax}), %xmm0",
-		"vucomiss ({onex}), %xmm0",
-		"je 8f",
-		// scale by alpha
-		// "/* {alphax} */",
-		asm_alpha_scale!(VER2, 8),
+		asm_alpha_scale!(32, 8),
 		"8:",
 
 		load_beta!(),

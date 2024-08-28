@@ -81,14 +81,14 @@ impl<F: MyFn> X86_64dispatcher<F> {
         }
     }
 
-    unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx2{
             pack_avx::packa_panel_16(m, k, x, rs, cs, y);
             return;
         }
     }
 
-    unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx2{
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
@@ -97,6 +97,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
 
     pub(crate) fn is_compute_native(&self) -> bool {
         true
+    }
+
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        (k +3 ) / 4 * 4
     }
 }
 

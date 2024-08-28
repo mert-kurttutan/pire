@@ -177,6 +177,10 @@ impl<F: MyFn> F32Dispatcher<F>{
             *y_ptr = (*x_ptr).to_f32();
         }
     }
+
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        k
+    }
 }
 
 pub(crate) struct F16Dispatcher<
@@ -233,6 +237,10 @@ impl<F: MyFn> F16Dispatcher<F>{
             pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
             return;
         }
+    }
+
+    pub(crate) fn round_up(&self, k: usize) -> usize {
+        k
     }
 
 }
