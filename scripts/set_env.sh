@@ -1,5 +1,8 @@
 #!/bin/bash
 
+export GLARE_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=1
 export GLARE_MKL_PATH=/home/ubuntu/.env/lib
 export GLARE_BLIS_PATH=/home/ubuntu/blis/lib/haswell
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GLARE_MKL_PATH:$GLARE_BLIS_PATH
