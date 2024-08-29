@@ -52,23 +52,30 @@ impl MyFn for fn(*mut TC, m: usize){
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f16 {
-		let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
-		let nc = std::env::var("GLARE_NC").unwrap_or("180".to_string()).parse::<usize>().unwrap();
-		let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
-		return (mc, nc, kc);
-		// return (4800, 192, 768);
-	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		return (4800, 192, 512);
+		match (*RUNTIME_HW_CONFIG).hw_model {
+			_ => {
+				return (4800, 192, 512);
+			}
+		}
 	}
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
-		return (4800, 320, 192);
+		match (*RUNTIME_HW_CONFIG).hw_model {
+			_ => {
+				return (4800, 320, 192);
+			}
+		}
+	}
+	if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
+		match (*RUNTIME_HW_CONFIG).hw_model {
+			_ => {
+				return (4800, 320, 192);
+			}
+		}
 	}
 	// reference cache params
 	get_cache_params()
 }
-
 
 pub(crate) unsafe fn glare_hgemm_generic<
 F: MyFn,

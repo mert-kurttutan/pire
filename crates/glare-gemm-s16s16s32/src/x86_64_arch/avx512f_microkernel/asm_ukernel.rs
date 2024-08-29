@@ -5,7 +5,6 @@ use super::VS;
 
 use crate::{TA, TB, TC};
 
-use paste::paste;
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
         concat!(

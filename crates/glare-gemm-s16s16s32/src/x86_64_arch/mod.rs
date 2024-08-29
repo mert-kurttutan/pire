@@ -5,7 +5,7 @@ pub(crate) mod pack_avx;
 const AVX_FMA_GOTO_MR: usize = 16; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
 
-const AVX512F_GOTO_MR: usize = 48; // register block size
+const AVX512F_GOTO_MR: usize = 32; // register block size
 const AVX512F_GOTO_NR: usize = 8; // register block size
 
 const VS: usize = 8; // vector size in float, __m256

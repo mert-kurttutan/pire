@@ -2,7 +2,6 @@ use seq_macro::seq;
 use std::arch::asm;
 use half::f16;
 
-use paste::paste;
 use super::VS;
 
 macro_rules! beta_fmaddps {

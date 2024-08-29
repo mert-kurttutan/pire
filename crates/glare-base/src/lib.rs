@@ -32,7 +32,7 @@ pub struct CpuFeatures {
 #[cfg(target_arch = "x86_64")]
 pub struct HWConfig {
     pub cpu_ft: CpuFeatures,
-    hw_model: HWModel,
+    pub hw_model: HWModel,
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
@@ -55,20 +55,52 @@ pub struct HWConfig {
 #[derive(Copy,Clone)]
 pub enum HWModel {
     Reference,
+    SandyBridge,
     Haswell,
     Zen1,
     Zen2,
+    Skylake,
 }
 
+const SKYLAKE: [u8; 12] = [
+    78, 94, 126, 140, 141, 167, 151, 154, 183, 186,
+    143, 207
+];
+
+const HASWELL: [u8; 4] = [69, 70, 61, 71];
+
+const SANDY_BRIDGE: [u8; 2] = [42, 58];
+
 impl HWModel {
+    pub fn from_hw(family_id: u8, model_id: u8) -> Self {
+
+        if family_id == 6 {
+            if SKYLAKE.contains(&model_id) {
+                return HWModel::Skylake
+            }
+            if HASWELL.contains(&model_id) {
+                return HWModel::Haswell
+            }
+            if SANDY_BRIDGE.contains(&model_id) {
+                return HWModel::SandyBridge
+            }
+        }
+
+        // default to reeference
+        return HWModel::Reference;
+    }
     pub fn get_cache_info(&self) -> (bool, bool, bool) {
         match self {
-            HWModel::Reference => (false, false, false),
+            HWModel::Reference => (false, false, true),
             HWModel::Haswell => (false, false, true),
             HWModel::Zen1 => (false, false, true),
             HWModel::Zen2 => (false, false, true),
+            HWModel::Skylake => (false, false, true),
+            HWModel::SandyBridge => (false, false, true),
         }
     }
+
+
 }
 
 // Use family and model id instead of cache size parameters
@@ -101,11 +133,13 @@ fn detect_hw_config() -> HWConfig {
             fma4,
             f16c,
         };
-        let hw_model = HWModel::Haswell;
+        let family_id = feature_info.family_id();
+        let model_id = feature_info.model_id();
+        let hw_model = HWModel::from_hw(family_id, model_id);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig {
             cpu_ft,
-            hw_model: HWModel::Reference,
+            hw_model,
             is_l1_shared,
             is_l2_shared,
             is_l3_shared,
@@ -341,6 +375,7 @@ impl GlarePar {
    pub fn default() -> Self {
        let num_threads = glare_num_threads();
        Self::from_num_threads(num_threads)
+    // Self::new(30, 3, 1, 5, 2, 1)
    }
    #[inline]
    fn get_ic_id(&self, t_id: usize) -> usize {
@@ -1207,6 +1242,7 @@ macro_rules! def_glare_gemm {
             let d2r = hw_cfg.nr;
             let (d0_start, d0_end, mc_left) = split_c_range(d0, d0_c, d0r, d0c_id, d0c_par);
             let (d2_start, d2_end, nc_left) = split_c_range(d2, d2_c, d2r, d2c_id, d2c_par);
+            // println!("mc_start: {}, mc_end: {}, nc_start: {}, nc_end: {}", d0_start, d0_end, d2_start, d2_end);
             let (d1_start, d1_end) = (0, k);
             let one = $one;
             let d0_s = c.rs();
@@ -1463,6 +1499,8 @@ macro_rules! def_glare_gemm {
                     let kc_len = hw_cfg.round_up(kc_len);
                     let vs = hw_cfg.vs;
                     let m_eff = (m.m() + vs - 1) / vs * vs;
+                        // println!("m_eff: {}, kc_len: {}", m_eff, kc_len);
+                        // println!("mc_i: {}, kc_i: {}", mc_i, kc_i);
                     let src = m.data_ptr().add(mc_i*kc_len + kc_i*m_eff);
                     let res = is_mixed!(
                         $include_flag,          
