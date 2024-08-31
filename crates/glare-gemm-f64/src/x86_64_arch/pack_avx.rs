@@ -59,15 +59,72 @@ pub(crate) unsafe fn pack_t4<const MR: usize>(
 }
 
 
+
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
+pub(crate) unsafe fn pack_t2<const MR: usize>(
+    b: *const TA, ldb: usize,
+    bp: *mut TB,
+) {
+    let mut a0 = [0f64;8];
+    let mut a1 = [0f64;8];
+    std::ptr::copy_nonoverlapping(b, a0.as_mut_ptr(), 8);
+    std::ptr::copy_nonoverlapping(b.add(ldb), a1.as_mut_ptr(), 8);
+
+
+    let mut ap0 = [0f64; 2];
+    let mut ap1 = [0f64; 2];
+    let mut ap2 = [0f64; 2];
+    let mut ap3 = [0f64; 2];
+    let mut ap4 = [0f64; 2];
+    let mut ap5 = [0f64; 2];
+    let mut ap6 = [0f64; 2];
+    let mut ap7 = [0f64; 2];
+
+    ap0[0] = a0[0];
+    ap0[1] = a1[0];
+
+    ap1[0] = a0[1];
+    ap1[1] = a1[1];
+
+    ap2[0] = a0[2];
+    ap2[1] = a1[2];
+
+    ap3[0] = a0[3];
+    ap3[1] = a1[3];
+
+    ap4[0] = a0[4];
+    ap4[1] = a1[4];
+
+    ap5[0] = a0[5];
+    ap5[1] = a1[5];
+
+    ap6[0] = a0[6];
+    ap6[1] = a1[6];
+
+    ap7[0] = a0[7];
+    ap7[1] = a1[7];
+
+    std::ptr::copy_nonoverlapping(ap0.as_ptr(), bp, 2);
+    std::ptr::copy_nonoverlapping(ap1.as_ptr(), bp.add(MR), 2);
+    std::ptr::copy_nonoverlapping(ap2.as_ptr(), bp.add(MR*2), 2);
+    std::ptr::copy_nonoverlapping(ap3.as_ptr(), bp.add(MR*3), 2);
+    std::ptr::copy_nonoverlapping(ap4.as_ptr(), bp.add(MR*4), 2);
+    std::ptr::copy_nonoverlapping(ap5.as_ptr(), bp.add(MR*5), 2);
+    std::ptr::copy_nonoverlapping(ap6.as_ptr(), bp.add(MR*6), 2);
+    std::ptr::copy_nonoverlapping(ap7.as_ptr(), bp.add(MR*7), 2);
+}
+
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_scalar_k(
     m_left: usize, k: usize,
     a: *const TA, a_rs: usize, a_cs: usize,
-    ap: *mut TA,
+    ap: *mut TA, vs: usize
 ) {
+    let mr = (m_left + vs - 1) / vs * vs;
     for i in 0..m_left  {
         for j in 0..k {
-            *ap.add(j*MR+i) = *a.add(j*a_cs + i*a_rs);
+            *ap.add(j*mr+i) = *a.add(j*a_cs + i*a_rs);
         }
     }
 }
@@ -472,6 +529,40 @@ pub(crate) unsafe fn pack_kx4_v1(
     }
 }
 
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn pack_kx6_v1(
+    k_iter: usize, k_left: usize,
+    a: *const TA, lda: usize,
+    ap: *mut TA,
+) {
+    let mut k_i = 0;
+    let mut a = a;
+    let mut ap = ap;
+    const MR: usize = 6;
+    while k_i < k_iter {
+        pack_t4::<MR>(a, lda, ap);
+        pack_t2::<MR>(a.add(lda*4), lda, ap.add(4));
+
+        ap = ap.add(MR*8);
+        a = a.add(8);
+        k_i += 1;
+    }
+
+    k_i = 0;
+
+    while k_i < k_left {
+        seq!(i in 0..6 {
+            copy_packed::<1>(a.add(lda*i), ap.add(i));
+        });
+
+        ap = ap.add(MR);
+        a = a.add(1);
+        k_i += 1;
+    }
+}
+
+
 macro_rules! def_packb {
     ($nr:tt) => {
          paste! {
@@ -528,17 +619,17 @@ macro_rules! def_packb {
  def_packb!(4);
  def_packb!(8);
 
-//  def_packb!(6);
+ def_packb!(6);
 
 
 macro_rules! def_packa {
-    ($mr:tt,$vs:tt) => {
+    ($mr:tt) => {
         paste! {
             #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA,
+                ap: *mut TA, vs: usize
             ) {
                 let mut ap = ap;
                 let mut a = a;
@@ -556,12 +647,11 @@ macro_rules! def_packa {
                         a = a.add(MR);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_k_v0::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
 
                 } else if a_cs == 1 {
                     let lda = a_rs;
@@ -574,22 +664,17 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_scalar_k::<{(mr_left+$vs-1)/ $vs* $vs}>(
-                                mr_left, k,
-                                a, a_rs, a_cs,
-                                ap
-                            );
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
                 }
             }
         }
     };
 }
-def_packa!(8,4);
-def_packa!(12,4);
-def_packa!(24,8);
+def_packa!(8);
+def_packa!(12);
+def_packa!(24);
 // def_packa!(8);

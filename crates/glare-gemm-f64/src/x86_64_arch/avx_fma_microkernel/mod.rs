@@ -9,7 +9,7 @@ use std::arch::asm;
 
 use crate::{TA,TB,TC};
 
-const VS: usize = 4;
+const VS: usize = 8;
 
 use crate::MyFn;
 
@@ -71,7 +71,7 @@ macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -135,13 +135,15 @@ macro_rules! def_kernel_bb {
     };
 }
 
-def_kernel_bb!(12, 4, 12, 8, 4);
+def_kernel_bb!(8, 6, 8, 4);
+
+def_kernel_bb!(12, 4, 8, 4);
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_$MR x $NR _bs_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -204,13 +206,15 @@ macro_rules! def_kernel_bs {
 }
 
 def_kernel_bs!(12, 4, 12, 8, 4);
+def_kernel_bs!(8, 6, 8, 4);
 
 use super::pack_avx::packa_panel_12;
+use super::pack_avx::packa_panel_8;
 macro_rules! def_kernel_sb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
                 beta: *const TC,
@@ -235,7 +239,7 @@ macro_rules! def_kernel_sb {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
-                    packa_panel_12(MR, k, a_cur, a_rs, a_cs, ap_cur);
+                    [<packa_panel_$MR>](MR, k, a_cur, a_rs, a_cs, ap_cur, VS);
                     while n_iter > 0 {
                         [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, NR, f);                        
                         n_iter -= 1;
@@ -252,7 +256,7 @@ macro_rules! def_kernel_sb {
 
                 $(
                     if (m_left+VS-1) / VS *VS == $mr_left {
-                        packa_panel_12(m_left, k, a_cur, a_rs, a_cs, ap_cur);
+                        [<packa_panel_$MR>](m_left, k, a_cur, a_rs, a_cs, ap_cur, VS);
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
@@ -276,9 +280,10 @@ macro_rules! def_kernel_sb {
 }
 
 def_kernel_sb!(12, 4, 12, 8, 4);
+def_kernel_sb!(8, 6, 8, 4);
 
-// #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+
+pub(crate) unsafe fn kernel_12x4_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -289,7 +294,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
  ) { 
     if c_rs == 1 {
-        kernel_sb_v0::<_, false>(
+        kernel_12x4_sb_v0::<_, false>(
             m, n, k,
             alpha, beta,
             a, a_rs, a_cs,
@@ -299,7 +304,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
             f
         );
     } else {
-        kernel_sb_v0::<_, true>(
+        kernel_12x4_sb_v0::<_, true>(
             m, n, k,
             alpha, beta,
             a, a_rs, a_cs,
@@ -312,7 +317,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
  } 
 
 
- pub(crate) unsafe fn kernel_bs<F: MyFn>(
+ pub(crate) unsafe fn kernel_12x4_bs<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
     beta: *const TC,
@@ -322,7 +327,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {  
     if c_rs == 1 {
-        kernel_bs_v0::<_, false>(
+        kernel_12x4_bs_v0::<_, false>(
             m, n, k,
             alpha, beta,
             b, b_rs, b_cs,
@@ -331,7 +336,72 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
             f
         );
     } else {
-        kernel_bs_v0::<_, true>(
+        kernel_12x4_bs_v0::<_, true>(
+            m, n, k,
+            alpha, beta,
+            b, b_rs, b_cs,
+            c, c_rs, c_cs,
+            ap,
+            f
+        );
+    }
+}
+
+
+pub(crate) unsafe fn kernel_8x6_sb<F: MyFn>(
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    a: *const TB, a_rs: usize, a_cs: usize,
+    b: *const TB,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+    ap_buf: *mut TA,
+    f: F,
+ ) { 
+    if c_rs == 1 {
+        kernel_8x6_sb_v0::<_, false>(
+            m, n, k,
+            alpha, beta,
+            a, a_rs, a_cs,
+            b,
+            c, c_rs, c_cs,
+            ap_buf,
+            f
+        );
+    } else {
+        kernel_8x6_sb_v0::<_, true>(
+            m, n, k,
+            alpha, beta,
+            a, a_rs, a_cs,
+            b,
+            c, c_rs, c_cs,
+            ap_buf,
+            f
+        );
+    }
+ } 
+
+
+ pub(crate) unsafe fn kernel_8x6_bs<F: MyFn>(
+    m: usize, n: usize, k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    b: *const TB, b_rs: usize, b_cs: usize,
+    c: *mut TC, c_rs: usize, c_cs: usize,
+    ap: *const TA,
+    f: F,
+) {  
+    if c_rs == 1 {
+        kernel_8x6_bs_v0::<_, false>(
+            m, n, k,
+            alpha, beta,
+            b, b_rs, b_cs,
+            c, c_rs, c_cs,
+            ap,
+            f
+        );
+    } else {
+        kernel_8x6_bs_v0::<_, true>(
             m, n, k,
             alpha, beta,
             b, b_rs, b_cs,
@@ -343,7 +413,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
 }
 
 // #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel_8x6<F: MyFn>(
    m: usize, n: usize, k: usize,
    alpha: *const TA, beta: *const TC,
    c: *mut TC,
@@ -352,8 +422,23 @@ pub(crate) unsafe fn kernel<F: MyFn>(
    f: F,
 ) {
     if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_8x6_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_8x6_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }
+
+pub(crate) unsafe fn kernel_12x4<F: MyFn>(
+    m: usize, n: usize, k: usize,
+    alpha: *const TA, beta: *const TC,
+    c: *mut TC,
+    c_rs: usize, c_cs: usize,
+    ap: *const TA, bp: *const TB,
+    f: F,
+ ) {
+     if c_rs == 1 {
+         kernel_12x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+     } else {
+         kernel_12x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+     }
+ }

@@ -83,11 +83,11 @@ impl<F: MyFn> X86_64dispatcher<F> {
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            pack_avx::packa_panel_32(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_32(m, k, x, rs, cs, y, self.vs);
             return;
         }
         if self.features.avx2{
-            pack_avx::packa_panel_16(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }

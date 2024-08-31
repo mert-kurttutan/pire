@@ -36,6 +36,7 @@ use glare_base::{
 	GemmCache,
 	StridedMatrix,
 	StridedMatrixMut,
+	HWModel,	
 	Array,
 	ArrayMut,
 	GlarePar,
@@ -48,29 +49,16 @@ use reference::RefGemm;
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-		match (*RUNTIME_HW_CONFIG).hw_model {
-			_ => {
-				return (4800, 192, 512);
-			}
-		}
-	}
-	if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
-		match (*RUNTIME_HW_CONFIG).hw_model {
-			_ => {
-				return (4800, 320, 192);
-			}
-		}
-	}
-	if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
-		match (*RUNTIME_HW_CONFIG).hw_model {
-			_ => {
-				return (4800, 320, 192);
-			}
-		}
-	}
-	// reference cache params
-	get_cache_params()
+	// let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+	// let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+	// let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+	// return (mc, nc, kc);
+	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
+		HWModel::Broadwell => (2400, 96, 256),
+		HWModel::Skylake => (2400, 96, 512),
+		_ => (2400, 192, 192),
+	};
+	(mc, nc, kc)
 }
 
 pub(crate) unsafe fn glare_dgemm_generic<

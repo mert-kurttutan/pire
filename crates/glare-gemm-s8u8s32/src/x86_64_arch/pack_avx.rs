@@ -8,40 +8,35 @@ use std::arch::x86_64::*;
 
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
+pub(crate) unsafe fn pack_scalar_k(
     m_left: usize, k: usize,
     a: *const TA, a_rs: usize, a_cs: usize,
-    ap: *mut TA,
+    ap: *mut TA, vs: usize
 ) {
+    let mr = (m_left + vs - 1) / vs * vs;
     let k4 = k / 4 * 4;
     let kp4 = (k+3) / 4 * 4;
     let kl = k % 4;
     for i in 0..m_left  {
         let mut j = 0;
         while j < k4 {
-            *ap.add(j*MR+i*4) = *a.add(j*a_cs + i*a_rs);
-            *ap.add(j*MR+i*4+1) = *a.add((j+1)*a_cs + i*a_rs);
-            *ap.add(j*MR+i*4+2) = *a.add((j+2)*a_cs + i*a_rs);
-            *ap.add(j*MR+i*4+3) = *a.add((j+3)*a_cs + i*a_rs);
+            *ap.add(j*mr+i*4) = *a.add(j*a_cs + i*a_rs);
+            *ap.add(j*mr+i*4+1) = *a.add((j+1)*a_cs + i*a_rs);
+            *ap.add(j*mr+i*4+2) = *a.add((j+2)*a_cs + i*a_rs);
+            *ap.add(j*mr+i*4+3) = *a.add((j+3)*a_cs + i*a_rs);
             j += 4;
         }
         let mut jl = 0;
         while jl < kl {
-            *ap.add(j*MR+i*4+jl) = *a.add((j+jl)*a_cs + i*a_rs);
+            *ap.add(j*mr+i*4+jl) = *a.add((j+jl)*a_cs + i*a_rs);
             jl += 1;
         }
         while jl < 4 {
-            *ap.add(j*MR+i*4+jl) = 0;
+            *ap.add(j*mr+i*4+jl) = 0;
             jl += 1;
         }
 
     }
-    // for i in m_left..MR {
-    //     for j in 0..k/2 {
-    //         *ap.add(j*2*MR+i*2) = 0;
-    //         *ap.add(j*2*MR+i*2+1) = 0;
-    //     }
-    // }
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -477,13 +472,13 @@ macro_rules! def_packb {
 def_packb!(4);
 
 macro_rules! def_packa {
-    ($mr:tt, $vs:tt) => {
+    ($mr:tt) => {
         paste! {
             #[target_feature(enable = "avx,avx2")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA,
+                ap: *mut TA, vs: usize
             ) {
                 let k_eff = (k+3) / 4 * 4;
                 let mut ap = ap;
@@ -496,52 +491,38 @@ macro_rules! def_packa {
                     let k_iter = k / 8;
                     let k_left = k % 8;
                     while m_idx + MR_LAST_STEP <= m_left {
-                        // [<pack_kx$mr _v0>](k_iter, k_left, a, lda, ap);
                         pack_k_v0::<$mr,$mr>(k_iter, k_left, a, lda, ap);
-                        // let ap_slice = std::slice::from_raw_parts_mut(ap, MR*8);
-                        // println!("{:?}", ap_slice);
                         m_idx += MR;
                         ap = ap.add(k_eff * MR);
                         a = a.add(MR);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_scalar_k::<{(mr_left+7)/ 8 * 8}>(
-                                mr_left, k,
-                                a, a_rs, a_cs,
-                                ap
-                            );
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
 
                 } else if a_cs == 1 {
                     let lda = a_rs;
                     let k_iter = k / 8;
                     let k_left = k % 8;
                     while m_idx + MR_LAST_STEP <= m_left {
-                        // [<pack_kx$mr _v1>](k_iter, k_left, a, lda, ap);
                         pack_k_v1::<$mr,$mr>(k_iter, k_left, a, lda, ap);
                         m_idx += MR;
                         ap = ap.add(k_eff * MR);
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_scalar_k::<{(mr_left+$vs-1)/ $vs * $vs}>(
-                                mr_left, k,
-                                a, a_rs, a_cs,
-                                ap
-                            );
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
                 }
             }
         }
     };
 }
 
-def_packa!(16,8);
+def_packa!(16);

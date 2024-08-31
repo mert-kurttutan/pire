@@ -1040,22 +1040,29 @@ macro_rules! def_ukernelxn {
 }
 
 def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, C, ukernel_12x4_bb);
-// def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, B, C, ukernel_32x8_bb);
+def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, C, ukernel_8x6_bb);
 // def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, B, C, ukernel_8x8_bb);
 
 def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, M, ukernel_12x4_bb_partial);
 def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, B, M, ukernel_8x4_bb_partial);
 def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, B, M, ukernel_4x4_bb_partial);
 
+def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, M, ukernel_8x6_bb_partial);
+def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 6, B, B, M, ukernel_4x6_bb_partial);
+
 def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, C, ukernel_12x4_bs);
+def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, S, C, ukernel_8x6_bs);
 
 def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, M, ukernel_12x4_bs_partial);
 def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, S, M, ukernel_8x4_bs_partial);
 def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, S, M, ukernel_4x4_bs_partial);
 
+def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, S, M, ukernel_8x6_bs_partial);
+def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 6, B, S, M, ukernel_4x6_bs_partial);
+
 
 def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, C, ukernel_12xn_bb);
-// def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 16, 4, B, B, C, ukernel_8xn_bb);
+def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, C, ukernel_8xn_bb);
 // def_ukernelxn!(step_4x6, acc_4x6, store_4x6, 8, 4, B, B, C, ukernel_8xn_bb);
 
 def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, M, ukernel_12xn_bb_partial);
@@ -1063,6 +1070,7 @@ def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 4, B, B, M, ukernel_8xn_bb_parti
 def_ukernelxn!(step_4x6, acc_4x6, store_4x6, 4, 4, B, B, M, ukernel_4xn_bb_partial);
 
 def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, C, ukernel_12xn_bs);
+def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 6, B, S, C, ukernel_8xn_bs);
 
 def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, M, ukernel_12xn_bs_partial);
 def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 4, B, S, M, ukernel_8xn_bs_partial);
