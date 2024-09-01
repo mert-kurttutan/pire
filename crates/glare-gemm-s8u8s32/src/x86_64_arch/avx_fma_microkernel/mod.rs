@@ -1,10 +1,9 @@
 pub mod asm_ukernel;
-pub(crate) mod axpy_kernel;
+// pub(crate) mod axpy_kernel;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use axpy_kernel::*;
+// pub(crate) use axpy_kernel::*;
 
-use seq_macro::seq;
 use paste::paste;
 use std::arch::asm;
 
@@ -24,6 +23,7 @@ pub unsafe fn axpy<F: MyFn>(
    y: *mut TC, incy: usize,
    f: F,
 ) {
+// TODO! implement axpy_d and axpy_v with avx2
 //    if a_cs == 1 && incx == 1 {
 //        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
 //        for i in 0..m {

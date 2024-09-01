@@ -232,7 +232,6 @@ pub unsafe fn packb_f16(
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let (mc, nc, kc) = get_mcnckc();
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {

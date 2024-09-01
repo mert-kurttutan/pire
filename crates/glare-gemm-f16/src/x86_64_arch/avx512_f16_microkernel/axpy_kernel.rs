@@ -1,4 +1,6 @@
-use std::{arch::x86_64::*, ptr::copy_nonoverlapping};
+// use std::{arch::x86_64::*, ptr::copy_nonoverlapping};
+use std::arch::x86_64::*;
+// use seq_macro::seq;
 
 use crate::{TA,TB,TC};
 use half::f16;
@@ -218,7 +220,6 @@ pub(crate) unsafe fn axpy_v(
 // }
 }
 
-use seq_macro::seq;
 
 // #[target_feature(enable = "avx")]
 // pub(crate) unsafe fn acc_vec(

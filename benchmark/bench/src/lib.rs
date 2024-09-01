@@ -11,7 +11,6 @@ use libc::{c_int, c_void, c_ushort};
 use glare_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{
-    c32,
     Complex32
 };
 #[derive(Copy, Clone, Debug)]

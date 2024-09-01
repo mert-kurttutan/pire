@@ -2,7 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use half::f16;
 
-use super::VS;
+// use super::VS;
 
 macro_rules! beta_fmaddps {
     (C, $m0:expr, $r1:expr) => {
@@ -270,14 +270,14 @@ macro_rules! asm_vzeroall {
 	(8,1) => {vzeroall!(7,7)};
 }
 
-macro_rules! inc_a {
-	(C) => {
-    	"add {x1}, {ax} \n"
-	};
-	(B) => {
-    	""
-	};
-}
+// macro_rules! inc_a {
+// 	(C) => {
+//     	"add {x1}, {ax} \n"
+// 	};
+// 	(B) => {
+//     	""
+// 	};
+// }
 
 macro_rules! inc_b {
 	(S,6) => {
@@ -718,38 +718,38 @@ macro_rules! prefetch_c {
 
 use crate::MyFn;
 
-#[inline(always)]
-fn mask_and_offset(m: usize) -> ([u32;16], usize) {
-	let mask: [u32; 16] = [
-		u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
-		0, 0, 0, 0, 0, 0, 0, 0,
-	];
-	let mask_offset = if m % VS == 0 { 0 } else { VS - (m %VS)};
+// #[inline(always)]
+// fn mask_and_offset(m: usize) -> ([u32;16], usize) {
+// 	let mask: [u32; 16] = [
+// 		u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
+// 		0, 0, 0, 0, 0, 0, 0, 0,
+// 	];
+// 	let mask_offset = if m % VS == 0 { 0 } else { VS - (m %VS)};
 
-	(mask, mask_offset)
-}
+// 	(mask, mask_offset)
+// }
 
 
 
-macro_rules! mask_ptr {
-	(M, $m:tt, $nm:ident) => {
-		let (mask, mask_offset) = mask_and_offset($m);
-		let $nm = mask.as_ptr().add(mask_offset);
-	};
-	(C, $m:tt, $nm:ident) => {
-		let mask = [0xFFFF_u32];
-		let $nm = mask.as_ptr();
-	};
-}
+// macro_rules! mask_ptr {
+// 	(M, $m:tt, $nm:ident) => {
+// 		let (mask, mask_offset) = mask_and_offset($m);
+// 		let $nm = mask.as_ptr().add(mask_offset);
+// 	};
+// 	(C, $m:tt, $nm:ident) => {
+// 		let mask = [0xFFFF_u32];
+// 		let $nm = mask.as_ptr();
+// 	};
+// }
 
-macro_rules! load_mask_ptr_asm {
-	(M) => {
-		"vmovdqu ({maskx}), %ymm1"
-	};
-	(C) => {
-		"/* {maskx} */"
-	}
-}
+// macro_rules! load_mask_ptr_asm {
+// 	(M) => {
+// 		"vmovdqu ({maskx}), %ymm1"
+// 	};
+// 	(C) => {
+// 		"/* {maskx} */"
+// 	}
+// }
 
 macro_rules! def_ukernel {
 	(

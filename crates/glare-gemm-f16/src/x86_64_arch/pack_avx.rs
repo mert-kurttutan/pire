@@ -730,8 +730,6 @@ macro_rules! def_packb {
                     let mut bp = bp as *mut u16;
                     let k_iter = k / 8;
                     let k_left = k % 8;
-                    let mut bp = bp;
-                    let mut b = b;
                     const NR: usize = $nr;
                     const NR_LAST_STEP: usize = $nr;
                     let mut n_idx = 0;

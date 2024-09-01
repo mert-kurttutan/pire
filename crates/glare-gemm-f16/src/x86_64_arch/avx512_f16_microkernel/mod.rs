@@ -1,13 +1,13 @@
 pub mod asm_ukernel;
-pub(crate) mod axpy_kernel;
+// pub(crate) mod axpy_kernel;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use axpy_kernel::*;
+// pub(crate) use axpy_kernel::*;
 
 use paste::paste;
 use std::arch::asm;
 
-use half::f16;
+// use half::f16;
 
 use crate::{TA,TB,TC};
 
@@ -16,59 +16,59 @@ const VS: usize = 32;
 use crate::MyFn;
 
 
-#[target_feature(enable = "avx")]
-pub unsafe fn axpy<F: MyFn>(
-   m: usize, n: usize,
-   alpha: *const TA,
-   a: *const TA, a_rs: usize, a_cs: usize,
-   x: *const TB, incx: usize,
-   beta: *const TC,
-   y: *mut TC, incy: usize,
-   f: F,
-) {
-   if a_cs == 1 && incx == 1 {
-    //    axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-    //    for i in 0..m {
-    //        f.call(y.add(i*incy), m);
-    //    }
-    //    return;
-   }
-   if a_rs == 1 && incy == 1 {
-        // axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-        // // move this inside axpy_v, and benchmark
-        // f.call(y, m);
-        // return;
-   }
+// #[target_feature(enable = "avx")]
+// pub unsafe fn axpy<F: MyFn>(
+//    m: usize, n: usize,
+//    alpha: *const TA,
+//    a: *const TA, a_rs: usize, a_cs: usize,
+//    x: *const TB, incx: usize,
+//    beta: *const TC,
+//    y: *mut TC, incy: usize,
+//    f: F,
+// ) {
+//    if a_cs == 1 && incx == 1 {
+//     //    axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+//     //    for i in 0..m {
+//     //        f.call(y.add(i*incy), m);
+//     //    }
+//     //    return;
+//    }
+//    if a_rs == 1 && incy == 1 {
+//         // axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+//         // // move this inside axpy_v, and benchmark
+//         // f.call(y, m);
+//         // return;
+//    }
 
-   if a_cs == 1 {
-       for i in 0..m {
-           let a_cur = a.add(i*a_rs);
-           let y_cur = y.add(i * incy);
-           let mut acc = f16::from_f32(0.0);
-           for j in 0..n {
-               let x_cur = x.add(j * incx);
-               acc += *a_cur.add(j) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-           f.call(y_cur, 1);
-       }
-       return;
-   }
-   if a_rs == 1 || true {
-       for i in 0..m {
-           let y_cur = y.add(i*incy);
-           let mut acc = f16::from_f32(0.0);
-           for j in 0..n {
-               let a_cur = a.add(j*a_cs);
-               let x_cur = x.add(j*incx);
-               acc += *a_cur.add(i) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-            f.call(y_cur, 1);
-       }
-       return;
-   }
-}
+//    if a_cs == 1 {
+//        for i in 0..m {
+//            let a_cur = a.add(i*a_rs);
+//            let y_cur = y.add(i * incy);
+//            let mut acc = f16::from_f32(0.0);
+//            for j in 0..n {
+//                let x_cur = x.add(j * incx);
+//                acc += *a_cur.add(j) * *x_cur;
+//            }
+//            *y_cur = *beta * *y_cur + *alpha * acc;
+//            f.call(y_cur, 1);
+//        }
+//        return;
+//    }
+//    if a_rs == 1 || true {
+//        for i in 0..m {
+//            let y_cur = y.add(i*incy);
+//            let mut acc = f16::from_f32(0.0);
+//            for j in 0..n {
+//                let a_cur = a.add(j*a_cs);
+//                let x_cur = x.add(j*incx);
+//                acc += *a_cur.add(i) * *x_cur;
+//            }
+//            *y_cur = *beta * *y_cur + *alpha * acc;
+//             f.call(y_cur, 1);
+//        }
+//        return;
+//    }
+// }
 
 
 macro_rules! def_kernel_bb {
@@ -141,48 +141,48 @@ macro_rules! def_kernel_bb {
 def_kernel_bb!(64, 15, 64, 32);
 
 
-macro_rules! def_kernel_bb {
-    ($MR:tt, $NR:tt) => {
-        #[target_feature(enable = "avx")]
-        pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
-            m: usize, n: usize, k: usize,
-            alpha: *const TA,
-            beta: *const TC,
-            c: *mut TC, c_rs: usize, c_cs: usize,
-            ap: *const TA, bp: *const TB,
-            f: F,
-        ) {
-            const MR: usize = $MR;
-            const NR: usize = $NR;
-            let mut d0_iter = m / MR;
-            let mut ap0 = ap;
-            let mut c0 = c;
+// macro_rules! def_kernel_bb {
+//     ($MR:tt, $NR:tt) => {
+//         #[target_feature(enable = "avx")]
+//         pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+//             m: usize, n: usize, k: usize,
+//             alpha: *const TA,
+//             beta: *const TC,
+//             c: *mut TC, c_rs: usize, c_cs: usize,
+//             ap: *const TA, bp: *const TB,
+//             f: F,
+//         ) {
+//             const MR: usize = $MR;
+//             const NR: usize = $NR;
+//             let mut d0_iter = m / MR;
+//             let mut ap0 = ap;
+//             let mut c0 = c;
             
             
-            let d1_iter0 = n / NR;
-            let d_arr = [0, 0, c_rs, c_cs];
+//             let d1_iter0 = n / NR;
+//             let d_arr = [0, 0, c_rs, c_cs];
             
-            while d0_iter > 0 {
-                let mut d1_iter = d1_iter0;
-                let mut bp0 = bp;
-                let mut c1 = c0;
-                while d1_iter > 0 { paste! {
-                        let a_pft1_offset = ($MR+(d1_iter0-d1_iter)*4)*4*k;
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, d_arr, a_pft1_offset, f);
-                    }
-                    d1_iter -= 1;
-                    bp0 = bp0.add(NR*k);
-                    c1 = c1.add(NR*c_cs);
-                }
-                d0_iter -= 1;
-                ap0 = ap0.add(MR*k);
-                c0 = c0.add(MR*c_rs);
-            }
+//             while d0_iter > 0 {
+//                 let mut d1_iter = d1_iter0;
+//                 let mut bp0 = bp;
+//                 let mut c1 = c0;
+//                 while d1_iter > 0 { paste! {
+//                         let a_pft1_offset = ($MR+(d1_iter0-d1_iter)*4)*4*k;
+//                         [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap0, bp0, c1, alpha, beta, k, d_arr, a_pft1_offset, f);
+//                     }
+//                     d1_iter -= 1;
+//                     bp0 = bp0.add(NR*k);
+//                     c1 = c1.add(NR*c_cs);
+//                 }
+//                 d0_iter -= 1;
+//                 ap0 = ap0.add(MR*k);
+//                 c0 = c0.add(MR*c_rs);
+//             }
 
-            asm!("vzeroupper");
-        }
-    };
-}
+//             asm!("vzeroupper");
+//         }
+//     };
+// }
 
 // def_kernel_bb!(64, 15);
 

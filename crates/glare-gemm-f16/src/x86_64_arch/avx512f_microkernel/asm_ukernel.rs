@@ -6,7 +6,6 @@ use crate::MyFn;
 
 use super::VS;
 
-use paste::paste;
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
         concat!(
@@ -918,7 +917,7 @@ macro_rules! step_48x8 {
 			concat!(
 				load_a!(48, $a_layout),
 				inc_a!($a_layout, 48),
-				"prefetcht0 64({bx}) \n",
+				prefetch_0!(64, "{bx}", 0),
 				#(
 					load_b!($b_layout, n, $nr, b_num_48x8!(n)),
 					fmadd_3v!(n),
@@ -936,7 +935,7 @@ macro_rules! step_32x12 {
 			concat!(
 				load_a!(32, $a_layout),
 				inc_a!($a_layout, 32),
-				"prefetcht0 64({bx}) \n",
+				prefetch_0!(64, "{bx}", 0),
 				#(
 					load_b!($b_layout, n, $nr, b_num_32x12!(n)),
 					fmadd_2v!(n),
@@ -954,7 +953,7 @@ macro_rules! step_16x12 {
 			concat!(
 				load_a!(16, $a_layout),
 				inc_a!($a_layout, 16),
-				"prefetcht0 64({bx}) \n",
+				prefetch_0!(64, "{bx}", 0),
 				#(
 					load_b!($b_layout, n, $nr, b_num_16x12!(n)),
 					fmadd_1v!(n),

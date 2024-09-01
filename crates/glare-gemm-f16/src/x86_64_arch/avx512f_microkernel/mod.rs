@@ -5,8 +5,6 @@ pub(crate) use asm_ukernel::*;
 use paste::paste;
 use std::arch::asm;
 
-use crate::{TA,TB,TC};
-
 const VS: usize = 16;
 
 use crate::MyFn;

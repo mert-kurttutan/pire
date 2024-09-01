@@ -57,7 +57,7 @@ T: MyFn = NullFn
     kc: usize,
     pub(crate) mr: usize,
     pub(crate) nr: usize,
-    is_l1_shared: bool,
+    // is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
@@ -68,7 +68,7 @@ T: MyFn = NullFn
 
 impl<F: MyFn> F32Dispatcher<F>{
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
-        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         
         let (mr, nr) = if features.avx512f {
             (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
@@ -86,7 +86,7 @@ impl<F: MyFn> F32Dispatcher<F>{
             mc: mc,
             nc: nc,
             kc: kc,
-            is_l1_shared,
+            // is_l1_shared,
             is_l2_shared,
             is_l3_shared,
             func: f,
@@ -191,7 +191,7 @@ T: MyFn = NullFn
     kc: usize,
     mr: usize,
     nr: usize,
-    is_l1_shared: bool,
+    // is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
@@ -201,7 +201,7 @@ T: MyFn = NullFn
 
 impl<F: MyFn> F16Dispatcher<F>{
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
-        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
+        let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let mr = AVX512_F16_GOTO_MR;
         let nr = AVX512_F16_GOTO_NR;
         let vs = 32;
@@ -209,7 +209,7 @@ impl<F: MyFn> F16Dispatcher<F>{
             mc: mc,
             nc: nc,
             kc: kc,
-            is_l1_shared,
+            // is_l1_shared,
             is_l2_shared,
             is_l3_shared,
             func: f,

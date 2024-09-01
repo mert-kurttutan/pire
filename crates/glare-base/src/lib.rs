@@ -55,11 +55,8 @@ pub struct HWConfig {
 #[derive(Copy,Clone)]
 pub enum HWModel {
     Reference,
-    SandyBridge,
     Haswell,
     Broadwell,
-    Zen1,
-    Zen2,
     Skylake,
 }
 
@@ -68,10 +65,8 @@ const SKYLAKE: [u8; 12] = [
     143, 207
 ];
 
-const HASWELL: [u8; 3] = [69, 70, 63];
+const HASWELL: [u8; 5] = [69, 70, 63, 42, 58];
 const BROADWELL: [u8; 4] = [79, 86, 61, 71];
-
-const SANDY_BRIDGE: [u8; 2] = [42, 58];
 
 impl HWModel {
     pub fn from_hw(family_id: u8, model_id: u8) -> Self {
@@ -86,9 +81,6 @@ impl HWModel {
             if BROADWELL.contains(&model_id) {
                 return HWModel::Broadwell
             }
-            if SANDY_BRIDGE.contains(&model_id) {
-                return HWModel::SandyBridge
-            }
         }
 
         // default to reeference
@@ -99,10 +91,7 @@ impl HWModel {
             HWModel::Reference => (false, false, true),
             HWModel::Haswell => (false, false, true),
             HWModel::Broadwell => (false, false, true),
-            HWModel::Zen1 => (false, false, true),
-            HWModel::Zen2 => (false, false, true),
             HWModel::Skylake => (false, false, true),
-            HWModel::SandyBridge => (false, false, true),
         }
     }
 

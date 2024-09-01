@@ -4,7 +4,7 @@ use crate::{TA,TB};
 
 use paste::paste;
 
-use std::arch::x86_64::*;
+// use std::arch::x86_64::*;
 
 
 #[target_feature(enable = "avx,avx2")]
@@ -15,7 +15,7 @@ pub(crate) unsafe fn pack_scalar_k(
 ) {
     let mr = (m_left + vs - 1) / vs * vs;
     let k4 = k / 4 * 4;
-    let kp4 = (k+3) / 4 * 4;
+    // let kp4 = (k+3) / 4 * 4;
     let kl = k % 4;
     for i in 0..m_left  {
         let mut j = 0;
@@ -324,60 +324,60 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     }
 }
 
-#[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_kx16_v0(
-    k_iter: usize, k_left: usize,
-    a: *const TA, lda: usize,
-    ap: *mut TA,
-) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    const MR: usize = 16;
-    while k_i < k_iter {
-        // use vector intrinscs
-        seq!(i in 0..4 {
-            let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
-            let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)) as *const __m256i);
-            let t0 = _mm256_unpacklo_epi16(a0, b0);
-            let t1 = _mm256_unpackhi_epi16(a0, b0);
-            let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-            let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-            _mm256_storeu_si256(ap.add(MR*2*i) as *mut __m256i, a0);
-            _mm256_storeu_si256(ap.add(MR*2*i+16) as *mut __m256i, b0);
-        });
+// #[target_feature(enable = "avx,avx2")]
+// pub(crate) unsafe fn pack_kx16_v0(
+//     k_iter: usize, k_left: usize,
+//     a: *const TA, lda: usize,
+//     ap: *mut TA,
+// ) {
+//     let mut k_i = 0;
+//     let mut a = a;
+//     let mut ap = ap;
+//     const MR: usize = 16;
+//     while k_i < k_iter {
+//         // use vector intrinscs
+//         seq!(i in 0..4 {
+//             let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
+//             let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)) as *const __m256i);
+//             let t0 = _mm256_unpacklo_epi16(a0, b0);
+//             let t1 = _mm256_unpackhi_epi16(a0, b0);
+//             let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+//             let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+//             _mm256_storeu_si256(ap.add(MR*2*i) as *mut __m256i, a0);
+//             _mm256_storeu_si256(ap.add(MR*2*i+16) as *mut __m256i, b0);
+//         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
+//         ap = ap.add(MR*8);
+//         a = a.add(8*lda);
 
-        k_i += 1;
-    }
-    k_i = 0;
-    while k_i < k_left / 2 {
-        let a0 = _mm256_loadu_si256(a as *const __m256i);
-        let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
-        let t0 = _mm256_unpacklo_epi16(a0, b0);
-        let t1 = _mm256_unpackhi_epi16(a0, b0);
-        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-        _mm256_storeu_si256(ap as *mut __m256i, a0);
-        _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
+//         k_i += 1;
+//     }
+//     k_i = 0;
+//     while k_i < k_left / 2 {
+//         let a0 = _mm256_loadu_si256(a as *const __m256i);
+//         let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
+//         let t0 = _mm256_unpacklo_epi16(a0, b0);
+//         let t1 = _mm256_unpackhi_epi16(a0, b0);
+//         let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+//         let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+//         _mm256_storeu_si256(ap as *mut __m256i, a0);
+//         _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
 
-        ap = ap.add(MR*2);
-        a = a.add(lda*2);
-        k_i += 1;
-    }
-    if k_left % 2 != 0 {
-        let a0 = _mm256_loadu_si256(a as *const __m256i);
-        let b0 = _mm256_setzero_si256();
-        let t0 = _mm256_unpacklo_epi16(a0, b0);
-        let t1 = _mm256_unpackhi_epi16(a0, b0);
-        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
-        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
-        _mm256_storeu_si256(ap as *mut __m256i, a0);
-        _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
-    }
-}
+//         ap = ap.add(MR*2);
+//         a = a.add(lda*2);
+//         k_i += 1;
+//     }
+//     if k_left % 2 != 0 {
+//         let a0 = _mm256_loadu_si256(a as *const __m256i);
+//         let b0 = _mm256_setzero_si256();
+//         let t0 = _mm256_unpacklo_epi16(a0, b0);
+//         let t1 = _mm256_unpackhi_epi16(a0, b0);
+//         let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+//         let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+//         _mm256_storeu_si256(ap as *mut __m256i, a0);
+//         _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
+//     }
+// }
 
 
 // #[target_feature(enable = "avx,avx2")]

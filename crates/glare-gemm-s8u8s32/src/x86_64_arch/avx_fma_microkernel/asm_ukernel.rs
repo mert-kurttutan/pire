@@ -7,7 +7,6 @@ use crate::MyFn;
 
 use crate::{TA, TB, TC};
 
-use paste::paste;
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
         concat!(
@@ -253,12 +252,6 @@ macro_rules! asm_vzeroall {
 	(8,3) => {vzeroall!(5,7)};
 	(8,2) => {vzeroall!(5,6)};
 	(8,1) => {vzeroall!(5,5)};
-}
-
-macro_rules! inc_b {
-	(B,$nr:tt) => {
-    	""
-	};
 }
 
 macro_rules! inc_a_k_unroll {
