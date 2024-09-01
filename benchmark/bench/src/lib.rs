@@ -249,17 +249,14 @@ pub unsafe fn dispatch_cgemm(
                  );
           }
           GemmBackend::Glare => {
-            // print all inputs
-            println!("m, n, k: {}, {}, {}", m, n, k);
-            println!("alpha: {}, {}", alpha.re, alpha.im);
-            println!("beta: {}, {}", beta.re, beta.im);
-            println!("a_rs, a_cs: {}, {}", a_rs, a_cs);
-            println!("b_rs, b_cs: {}, {}", b_rs, b_cs);
-            println!("c_rs, c_cs: {}, {}", c_rs, c_cs);
-            println!("a: {:?}", a);
-            println!("b: {:?}", b);
-            println!("c: {:?}", c);
-            panic!("Not implemented for glare");
+            glare_gemm_c32::glare_cgemm(
+                m, n, k,
+                alpha,
+                a, a_rs as usize, a_cs as usize,
+                b, b_rs as usize, b_cs as usize,
+                beta,
+                c, c_rs as usize, c_cs as usize,
+            );
          }
      }
  }

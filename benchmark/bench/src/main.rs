@@ -3,7 +3,7 @@ use glare_dev::{
     // CBLAS_LAYOUT, 
     CBLAS_TRANSPOSE,
     check_gemm_f16, check_gemm_f32, check_gemm_f64, check_gemm_s16s16s32, check_gemm_s8u8s32, 
-    //check_gemm_c32,
+    check_gemm_c32,
 };
 use half::f16;
 
@@ -217,7 +217,7 @@ fn test_sgemm(
 
 fn test_cgemm(
     m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, _args: &Args,
+    gemm_backend: GemmBackend, args: &Args,
     alpha: f32, beta: f32,
     a_rs: isize, a_cs: isize,
     b_rs: isize, b_cs: isize,
@@ -244,21 +244,21 @@ fn test_cgemm(
             c.as_mut_ptr(), c_rs, c_cs,
         );
     }
-    // if args.check {
-    //     let diff = unsafe {
-    //         check_gemm_c32(
-    //             m, n, k, 
-    //             alpha, 
-    //             a.as_ptr(), a_rs as usize, a_cs as usize, 
-    //             b.as_ptr(), b_rs as usize, b_cs as usize, 
-    //             beta, 
-    //             &c, c_rs as usize, c_cs as usize, 
-    //             &mut c_ref,
-    //             1e-3
-    //         )
-    //     };
-    //     println!("diff: {}", diff);
-    // }
+    if args.check {
+        let diff = unsafe {
+            check_gemm_c32(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref,
+                1e-3
+            )
+        };
+        println!("diff: {}", diff);
+    }
 
     let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
 

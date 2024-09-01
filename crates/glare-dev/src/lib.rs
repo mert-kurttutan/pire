@@ -283,43 +283,88 @@ use rand::rngs::StdRng;
 use rand::distributions::{Distribution, Uniform};
 
 pub trait Bound {
-    fn min_value() -> Self;
-    fn max_value() -> Self;
+    type X: rand::distributions::uniform::SampleUniform;
+    fn min_value() -> Self::X;
+    fn max_value() -> Self::X;
+    fn my_sample(dist: &Uniform<Self::X>, rng: &mut StdRng) -> Self;
 }
 
 impl Bound for f32 {
+    type X = f32;
     fn min_value() -> Self { -2.0 }
     fn max_value() -> Self { 2.0 }
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for f64 {
+    type X = f64;
     fn min_value() -> Self { -10.0 }
     fn max_value() -> Self { 10.0 }
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for i16 {
+    type X = i16;
     fn min_value() -> Self { -10 }
     fn max_value() -> Self { 10 }
+
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for i8 {
+    type X = i8;
     fn min_value() -> Self { -10 }
     fn max_value() -> Self { 10 }
+
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for u8 {
+    type X = u8;
     fn min_value() -> Self { 10 }
     fn max_value() -> Self { 20 }
+
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for i32 {
+    type X = i32;
     fn min_value() -> Self { -10 }
     fn max_value() -> Self { 10 }
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
 }
 
 impl Bound for f16 {
+    type X = f16;
     fn min_value() -> Self { f16::from_f32(-1.0) }
     fn max_value() -> Self { f16::from_f32(1.0) }
+    fn my_sample(dist: &Uniform<Self>, rng: &mut StdRng) -> Self {
+        dist.sample(rng)
+    }
+}
+
+impl Bound for Complex<f32> {
+    type X = f32;
+    fn min_value() -> f32 {-1.0}
+    fn max_value() -> f32 {1.0}
+    fn my_sample(dist: &Uniform<f32>, rng: &mut StdRng) -> Self {
+        // dist.sample(rng)
+        let x = dist.sample(rng);
+        let y = dist.sample(rng);
+        Complex::new(x, y)
+    }
 }
 
 pub fn random_matrix_std<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
@@ -334,7 +379,8 @@ where rand::distributions::Standard: rand::prelude::Distribution<T>,
 }
 
 pub fn random_matrix_uniform<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
-where T: rand::distributions::uniform::SampleUniform + Bound
+where T: Bound,
+T::X: rand::distributions::uniform::SampleUniform
 {
     let t0 = T::min_value();
     let t1 = T::max_value();
@@ -342,7 +388,8 @@ where T: rand::distributions::uniform::SampleUniform + Bound
    let un_dist = Uniform::new(t0, t1);
    for j in 0..n {
        for i in 0..m {
-            arr[j * ld + i] = un_dist.sample(&mut x);
+            // arr[j * ld + i] = un_dist.sample(&mut x);
+            arr[j * ld + i] = T::my_sample(&un_dist, &mut x);
        }
    }
 }
