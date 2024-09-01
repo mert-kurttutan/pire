@@ -65,7 +65,7 @@ const SKYLAKE: [u8; 12] = [
     143, 207
 ];
 
-const HASWELL: [u8; 5] = [69, 70, 63, 42, 58];
+const HASWELL: [u8; 5] = [69, 70, 63, 42, 58, 165];
 const BROADWELL: [u8; 4] = [79, 86, 61, 71];
 
 impl HWModel {

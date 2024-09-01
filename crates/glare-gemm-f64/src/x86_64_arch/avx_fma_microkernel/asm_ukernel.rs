@@ -807,9 +807,10 @@ macro_rules! def_ukernel {
            	 
             	// 2 -> KITER
             	"2:",
-				prefetch_0!(128, "{bx}", 0),
+				prefetch_0!(256, "{bx}", 0),
 				$step_macro!($nr, $a_layout, $b_layout, 0),
 				$step_macro!($nr, $a_layout, $b_layout, 1),
+				prefetch_0!(320, "{bx}", 0),
 				$step_macro!($nr, $a_layout, $b_layout, 2),
 				$step_macro!($nr, $a_layout, $b_layout, 3),
 
@@ -948,9 +949,10 @@ macro_rules! def_ukernelxn {
 						
 							// 2 -> KITER
 							"2:",
-							prefetch_0!(128, "{bx}", 0),
+							prefetch_0!(256, "{bx}", 0),
 							$step_macro!(ni, $a_layout, $b_layout, 0),
 							$step_macro!(ni, $a_layout, $b_layout, 1),
+							prefetch_0!(320, "{bx}", 0),
 							$step_macro!(ni, $a_layout, $b_layout, 2),
 							$step_macro!(ni, $a_layout, $b_layout, 3),
 			
