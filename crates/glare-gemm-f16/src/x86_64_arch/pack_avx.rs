@@ -82,27 +82,29 @@ pub(crate) unsafe fn pack_t<const MR: usize>(
 
 
 #[target_feature(enable = "avx,f16c")]
-pub(crate) unsafe fn pack_scalar_k<const MR: usize>(
+pub(crate) unsafe fn pack_scalar_k(
     m_left: usize, k: usize,
     a: *const f16, a_rs: usize, a_cs: usize,
-    ap: *mut f32,
+    ap: *mut f32, vs: usize
 ) {
+    let mr = (m_left + vs - 1) / vs * vs;
     for i in 0..m_left  {
         for j in 0..k {
-            *ap.add(j*MR+i) = (*a.add(j*a_cs + i*a_rs)).to_f32();
+            *ap.add(j*mr+i) = (*a.add(j*a_cs + i*a_rs)).to_f32();
         }
     }
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_scalar_k_2<const MR: usize>(
+pub(crate) unsafe fn pack_scalar_k_2(
     m_left: usize, k: usize,
     a: *const u16, a_rs: usize, a_cs: usize,
-    ap: *mut u16,
+    ap: *mut u16, vs: usize
 ) {
+    let mr = (m_left + vs - 1) / vs * vs;
     for i in 0..m_left  {
         for j in 0..k {
-            *ap.add(j*MR+i) = *a.add(j*a_cs + i*a_rs);
+            *ap.add(j*mr+i) = *a.add(j*a_cs + i*a_rs);
         }
     }
 }
@@ -622,16 +624,21 @@ macro_rules! def_packb {
                            b =  b.add(NR*ldb);
                        }
                        let n_left = n - n_idx;
-                       #(
-                           if n_left == NL {
-                                pack_scalar_k::<NL>(
-                                    NL, k,
-                                    b, b_rs, b_cs,
-                                    bp
-                                );
-                               return;
-                           }
-                       )*
+                       pack_scalar_k(
+                            n_left, k,
+                            b, b_rs, b_cs,
+                            bp, 1
+                        );
+                    //    #(
+                    //        if n_left == NL {
+                    //             pack_scalar_k::<NL>(
+                    //                 NL, k,
+                    //                 b, b_rs, b_cs,
+                    //                 bp
+                    //             );
+                    //            return;
+                    //        }
+                    //    )*
                    }
                }   
            }
@@ -646,13 +653,13 @@ def_packb!(8);
 
 
 macro_rules! def_packa {
-    ($mr:tt, $vs:tt) => {
+    ($mr:tt) => {
         paste! {
             // #[target_feature(enable = "avx")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m_left: usize, k: usize,
                 a: *const f16, a_rs: usize, a_cs: usize,
-                ap: *mut f32,
+                ap: *mut f32, vs: usize,
             ) {
                 let mut ap = ap;
                 let mut a = a;
@@ -670,12 +677,17 @@ macro_rules! def_packa {
                         a = a.add(MR);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_k_v0::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
+                    // seq!(mr_left in 1..$mr {
+                    //     if m_left == mr_left {
+                    //         pack_k_v0::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
+                    //         return;
+                    //     }
+                    // });
 
                 } else if a_cs == 1 {
                     let lda = a_rs;
@@ -688,24 +700,29 @@ macro_rules! def_packa {
                         a = a.add(MR*lda);
                     }
                     let m_left = m_left - m_idx;
-                    seq!(mr_left in 1..$mr {
-                        if m_left == mr_left {
-                            pack_scalar_k::<{(mr_left+$vs-1)/ $vs* $vs}>(
-                                mr_left, k,
-                                a, a_rs, a_cs,
-                                ap
-                            );
-                            return;
-                        }
-                    });
+                    pack_scalar_k(
+                        m_left, k,
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
+                    // seq!(mr_left in 1..$mr {
+                    //     if m_left == mr_left {
+                    //         pack_scalar_k::<{(mr_left+$vs-1)/ $vs* $vs}>(
+                    //             mr_left, k,
+                    //             a, a_rs, a_cs,
+                    //             ap
+                    //         );
+                    //         return;
+                    //     }
+                    // });
                 }
             }
         }
     };
 }
 
-def_packa!(24, 8);
-def_packa!(48, 16);
+def_packa!(24);
+def_packa!(48);
 
 // def_packa!(16, 16, 8);
 
@@ -752,26 +769,31 @@ macro_rules! def_packb {
                         let ldb = b_rs;
                         while n_idx + NR_LAST_STEP <= n {
                             // [<pack_kx$nr _v1>](k_iter, k_left, b, ldb, bp);
-                            pack_scalar_k_2::<$nr>(
+                            pack_scalar_k_2(
                                 $nr, k,
                                 b, b_rs, b_cs,
-                                bp
+                                bp, 1
                             );
                             n_idx += NR;
                             bp = bp.add(k*NR);
                             b =  b.add(NR*ldb);
                         }
                         let n_left = n - n_idx;
-                        #(
-                            if n_left == NL {
-                                 pack_scalar_k_2::<NL>(
-                                     NL, k,
-                                     b, b_rs, b_cs,
-                                     bp
-                                 );
-                                return;
-                            }
-                        )*
+                        pack_scalar_k_2(
+                            n_left, k,
+                            b, b_rs, b_cs,
+                            bp, 1
+                        );
+                        // #(
+                        //     if n_left == NL {
+                        //          pack_scalar_k_2(
+                        //              NL, k,
+                        //              b, b_rs, b_cs,
+                        //              bp, 1
+                        //          );
+                        //         return;
+                        //     }
+                        // )*
                     }
                 }   
             }
@@ -787,13 +809,13 @@ macro_rules! def_packb {
  
  
  macro_rules! def_packa {
-     ($mr:tt, $vs:tt) => {
+     ($mr:tt) => {
          paste! {
              // #[target_feature(enable = "avx")]
              pub(crate) unsafe fn [<packa_panel_ $mr _same>](
                  m_left: usize, k: usize,
                  a: *const f16, a_rs: usize, a_cs: usize,
-                 ap: *mut f16,
+                 ap: *mut f16, vs: usize,
              ) {
                  let mut ap = ap as *mut u16; 
                  let mut a = a as *const u16;
@@ -811,12 +833,17 @@ macro_rules! def_packb {
                          a = a.add(MR);
                      }
                      let m_left = m_left - m_idx;
-                     seq!(mr_left in 1..$mr {
-                         if m_left == mr_left {
-                             pack_k_v0_2::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
-                             return;
-                         }
-                     });
+                     pack_scalar_k_2(
+                        m_left, k, 
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
+                    //  seq!(mr_left in 1..$mr {
+                    //      if m_left == mr_left {
+                    //          pack_k_v0_2::<mr_left, {(mr_left+$vs-1)/ $vs* $vs}>(k_iter, k_left, a, lda, ap);
+                    //          return;
+                    //      }
+                    //  });
  
                  } else if a_cs == 1 {
                      let lda = a_rs;
@@ -824,35 +851,40 @@ macro_rules! def_packb {
                     //  let k_left = k % 8;
                      while m_idx + MR_LAST_STEP <= m_left {
                         //  [<pack_kx$mr _v1>](k_iter, k_left, a, lda, ap);
-                        pack_scalar_k_2::<{($mr+$vs-1)/ $vs* $vs}>(
+                        pack_scalar_k_2(
                             $mr, k,
                             a, a_rs, a_cs,
-                            ap
+                            ap, vs
                         );
                          m_idx += MR;
                          ap = ap.add(k * MR);
                          a = a.add(MR*lda);
                      }
                      let m_left = m_left - m_idx;
-                     seq!(mr_left in 1..$mr {
-                         if m_left == mr_left {
-                             pack_scalar_k_2::<{(mr_left+$vs-1)/ $vs* $vs}>(
-                                 mr_left, k,
-                                 a, a_rs, a_cs,
-                                 ap
-                             );
-                             return;
-                         }
-                     });
+                     pack_scalar_k_2(
+                        m_left, k, 
+                        a, a_rs, a_cs,
+                        ap, vs
+                    );
+                    //  seq!(mr_left in 1..$mr {
+                    //      if m_left == mr_left {
+                    //          pack_scalar_k_2::<{(mr_left+$vs-1)/ $vs* $vs}>(
+                    //              mr_left, k,
+                    //              a, a_rs, a_cs,
+                    //              ap
+                    //          );
+                    //          return;
+                    //      }
+                    //  });
                  }
              }
          }
      };
  }
  
- def_packa!(24, 8);
- def_packa!(48, 16);
- def_packa!(64, 32);
+ def_packa!(24);
+ def_packa!(48);
+ def_packa!(64);
  
  // def_packa!(16, 16, 8);
  

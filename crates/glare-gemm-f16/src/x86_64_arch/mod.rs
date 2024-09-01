@@ -103,15 +103,15 @@ impl<F: MyFn> F32Dispatcher<F>{
 
     pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            pack_avx::packa_panel_48(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs);
             return;
         } 
         if self.features.avx && self.features.fma {
-            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
             return;
         }
         if self.features.avx {
-            pack_avx::packa_panel_24(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
@@ -133,15 +133,15 @@ impl<F: MyFn> F32Dispatcher<F>{
 
     pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f {
-            pack_avx::packa_panel_48_same(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_48_same(m, k, x, rs, cs, y, self.vs);
             return;
         } 
         if self.features.avx && self.features.fma {
-            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
         if self.features.avx {
-            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
@@ -227,7 +227,7 @@ impl<F: MyFn> F16Dispatcher<F>{
 
     pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
         if self.features.avx512f16 {
-            pack_avx::packa_panel_64_same(m, k, x, rs, cs, y);
+            pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, self.vs);
             return;
         } 
     }

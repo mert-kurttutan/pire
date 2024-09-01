@@ -284,7 +284,7 @@ macro_rules! def_kernel_sb {
                     let mut n_iter = n_iter0;
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
-                    packa_panel_64_same(MR, k, a_cur, a_rs, a_cs, ap_cur);
+                    packa_panel_64_same(MR, k, a_cur, a_rs, a_cs, ap_cur, VS);
                     while n_iter > 0 {
                         let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
                         [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
@@ -302,7 +302,7 @@ macro_rules! def_kernel_sb {
 
                 $(
                     if (m_left+VS-1) / VS *VS == $mr_left {
-                        packa_panel_64_same(m_left, k, a_cur, a_rs, a_cs, ap_cur);
+                        packa_panel_64_same(m_left, k, a_cur, a_rs, a_cs, ap_cur, VS);
                         let mut n_iter = n_iter0;
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
