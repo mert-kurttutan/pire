@@ -261,7 +261,21 @@ extern "C" {
 
 }
 
+pub enum ABLayout {
+    NN,
+    NT,
+    TN,
+    TT,
+}
 
+pub fn layout_to_strides(layout: &ABLayout, m: usize, n: usize, k: usize) -> (usize, usize, usize, usize, usize, usize) {
+    match layout {
+        ABLayout::NN => (1, m, 1, k, 1, m),
+        ABLayout::NT => (1, m, n, 1, 1, m),
+        ABLayout::TN => (k, 1, 1, k, 1, m),
+        ABLayout::TT => (k, 1, n, 1, 1, m),
+    }
+}
 
 
 use rand::{Rng, SeedableRng};

@@ -261,28 +261,15 @@ mod tests {
     	random_matrix_uniform,
     	check_gemm_f32,
 		generate_m_dims, generate_n_dims, generate_k_dims,
+		ABLayout, layout_to_strides,
 	};
 
 	const EPS: f64 = 2e-2;
 
 	static ALPHA_ARR: [f32; 1] = [1.0];
 	static BETA_ARR: [f32; 1] = [1.0];
-	enum Layout {
-    	NN,
-    	NT,
-    	TN,
-    	TT,
-	}
 
-	fn dispatch_strides(layout: &Layout, m: usize, n: usize, k: usize) -> (usize, usize, usize, usize, usize, usize) {
-    	match layout {
-        	Layout::NN => (1, m, 1, k, 1, m),
-        	Layout::NT => (1, m, n, 1, 1, m),
-        	Layout::TN => (k, 1, 1, k, 1, m),
-        	Layout::TT => (k, 1, n, 1, 1, m),
-    	}
-	}
-	fn test_gemm(layout: &Layout, is_a_packed: bool, is_b_packed: bool) {
+	fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
 		let (mc, nc, kc) = get_mcnckc();
 		let (mr, nr, kr) = (48, 8, 8);
 		let m_dims = generate_m_dims(mc, mr);
@@ -296,7 +283,7 @@ mod tests {
             	let mut c_ref = vec![0.0; m * n];
             	for k in k_dims.iter() {
 					let k = *k;
-                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = dispatch_strides(&layout, m, n, k);
+                	let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
                 	let mut a = vec![0.0; m * k];
                 	let mut b = vec![0.0; k * n];
 					random_matrix_uniform(m, k, &mut a, m);
@@ -364,71 +351,71 @@ mod tests {
 	}
 	#[test]
 	fn test_nn_col() {
-    	test_gemm(&Layout::NN, false, false);
+    	test_gemm(&ABLayout::NN, false, false);
 	}
 
 	#[test]
 	fn test_nt_col() {
-    	test_gemm(&Layout::NT, false, false);
+    	test_gemm(&ABLayout::NT, false, false);
 	}
 
 	#[test]
 	fn test_tn_col() {
-    	test_gemm(&Layout::TN, false, false);
+    	test_gemm(&ABLayout::TN, false, false);
 	}
 
 	#[test]
 	fn test_tt_col() {
-    	test_gemm(&Layout::TT, false, false);
+    	test_gemm(&ABLayout::TT, false, false);
 	}
 	#[test]
 	fn test_nn_col_ap() {
-    	test_gemm(&Layout::NN, true, false);
+    	test_gemm(&ABLayout::NN, true, false);
 	}
 	#[test]
 	fn test_nt_col_ap() {
-    	test_gemm(&Layout::NT, true, false);
+    	test_gemm(&ABLayout::NT, true, false);
 	}
 	#[test]
 	fn test_tn_col_ap() {
-    	test_gemm(&Layout::TN, true, false);
+    	test_gemm(&ABLayout::TN, true, false);
 	}
 	#[test]
 	fn test_tt_col_ap() {
-    	test_gemm(&Layout::TT, true, false);
+    	test_gemm(&ABLayout::TT, true, false);
 	}
 	#[test]
 	fn test_nn_col_bp() {
-    	test_gemm(&Layout::NN, false, true);
+    	test_gemm(&ABLayout::NN, false, true);
 	}
 	#[test]
 	fn test_nt_col_bp() {
-    	test_gemm(&Layout::NT, false, true);
+    	test_gemm(&ABLayout::NT, false, true);
 	}
 	#[test]
 	fn test_tn_col_bp() {
-    	test_gemm(&Layout::TN, false, true);
+    	test_gemm(&ABLayout::TN, false, true);
 	}
 	#[test]
 	fn test_tt_col_bp() {
-    	test_gemm(&Layout::TT, false, true);
+    	test_gemm(&ABLayout::TT, false, true);
 	}
 
 	#[test]
 	fn test_nn_col_apbp() {
-		test_gemm(&Layout::NN, true, true);
+		test_gemm(&ABLayout::NN, true, true);
 	}
 	#[test]
 	fn test_nt_col_apbp() {
-		test_gemm(&Layout::NT, true, true);
+		test_gemm(&ABLayout::NT, true, true);
 	}
 	#[test]
 	fn test_tn_col_apbp() {
-		test_gemm(&Layout::TN, true, true);
+		test_gemm(&ABLayout::TN, true, true);
 	}
 	#[test]
 	fn test_tt_col_apbp() {
-		test_gemm(&Layout::TT, true, true);
+		test_gemm(&ABLayout::TT, true, true);
 	}
 
 }
