@@ -163,7 +163,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut TC,
     c_rs: usize, c_cs: usize,
     ap: *const TA, bp: *const TB,
-    kc_last: bool
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut i = 0;
     let mut acc = vec![TC::ZERO; hw_cfg.mr * hw_cfg.nr];
@@ -218,6 +218,7 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const TB, b_rs: usize, b_cs: usize,
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![TC::ZERO; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
@@ -246,7 +247,11 @@ unsafe fn kernel_m<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = *c_cur * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = TC::ZERO;
                     jj += 1;
                 }
@@ -268,6 +273,7 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut TA,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![TC::ZERO; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
@@ -297,7 +303,11 @@ unsafe fn kernel_n<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = *c_cur * *beta + acc[ii * nr_eff + jj] * *alpha;
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = TC::ZERO;
                     jj += 1;
                 }

@@ -4,21 +4,23 @@ use glare_dev::{
     CBLAS_TRANSPOSE,
     check_gemm_f16, check_gemm_f32, check_gemm_f64, check_gemm_s16s16s32, check_gemm_s8u8s32, 
     check_gemm_c32,
+    check_gemm_c64,
 };
 use half::f16;
 
 use bench::{
     dispatch_sgemm, dispatch_dgemm, dispatch_cgemm, dispatch_gemm_batch_f32, dispatch_hgemm,
     dispatch_gemm_s16s16s32, dispatch_gemm_s8u8s32,
+    dispatch_zgemm,
     GemmBackend, gemm_backend_from_str, BenchType,
 };
 
-#[cfg(feature="blis")]
-use glare_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{
     c32,
-    Complex32
+    Complex32,
+    c64,
+    Complex64,
 };
 
 pub unsafe fn gemm_fallback_f32(
@@ -104,6 +106,9 @@ pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
     }
     if bench_type_str == "cgemm" {
         return BenchType::CGemm;
+    }
+    if bench_type_str == "zgemm" {
+        return BenchType::ZGemm;
     }
     if bench_type_str == "gemm_s16s16s32" {
         return BenchType::GemmS16S16S32;
@@ -230,6 +235,7 @@ fn test_cgemm(
     let mut c = vec![Complex32::ZERO; m * n];
     random_matrix_std(m, k, &mut a, m);
     random_matrix_std(k, n, &mut b, k);
+    random_matrix_std(m, n, &mut c, m);
     let mut c_ref = vec![Complex32::ZERO; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -264,6 +270,59 @@ fn test_cgemm(
 
     end_time
 }
+
+
+fn test_zgemm(
+    m: usize, n: usize, k: usize,
+    gemm_backend: GemmBackend, args: &Args,
+    alpha: f32, beta: f64,
+    a_rs: isize, a_cs: isize,
+    b_rs: isize, b_cs: isize,
+    c_rs: isize, c_cs: isize,
+) -> f64 {
+    let alpha = c64(alpha as f64, 0.0);
+    let beta = c64(beta, 0.0);
+    let mut a = vec![Complex64::ZERO; m * k];
+    let mut b = vec![Complex64::ZERO; k * n];
+    let mut c = vec![Complex64::ZERO; m * n];
+    random_matrix_std(m, k, &mut a, m);
+    random_matrix_std(k, n, &mut b, k);
+    random_matrix_std(m, n, &mut c, m);
+    let mut c_ref = vec![Complex64::ZERO; m * n];
+    c_ref.copy_from_slice(&c);
+    let start_time = std::time::Instant::now();
+    unsafe {
+        dispatch_zgemm(
+            gemm_backend,
+            m, n, k,
+            alpha,
+            a.as_ptr(), a_rs, a_cs,
+            b.as_ptr(), b_rs, b_cs,
+            beta,
+            c.as_mut_ptr(), c_rs, c_cs,
+        );
+    }
+    if args.check {
+        let diff = unsafe {
+            check_gemm_c64(
+                m, n, k, 
+                alpha, 
+                a.as_ptr(), a_rs as usize, a_cs as usize, 
+                b.as_ptr(), b_rs as usize, b_cs as usize, 
+                beta, 
+                &c, c_rs as usize, c_cs as usize, 
+                &mut c_ref,
+                1e-3
+            )
+        };
+        println!("diff: {}", diff);
+    }
+
+    let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+
+    end_time
+}
+
 
 fn test_sgemm_batched(
     m: usize, n: usize, k: usize,
@@ -523,16 +582,20 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("sgemm"))]
     bench_type: String,
 
+    // beta
+    #[arg(short, long, default_value_t = 1.0)]
+    beta: f32,
 }
- 
+
  
  fn main() {
     let mut total_time = 0.0;
  
     let mut best_time = f64::INFINITY;
-    let beta = 1.0;
+    // let beta = 1.0;
     let alpha = 1.0;
     let args = Args::parse();
+    let beta = args.beta;
     let m = args.m;
     let n = args.n;
     let k = args.k;
@@ -547,13 +610,14 @@ struct Args {
     let mut rep = 0;
     while rep < n_repeats {
         let end_time = match bench_type {
-            BenchType::DGemm => test_dgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::SGemm => test_sgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
-            BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::CGemm => test_cgemm(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::GemmS16S16S32 => test_gemm_s16s16s32(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::GemmS8U8S32 => test_gemm_s8u8s32(m, n, k, gemm_backend, &args, alpha, beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::DGemm => test_dgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::SGemm => test_sgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
+            BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::CGemm => test_cgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::ZGemm => test_zgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::GemmS16S16S32 => test_gemm_s16s16s32(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::GemmS8U8S32 => test_gemm_s8u8s32(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
         };
         total_time += end_time;
 

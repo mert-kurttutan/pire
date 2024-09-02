@@ -237,7 +237,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut f16,
     c_rs: usize, c_cs: usize,
     ap: *const f32, bp: *const f32,
-    kc_last: bool
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut i = 0;
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
@@ -292,6 +292,7 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const f16, b_rs: usize, b_cs: usize,
     c: *mut f16, c_rs: usize, c_cs: usize,
     ap: *const f32,
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
@@ -320,7 +321,11 @@ unsafe fn kernel_m<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = f16::from_f32((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs)).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = f16::from_f32((*c_cur).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0.0;
                     jj += 1;
                 }
@@ -342,6 +347,7 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut f32,
     b: *const f32,
     c: *mut f16, c_rs: usize, c_cs: usize,
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
@@ -371,7 +377,11 @@ unsafe fn kernel_n<F:MyFn>(
             while ii < mr_eff {
                 let mut jj = 0;
                 while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = f16::from_f32((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs)).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
+                    let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
+                    *c_cur = f16::from_f32((*c_cur).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0.0;
                     jj += 1;
                 }

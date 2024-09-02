@@ -11,7 +11,8 @@ use libc::{c_int, c_void, c_ushort};
 use glare_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{
-    Complex32
+    Complex32,
+    Complex64,
 };
 #[derive(Copy, Clone, Debug)]
 pub enum BenchType {
@@ -20,6 +21,7 @@ pub enum BenchType {
     SGemmBatched,
     HGemm,
     CGemm,
+    ZGemm,
     GemmS16S16S32,
     GemmS8U8S32,
 }
@@ -250,6 +252,86 @@ pub unsafe fn dispatch_cgemm(
           }
           GemmBackend::Glare => {
             glare_gemm_c32::glare_cgemm(
+                m, n, k,
+                alpha,
+                a, a_rs as usize, a_cs as usize,
+                b, b_rs as usize, b_cs as usize,
+                beta,
+                c, c_rs as usize, c_cs as usize,
+            );
+         }
+     }
+ }
+ 
+
+
+ pub unsafe fn dispatch_zgemm(
+    backend: GemmBackend,
+    m: usize, n: usize, k: usize,
+    alpha: Complex64,
+    a: *const Complex64, a_rs: isize, a_cs: isize,
+    b: *const Complex64, b_rs: isize, b_cs: isize,
+    beta: Complex64,
+    c: *mut Complex64, c_rs: isize, c_cs: isize,
+ ) {
+    match backend {
+        GemmBackend::Blis => {
+             #[cfg(feature="blis")]
+             {
+                let a = a as *const libc::c_void;
+                let b = b as *const libc::c_void;
+                let c = c as *mut libc::c_void;
+                let alpha_ptr = &alpha as *const Complex64 as *const libc::c_void;
+                let beta_ptr = &beta as *const Complex64 as *const libc::c_void;
+                glare_dev::bli_zgemm(
+                    BLIS_NO_TRANSPOSE,
+                    BLIS_NO_TRANSPOSE,
+                    m as i32, n as i32, k as i32,
+                    alpha_ptr,
+                    a, a_rs as i32, a_cs as i32,
+                    b, b_rs as i32, b_cs as i32,
+                    beta_ptr,
+                    c, c_rs as i32, c_cs as i32,
+                );
+             }
+        }
+        GemmBackend::Mkl => {
+             #[cfg(feature="mkl")]
+             {
+                let a = a as *const c_void;
+                let b = b as *const c_void;
+                let c = c as *mut c_void;
+                let alpha_ptr = &alpha as *const Complex64 as *const c_void;
+                let beta_ptr = &beta as *const Complex64 as *const c_void;
+                 let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs as usize, a_cs as usize, b_rs as usize, b_cs as usize, c_rs as usize, c_cs as usize);
+                 glare_dev::cblas_zgemm(
+                     layout,
+                     transa,
+                     transb,
+                     m as i32, n as i32, k as i32,
+                     alpha_ptr,
+                     a, lda as i32,
+                     b, ldb as i32,
+                     beta_ptr,
+                     c, ldc as i32,
+                 );
+             }
+        }
+        GemmBackend::RustGemm => {
+             #[cfg(feature="rustgemm")]
+                gemm::gemm(
+                    m, n, k,
+                    c, c_cs as isize, c_rs as isize,
+                    true,
+                    a, a_cs as isize, a_rs as isize,
+                    b, b_cs as isize, b_rs as isize,
+                    alpha, beta,
+                    false, false, false,
+                    gemm::Parallelism::Rayon(0)
+                 );
+          }
+          GemmBackend::Glare => {
+            glare_gemm_c64::glare_zgemm(
                 m, n, k,
                 alpha,
                 a, a_rs as usize, a_cs as usize,

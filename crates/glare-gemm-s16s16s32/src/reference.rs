@@ -162,7 +162,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut i32,
     c_rs: usize, c_cs: usize,
     ap: *const i16, bp: *const i16,
-    _kc_last: bool
+    _kc_last: bool, _kc_first: bool,
 ) {
     let mut i = 0;
     let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
@@ -215,6 +215,7 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const i16, b_rs: usize, b_cs: usize,
     c: *mut i32, c_rs: usize, c_cs: usize,
     ap: *const i16,
+    _kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;
@@ -265,6 +266,7 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut i16,
     b: *const i16,
     c: *mut i32, c_rs: usize, c_cs: usize,
+    _kc_last: bool, _kc_first: bool,
 ) {
     let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
     let mut i = 0;

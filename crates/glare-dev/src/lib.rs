@@ -9,7 +9,9 @@ use libc::{c_float, c_int, c_schar, c_void, c_double, c_ushort, c_short};
 
 use num_complex::{
     c32,
-    Complex32
+    Complex32,
+    c64,
+    Complex64,
 };
 
 use half::f16;
@@ -162,6 +164,22 @@ extern "C" {
     ldc: c_int,
 );
 
+pub fn cblas_zgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: *const c_void,
+    a: *const c_void,
+    lda: c_int,
+    b: *const c_void,
+    ldb: c_int,
+    beta: *const c_void,
+    c: *mut c_void,
+    ldc: c_int,
+);
 
 #[allow(clippy::too_many_arguments)]
 pub fn cblas_gemm_s16s16s32(
@@ -227,6 +245,16 @@ pub use self::trans_t::*;
 #[cfg(feature="blis")]
 extern "C" {
     pub fn bli_cgemm(
+        transa: trans_t,
+        transb: trans_t,
+        m: c_int, n: c_int, k: c_int,
+        alpha: *const c_void,
+        a: *const c_void, rsa: i32, csa: i32,
+        b: *const c_void, rsb: i32, csb: i32,
+        beta: *const c_void,
+        c: *mut c_void, rsc: i32, csc: i32,
+    );
+    pub fn bli_zgemm(
         transa: trans_t,
         transb: trans_t,
         m: c_int, n: c_int, k: c_int,
@@ -367,6 +395,18 @@ impl Bound for Complex<f32> {
     }
 }
 
+impl Bound for Complex<f64> {
+    type X = f64;
+    fn min_value() -> f64 {-1.0}
+    fn max_value() -> f64 {1.0}
+    fn my_sample(dist: &Uniform<f64>, rng: &mut StdRng) -> Self {
+        // dist.sample(rng)
+        let x = dist.sample(rng);
+        let y = dist.sample(rng);
+        Complex::new(x, y)
+    }
+}
+
 pub fn random_matrix_std<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
 where rand::distributions::Standard: rand::prelude::Distribution<T>,
 {
@@ -456,7 +496,16 @@ impl Diff for f16 {
 
 use num_complex::Complex;
 
-impl<f32: Diff> Diff for Complex<f32>
+impl Diff for Complex<f32>
+{
+    fn diff(&self, other: &Self) -> f64 {
+        let diff_re = self.re.diff(&other.re);
+        let diff_im = self.im.diff(&other.im);
+        diff_re.max(diff_im)
+    }
+}
+
+impl Diff for Complex<f64>
 {
     fn diff(&self, other: &Self) -> f64 {
         let diff_re = self.re.diff(&other.re);
@@ -828,6 +877,38 @@ pub unsafe fn check_gemm_c32(
     #[cfg(not(feature="mkl"))] {
         // calculate diff using fallback
         gemm_fallback_c32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
+        let diff = max_abs_diff(&c, &c_ref, eps);
+        return diff;
+    }
+}
+
+
+pub unsafe fn check_gemm_c64(
+	m: usize, n: usize, k: usize,
+	alpha: Complex64,
+	a: *const Complex64, a_rs: usize, a_cs: usize,
+	b: *const Complex64, b_rs: usize, b_cs: usize,
+	beta: Complex64,
+	c: &[Complex64], c_rs: usize, c_cs: usize,
+    c_ref: &mut [Complex64],
+    eps: f64,
+) -> f64 {
+    #[cfg(feature="mkl")] {
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let a = a as *const c_void;
+        let b = b as *const c_void;
+        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
+        let alpha_ptr = &alpha as *const Complex64 as *const c_void;
+        let beta_ptr = &beta as *const Complex64 as *const c_void;
+        cblas_zgemm(
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr, ldc
+        );
+        let diff = max_abs_diff(&c, &c_ref, 1e-3);
+        return diff;
+    }
+    #[cfg(not(feature="mkl"))] {
+        // calculate diff using fallback
+        gemm_fallback_c64(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
         let diff = max_abs_diff(&c, &c_ref, eps);
         return diff;
     }

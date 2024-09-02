@@ -142,7 +142,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut TC,
     c_rs: usize, c_cs: usize,
     ap: *const TA, bp: *const TB,
-    _kc_last: bool
+    _kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx2 {
         avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
@@ -159,6 +159,7 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const TB, b_rs: usize, b_cs: usize,
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
+    kc_last: bool, kc_first: bool,
 ) {
     panic!("Not implemented");
 }
@@ -173,6 +174,7 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut TA,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
+    _kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx2 {
         avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);

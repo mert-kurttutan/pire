@@ -12,7 +12,6 @@ use glare_base::{
     GlarePar, GlareThreadConfig,
    CpuFeatures,
    HWConfig,
-   HWModel,
    Array,
    ArrayMut,
     PArray,
@@ -53,19 +52,16 @@ impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = if features.avx512f {
-            (48, 8)
+            (24, 4)
         } else if features.avx && features.fma {
-            match hw_config.hw_model {
-                HWModel::Broadwell => (16, 6),
-                _ => (24, 4),
-            }
+            (8, 3)
         } else {
-            (16, 4)
+            (8, 2)
         };
         let vs = if features.avx512f {
-            16
-        } else {
             8
+        } else {
+            4
         };
         Self {
             mc: mc,
@@ -83,31 +79,27 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        if self.mr == 48 {
-            pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs);
-            return;
-        } 
-        if self.mr == 16 {
-            pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
-            return;
-        }
         if self.mr == 24 {
             pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
+            return;
+        } 
+        if self.mr == 8 {
+            pack_avx::packa_panel_8(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        if self.nr == 8 {
-            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
-            return;
-        }
-        if self.nr == 6 {
-            pack_avx::packb_panel_6(n, k, x, cs, rs, y);
-            return;
-        }
         if self.nr == 4 {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.nr == 3 {
+            pack_avx::packb_panel_3(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.nr == 2 {
+            pack_avx::packb_panel_2(n, k, x, cs, rs, y);
             return;
         }
     }
@@ -157,19 +149,18 @@ unsafe fn kernel<F:MyFn>(
     c: *mut TC,
     c_rs: usize, c_cs: usize,
     ap: *const TA, bp: *const TB,
-    _kc_last: bool
+    _kc_last: bool, kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
      avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
  if hw_cfg.features.avx && hw_cfg.features.fma {
-    if hw_cfg.mr == 16 && hw_cfg.nr == 6 {
-        avx_fma_microkernel::kernel_16x6(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-        return;
+    if kc_first  {
+        avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
     }
-    if hw_cfg.mr == 24 && hw_cfg.nr == 4 {
-        avx_fma_microkernel::kernel_24x4(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
+        avx_fma_microkernel::kernel_8x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
     }
  }
@@ -187,18 +178,18 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const TB, b_rs: usize, b_cs: usize,
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
+    _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        if hw_cfg.mr == 16 && hw_cfg.nr == 6 {
-            avx_fma_microkernel::kernel_16x6_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
-            return;
+        if kc_first  {
+            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
-        if hw_cfg.mr == 24 && hw_cfg.nr == 4 {
-            avx_fma_microkernel::kernel_24x4_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
+            avx_fma_microkernel::kernel_8x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
     }
@@ -218,18 +209,18 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut TA,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
+    _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        if hw_cfg.mr == 16 && hw_cfg.nr == 6 {
-            avx_fma_microkernel::kernel_16x6_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
-            return;
+        if kc_first  {
+            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
-        if hw_cfg.mr == 24 && hw_cfg.nr == 4 {
-            avx_fma_microkernel::kernel_24x4_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
+            avx_fma_microkernel::kernel_8x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
     }
@@ -274,6 +265,6 @@ def_glare_gemm!(
     gemm_small_n_serial, kernel_n,
     glare_gemv, glare_gemv,
     packa, packb,
-    true, true,
+    false, false,
     into_pack_array, F,
 );

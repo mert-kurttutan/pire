@@ -38,8 +38,8 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const TA, b: *mut TA) {
-    let a = a as *const f32;
-    let b = b as *mut f32;
+    let a = a as *const f64;
+    let b = b as *mut f64;
     copy_nonoverlapping(a, b, M*2);
 }
 
@@ -195,5 +195,5 @@ macro_rules! def_packa {
 }
 
 // def_packa!(12);
-def_packa!(24);
-def_packa!(8);
+def_packa!(12);
+def_packa!(4);

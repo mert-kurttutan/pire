@@ -1257,6 +1257,7 @@ macro_rules! def_glare_gemm {
                     let d1_len_eff = hw_cfg.round_up(d1_len);
                     let mut d2_i = d2_start;
                     let kc_last = d1_i + d1_len == d1_end;
+                    let kc_first = d1_i == d1_start;
                     let beta_t = if d1_i == d1_start { beta } else { &one as *const $t_bs};
                     let ap = $packa_name(hw_cfg, a, d0_i, d1_i, d0_len, d1_len, t_cfg);
                     let ap = ap.add(d0r_start*d1_len_eff);
@@ -1270,7 +1271,7 @@ macro_rules! def_glare_gemm {
                         $goto_kernel(
                              hw_cfg, d0r_len, d2r_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
                              ap, bp,
-                             kc_last
+                             kc_last, kc_first
                          );
         
                         d2_i += d2_c;
@@ -1349,6 +1350,8 @@ macro_rules! def_glare_gemm {
                     let kc_len = kc_eff.min(kc_end - kc);
                     let kc_len_eff = hw_cfg.round_up(kc_len);
                     let beta_t = if kc == kc_start { beta } else { &one as *const $t_bs};
+                    let kc_last = kc + kc_len == kc_end;
+                    let kc_first = kc == kc_start;
                     let mut nc = nc_start;
                     let ap = $packa_name(hw_cfg, a, mc, kc, mc_len, kc_len, t_cfg);
                     let ap = ap.add(mr_start*kc_len_eff);
@@ -1363,7 +1366,8 @@ macro_rules! def_glare_gemm {
                             hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, 
                             b_cur, b_rs, b_cs,
                             c_ij, c_rs, c_cs,
-                            ap
+                            ap,
+                            kc_last, kc_first
                         );
                         nc += nc_eff;
                     }
@@ -1427,6 +1431,8 @@ macro_rules! def_glare_gemm {
                 let mut kc = kc_start;
                 while kc < kc_end {
                     let kc_len = kc_eff.min(kc_end - kc);
+                    let kc_last = kc + kc_len == kc_end;
+                    let kc_first = kc == kc_start;
                     let beta_t = if kc == kc_start { beta } else { &one as *const $t_bs};
                     let a_cur = a_i.add(kc*a_cs);
                     let mut nc = nc_start;
@@ -1443,6 +1449,7 @@ macro_rules! def_glare_gemm {
                             ap,
                             bp,
                             c_ij, c_rs, c_cs,
+                            kc_last, kc_first
                         );
                         nc += nc_eff;
                     }

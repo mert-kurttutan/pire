@@ -1,14 +1,7 @@
 pub(crate) mod avx_fma_microkernel;
 pub(crate) mod avx512f_microkernel;
+pub(crate) mod avx_microkernel;
 pub(crate) mod pack_avx;
-
-const AVX_FMA_GOTO_MR: usize = 16; // register block size
-const AVX_FMA_GOTO_NR: usize = 4; // register block size
-
-const AVX512F_GOTO_MR: usize = 32; // register block size
-const AVX512F_GOTO_NR: usize = 8; // register block size
-
-const VS: usize = 8; // vector size in float, __m256
 
 use glare_base::split_c_range;
 use glare_base::split_range;
@@ -44,8 +37,8 @@ T: MyFn = NullFn
     mc: usize,
     nc: usize,
     kc: usize,
-    mr: usize,
-    nr: usize,
+    pub(crate) mr: usize,
+    pub(crate) nr: usize,
     // TODO: Cech jr parallelism is beneificial for perf
     // is_l1_shared: bool,
     is_l2_shared: bool,
@@ -59,13 +52,17 @@ impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = if features.avx512f {
-            (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
+            (12, 4)
         } else if features.avx && features.fma {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (4, 3)
         } else {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (4, 2)
         };
-        let vs = if features.avx512f { 16 } else { 8 };
+        let vs = if features.avx512f {
+            4
+        } else {
+            2
+        };
         Self {
             mc: mc,
             nc: nc,
@@ -74,7 +71,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
             is_l2_shared,
             is_l3_shared,
             func: f,
-            features: features,
+            features,
             mr,
             nr,
             vs,
@@ -82,23 +79,27 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx512f {
-            pack_avx::packa_panel_32(m, k, x, rs, cs, y, self.vs);
+        if self.mr == 12 {
+            pack_avx::packa_panel_12(m, k, x, rs, cs, y, self.vs);
             return;
-        }
-        if self.features.avx2{
-            pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
+        } 
+        if self.mr == 4 {
+            pack_avx::packa_panel_4(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx512f {
-            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+        if self.nr == 4 {
+            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
-        if self.features.avx2{
-            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+        if self.nr == 3 {
+            pack_avx::packb_panel_3(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.nr == 2 {
+            pack_avx::packb_panel_2(n, k, x, cs, rs, y);
             return;
         }
     }
@@ -108,16 +109,14 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) fn round_up(&self, k: usize) -> usize {
-        (k + 1) / 2 * 2
+        k
     }
 }
-
 
 impl<
 T: MyFn,
 AP, BP,
 > GemmCache<AP,BP> for X86_64dispatcher<T> {
-    const IS_EFFICIENT: bool = false;
     // const CACHELINE_PAD: usize = 256;
     fn mr(&self) -> usize {
         self.mr
@@ -142,71 +141,102 @@ AP, BP,
     }
 }
 
-
 unsafe fn kernel<F:MyFn>(
     hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
-    alpha: *const f32,
-    beta: *const f32,
+    alpha: *const TA,
+    beta: *const TC,
     c: *mut TC,
     c_rs: usize, c_cs: usize,
     ap: *const TA, bp: *const TB,
-    _kc_last: bool, _kc_first: bool,
+    _kc_last: bool, kc_first: bool,
 ) {
-    if hw_cfg.features.avx512f {
-        avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+ if hw_cfg.features.avx512f {
+     avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     return;
+ }
+ if hw_cfg.features.avx && hw_cfg.features.fma {
+    if kc_first  {
+        avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
+    if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
+        avx_fma_microkernel::kernel_4x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
     }
-    if hw_cfg.features.avx2 {
-        avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-        return;
-    }
+ }
+ if hw_cfg.features.avx {
+     avx_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     return;
+ }
 }
 
-#[allow(unused)]
 unsafe fn kernel_m<F:MyFn>(
     hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
-    alpha: *const f32,
-    beta: *const f32,
+    alpha: *const TA,
+    beta: *const TC,
     b: *const TB, b_rs: usize, b_cs: usize,
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
-    kc_last: bool, kc_first: bool,
+    _kc_last: bool, kc_first: bool,
 ) {
-    panic!("Not implemented");
+    if hw_cfg.features.avx512f {
+        avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx && hw_cfg.features.fma {
+        if kc_first  {
+            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
+            avx_fma_microkernel::kernel_4x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+    if hw_cfg.features.avx {
+        avx_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
 }
 
 
 unsafe fn kernel_n<F:MyFn>(
     hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize, k: usize,
-    alpha: *const f32,
-    beta: *const f32,
+    alpha: *const TA,
+    beta: *const TC,
     a: *const TA, a_rs: usize, a_cs: usize,
     ap: *mut TA,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
-    _kc_last: bool, _kc_first: bool,
+    _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
-    if hw_cfg.features.avx2 {
-        avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+    if hw_cfg.features.avx && hw_cfg.features.fma {
+        if kc_first  {
+            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
+            avx_fma_microkernel::kernel_4x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+    if hw_cfg.features.avx {
+        avx_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
 
-
 unsafe fn glare_gemv<F:MyFn>(
     hw_cfg: &X86_64dispatcher<F>,
     m: usize, n: usize,
-    alpha: *const f32,
+    alpha: *const TA,
     a: Array<TA>,
     x: Array<TB>,
-    beta: *const f32,
+    beta: *const TC,
     y: ArrayMut<TC>,
 ) {
     let x_ptr = x.data_ptr();
@@ -217,20 +247,24 @@ unsafe fn glare_gemv<F:MyFn>(
         avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
+    if hw_cfg.features.avx || hw_cfg.features.avx512f {
+        avx_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        return;
+    }
 }
 
-type I16Pack = PArray<i16>;
+type C32Pack = PArray<TA>;
 def_glare_gemm!(
     X86_64dispatcher,
-    i16,i16,i16,i16,i32,f32,f32,
-    I16Pack, I16Pack,
-    1_f32,
+    TA,TA,TB,TB,TC,TA,TC,
+    C32Pack, C32Pack,
+    TC::ONE,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
     gemm_small_m_serial, kernel_m,
     gemm_small_n_serial, kernel_n,
     glare_gemv, glare_gemv,
     packa, packb,
-    false, true,
+    false, false,
     into_pack_array, F,
 );

@@ -310,7 +310,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut f16,
     c_rs: usize, c_cs: usize,
     ap: *const f32, bp: *const f32,
-    _kc_last: bool
+    _kc_last: bool, _kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
      avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
@@ -331,6 +331,7 @@ unsafe fn kernel_m<F:MyFn>(
     b: *const f16, b_rs: usize, b_cs: usize,
     c: *mut f16, c_rs: usize, c_cs: usize,
     ap: *const f32,
+    kc_last: bool, kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
     //     avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -352,6 +353,7 @@ unsafe fn kernel_n<F:MyFn>(
     ap: *mut f32,
     b: *const f32,
     c: *mut f16, c_rs: usize, c_cs: usize,
+    kc_last: bool, kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
     //     avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -408,7 +410,7 @@ unsafe fn kernel_native<F:MyFn>(
     c: *mut f16,
     c_rs: usize, c_cs: usize,
     ap: *const f16, bp: *const f16,
-    _kc_last: bool
+    _kc_last: bool, _kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
      avx512_f16_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
@@ -425,6 +427,7 @@ unsafe fn kernel_m_native<F:MyFn>(
     b: *const f16, b_rs: usize, b_cs: usize,
     c: *mut f16, c_rs: usize, c_cs: usize,
     ap: *const f16,
+    kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512_f16_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -442,6 +445,7 @@ unsafe fn kernel_n_native<F:MyFn>(
     ap: *mut f16,
     b: *const f16,
     c: *mut f16, c_rs: usize, c_cs: usize,
+    kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512_f16_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
