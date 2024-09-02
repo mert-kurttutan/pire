@@ -169,7 +169,7 @@ pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_
 
                     let c_v = _mm256_addsub_pd(c_v_1, c_v_2);
 
-                    _mm256_storeu_pd(c.add(mi*8 + j*c_cs), c_v);
+                    _mm256_storeu_pd(c.add(mi*4 + j*c_cs), c_v);
                     mi += 1;
                 }
                 // for i in 0..m {
