@@ -52,7 +52,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, features: CpuFeatures, f: F) -> Self {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = if features.avx512f {
-            (12, 4)
+            (8, 7)
         } else if features.avx && features.fma {
             (4, 3)
         } else {
@@ -79,6 +79,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+        if self.mr == 8 {
+            pack_avx::packa_panel_8(m, k, x, rs, cs, y, self.vs);
+            return;
+        } 
         if self.mr == 12 {
             pack_avx::packa_panel_12(m, k, x, rs, cs, y, self.vs);
             return;
@@ -90,6 +94,10 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+        if self.nr == 7 {
+            pack_avx::packb_panel_7(n, k, x, cs, rs, y);
+            return;
+        }
         if self.nr == 4 {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
@@ -152,20 +160,24 @@ unsafe fn kernel<F:MyFn>(
     _kc_last: bool, kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
-     avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    if kc_first  {
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
+     avx512f_microkernel::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
  if hw_cfg.features.avx && hw_cfg.features.fma {
     if kc_first  {
-        avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
     }
-    if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
-        avx_fma_microkernel::kernel_4x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-        return;
-    }
+    avx_fma_microkernel::kernel_4x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    return;
  }
  if hw_cfg.features.avx {
-     avx_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    if kc_first  {
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
+     avx_microkernel::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
 }
@@ -181,20 +193,24 @@ unsafe fn kernel_m<F:MyFn>(
     _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
-        avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        avx512f_microkernel::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if kc_first  {
-            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
-        if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
-            avx_fma_microkernel::kernel_4x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
-            return;
-        }
+        avx_fma_microkernel::kernel_4x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
     }
     if hw_cfg.features.avx {
-        avx_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        avx_microkernel::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -212,20 +228,21 @@ unsafe fn kernel_n<F:MyFn>(
     _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
-        avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        avx512f_microkernel::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if kc_first  {
-            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
-        if hw_cfg.mr == 4 && hw_cfg.nr == 3 {
-            avx_fma_microkernel::kernel_4x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
-            return;
-        }
+        avx_fma_microkernel::kernel_4x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
     }
     if hw_cfg.features.avx {
-        avx_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx_microkernel::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }

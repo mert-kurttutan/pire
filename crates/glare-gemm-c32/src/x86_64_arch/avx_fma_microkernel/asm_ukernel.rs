@@ -76,43 +76,34 @@ macro_rules! loadp_unit {
     };
 }
 
+macro_rules! complex_mul {
+	($r0:tt, $rt:tt) => {
+		concat!(
+			"vpermilps $0xb1, %ymm", $r0, ", %ymm", $rt, "\n",
+			"vmulps %ymm0, %ymm", $r0, ", %ymm", $r0, "\n",
+			"vmulps %ymm1, %ymm", $rt, ", %ymm", $rt, "\n",
+			"vaddsubps %ymm", $rt, ", %ymm", $r0, ", %ymm", $r0, "\n",
+		)
+	};
+}
+
 macro_rules! asm_alpha_scale_0 {
 	($r0:tt, $r1:tt) => {
 		concat!(
 			"vbroadcastss ({alphax}), %ymm0 \n",
 			"vbroadcastss 4({alphax}), %ymm1 \n",
 		
+			complex_mul!(4, 3),
+			
+			complex_mul!(6, 5),
+			
+			complex_mul!(8, 7),
 		
-			"vpermilps $0xb1, %ymm4, %ymm3 \n",
-			"vmulps %ymm0, %ymm4, %ymm4 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm4, %ymm4 \n",
-		
-			"vpermilps $0xb1, %ymm5, %ymm3 \n",
-			"vmulps %ymm0, %ymm5, %ymm5 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm5, %ymm5 \n",
-		
-			"vpermilps $0xb1, %ymm8, %ymm3 \n",
-			"vmulps %ymm0, %ymm8, %ymm8 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm8, %ymm8 \n",
-		
-			"vpermilps $0xb1, %ymm9, %ymm3 \n",
-			"vmulps %ymm0, %ymm9, %ymm9 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm9, %ymm9 \n",
-		
-		
-			"vpermilps $0xb1, %ymm12, %ymm3 \n",
-			"vmulps %ymm0, %ymm12, %ymm12 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm12, %ymm12 \n",
-		
-			"vpermilps $0xb1, %ymm13, %ymm3 \n",
-			"vmulps %ymm0, %ymm13, %ymm13 \n",
-			"vmulps %ymm1, %ymm3, %ymm3 \n",
-			"vaddsubps %ymm3, %ymm13, %ymm13 \n",
+			complex_mul!(10, 9),
+			
+			complex_mul!(12, 11),
+			
+			complex_mul!(14, 13),
 		)
 	}
 }
@@ -297,25 +288,25 @@ macro_rules! asm_alpha_scale {
 
 macro_rules! acc_8x3 {
 	(0, $layout:tt) => {
-		acc_p!($layout, "0({cx})", 4, 5)
+		acc_p!($layout, "0({cx})", 4, 6)
 	};
 	(1, $layout:tt) => {
-		acc_p!($layout, "0({cx}, {x0})", 8, 9)
+		acc_p!($layout, "0({cx}, {x0})", 8, 10)
 	};
 	(2, $layout:tt) => {
-		acc_p!($layout, "0({cx}, {x0}, 2)", 12, 13)
+		acc_p!($layout, "0({cx}, {x0}, 2)", 12, 14)
 	};
 }
 
 macro_rules! store_8x3 {
 	(0, $layout:tt) => {
-		storep!($layout, "0({cx})", 4, 5)
+		storep!($layout, "0({cx})", 4, 6)
 	};
 	(1, $layout:tt) => {
-		storep!($layout, "0({cx}, {x0})", 8, 9)
+		storep!($layout, "0({cx}, {x0})", 8, 10)
 	};
 	(2, $layout:tt) => {
-		storep!($layout, "0({cx}, {x0}, 2)", 12, 13)
+		storep!($layout, "0({cx}, {x0}, 2)", 12, 14)
 	};
 }
 
@@ -324,10 +315,10 @@ macro_rules! acc_4x3 {
 		acc_p!($layout, "0({cx})", 4)
 	};
 	(1, $layout:tt) => {
-		acc_p!($layout, "0({cx}, {x0})", 8)
+		acc_p!($layout, "0({cx}, {x0})", 6)
 	};
 	(2, $layout:tt) => {
-		acc_p!($layout, "0({cx}, {x0}, 2)", 12)
+		acc_p!($layout, "0({cx}, {x0}, 2)", 8)
 	};
 }
 
@@ -336,10 +327,10 @@ macro_rules! store_4x3 {
 		storep!($layout, "0({cx})", 4)
 	};
 	(1, $layout:tt) => {
-		storep!($layout, "0({cx}, {x0})", 8)
+		storep!($layout, "0({cx}, {x0})", 6)
 	};
 	(2, $layout:tt) => {
-		storep!($layout, "0({cx}, {x0}, 2)", 12)
+		storep!($layout, "0({cx}, {x0}, 2)", 8)
 	};
 }
 
@@ -391,24 +382,24 @@ macro_rules! fmadd_2v {
 	(0) => {
 		concat!(
 			vfmadd!(0, 2, 4),
-			vfmadd!(1, 2, 5),
-			vfmadd!(0, 3, 6),
+			vfmadd!(0, 3, 5),
+			vfmadd!(1, 2, 6),
 			vfmadd!(1, 3, 7),
 		)
 	};
 	(1) => {
 		concat!(
 			vfmadd!(0, 2, 8),
-			vfmadd!(1, 2, 9),
-			vfmadd!(0, 3, 10),
+			vfmadd!(0, 3, 9),
+			vfmadd!(1, 2, 10),
 			vfmadd!(1, 3, 11),
 		)
 	};
 	(2) => {
 		concat!(
 			vfmadd!(0, 2, 12),
-			vfmadd!(1, 2, 13),
-			vfmadd!(0, 3, 14),
+			vfmadd!(0, 3, 13),
+			vfmadd!(1, 2, 14),
 			vfmadd!(1, 3, 15),
 		)
 	};
@@ -418,20 +409,20 @@ macro_rules! fmadd_1v {
 	(0) => {
 		concat!(
 			vfmadd!(0, 2, 4),
-			vfmadd!(0, 3, 6),
+			vfmadd!(0, 3, 5),
 		)
 
 	};
 	(1) => {
 		concat!(
-			vfmadd!(0, 2, 8),
-			vfmadd!(0, 3, 10),
+			vfmadd!(0, 2, 6),
+			vfmadd!(0, 3, 7),
 		)
 	};
 	(2) => {
 		concat!(
-			vfmadd!(0, 2, 12),
-			vfmadd!(0, 3, 14),
+			vfmadd!(0, 2, 8),
+			vfmadd!(0, 3, 9),
 		)
 	};
 }
@@ -523,26 +514,25 @@ macro_rules! load_mask_ptr_asm {
 	}
 }
 
+macro_rules! v_to_c {
+	($r0:tt, $r1:tt) => {
+		concat!(
+			"vpermilps $0xb1, %ymm", $r1, ", %ymm", $r1, "\n",
+			"vaddsubps %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
+		)
+	}
+}
+
 macro_rules! permute_complex {
 	() => {
 		concat!(
 			// permute even and odd elements
-			// of ymm6/7, ymm10/11, ymm/14/15
-			"vpermilps $0xb1, %ymm6, %ymm6", "\n",
-			"vpermilps $0xb1, %ymm7, %ymm7", "\n",
-			"vpermilps $0xb1, %ymm10, %ymm10", "\n",
-			"vpermilps $0xb1, %ymm11, %ymm11", "\n",
-			"vpermilps $0xb1, %ymm14, %ymm14", "\n",
-			"vpermilps $0xb1, %ymm15, %ymm15", "\n",
-		
-		
-			// subtract/add even/odd elements
-			"vaddsubps %ymm6, %ymm4, %ymm4", "\n",
-			"vaddsubps %ymm7, %ymm5, %ymm5", "\n",
-			"vaddsubps %ymm10, %ymm8, %ymm8", "\n",
-			"vaddsubps %ymm11, %ymm9, %ymm9", "\n",
-			"vaddsubps %ymm14, %ymm12, %ymm12", "\n",
-			"vaddsubps %ymm15, %ymm13, %ymm13", "\n",
+			v_to_c!(4, 5),
+			v_to_c!(6, 7),
+			v_to_c!(8, 9),
+			v_to_c!(10, 11),
+			v_to_c!(12, 13),
+			v_to_c!(14, 15),
 		)
 	}
 }

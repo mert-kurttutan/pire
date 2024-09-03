@@ -49,14 +49,14 @@ use glare_base::{
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	// let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+	// let mc = std::env::var("GLARE_MC").unwrap_or("1200".to_string()).parse::<usize>().unwrap();
 	// let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
 	// let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
 	// return (mc, nc, kc);
 	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-		HWModel::Skylake => (4800, 192, 512),
-		HWModel::Broadwell => (4800, 192, 256),
-		HWModel::Haswell => (4080, 96, 192),
+		HWModel::Skylake => (1200, 56, 512),
+		HWModel::Broadwell => (1200, 96, 256),
+		HWModel::Haswell => (1200, 96, 192),
 		_ => get_cache_params(),
 	};
 	(mc, nc, kc)

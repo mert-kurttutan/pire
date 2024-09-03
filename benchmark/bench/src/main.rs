@@ -317,6 +317,8 @@ fn test_zgemm(
                 1e-3
             )
         };
+        // println!("c    : {:?}", &c[..8]);
+        // println!("c_ref: {:?}", &c_ref[..8]);
         println!("diff: {}", diff);
     }
 

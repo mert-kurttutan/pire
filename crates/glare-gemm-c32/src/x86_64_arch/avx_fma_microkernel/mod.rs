@@ -133,59 +133,6 @@ macro_rules! def_kernel_bb {
         }   
     };
 }
-use core::arch::x86_64::*;
-
-#[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_rs: usize, c_cs: usize) {
-    if *beta == TC::ZERO {
-        if c_rs == 1 {
-            for j in 0..n {
-                for i in 0..m {
-                    *c.add(i + j*c_cs) = TC::ZERO;
-                }
-            }
-        } else {
-            for i in 0..m {
-                for j in 0..n {
-                    *c.add(i*c_rs + j*c_cs) = TC::ZERO;
-                }
-            }
-        }
-    } else if *beta != TC::ONE {
-        if c_rs == 1 {
-            let beta_f32 = beta as *const f32;
-            let beta_vr = _mm256_set1_ps(*beta_f32);
-            let beta_vi = _mm256_set1_ps(*beta_f32.add(1));
-            // let c_cs = c_cs * 2;
-            let c = c;
-            for j in 0..n {
-                let mut mi = 0;
-                while mi < m / 4 *4 {
-                    let c_v = _mm256_loadu_ps(c.add(mi + j*c_cs) as *const f32);
-                    let c_v_1 = _mm256_mul_ps(c_v, beta_vr);
-                    let c_v_2 = _mm256_mul_ps(c_v, beta_vi);
-
-                    let c_v_2 = _mm256_permute_ps(c_v_2, 0xb1);
-
-                    let c_v = _mm256_addsub_ps(c_v_1, c_v_2);
-
-                    _mm256_storeu_ps(c.add(mi + j*c_cs) as *mut f32, c_v);
-                    mi += 4;
-                }
-                while mi < m {
-                    *c.add(mi + j*c_cs) *= *beta;
-                    mi += 1;
-                }
-            }
-        } else {
-            for i in 0..m {
-                for j in 0..n {
-                    *c.add(i*c_rs + j*c_cs) *= *beta;
-                }
-            }
-        }
-    }
-}
 
 def_kernel_bb!(8, 3, 8, 4);
 

@@ -161,22 +161,26 @@ unsafe fn kernel<F:MyFn>(
 ) {
  if hw_cfg.features.avx512f {
     if kc_first  {
-        avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
     }
      avx512f_microkernel::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
  if hw_cfg.features.avx && hw_cfg.features.fma {
     if kc_first  {
-        avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
     }
     if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
         avx_fma_microkernel::kernel_8x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
     }
  }
+
  if hw_cfg.features.avx {
-     avx_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    if kc_first  {
+        avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
+     avx_microkernel::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
 }
@@ -192,12 +196,15 @@ unsafe fn kernel_m<F:MyFn>(
     _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
         avx512f_microkernel::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if kc_first  {
-            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
         if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
             avx_fma_microkernel::kernel_8x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -205,7 +212,10 @@ unsafe fn kernel_m<F:MyFn>(
         }
     }
     if hw_cfg.features.avx {
-        avx_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        avx_microkernel::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -223,12 +233,15 @@ unsafe fn kernel_n<F:MyFn>(
     _kc_last: bool, kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
         avx512f_microkernel::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if kc_first  {
-            avx_fma_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
         }
         if hw_cfg.mr == 8 && hw_cfg.nr == 3 {
             avx_fma_microkernel::kernel_8x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -236,7 +249,10 @@ unsafe fn kernel_n<F:MyFn>(
         }
     }
     if hw_cfg.features.avx {
-        avx_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        if kc_first  {
+            avx_microkernel::scale_c(m, n, beta, c, c_rs, c_cs);
+        }
+        avx_microkernel::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }

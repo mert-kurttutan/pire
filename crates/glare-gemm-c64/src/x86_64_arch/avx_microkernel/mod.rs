@@ -9,9 +9,63 @@ use std::arch::asm;
 
 use crate::{TA,TB,TC};
 
-const VS: usize = 8;
+const VS: usize = 2;
 
 use crate::MyFn;
+
+
+use core::arch::x86_64::*;
+
+#[target_feature(enable = "avx")]
+pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_rs: usize, c_cs: usize) {
+    if *beta == TC::ZERO {
+        if c_rs == 1 {
+            for j in 0..n {
+                for i in 0..m {
+                    *c.add(i + j*c_cs) = TC::ZERO;
+                }
+            }
+        } else {
+            for i in 0..m {
+                for j in 0..n {
+                    *c.add(i*c_rs + j*c_cs) = TC::ZERO;
+                }
+            }
+        }
+    } else if *beta != TC::ONE {
+        if c_rs == 1 {
+            let beta = beta as *const f64;
+            let beta_vr = _mm256_set1_pd(*beta);
+            let beta_vi = _mm256_set1_pd(*beta.add(1));
+            let c_cs = c_cs * 2;
+            let c = c as *mut f64;
+            for j in 0..n {
+                let mut mi = 0;
+                while mi < m / 2 {
+                    let c_v = _mm256_loadu_pd(c.add(mi*4 + j*c_cs));
+                    let c_v_1 = _mm256_mul_pd(c_v, beta_vr);
+                    let c_v_2 = _mm256_mul_pd(c_v, beta_vi);
+
+                    let c_v_2 = _mm256_permute_pd(c_v_2, 0x5);
+
+                    let c_v = _mm256_addsub_pd(c_v_1, c_v_2);
+
+                    _mm256_storeu_pd(c.add(mi*4 + j*c_cs), c_v);
+                    mi += 1;
+                }
+                // for i in 0..m {
+                //     *c.add(i + j*c_cs) *= beta;
+                // }
+            }
+        } else {
+            for i in 0..m {
+                for j in 0..n {
+                    *c.add(i*c_rs + j*c_cs) *= *beta;
+                }
+            }
+        }
+    }
+}
 
 #[target_feature(enable = "avx")]
 pub unsafe fn axpy<F: MyFn>(
@@ -74,7 +128,6 @@ macro_rules! def_kernel_bb {
             pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
-                beta: *const TC,
                 c: *mut TC, c_rs: usize, c_cs: usize,
                 ap: *const TA, bp: *const TB,
                 f: F,
@@ -96,14 +149,14 @@ macro_rules! def_kernel_bb {
                     let mut bp_cur = bp;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, NR, f);
                         n_iter -= 1;
                         bp_cur = bp_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     // let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
                     if n_left != 0 {
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_iter -= 1;
                     ap_cur = ap_cur.add(MR*k);
@@ -117,13 +170,13 @@ macro_rules! def_kernel_bb {
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             bp_cur = bp_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left !=0 {
-                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, n_left, f);
                         }
                         return;
                     }
@@ -135,7 +188,7 @@ macro_rules! def_kernel_bb {
     };
 }
 
-def_kernel_bb!(16, 4, 16, 8);
+def_kernel_bb!(4, 2, 4, 2);
 
 macro_rules! def_kernel_bs {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
@@ -144,7 +197,6 @@ macro_rules! def_kernel_bs {
             pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
-                beta: *const TC,
                 b: *const TB, b_rs: usize, b_cs: usize,
                 c: *mut TC, c_rs: usize, c_cs: usize,
                 ap_cur: *const TA,
@@ -165,13 +217,13 @@ macro_rules! def_kernel_bs {
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, NR, f);
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*b_cs);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     if n_left != 0 {
-                        [<ukernel_$MR xn_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        [<ukernel_$MR xn_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_iter -= 1;
                     ap_cur = ap_cur.add(MR*k);
@@ -184,14 +236,14 @@ macro_rules! def_kernel_bs {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
                             // [<ukernel_$mr_left x $NR _bs>]::<_, true>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*b_cs);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left != 0 {
-                            [<ukernel_$mr_left xn_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left xn_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, n_left, f);
                         }
                         return;
                     }
@@ -203,7 +255,7 @@ macro_rules! def_kernel_bs {
     };
 }
 
-def_kernel_bs!(16, 4, 16, 8);
+def_kernel_bs!(4, 2, 4, 2);
 
 use super::pack_avx::packa_panel_4;
 macro_rules! def_kernel_sb {
@@ -213,7 +265,6 @@ macro_rules! def_kernel_sb {
             pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const TA,
-                beta: *const TC,
                 a: *const TB, a_rs: usize, a_cs: usize,
                 b: *const TA,
                 c: *mut TC, c_rs: usize, c_cs: usize,
@@ -237,13 +288,13 @@ macro_rules! def_kernel_sb {
                     let mut c_cur1 = c_cur0;
                     packa_panel_4(MR, k, a_cur, a_rs, a_cs, ap_cur, VS);
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, NR, f);                        
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, NR, f);                        
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
                     }
                     if n_left != 0 {
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }   
                     m_iter -= 1;
                     a_cur = a_cur.add(MR*a_rs);
@@ -257,13 +308,13 @@ macro_rules! def_kernel_sb {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
                         }
                         if n_left != 0 {
-                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, n_left, f);
                         }
                         return;
                     }
@@ -275,13 +326,12 @@ macro_rules! def_kernel_sb {
     };
 }
 
-def_kernel_sb!(16, 4, 16, 8);
+def_kernel_sb!(4, 2, 4, 2);
 
 // #[target_feature(enable = "avx")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
-    beta: *const TC,
     a: *const TB, a_rs: usize, a_cs: usize,
     b: *const TB,
     c: *mut TC, c_rs: usize, c_cs: usize,
@@ -291,7 +341,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     if c_rs == 1 {
         kernel_sb_v0::<_, false>(
             m, n, k,
-            alpha, beta,
+            alpha,
             a, a_rs, a_cs,
             b,
             c, c_rs, c_cs,
@@ -301,7 +351,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     } else {
         kernel_sb_v0::<_, true>(
             m, n, k,
-            alpha, beta,
+            alpha,
             a, a_rs, a_cs,
             b,
             c, c_rs, c_cs,
@@ -315,7 +365,6 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
  pub(crate) unsafe fn kernel_bs<F: MyFn>(
     m: usize, n: usize, k: usize,
     alpha: *const TA,
-    beta: *const TC,
     b: *const TB, b_rs: usize, b_cs: usize,
     c: *mut TC, c_rs: usize, c_cs: usize,
     ap: *const TA,
@@ -324,7 +373,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     if c_rs == 1 {
         kernel_bs_v0::<_, false>(
             m, n, k,
-            alpha, beta,
+            alpha,
             b, b_rs, b_cs,
             c, c_rs, c_cs,
             ap,
@@ -333,7 +382,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     } else {
         kernel_bs_v0::<_, true>(
             m, n, k,
-            alpha, beta,
+            alpha,
             b, b_rs, b_cs,
             c, c_rs, c_cs,
             ap,
@@ -345,15 +394,15 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
 // #[target_feature(enable = "avx")]
 pub(crate) unsafe fn kernel<F: MyFn>(
    m: usize, n: usize, k: usize,
-   alpha: *const TA, beta: *const TC,
+   alpha: *const TA,
    c: *mut TC,
    c_rs: usize, c_cs: usize,
    ap: *const TA, bp: *const TB,
    f: F,
 ) {
     if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     }
 }
