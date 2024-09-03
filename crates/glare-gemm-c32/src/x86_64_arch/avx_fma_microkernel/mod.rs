@@ -153,15 +153,15 @@ pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_
         }
     } else if *beta != TC::ONE {
         if c_rs == 1 {
-            let beta = beta as *const f32;
-            let beta_vr = _mm256_set1_ps(*beta);
-            let beta_vi = _mm256_set1_ps(*beta.add(1));
-            let c_cs = c_cs * 2;
-            let c = c as *mut f32;
+            let beta_f32 = beta as *const f32;
+            let beta_vr = _mm256_set1_ps(*beta_f32);
+            let beta_vi = _mm256_set1_ps(*beta_f32.add(1));
+            // let c_cs = c_cs * 2;
+            let c = c;
             for j in 0..n {
                 let mut mi = 0;
-                while mi < m / 4 {
-                    let c_v = _mm256_loadu_ps(c.add(mi*8 + j*c_cs));
+                while mi < m / 4 *4 {
+                    let c_v = _mm256_loadu_ps(c.add(mi + j*c_cs) as *const f32);
                     let c_v_1 = _mm256_mul_ps(c_v, beta_vr);
                     let c_v_2 = _mm256_mul_ps(c_v, beta_vi);
 
@@ -169,12 +169,13 @@ pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_
 
                     let c_v = _mm256_addsub_ps(c_v_1, c_v_2);
 
-                    _mm256_storeu_ps(c.add(mi*8 + j*c_cs), c_v);
+                    _mm256_storeu_ps(c.add(mi + j*c_cs) as *mut f32, c_v);
+                    mi += 4;
+                }
+                while mi < m {
+                    *c.add(mi + j*c_cs) *= *beta;
                     mi += 1;
                 }
-                // for i in 0..m {
-                //     *c.add(i + j*c_cs) *= beta;
-                // }
             }
         } else {
             for i in 0..m {

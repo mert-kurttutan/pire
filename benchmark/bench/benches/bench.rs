@@ -4,10 +4,10 @@ use std::time::Duration;
 #[cfg(feature="blis")]
 use glare_dev::BLIS_NO_TRANSPOSE;
 
-// use num_complex::{
-//     c32,
-//     Complex32
-// };
+use num_complex::{
+    c32,
+    Complex
+};
 
 use bench::{
     dispatch_gemm,
@@ -127,16 +127,20 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement,TA:AS, TB:'stati
 
 }
 
+type TA = Complex<f32>;
+type TB = Complex<f32>;
+type TC = Complex<f32>;
+
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
     let dim_triple = (DimSize::Big, DimSize::Big, DimSize::Big);
     let m = 4800;
-    let alpha = 1.0_f32;
-    let beta = 1.0_f32;
-    let a = vec![0.0_f32; m * m];
-    let b_vec = vec![0.0_f32; m * m];
-    let mut c_vec = vec![0.0_f32; m * m];
+    let alpha = TA::ONE;
+    let beta = TA::ONE;
+    let a = vec![TA::ZERO; m * m];
+    let b_vec = vec![TB::ZERO; m * m];
+    let mut c_vec = vec![TC::ZERO; m * m];
     let d0 = 1;
     let mnk_vec = vec![
         // 10, 100, 
@@ -145,7 +149,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 320, 640, 960, 2048,
         // 2400, 3200, 4000, 4800, 
         // 5600, 6400, 
-        4800,
+        3600,
         // 7200, 8000,
     ];
     for dt in mnk_vec {

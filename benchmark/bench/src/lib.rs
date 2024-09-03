@@ -1,4 +1,7 @@
 use half::f16;
+use num_complex::Complex;
+
+type C32 = Complex<f32>;
 
 #[cfg(feature="mkl")]
 use glare_dev::{
@@ -642,6 +645,11 @@ impl AS for i8 {
     type BSType = f32;
 }
 
+impl AS for Complex32 {
+    type ASType = Complex32;
+    type BSType = Complex32;
+}
+
 use std::any::TypeId;
 
 // more ergonomic to use in bench
@@ -683,6 +691,16 @@ use std::any::TypeId;
             b as *const f16, b_rs, b_cs,
             *(&beta as *const TA::BSType as *const f16),
             c as *mut f16, c_rs, c_cs,
+        )
+    } else if TypeId::of::<TA>() == TypeId::of::<C32>() {
+        dispatch_cgemm(
+            backend,
+            m, n, k,
+            *(&alpha as *const TA::ASType as *const Complex32),
+            a as *const Complex32, a_rs, a_cs,
+            b as *const Complex32, b_rs, b_cs,
+            *(&beta as *const TA::BSType as *const Complex32),
+            c as *mut Complex32, c_rs, c_cs,
         )
     }
  }

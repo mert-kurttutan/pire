@@ -49,12 +49,12 @@ use glare_base::{
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-	// let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+	// let mc = std::env::var("GLARE_MC").unwrap_or("2400".to_string()).parse::<usize>().unwrap();
 	// let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
 	// let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
 	// return (mc, nc, kc);
 	let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-		HWModel::Skylake => (4800, 192, 512),
+		HWModel::Skylake => (2400, 56, 320),
 		HWModel::Broadwell => (4800, 192, 256),
 		HWModel::Haswell => (2400, 192, 192),
 		_ => get_cache_params(),
@@ -268,7 +268,7 @@ mod tests {
 
 	const EPS: f64 = 2e-2;
 
-	static ALPHA_ARR: [TA; 1] = [Complex{re: 1.0, im: 0.0}];
+	static ALPHA_ARR: [TA; 2] = [Complex{re: 1.0, im: 0.0}, Complex{re: 1.7, im: 1.3}];
 	static BETA_ARR: [TC; 1] = [Complex{re: 0.0, im: 0.0}];
 
 	fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {

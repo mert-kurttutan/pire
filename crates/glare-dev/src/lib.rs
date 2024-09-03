@@ -577,6 +577,27 @@ pub unsafe fn gemm_fallback_f32(
     }
 }
 
+pub unsafe fn gemm_fallback_c32(
+	m: usize, n: usize, k: usize,
+	alpha: Complex32,
+	a: *const Complex32, a_rs: usize, a_cs: usize,
+	b: *const Complex32, b_rs: usize, b_cs: usize,
+	beta: Complex32,
+	c: *mut Complex32, c_rs: usize, c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = Complex32::ZERO;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
+            }
+            *c.add(c_rs * i + c_cs * j ) = alpha * dx +  beta * *c.add(c_rs * i + c_cs * j );
+        }
+    }
+}
+
+
+
 
 
 pub unsafe fn gemm_fallback_f16(
@@ -874,7 +895,8 @@ pub unsafe fn check_gemm_c32(
         let diff = max_abs_diff(&c, &c_ref, 1e-3);
         return diff;
     }
-    #[cfg(not(feature="mkl"))] {
+    #[cfg(not(feature="mkl"))] 
+    {
         // calculate diff using fallback
         gemm_fallback_c32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
         let diff = max_abs_diff(&c, &c_ref, eps);

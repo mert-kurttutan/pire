@@ -264,6 +264,8 @@ fn test_cgemm(
             )
         };
         println!("diff: {}", diff);
+        // println!("c: {:?}", &c[..10]);
+        // println!("c_ref: {:?}", &c_ref[..10]);
     }
 
     let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
@@ -582,6 +584,10 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("sgemm"))]
     bench_type: String,
 
+    // alpha
+    #[arg(short, long, default_value_t = 1.0)]
+    alpha: f32,
+
     // beta
     #[arg(short, long, default_value_t = 1.0)]
     beta: f32,
@@ -593,8 +599,9 @@ struct Args {
  
     let mut best_time = f64::INFINITY;
     // let beta = 1.0;
-    let alpha = 1.0;
+    // let alpha = 1.0;
     let args = Args::parse();
+    let alpha = args.alpha;
     let beta = args.beta;
     let m = args.m;
     let n = args.n;
