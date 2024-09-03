@@ -45,6 +45,10 @@ impl HWConfig {
     pub fn hw_model(&self) -> HWModel {
         self.hw_model
     }
+
+    pub fn cpu_ft(&self) -> CpuFeatures {
+        self.cpu_ft
+    }
 }
 
 #[cfg(target_arch = "aarch64")]

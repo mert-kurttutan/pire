@@ -77,8 +77,7 @@ F: MyFn,
 	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
 	if has_i16i32_compute() {
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
@@ -192,8 +191,7 @@ pub unsafe fn packa_i16(
 		return Array::strided_matrix(ap0, 1, m);
 	}
 	let (mc, nc, kc) = get_mcnckc();
-	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 	// if none of the optimized paths are available, use reference implementation
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 
@@ -237,12 +235,9 @@ pub unsafe fn packb_i16(
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
-
+	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 	#[cfg(target_arch = "x86_64")]
 	{
-		let (mc, nc, kc) = get_mcnckc();
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {

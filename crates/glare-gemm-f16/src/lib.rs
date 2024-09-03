@@ -92,14 +92,12 @@ F: MyFn,
 	let par = GlarePar::default();
 	let (mc, nc, kc) = get_mcnckc();
 	if has_f16_compute() {
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
 		x86_64_arch::glare_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
 	if has_f32_compute() {
-		let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, f);
+		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
 		return;
 	}
@@ -171,9 +169,8 @@ pub unsafe fn packa_f16(
 		return Array::strided_matrix(ap0, 1, m);
 	}
 	let (mc, nc, kc) = get_mcnckc();
-	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
+	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 	// if none of the optimized paths are available, use reference implementation
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 	// let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
@@ -226,9 +223,8 @@ pub unsafe fn packb_f16(
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
-	let x86_64_features = (*RUNTIME_HW_CONFIG).cpu_ft;
-	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
-	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, x86_64_features, NullFn{});
+	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
+	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 
 	#[cfg(target_arch = "x86_64")]
 	{
