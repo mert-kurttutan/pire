@@ -207,6 +207,7 @@ unsafe fn kernel<F:MyFn>(
     }
 }
 
+#[allow(unused)]
 unsafe fn kernel_m<F:MyFn>(
     hw_cfg: &RefGemm<F>,
     m: usize, n: usize, k: usize,
@@ -217,46 +218,9 @@ unsafe fn kernel_m<F:MyFn>(
     ap: *const i16,
     _kc_last: bool, _kc_first: bool,
 ) {
-    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
-    let mut i = 0;
-    while i < m {
-        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
-        let mut j = 0;
-        while j < n {
-            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
-            let mut p = 0;
-            while p < k {
-                let a_cur = ap.add(i * k + p * mr_eff);
-                let b_cur = b.add(j * b_cs + p * b_rs);
-                let mut ii = 0;
-                while ii < mr_eff {
-                    let mut jj = 0;
-                    while jj < nr_eff {
-                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj*b_cs) as i32);
-                        jj += 1;
-                    }
-                    ii += 1;
-                }
-                p += 1;
-            }
-            // store c
-            let mut ii = 0;
-            while ii < mr_eff {
-                let mut jj = 0;
-                while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
-                    acc[ii * nr_eff + jj] = 0;
-                    jj += 1;
-                }
-                ii += 1;
-            }
-            j += hw_cfg.nr;
-        }
-        i += hw_cfg.mr;
-    }
 }
 
-
+#[allow(unused)]
 unsafe fn kernel_n<F:MyFn>(
     hw_cfg: &RefGemm<F>,
     m: usize, n: usize, k: usize,
@@ -267,45 +231,7 @@ unsafe fn kernel_n<F:MyFn>(
     b: *const i16,
     c: *mut i32, c_rs: usize, c_cs: usize,
     _kc_last: bool, _kc_first: bool,
-) {
-    let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
-    let mut i = 0;
-    while i < m {
-        let mr_eff = if i + hw_cfg.mr > m { m - i } else { hw_cfg.mr };
-        packa_ref(a.add(i * a_rs), ap, mr_eff, k, a_rs, a_cs, hw_cfg.mr);
-        let mut j = 0;
-        while j < n {
-            let nr_eff = if j + hw_cfg.nr > n { n - j } else { hw_cfg.nr };
-            let mut p = 0;
-            while p < k {
-                let a_cur = ap.add(p * mr_eff);
-                let b_cur = b.add(j * k + p * nr_eff);
-                let mut ii = 0;
-                while ii < mr_eff {
-                    let mut jj = 0;
-                    while jj < nr_eff {
-                        acc[ii * nr_eff + jj] += (*a_cur.add(ii) as i32) * (*b_cur.add(jj) as i32);
-                        jj += 1;
-                    }
-                    ii += 1;
-                }
-                p += 1;
-            }
-            // store c
-            let mut ii = 0;
-            while ii < mr_eff {
-                let mut jj = 0;
-                while jj < nr_eff {
-                    *c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) = ((*c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs) as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
-                    acc[ii * nr_eff + jj] = 0;
-                    jj += 1;
-                }
-                ii += 1;
-            }
-            j += hw_cfg.nr;
-        }
-        i += hw_cfg.mr;
-    }   
+) { 
 }
 
 unsafe fn glare_gemv<F:MyFn>(
@@ -350,6 +276,6 @@ def_glare_gemm!(
     gemm_small_n_serial, kernel_n,
     glare_gemv, glare_gemv,
     packa, packb,
-    true, true,
+    false, false,
     into_pack_array, F,
 );

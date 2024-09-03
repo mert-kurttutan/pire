@@ -109,15 +109,15 @@ fn detect_hw_config() -> HWConfig {
         let cpuid = raw_cpuid::CpuId::new();
         let feature_info = cpuid.get_feature_info().unwrap();
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
-        let avx = feature_info.has_avx();
-        let fma = feature_info.has_fma();
-        let avx2 = extended_feature_info.has_avx2();
-        let avx512f16 = extended_feature_info.has_avx512_fp16();
-        let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        let avx512f = extended_feature_info.has_avx512f();
-        let f16c = feature_info.has_f16c();
+        let avx = feature_info.has_avx() && false;
+        let fma = feature_info.has_fma() && false;
+        let avx2 = extended_feature_info.has_avx2() && false;
+        let avx512f16 = extended_feature_info.has_avx512_fp16() && false;
+        let avx512bf16 = extended_feature_info.has_avx512_bf16() && false;
+        let avx512f = extended_feature_info.has_avx512f() && false;
+        let f16c = feature_info.has_f16c() && false;
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        let fma4 = extended_prcoessor_info.has_fma4();
+        let fma4 = extended_prcoessor_info.has_fma4() && false;
         let cpu_ft = CpuFeatures {
             avx,
             avx2,
@@ -1501,8 +1501,6 @@ macro_rules! def_glare_gemm {
                     let kc_len = hw_cfg.round_up(kc_len);
                     let vs = hw_cfg.vs;
                     let m_eff = (m.m() + vs - 1) / vs * vs;
-                        // println!("m_eff: {}, kc_len: {}", m_eff, kc_len);
-                        // println!("mc_i: {}, kc_i: {}", mc_i, kc_i);
                     let src = m.data_ptr().add(mc_i*kc_len + kc_i*m_eff);
                     let res = is_mixed!(
                         $include_flag,          
