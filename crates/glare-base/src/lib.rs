@@ -28,6 +28,8 @@ pub struct CpuFeatures {
     pub f16c: bool,
 }
 
+// padding in bytes
+const CACHELINE_PAD: usize = 1024;
 
 #[cfg(target_arch = "x86_64")]
 pub struct HWConfig {
@@ -113,15 +115,15 @@ fn detect_hw_config() -> HWConfig {
         let cpuid = raw_cpuid::CpuId::new();
         let feature_info = cpuid.get_feature_info().unwrap();
         let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
-        let avx = feature_info.has_avx() && false;
-        let fma = feature_info.has_fma() && false;
-        let avx2 = extended_feature_info.has_avx2() && false;
-        let avx512f16 = extended_feature_info.has_avx512_fp16() && false;
-        let avx512bf16 = extended_feature_info.has_avx512_bf16() && false;
-        let avx512f = extended_feature_info.has_avx512f() && false;
-        let f16c = feature_info.has_f16c() && false;
+        let avx = feature_info.has_avx();
+        let fma = feature_info.has_fma();
+        let avx2 = extended_feature_info.has_avx2();
+        let avx512f16 = extended_feature_info.has_avx512_fp16();
+        let avx512bf16 = extended_feature_info.has_avx512_bf16();
+        let avx512f = extended_feature_info.has_avx512f();
+        let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        let fma4 = extended_prcoessor_info.has_fma4() && false;
+        let fma4 = extended_prcoessor_info.has_fma4();
         let cpu_ft = CpuFeatures {
             avx,
             avx2,
@@ -373,8 +375,8 @@ impl GlarePar {
    #[inline(always)]
    pub fn default() -> Self {
        let num_threads = glare_num_threads();
-       Self::from_num_threads(num_threads)
-    // Self::new(30, 3, 1, 5, 2, 1)
+    //    Self::from_num_threads(num_threads)
+    Self::new(30, 3, 1, 5, 2, 1)
    }
    #[inline]
    fn get_ic_id(&self, t_id: usize) -> usize {
@@ -439,71 +441,124 @@ pub trait BaseNum: Copy + 'static + Send {}
 impl<T> BaseNum for T where T: Copy + 'static + Send {}
 
 
+#[derive(Copy,Clone)]
+pub struct PoolSize {
+    pub ap_pool_size: usize,
+    pub ap_pool_multiplicity: usize,
+    pub bp_pool_size: usize,
+    pub bp_pool_multiplicity: usize,
+}
+
+impl PoolSize {
+    // add alignment padding for ab only for total memory pool sizes
+    pub fn mem_pool_size_b<TA,TB>(&self) -> usize {
+        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity + self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity + AB_ALIGN
+    }
+
+    pub fn ap_size_t_b<TA>(&self) -> usize {
+        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity
+    }
+
+    pub fn bp_size_t_b<TB>(&self) -> usize {
+        self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity
+    }
+
+    #[inline]
+    pub unsafe fn get_ap_bp<TA,TB>(&self, mem_pool: *mut u8) -> (*mut TA, *mut TB) {
+        let ap_pool_size_t = self.ap_size_t_b::<TA>();
+       let align_offset = mem_pool.align_offset(AB_ALIGN);
+       let mem_pool_aligned = mem_pool.add(align_offset);
+       let ap = mem_pool_aligned as *mut TA;
+    
+       let mem_pool_2 = mem_pool_aligned.add(ap_pool_size_t);
+        let align_offset = mem_pool_2.align_offset(AB_ALIGN);
+        let mem_pool_2_aligned = mem_pool_2.add(align_offset);
+        let bp = mem_pool_2_aligned as *mut TB;
+       (ap, bp)
+    }
+    
+}
+
 pub fn get_mem_pool_size_goto<
 AP: BaseNum,
 BP: BaseNum,
-HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig, par: &GlarePar, a_need_pool: bool, b_need_pool: bool) -> usize
+HWConfig: GemmCache
+>(hw_config: &HWConfig, par: &GlarePar, a_need_pool: bool, b_need_pool: bool) -> PoolSize
 {
-    let mut mem_pool_size = 0;
-    if a_need_pool {
+    let (ap_pool_size, ap_pool_multiplicity) = if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
-        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
-    }
-    if b_need_pool {
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        (ap_pool_size, ap_pool_multiplicity)
+    } else {
+        (0, 1)
+    };
+    let (bp_pool_size, bp_pool_multiplicity) = if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
-        mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        (bp_pool_size, bp_pool_multiplicity)
+    } else {
+        (0, 1)
+    };
+    PoolSize {
+        ap_pool_size,
+        ap_pool_multiplicity,
+        bp_pool_size,
+        bp_pool_multiplicity,
     }
-    if mem_pool_size == 0 {
-        return 0;
-    }
-    mem_pool_size += 1024;
-    mem_pool_size
 }
 
 pub fn get_mem_pool_size_small_m<
 AP: BaseNum,
 BP: BaseNum,
-HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig,par: &GlarePar, is_a_strided: bool) -> usize
+HWConfig: GemmCache
+>(hw_config: &HWConfig,par: &GlarePar, a_need_pool: bool) -> PoolSize
 {
-    let mut mem_pool_size = 0;
-    if is_a_strided {
+    if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par);
-        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        PoolSize {
+            ap_pool_size,
+            ap_pool_multiplicity,
+            bp_pool_size: 0,
+            bp_pool_multiplicity: 1,
+        }
+    } else {
+        PoolSize {
+            ap_pool_size: 0,
+            ap_pool_multiplicity: 1,
+            bp_pool_size: 0,
+            bp_pool_multiplicity: 1,
+        }
     }
-    if mem_pool_size == 0 {
-        return 0;
-    }
-    mem_pool_size += 1024;
-    mem_pool_size
+    
 }
 
 pub fn get_mem_pool_size_small_n<
 AP: BaseNum,
 BP: BaseNum,
-HWConfig: GemmCache<AP,BP>
->(hw_config: &HWConfig, par: &GlarePar, is_b_strided: bool) -> usize
+HWConfig: GemmCache
+>(hw_config: &HWConfig, par: &GlarePar, b_need_pool: bool) -> PoolSize
 {
-    let mut mem_pool_size = 0;
-    if true {
-        let ap_pool_multiplicity = par.num_threads;
-        let ap_pool_size = hw_config.get_ap_pool_size2();
-        mem_pool_size += ap_pool_size * std::mem::size_of::<AP>() * ap_pool_multiplicity;
-    }
-    if is_b_strided {
+    let ap_pool_size = hw_config.get_ap_pool_size2() + CACHELINE_PAD / std::mem::size_of::<AP>();
+    let ap_pool_multiplicity = par.num_threads;
+
+    if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par);
-        mem_pool_size += bp_pool_size * std::mem::size_of::<BP>() * bp_pool_multiplicity;
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        PoolSize {
+            ap_pool_size,
+            ap_pool_multiplicity,
+            bp_pool_size,
+            bp_pool_multiplicity,
+        }
+    } else {
+        PoolSize {
+            ap_pool_size,
+            ap_pool_multiplicity,
+            bp_pool_size: 0,
+            bp_pool_multiplicity: 1,
+        }
     }
-    if mem_pool_size == 0 {
-        return 0;
-    }
-    mem_pool_size += 1024;
-    mem_pool_size
 }
 
 // Choose ap_size, bp_size as arguments since they are specific to Gemm implementation,
@@ -529,31 +584,6 @@ pub enum GemmPool {
     SmallM,
     SmallN,
 }
-
-impl GemmPool {
-    pub fn get_ap_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize, need_pool: bool) -> usize {
-        if !need_pool {
-            return 0;
-        }
-        match self {
-            GemmPool::Goto => hw_config.get_ap_pool_size(par),
-            GemmPool::SmallM => hw_config.get_ap_pool_size(par),
-            GemmPool::SmallN => hw_config.get_ap_pool_size2(),
-        }
-    }
-
-    pub fn get_bp_pool_size<A,B,H:GemmCache<A,B>>(&self, hw_config: &H, par: usize, need_pool: bool) -> usize {
-        if !need_pool {
-            return 0;
-        }
-        match self {
-            GemmPool::Goto => hw_config.get_bp_pool_size(par),
-            GemmPool::SmallM => 0,
-            GemmPool::SmallN => hw_config.get_bp_pool_size(par),
-        }
-    }
-}
-
 
 
 #[derive(Clone, Copy)]
@@ -678,29 +708,10 @@ unsafe impl<X,Y> Send for PackedMatrixMixed<X,Y> {}
 
 
 
-const AP_ALIGN: usize = 1024;
-const BP_ALIGN: usize = 1024;
+const AB_ALIGN: usize = 1024;
+// const BP_ALIGN: usize = 1024;
 
-
-#[inline]
-pub unsafe fn get_ap_bp<TA,TB>(mem_pool: *mut u8, ap_pool_size: usize, _bp_pool_size: usize, ic_mul: usize, _jc_mul: usize) -> (*mut TA, *mut TB) {
-   let align_offset = mem_pool.align_offset(AP_ALIGN);
-   let mem_pool_aligned = mem_pool.add(align_offset);
-   let ap = mem_pool_aligned as *mut TA;
-
-   let mem_pool_2 = mem_pool_aligned.add(ap_pool_size*std::mem::size_of::<TA>()*ic_mul);
-    let align_offset = mem_pool_2.align_offset(BP_ALIGN);
-    let mem_pool_2_aligned = mem_pool_2.add(align_offset);
-    let bp = mem_pool_2_aligned as *mut TB;
-   (ap, bp)
-}
-
-pub trait GemmCache<
-AP,
-BP,
-> {
-    const CACHELINE_PAD: usize = 4096;
-    const IS_EFFICIENT: bool = true;
+pub trait GemmCache {
     fn mr(&self) -> usize;
     fn nr(&self) -> usize;
     fn get_mc_eff(&self,par: usize) -> usize;
@@ -709,16 +720,16 @@ BP,
     fn get_ap_pool_size(&self, ic_par: usize) -> usize {
         let mc_eff = self.get_mc_eff(ic_par);
         let kc_eff = self.get_kc_eff();
-        mc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
+        mc_eff * kc_eff
     }
     fn get_ap_pool_size2(&self) -> usize {
         let kc_eff = self.get_kc_eff();
-        self.mr() * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<AP>()
+        self.mr() * kc_eff
     }
     fn get_bp_pool_size(&self,jc_par: usize) -> usize {
         let nc_eff = self.get_nc_eff(jc_par);
         let kc_eff = self.get_kc_eff();
-        nc_eff * kc_eff + Self::CACHELINE_PAD / std::mem::size_of::<BP>()
+        nc_eff * kc_eff
     }
 }
 
@@ -1105,11 +1116,12 @@ macro_rules! def_glare_gemm {
                 $gemv_name2(hw_config, n, k, alpha.into(), b, a, beta, c);//, par);
                 return;
             }
-            let (gemm_mode, gemm_fun, mem_pool_size)
+            let (gemm_mode, gemm_fun, pool_info)
             : (
                 GemmPool, unsafe fn(
-                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig),
-                usize
+                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig, 
+                ),
+                PoolSize
             )
              = if run_small_m(m) && $run_small_m && b.is_strided() {
                 (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool))
@@ -1118,12 +1130,13 @@ macro_rules! def_glare_gemm {
             } else {
                 (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool, b_need_pool))
             };
+            let mem_pool_size = pool_info.mem_pool_size_b::<$tap,$tbp>();
             
             if mem_pool_size == 0 {
                 let mut pool_vec = vec![0_u8; 1];
                 let pool_buf = pool_vec.as_mut_ptr();
                 $name_mt(
-                    hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, gemm_fun
+                    hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, pool_info, gemm_fun
                 );
                 return;
             }
@@ -1134,7 +1147,7 @@ macro_rules! def_glare_gemm {
                 if let Some(mut pool_vec) = y {
                     let pool_buf = pool_vec.as_mut_ptr();
                     $name_mt( 
-                        hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, gemm_fun
+                        hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, pool_info, gemm_fun
                     );
                     return;
                 }
@@ -1142,7 +1155,7 @@ macro_rules! def_glare_gemm {
             let mut pool_vec = vec![0_u8; mem_pool_size];
             let pool_buf = pool_vec.as_mut_ptr();
             $name_mt( 
-                hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, gemm_fun
+                hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, pool_info, gemm_fun
             );
             extend(pool_vec);
         }
@@ -1158,25 +1171,21 @@ macro_rules! def_glare_gemm {
             par: &GlarePar,
             pool_buf: *mut u8,
             gemm_mode: GemmPool,
+            pool_info: PoolSize,
             gemm_fn: unsafe fn(
                 &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig
             )
         )
-        where $t_dispatcher <F>: GemmCache<$tap,$tbp>
+        where $t_dispatcher <F>: GemmCache
         {
-            let a_need_pool = a.is_strided() || !hw_config.is_compute_native();
-            let b_need_pool = b.is_strided() || !hw_config.is_compute_native();
-            let mc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_mc_eff(hw_config, par.ic_par);
-            let nc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_nc_eff(hw_config, par.jc_par);
-            let kc_eff = <$t_dispatcher::<F> as GemmCache<$tap,$tbp>>::get_kc_eff(hw_config);
-            let ap_par = match gemm_mode {
-                GemmPool::Goto => par.ic_par,
-                GemmPool::SmallM => par.ic_par,
-                GemmPool::SmallN => par.num_threads,
-            };
-            let ap_pool_size = gemm_mode.get_ap_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, ap_par, a_need_pool);
-            let bp_pool_size = gemm_mode.get_bp_pool_size::<$tap, $tbp, $t_dispatcher::<F>>(hw_config, par.jc_par, b_need_pool);
-            let (ap_ptr, bp_ptr) = get_ap_bp::<$tap,$tbp>(pool_buf, ap_pool_size, bp_pool_size, ap_par, par.jc_par);
+            let mc_eff = <$t_dispatcher::<F> as GemmCache>::get_mc_eff(hw_config, par.ic_par);
+            let nc_eff = <$t_dispatcher::<F> as GemmCache>::get_nc_eff(hw_config, par.jc_par);
+            let kc_eff = <$t_dispatcher::<F> as GemmCache>::get_kc_eff(hw_config);
+            let ap_pool_size = pool_info.ap_pool_size;
+            let bp_pool_size = pool_info.bp_pool_size;
+            let ap_pool_size_total = pool_info.ap_size_t_b::<$tap>();
+            let bp_pool_size_total = pool_info.bp_size_t_b::<$tbp>();
+            let (ap_ptr, bp_ptr) = pool_info.get_ap_bp::<$tap,$tbp>(pool_buf);
             let ap = a.$pack_fn(ap_ptr);
             let bp = b.$pack_fn(bp_ptr);
             let (pa_br_vec_ref, pb_br_vec_ref) = get_apbp_barrier(par);
@@ -1224,87 +1233,82 @@ macro_rules! def_glare_gemm {
             c: ArrayMut<$tc>,
             t_cfg: &GlareThreadConfig
         ) {
-            let d0 = m;
-            let d2 = n;
-            let d0c_id = t_cfg.ic_id;
-            let d2c_id = t_cfg.jc_id;
-            let d0r_id = t_cfg.ir_id;
-            let d2r_id = t_cfg.jr_id;
-            let d0r_par = t_cfg.par.ir_par;
-            let d2r_par = t_cfg.par.jr_par;
-            let d0c_par = t_cfg.par.ic_par;
-            let d2c_par = t_cfg.par.jc_par;
-            let d0_c = t_cfg.mc_eff;
-            let d2_c = t_cfg.nc_eff;
-            let d1_c = t_cfg.kc_eff;
-            let d0r = hw_cfg.mr;
-            let d2r = hw_cfg.nr;
-            let (d0_start, d0_end, mc_left) = split_c_range(d0, d0_c, d0r, d0c_id, d0c_par);
-            let (d2_start, d2_end, nc_left) = split_c_range(d2, d2_c, d2r, d2c_id, d2c_par);
-            // println!("mc_start: {}, mc_end: {}, nc_start: {}, nc_end: {}", d0_start, d0_end, d2_start, d2_end);
-            let (d1_start, d1_end) = (0, k);
+            let ic_id = t_cfg.ic_id;
+            let jc_id = t_cfg.jc_id;
+            let ir_id = t_cfg.ir_id;
+            let jr_id = t_cfg.jr_id;
+            let ir_par = t_cfg.par.ir_par;
+            let jr_par = t_cfg.par.jr_par;
+            let ic_par = t_cfg.par.ic_par;
+            let jc_par = t_cfg.par.jc_par;
+            let mc_eff = t_cfg.mc_eff;
+            let nc_eff = t_cfg.nc_eff;
+            let kc_eff = t_cfg.kc_eff;
+            let mr = hw_cfg.mr;
+            let nr = hw_cfg.nr;
+            let (mc_start, mc_end, mc_left) = split_c_range(m, mc_eff, mr, ic_id, ic_par);
+            let (nc_start, nc_end, nc_left) = split_c_range(n, nc_eff, nr, jc_id, jc_par);
+            let (kc_start, d1_end) = (0, k);
             let one = $one;
-            let d0_s = c.rs();
-            let d2_s = c.cs();
             let c_rs = c.rs();
             let c_cs = c.cs();
             let c_ptr = c.data_ptr();
-            let mut d0_i = d0_start;
-            while d0_i < d0_end {
-                let d0_len = d0_c.min(d0_end - d0_i);
-                let mut d1_i = d1_start;
-                let (d0r_start, d0r_end) = split_range(d0_len, d0r, d0r_id, d0r_par);
-                let d0r_len = d0r_end - d0r_start;
-                let c_i = c_ptr.add((d0_i+d0r_start) * d0_s);
-                while d1_i < d1_end {
-                    let d1_len = d1_c.min(d1_end - d1_i);
-                    let d1_len_eff = hw_cfg.round_up(d1_len);
-                    let mut d2_i = d2_start;
-                    let kc_last = d1_i + d1_len == d1_end;
-                    let kc_first = d1_i == d1_start;
-                    let beta_t = if d1_i == d1_start { beta } else { &one as *const $t_bs};
-                    let ap = $packa_name(hw_cfg, a, d0_i, d1_i, d0_len, d1_len, t_cfg);
-                    let ap = ap.add(d0r_start*d1_len_eff);
-                    while d2_i < d2_end {
-                        let d2_len = d2_c.min(d2_end - d2_i);
-                        let (d2r_start, d2r_end) = split_range(d2_len, d2r, d2r_id, d2r_par);
-                        let d2r_len = d2r_end - d2r_start;
-                        let c_ij = c_i.add((d2_i+d2r_start) * d2_s);
-                        let bp = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
-                        let bp = bp.add(d2r_start*d1_len_eff);
+            let mut mc_i = mc_start;
+            while mc_i < mc_end {
+                let mc_len = mc_eff.min(mc_end - mc_i);
+                let mut kc_i = kc_start;
+                let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
+                let mr_len = mr_end - mr_start;
+                let c_i = c_ptr.add((mc_i+mr_start) * c_rs);
+                while kc_i < d1_end {
+                    let kc_len = kc_eff.min(d1_end - kc_i);
+                    let kc_len_eff = hw_cfg.round_up(kc_len);
+                    let mut nc_i = nc_start;
+                    let kc_last = kc_i + kc_len == d1_end;
+                    let kc_first = kc_i == kc_start;
+                    let beta_t = if kc_i == kc_start { beta } else { &one as *const $t_bs};
+                    let ap = $packa_name(hw_cfg, a, mc_i, kc_i, mc_len, kc_len, t_cfg);
+                    let ap = ap.add(mr_start*kc_len_eff);
+                    while nc_i < nc_end {
+                        let nc_len = nc_eff.min(nc_end - nc_i);
+                        let (nr_start, nr_end) = split_range(nc_len, nr, jr_id, jr_par);
+                        let nr_len = nr_end - nr_start;
+                        let c_ij = c_i.add((nc_i+nr_start) * c_cs);
+                        let bp = $packb_name(hw_cfg, b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                        let bp = bp.add(nr_start*kc_len_eff);
                         $goto_kernel(
-                             hw_cfg, d0r_len, d2r_len, d1_len, alpha, beta_t, c_ij, c_rs, c_cs,
+                             hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
                              ap, bp,
                              kc_last, kc_first
                          );
         
-                        d2_i += d2_c;
+                        nc_i += nc_eff;
                     }
                     if nc_left {
                      t_cfg.wait_packb();
                      t_cfg.wait_packb();
                     }
-                    d1_i += d1_c;
+                    kc_i += kc_eff;
                 }
-                d0_i += d0_c;
+                mc_i += mc_eff;
             }
             if mc_left {
-             let mut d1_i = d1_start;
-             while d1_i < d1_end {
-                 let d1_len = d1_c.min(d1_end -d1_i);
+             let mut kc_i = kc_start;
+             while kc_i < d1_end {
+                 let kc_len = kc_eff.min(d1_end -kc_i);
                  t_cfg.wait_packa();
                  t_cfg.wait_packa();
-                 let mut d2_i = d2_start;
-                 while d2_i < d2_end {
-                     let d2_len = d2_c.min(d2_end - d2_i);
-                    let _ = $packb_name(hw_cfg, b, d2_i, d1_i, d2_len, d1_len, t_cfg);
-                     d2_i += d2_c;
+                 let mut nc_i = nc_start;
+                 while nc_i < nc_end {
+                     let nc_len = nc_eff.min(nc_end - nc_i);
+                    let _ = $packb_name(hw_cfg, b, nc_i, kc_i, nc_len, kc_len, t_cfg);
+                     nc_i += nc_eff;
                  }
                  if nc_left{
                      t_cfg.wait_packb();
                      t_cfg.wait_packb();
                  }
-                 d1_i += d1_c;
+                 kc_i += kc_eff;
              }
             }
         }

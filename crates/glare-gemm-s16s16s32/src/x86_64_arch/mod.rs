@@ -20,13 +20,14 @@ use glare_base::{
    CpuFeatures,
    HWConfig,
    Array,
+   PoolSize,
    ArrayMut,
     PArray,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
+    get_apbp_barrier,
     extend, acquire,
     PACK_POOL,
     GemmPool,
@@ -114,12 +115,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
 }
 
 
-impl<
-T: MyFn,
-AP, BP,
-> GemmCache<AP,BP> for X86_64dispatcher<T> {
-    const IS_EFFICIENT: bool = false;
-    // const CACHELINE_PAD: usize = 256;
+impl<T: MyFn> GemmCache for X86_64dispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }

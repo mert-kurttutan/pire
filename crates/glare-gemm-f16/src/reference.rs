@@ -12,11 +12,12 @@ use glare_base::{
    ArrayMut,
     // PArray,
     PArrayMixed,
+    PoolSize,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
+    get_apbp_barrier,
     extend, acquire,
     PACK_POOL,
     GemmPool,
@@ -201,11 +202,7 @@ impl<F: MyFn> RefGemm<F> {
     }
 }
 
-impl<
-T: MyFn,
-AP, BP,
-> GemmCache<AP,BP> for RefGemm<T> {
-    // const CACHELINE_PAD: usize = 256;
+impl<T: MyFn> GemmCache for RefGemm<T> {
     fn mr(&self) -> usize {
         self.mr
     }

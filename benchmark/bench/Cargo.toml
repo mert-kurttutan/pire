@@ -21,6 +21,7 @@ half = { version = "2.4.1", features = ["rand_distr", "num-traits"] }
 
 [dev-dependencies]
 criterion = "0.5"
+num-traits = "0.2.19"
 
 [[bench]]
 name = "bench"

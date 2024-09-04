@@ -29,6 +29,7 @@ use glare_base::{
    CpuFeatures,
    HWConfig,
    Array,
+   PoolSize,
    ArrayMut,
     PArray,
     PArrayMixed,
@@ -36,7 +37,7 @@ use glare_base::{
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
+    get_apbp_barrier,
     extend, acquire,
     PACK_POOL,
     GemmPool,
@@ -246,11 +247,7 @@ impl<F: MyFn> F16Dispatcher<F>{
 
 }
 
-impl<
-T: MyFn,
-AP, BP,
-> GemmCache<AP,BP> for F32Dispatcher<T> {
-    // const CACHELINE_PAD: usize = 256;
+impl<T: MyFn> GemmCache for F32Dispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -275,11 +272,7 @@ AP, BP,
 }
 
 
-impl<
-T: MyFn,
-AP, BP,
-> GemmCache<AP,BP> for F16Dispatcher<T> {
-    // const CACHELINE_PAD: usize = 256;
+impl<T: MyFn> GemmCache for F16Dispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }

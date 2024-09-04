@@ -7,13 +7,14 @@ use glare_base::{
     GlarePar, GlareThreadConfig,
    HWConfig,
    Array,
+   PoolSize,
    ArrayMut,
     PArray,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
-    get_ap_bp, get_apbp_barrier,
+    get_apbp_barrier,
     extend, acquire,
     PACK_POOL,
     GemmPool,
@@ -122,15 +123,11 @@ impl<F: MyFn> RefGemm<F> {
     }
 
     pub(crate) fn round_up(&self, k: usize) -> usize {
-        (k + 1) / 2 * 2
+        k
     }
 }
 
-impl<
-T: MyFn,
-AP, BP,
-> GemmCache<AP,BP> for RefGemm<T> {
-    // const CACHELINE_PAD: usize = 256;
+impl<T: MyFn> GemmCache for RefGemm<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -162,7 +159,7 @@ unsafe fn kernel<F:MyFn>(
     c: *mut i32,
     c_rs: usize, c_cs: usize,
     ap: *const i16, bp: *const i16,
-    _kc_last: bool, _kc_first: bool,
+    kc_last: bool, _kc_first: bool,
 ) {
     let mut i = 0;
     let mut acc = vec![0_i32; hw_cfg.mr * hw_cfg.nr];
@@ -194,7 +191,9 @@ unsafe fn kernel<F:MyFn>(
                 while jj < nr_eff {
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
                     *c_cur = ((*c_cur as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
-                    hw_cfg.func.call(c_cur, 1);
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0;
                     jj += 1;
                 }

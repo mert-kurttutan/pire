@@ -205,12 +205,13 @@ pub unsafe fn packa_i8(
 				let mc_len = if m >= (i + mc) {mc} else {m - i};
 				let mc_len_eff = (mc_len + vs-1) / vs * vs;
 				let a_cur = a.add(i*a_rs+p*a_cs);
-				if has_i8i32_compute() {
+				let kc_len_eff = if has_i8i32_compute() {
 					hw_config.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
+					hw_config.round_up(kc_len)
 				} else {
 					hw_config_ref.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
-				}
-				let kc_len_eff = (kc_len + 3) / 4 * 4;
+					hw_config_ref.round_up(kc_len)
+				};
 				ap = ap.add(mc_len_eff*kc_len_eff);	
 			}
 		}
@@ -243,14 +244,15 @@ pub unsafe fn packb_u8(
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {
 				let nc_len = if n >= (i + nc) {nc} else {n - i};
-				let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
+				let nc_len_eff = nc_len;
 				let b_cur = b.add(i*b_cs+p*b_rs);
-				if has_i8i32_compute() {
+				let kc_len_eff = if has_i8i32_compute() {
 					hw_config.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
+					hw_config.round_up(kc_len)
 				} else {
 					hw_config_ref.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
-				}
-				let kc_len_eff = (kc_len + 3) / 4 * 4;
+					hw_config_ref.round_up(kc_len)
+				};
 				bp = bp.add(nc_len_eff*kc_len_eff);	
 			}
 		}

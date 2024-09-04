@@ -1,5 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::time::Duration;
+use num_traits::identities::{
+    ConstOne,
+    ConstZero,
+};
 
 #[cfg(feature="blis")]
 use glare_dev::BLIS_NO_TRANSPOSE;
@@ -127,9 +131,13 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement,TA:AS, TB:'stati
 
 }
 
-type TA = Complex<f32>;
-type TB = Complex<f32>;
-type TC = Complex<f32>;
+// type TA = Complex<f32>;
+// type TB = Complex<f32>;
+// type TC = Complex<f32>;
+
+type TA = f32;
+type TB = f32;
+type TC = f32;
 
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
