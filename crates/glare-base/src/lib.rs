@@ -376,8 +376,8 @@ impl GlarePar {
    #[inline(always)]
    pub fn default() -> Self {
        let num_threads = glare_num_threads();
-    //    Self::from_num_threads(num_threads)
-    Self::new(30, 3, 1, 5, 2, 1)
+       Self::from_num_threads(num_threads)
+    // Self::new(30, 3, 1, 5, 2, 1)
    }
    #[inline]
    fn get_ic_id(&self, t_id: usize) -> usize {
@@ -692,8 +692,6 @@ impl<'a,T,U> StridedMatrixP<'a,T,U> {
 #[derive(Clone, Copy)]
 pub struct PackedMatrix<T> {
     pub(crate) data_ptr : *const T,
-    pub(crate) mc: usize,
-    pub(crate) kc: usize,
     pub(crate) k: usize,
     pub(crate) m: usize,
 }
@@ -717,8 +715,6 @@ impl<T> PackedMatrix<T> {
 pub struct PackedMatrixMixed<'a,X,Y> {
     pub(crate) data_ptr : *const X,
     pub(crate) data_p_ptr: Arc<RwLock<&'a mut [Y]>>,
-    pub(crate) mc: usize,
-    pub(crate) kc: usize,
     pub(crate) k: usize,
     pub(crate) m: usize,
 }
@@ -779,11 +775,9 @@ impl<X> Array<X> {
     pub fn strided_matrix(data_ptr: *const X, rs: usize, cs: usize) -> Self {
         Array::StridedMatrix(StridedMatrix::new(data_ptr, rs, cs))
     }
-    pub fn packed_matrix(data_ptr: *const X, mc: usize, kc: usize, m: usize, k: usize) -> Self {
+    pub fn packed_matrix(data_ptr: *const X, m: usize, k: usize) -> Self {
         Array::PackedMatrix(PackedMatrix {
             data_ptr,
-            mc,
-            kc,
             k,
             m,
         })
@@ -797,8 +791,6 @@ impl<X> Array<X> {
             Array::PackedMatrix(x) => {
                 let x = PackedMatrix {
                     data_ptr: x.data_ptr,
-                    mc: x.mc,
-                    kc: x.kc,
                     k: x.k,
                     m: x.m,
                 };
@@ -816,8 +808,6 @@ impl<X> Array<X> {
                 let x = PackedMatrixMixed {
                     data_ptr: x.data_ptr,
                     data_p_ptr: a[p_id].clone(),
-                    mc: x.mc,
-                    kc: x.kc,
                     k: x.k,
                     m: x.m,
                 };

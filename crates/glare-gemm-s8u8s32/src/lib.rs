@@ -215,7 +215,7 @@ pub unsafe fn packa_i8(
 				ap = ap.add(mc_len_eff*kc_len_eff);	
 			}
 		}
-		return Array::packed_matrix(ap0, mc, kc, m, k);
+		return Array::packed_matrix(ap0, m, k);
 	}
 }
 
@@ -256,7 +256,7 @@ pub unsafe fn packb_u8(
 				bp = bp.add(nc_len_eff*kc_len_eff);	
 			}
 		}
-		return Array::packed_matrix(bp0, nc, kc, n, k);
+		return Array::packed_matrix(bp0, n, k);
 	}
 
 }

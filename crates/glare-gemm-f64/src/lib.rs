@@ -212,7 +212,7 @@ pub unsafe fn packa_f64(
 				ap = ap.add(mc_len_eff*kc_len);	
 			}
 		}
-		return Array::packed_matrix(ap0, mc, kc, m, k);
+		return Array::packed_matrix(ap0, m, k);
 	}
 }
 
@@ -251,7 +251,7 @@ pub unsafe fn packb_f64(
 				bp = bp.add(nc_len_eff*kc_len);	
 			}
 		}
-		return Array::packed_matrix(bp0, nc, kc, n, k);
+		return Array::packed_matrix(bp0, n, k);
 	}
 
 }
