@@ -4,30 +4,31 @@ pub(crate) mod avx_microkernel;
 pub(crate) mod pack_avx;
 
 
-use glare_base::split_c_range;
-use glare_base::split_range;
-
-use glare_base::def_glare_gemm;
-use glare_base::is_mixed;
-
 use glare_base::{
     GlarePar, GlareThreadConfig,
-   CpuFeatures,
-   HWConfig,
-   HWModel,
-   Array,
-   PoolSize,
-   ArrayMut,
+    HWConfig,
+    Array,
+    ArrayMut,
     PArray,
+    PoolSize,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
     get_apbp_barrier,
     extend, acquire,
+    split_c_range,
+    split_range,
+    def_glare_gemm,
+    def_pa,
+    is_mixed,
+    PtrData,
     PACK_POOL,
     GemmPool,
+    CpuFeatures,
 };
+
+use glare_base::HWModel;
 
 
 use crate::{
@@ -265,12 +266,10 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-type F64Pack = PArray<f64>;
-
 def_glare_gemm!(
     X86_64dispatcher,
     f64,f64,f64,f64,f64,f64,f64,
-    F64Pack, F64Pack,
+    PackArrTypeA, PackArrTypeB,
     1_f64,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,

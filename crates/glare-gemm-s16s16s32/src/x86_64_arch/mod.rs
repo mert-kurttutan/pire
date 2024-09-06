@@ -10,27 +10,28 @@ const AVX512F_GOTO_NR: usize = 8; // register block size
 
 const VS: usize = 8; // vector size in float, __m256
 
-use glare_base::split_c_range;
-use glare_base::split_range;
-use glare_base::def_glare_gemm;
-use glare_base::is_mixed;
-
 use glare_base::{
     GlarePar, GlareThreadConfig,
-   CpuFeatures,
-   HWConfig,
-   Array,
-   PoolSize,
-   ArrayMut,
+    HWConfig,
+    Array,
+    ArrayMut,
     PArray,
+    PoolSize,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
     get_apbp_barrier,
     extend, acquire,
+    split_c_range,
+    split_range,
+    def_glare_gemm,
+    def_pa,
+    is_mixed,
+    PtrData,
     PACK_POOL,
     GemmPool,
+    CpuFeatures,
 };
 
 use crate::{
@@ -216,11 +217,10 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-type I16Pack = PArray<i16>;
 def_glare_gemm!(
     X86_64dispatcher,
     i16,i16,i16,i16,i32,f32,f32,
-    I16Pack, I16Pack,
+    PackArrTypeA, PackArrTypeB,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,

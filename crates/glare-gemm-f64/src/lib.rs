@@ -297,7 +297,7 @@ mod tests {
 					let a_matrix = if is_a_packed {
 						unsafe {packa_f64(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
 					} else {
-						unsafe{Array::strided_matrix(a.as_ptr(), a_rs, a_cs)}
+						Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
 					};
 					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
 					let mut bp = vec![0_f64; bp_size];
@@ -306,15 +306,13 @@ mod tests {
 					let b_matrix = if is_b_packed {
 						unsafe {packb_f64(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
 					} else {
-						unsafe {Array::strided_matrix(b.as_ptr(), b_rs, b_cs)}
+						Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
 					};
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
                         	random_matrix_uniform(m, n, &mut c, m);
                         	c_ref.copy_from_slice(&c);
-							let c_matrix = unsafe{
-								ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs)
-							};
+							let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                         	unsafe {
                             	glare_dgemm_generic(
                                 	m, n, k,

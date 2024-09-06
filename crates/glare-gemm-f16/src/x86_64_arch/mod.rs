@@ -18,29 +18,29 @@ const AVX512_F16_GOTO_MR: usize = 64; // register block size
 const AVX512_F16_GOTO_NR: usize = 15; // register block size
 
 
-use glare_base::split_c_range;
-use glare_base::split_range;
-
-use glare_base::def_glare_gemm;
-use glare_base::is_mixed;
-
 use glare_base::{
     GlarePar, GlareThreadConfig,
-   CpuFeatures,
-   HWConfig,
-   Array,
-   PoolSize,
-   ArrayMut,
-    PArray,
-    PArrayMixed,
+    HWConfig,
+    Array,
+    ArrayMut,
+    PoolSize,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
     get_apbp_barrier,
     extend, acquire,
+    split_c_range,
+    split_range,
+    def_glare_gemm,
+    def_pa,
+    is_mixed,
     PACK_POOL,
     GemmPool,
+    CpuFeatures,
+    PtrData,
+    PArray,
+    PArrayMixed,
 };
 
 
@@ -377,12 +377,12 @@ unsafe fn glare_gemv<F:MyFn>(
         return;
     }
 }
-type F16Pack = PArrayMixed<f16,f32>;
+// type F16Pack = PArrayMixed<f16,f32>;
 
 def_glare_gemm!(
     F32Dispatcher,
     f16,f32,f16,f32,f16,f32,f32,
-    F16Pack, F16Pack,
+    PackArrTypeAM, PackArrTypeBM,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,
@@ -473,12 +473,12 @@ unsafe fn glare_gemv_native<F:MyFn>(
 }
 
 
-type F16Pack0 = PArray<f16>;
+// type F16Pack0<'a> = PArray<'a,f16>;
 
 def_glare_gemm!(
     F16Dispatcher,
     f16,f16,f16,f16,f16,f16,f16,
-    F16Pack0, F16Pack0,
+    PackArrTypeA, PackArrTypeB,
     f16::ONE,
     glare_gemm_native, gemm_mt_native,
     gemm_goto_serial_native, kernel_native,

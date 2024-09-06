@@ -1,21 +1,22 @@
-use glare_base::split_c_range;
-use glare_base::split_range;
-use glare_base::def_glare_gemm;
-use glare_base::is_mixed;
-
 use glare_base::{
     GlarePar, GlareThreadConfig,
-   HWConfig,
-   Array,
-   ArrayMut,
+    HWConfig,
+    Array,
+    ArrayMut,
     PArray,
     PoolSize,
+    PtrData,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
     run_small_m, run_small_n,
     get_apbp_barrier,
     extend, acquire,
+    split_c_range,
+    split_range,
+    def_glare_gemm,
+    def_pa,
+    is_mixed,
     PACK_POOL,
     GemmPool,
 };
@@ -264,12 +265,11 @@ unsafe fn glare_gemv<F:MyFn>(
     }
 }
 
-type F32Pack = PArray<TA>;
 
 def_glare_gemm!(
     RefGemm,
     f32,f32,f32,f32,f32,f32,f32,
-    F32Pack, F32Pack,
+    PackArrTypeA, PackArrTypeB,
     1_f32,
     glare_gemm, gemm_mt,
     gemm_goto_serial, kernel,

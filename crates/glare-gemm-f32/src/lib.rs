@@ -291,7 +291,7 @@ mod tests {
 					let a_matrix = if is_a_packed {
 						unsafe {packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
 					} else {
-						unsafe{Array::strided_matrix(a.as_ptr(), a_rs, a_cs)}
+						Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
 					};
 					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
 					let mut bp = vec![0_f32; bp_size];
@@ -300,7 +300,7 @@ mod tests {
 					let b_matrix = if is_b_packed {
 						unsafe {packb_f32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
 					} else {
-						unsafe {Array::strided_matrix(b.as_ptr(), b_rs, b_cs)}
+						Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
 					};
                 	for alpha in ALPHA_ARR {
                     	for beta in ALPHA_ARR {
