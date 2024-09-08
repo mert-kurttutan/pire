@@ -199,7 +199,7 @@ pub(crate) unsafe fn pack_kx24_v1(
     let ap0 = ap;
     const MR: usize = 24;
     while k_i < k8 {
-        let a = a0.add(k_i*lda);
+        let a = a0.add(k_i);
         let ap = ap0.add(k_i*MR);
         pack_t::<MR>(a, lda, ap);
         pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
@@ -209,7 +209,7 @@ pub(crate) unsafe fn pack_kx24_v1(
     }
 
     while k_i < k {
-        let a = a0.add(k_i*lda);
+        let a = a0.add(k_i);
         let ap = ap0.add(k_i*MR);
         seq!(i in 0..24 {
             *ap.add(i) = *a.add(i*lda);

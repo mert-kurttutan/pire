@@ -202,7 +202,7 @@ pub(crate) unsafe fn pack_kx12_v0(
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
-    const MR: usize = 8;
+    const MR: usize = 12;
     let mut a = a;
     let mut ap = ap;
     let a0 = a;
