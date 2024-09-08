@@ -149,7 +149,7 @@ macro_rules! def_kernel_bb {
                     let mut bp_cur = bp;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, f);
                         n_iter -= 1;
                         bp_cur = bp_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
@@ -170,7 +170,7 @@ macro_rules! def_kernel_bb {
                         let mut bp_cur = bp;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_iter -= 1;
                             bp_cur = bp_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);
@@ -217,7 +217,7 @@ macro_rules! def_kernel_bs {
                     let mut b_cur = b;
                     let mut c_cur1 = c_cur0;
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, NR, f);
+                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, f);
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*b_cs);
                         c_cur1 = c_cur1.add(NR*c_cs);
@@ -236,7 +236,7 @@ macro_rules! def_kernel_bs {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             // [<ukernel_$mr_left x $NR _bs>]::<_, true>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, NR, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*b_cs);
@@ -288,7 +288,7 @@ macro_rules! def_kernel_sb {
                     let mut c_cur1 = c_cur0;
                     packa_panel_4(MR, k, a_cur, a_rs, a_cs, ap_cur, VS);
                     while n_iter > 0 {
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, NR, f);                        
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, f);                        
                         n_iter -= 1;
                         b_cur = b_cur.add(NR*k);
                         c_cur1 = c_cur1.add(NR*c_cs);
@@ -308,7 +308,7 @@ macro_rules! def_kernel_sb {
                         let mut b_cur = b;
                         let mut c_cur1 = c_cur0;
                         while n_iter > 0 {
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, NR, f);
+                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_iter -= 1;
                             b_cur = b_cur.add(NR*k);
                             c_cur1 = c_cur1.add(NR*c_cs);

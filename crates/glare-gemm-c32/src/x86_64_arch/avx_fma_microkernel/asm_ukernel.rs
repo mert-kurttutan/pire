@@ -550,10 +550,9 @@ macro_rules! def_ukernel {
     	pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
         	a: *const TA, b: *const TB, c: *mut TC,
         	alpha: *const TA, 
-			// beta: *const TB,
         	k: usize,
 			ld_arr: [usize; 4],
-			m: usize, _n: usize,
+			m: usize,
 			f: F,
     	) {
 			mask_ptr!($is_partial, m, x);

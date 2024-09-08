@@ -505,7 +505,7 @@ macro_rules! def_ukernel {
 			// beta: *const TB,
         	k: usize,
 			ld_arr: [usize; 4],
-			m: usize, _n: usize,
+			m: usize,
 			f: F,
     	) {
 			mask_ptr!($is_partial, m, x);
