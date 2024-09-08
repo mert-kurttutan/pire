@@ -26,6 +26,8 @@ use glare_base::{
 	get_cache_params,
 	has_f32_compute,
 	has_f16_compute,
+	ap_size,
+	bp_size,
 };
 
 use reference::RefGemm;
@@ -248,6 +250,33 @@ pub unsafe fn packb_f16(
 	}
 }
 
+pub unsafe fn packa_f16_with_ref(
+	m: usize, k: usize,
+	a: &[TA],
+	a_rs: usize, a_cs: usize,
+	ap: &mut [TA],
+) -> Array<TA> {
+	let pack_size = ap_size::<TA>(m, k);
+	let ap_align_offset = ap.as_ptr().align_offset(glare_base::AB_ALIGN);
+	// safety check
+	assert!(ap.len() >= pack_size);
+	let ap = &mut ap[ap_align_offset..];
+	unsafe {packa_f16(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr())}
+}
+
+pub unsafe fn packb_f16_with_ref(
+	n: usize, k: usize,
+	b: &[TB],
+	b_rs: usize, b_cs: usize,
+	bp: &mut [TB],
+) -> Array<TB> {
+	let pack_size = bp_size::<TB>(n, k);
+	let bp_align_offset = bp.as_ptr().align_offset(glare_base::AB_ALIGN);
+	// safety check
+	assert!(bp.len() >= pack_size);
+	let bp = &mut bp[bp_align_offset..];
+	unsafe {packb_f16(n, k, b.as_ptr(), b_rs, b_cs, bp.as_mut_ptr())}
+}
 
 
 
@@ -285,21 +314,21 @@ mod tests {
                 	let mut b = vec![f16::ZERO; k * n];
 					random_matrix_uniform(m, k, &mut a, m);
 					random_matrix_uniform(k, n, &mut b, k);
-					let ap_size = if is_a_packed { (m+100)*k+512 } else {1024};
-					let mut ap = vec![f16::ZERO; ap_size];
-					let ap_offset = ap.as_ptr().align_offset(512);
-					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
+					let ap_size = if is_a_packed { ap_size::<TA>(m, k) } else {0};
+					let mut ap = vec![TA::ZERO; ap_size];
 					let a_matrix = if is_a_packed {
-						unsafe {packa_f16(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
+						unsafe {
+							packa_f16_with_ref(m, k, &a, a_rs, a_cs, &mut ap)
+						}
 					} else {
 						Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
 					};
-					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
-					let mut bp = vec![f16::ZERO; bp_size];
-					let bp_offset = bp.as_ptr().align_offset(512);
-					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
+					let bp_size = if is_b_packed { bp_size::<TB>(n, k) } else {0};
+					let mut bp = vec![TB::ZERO; bp_size];
 					let b_matrix = if is_b_packed {
-						unsafe {packb_f16(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
+						unsafe {
+							packb_f16_with_ref(n, k, &b, b_rs, b_cs, &mut bp)
+						}
 					} else {
 						Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
 					};

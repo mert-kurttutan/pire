@@ -15,8 +15,8 @@ pub(crate) unsafe fn pack_scalar_k(
 ) {
     let mr = (m_left + vs - 1) / vs * vs;
     let k4 = k / 4 * 4;
-    // let kp4 = (k+3) / 4 * 4;
     let kl = k % 4;
+    let kl_4 = if kl == 0 { 0 } else { 4 };
     for i in 0..m_left  {
         let mut j = 0;
         while j < k4 {
@@ -31,7 +31,7 @@ pub(crate) unsafe fn pack_scalar_k(
             *ap.add(j*mr+i*4+jl) = *a.add((j+jl)*a_cs + i*a_rs);
             jl += 1;
         }
-        while jl < 4 {
+        while jl < kl_4 {
             *ap.add(j*mr+i*4+jl) = 0;
             jl += 1;
         }

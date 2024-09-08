@@ -45,6 +45,8 @@ use glare_base::{
 	RUNTIME_HW_CONFIG,
 	get_cache_params,
 	has_f32_compute,
+	ap_size,
+	bp_size,
 };
 
 #[inline(always)]
@@ -175,14 +177,13 @@ pub unsafe fn packa_c32(
 	a_rs: usize, a_cs: usize,
 	ap: *mut TA,
 ) -> Array<TA> {
-	let align_offset = ap.align_offset(256);
-	let mut ap = ap.add(align_offset);
-	let ap0 = ap;
+	assert_eq!(ap.align_offset(glare_base::AB_ALIGN), 0);
+	let mut ap = ap;
 	if m == 1 {
 		for j in 0..k {
 			*ap.add(j) = *a.add(j*a_cs);
 		}
-		return Array::strided_matrix(ap0, 1, m);
+		return Array::strided_matrix(ap, 1, m);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
@@ -192,6 +193,7 @@ pub unsafe fn packa_c32(
 
 	#[cfg(target_arch = "x86_64")]
 	{
+		let ap0 = ap;
 		let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
@@ -217,14 +219,13 @@ pub unsafe fn packb_c32(
 	b_rs: usize, b_cs: usize,
 	bp: *mut TB,
 ) -> Array<TB> {
-	let align_offset = bp.align_offset(512);
-	let mut bp = bp.add(align_offset);
-	let bp0 = bp;
+	assert_eq!(bp.align_offset(glare_base::AB_ALIGN), 0);
+	let mut bp = bp;
 	if n == 1 {
 		for j in 0..k {
 			*bp.add(j) = *b.add(j*b_rs);
 		}
-		return Array::strided_matrix(bp0, 1, k);
+		return Array::strided_matrix(bp, 1, k);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
@@ -232,11 +233,12 @@ pub unsafe fn packb_c32(
 
 	#[cfg(target_arch = "x86_64")]
 	{
+		let bp0 = bp;
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {
 				let nc_len = if n >= (i + nc) {nc} else {n - i};
-				let nc_len_eff = nc_len; // (nc_len + nr-1) / nr * nr;
+				let nc_len_eff = nc_len;
 				let b_cur = b.add(i*b_cs+p*b_rs);
 				if has_f32_compute() {
 					hw_config.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
@@ -249,6 +251,34 @@ pub unsafe fn packb_c32(
 		return Array::packed_matrix(bp0, n, k);
 	}
 
+}
+
+pub unsafe fn packa_c32_with_ref(
+	m: usize, k: usize,
+	a: &[TA],
+	a_rs: usize, a_cs: usize,
+	ap: &mut [TA],
+) -> Array<TA> {
+	let pack_size = ap_size::<TA>(m, k);
+	let ap_align_offset = ap.as_ptr().align_offset(glare_base::AB_ALIGN);
+	// safety check
+	assert!(ap.len() >= pack_size);
+	let ap = &mut ap[ap_align_offset..];
+	unsafe {packa_c32(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr())}
+}
+
+pub unsafe fn packb_c32_with_ref(
+	n: usize, k: usize,
+	b: &[TB],
+	b_rs: usize, b_cs: usize,
+	bp: &mut [TB],
+) -> Array<TB> {
+	let pack_size = bp_size::<TB>(n, k);
+	let bp_align_offset = bp.as_ptr().align_offset(glare_base::AB_ALIGN);
+	// safety check
+	assert!(bp.len() >= pack_size);
+	let bp = &mut bp[bp_align_offset..];
+	unsafe {packb_c32(n, k, b.as_ptr(), b_rs, b_cs, bp.as_mut_ptr())}
 }
 
 
@@ -286,21 +316,21 @@ mod tests {
                 	let mut b = vec![TB::ZERO; k * n];
 					random_matrix_uniform(m, k, &mut a, m);
 					random_matrix_uniform(k, n, &mut b, k);
-					let ap_size = if is_a_packed { (m+100)*k+512 } else {1024};
+					let ap_size = if is_a_packed { ap_size::<TA>(m, k) } else {0};
 					let mut ap = vec![TA::ZERO; ap_size];
-					let ap_offset = ap.as_ptr().align_offset(512);
-					let ap_mut_ptr = unsafe {ap.as_mut_ptr().add(ap_offset)};
 					let a_matrix = if is_a_packed {
-						unsafe {packa_c32(m, k, a.as_ptr(), a_rs, a_cs, ap_mut_ptr)}
+						unsafe {
+							packa_c32_with_ref(m, k, &a, a_rs, a_cs, &mut ap)
+						}
 					} else {
 						Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
 					};
-					let bp_size = if is_b_packed { (n+100)*k+512 } else {1024};
+					let bp_size = if is_b_packed { bp_size::<TB>(n, k) } else {0};
 					let mut bp = vec![TB::ZERO; bp_size];
-					let bp_offset = bp.as_ptr().align_offset(512);
-					let bp_mut_ptr = unsafe {bp.as_mut_ptr().add(bp_offset)};
 					let b_matrix = if is_b_packed {
-						unsafe {packb_c32(n, k, b.as_ptr(), b_rs, b_cs, bp_mut_ptr)}
+						unsafe {
+							packb_c32_with_ref(n, k, &b, b_rs, b_cs, &mut bp)
+						}
 					} else {
 						Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
 					};

@@ -376,8 +376,8 @@ impl GlarePar {
    #[inline(always)]
    pub fn default() -> Self {
        let num_threads = glare_num_threads();
-       Self::from_num_threads(num_threads)
-    // Self::new(30, 3, 1, 5, 2, 1)
+    //    Self::from_num_threads(num_threads)
+    Self::new(30, 3, 1, 5, 2, 1)
    }
    #[inline]
    fn get_ic_id(&self, t_id: usize) -> usize {
@@ -621,6 +621,37 @@ pub enum GemmPool {
     SmallN,
 }
 
+pub fn ap_size<T>(
+	m: usize, k: usize,
+) -> usize {
+	let vs = 64 / std::mem::size_of::<T>();
+	let m_max = (m + vs - 1) / vs * vs;
+	m_max*k + AB_ALIGN / std::mem::size_of::<T>()
+}
+
+pub fn bp_size<T>(
+	n: usize, k: usize,
+) -> usize {
+	n*k + AB_ALIGN / std::mem::size_of::<T>()
+}
+
+pub fn ap_size_int<T,P>(
+	m: usize, k: usize,
+) -> usize {
+	let vs = 64 / std::mem::size_of::<T>();
+    let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
+    let k_r = (k + c_r - 1) / c_r * c_r;
+	let m_max = (m + vs - 1) / vs * vs;
+	m_max*k_r + AB_ALIGN / std::mem::size_of::<T>()
+}
+
+pub fn bp_size_int<T,P>(
+	n: usize, k: usize,
+) -> usize {
+    let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
+    let k_r = (k + c_r - 1) / c_r * c_r;
+	n*k_r + AB_ALIGN / std::mem::size_of::<T>()
+}
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrix<T> {
@@ -741,7 +772,9 @@ impl<'a,X,Y> PackedMatrixMixed<'a,X,Y> {
 
 unsafe impl<X,Y> Send for PackedMatrixMixed<'_,X,Y> {}
 
-const AB_ALIGN: usize = 1024;
+// must be multiple largest vector size that we support
+// Now, it avx512 -> 64 bytes
+pub const AB_ALIGN: usize = 1024;
 
 pub trait GemmCache {
     fn mr(&self) -> usize;
