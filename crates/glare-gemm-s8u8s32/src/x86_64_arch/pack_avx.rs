@@ -253,36 +253,36 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
+    let k8 = k / 8 * 8;
+    let k4 = k / 4 * 4;
     let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..2 {
             interleave::<M>(a.add(lda*4*i), ap.add(MR*4*i), lda);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
+        k_i += 8;
     }
 
-    k_i = 0;
-
-    while k_i < k_left / 4 {
+    while k_i < k4 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         interleave::<M>(a, ap, lda);
-        ap = ap.add(MR*4);
-        a = a.add(lda*4);
-        k_i += 1;
+        k_i += 4;
     }
 
-    let kl = k_left % 4;
+    let kl = k % 4;
     if kl != 0 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         interleave_left::<M>(a, ap, kl, lda);
     }
 }
@@ -290,43 +290,43 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
+    let k8 = k / 8 * 8;
+    let k4 = k / 4 * 4;
     let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..2 {
             interleave_t::<M>(a.add(4*i), ap.add(MR*4*i), lda);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8);
-
-        k_i += 1;
+        k_i += 8;
     }
 
-    k_i = 0;
-
-    while k_i < k_left / 4 {
+    while k_i < k4 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         interleave_t::<M>(a, ap, lda);
-        ap = ap.add(MR*4);
-        a = a.add(4);
-        k_i += 1;
+        k_i += 4;
     }
 
-    let kl = k_left % 4;
+    let kl = k % 4;
     if kl != 0 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         interleave_left_t::<M>(a, ap, kl, lda);
     }
 }
 
 // #[target_feature(enable = "avx,avx2")]
 // pub(crate) unsafe fn pack_kx16_v0(
-//     k_iter: usize, k_left: usize,
+//     k: usize,
 //     a: *const TA, lda: usize,
 //     ap: *mut TA,
 // ) {
@@ -334,7 +334,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 //     let mut a = a;
 //     let mut ap = ap;
 //     const MR: usize = 16;
-//     while k_i < k_iter {
+//     while k_i < k8 {
 //         // use vector intrinscs
 //         seq!(i in 0..4 {
 //             let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
@@ -382,7 +382,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 
 // #[target_feature(enable = "avx,avx2")]
 // pub(crate) unsafe fn pack_kx16_v1(
-//     k_iter: usize, k_left: usize,
+//     k: usize,
 //     a: *const TA, lda: usize,
 //     ap: *mut TA,
 // ) {
@@ -390,7 +390,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 //     let mut a = a;
 //     let mut ap = ap;
 //     const MR: usize = 16;
-//     while k_i < k_iter {
+//     while k_i < k8 {
 //         // pack_t::<MR>(a, lda, ap);
 //         // pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
 
@@ -422,43 +422,43 @@ macro_rules! def_packb {
                 b: *const TB, b_rs: usize, b_cs: usize,
                 bp: *mut TB,
             ) {
-                let b = b as *const TA;
-                let bp = bp as *mut TA;
                 let k_eff = (k+3) / 4 * 4;
-                let k_iter = k / 8;
-                let k_left = k % 8;
-                let mut bp = bp;
-                let mut b = b;
+                let bp0 = bp as *mut i8;
+                let b0 = b as *const i8;
                 const NR: usize = $nr;
-                const NR_LAST_STEP: usize = $nr;
+                let n_rounded = n / NR * NR;
                 let mut n_idx = 0;
                 if b_rs == 1 {
                     let ldb = b_cs;
-                    while n_idx + NR_LAST_STEP <= n {
-                        pack_k_v0::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                    while n_idx < n_rounded {
+                        let b = b0.add(n_idx);
+                        let bp = bp0.add(n_idx*k_eff);
+                        pack_k_v0::<NR,NR>(k, b, ldb, bp);
                         n_idx += NR;
-                        bp = bp.add(k_eff*NR);
-                        b = b.add(NR);
                     }
                     let n_left = n - n_idx;
                     seq!(NL in 1..$nr {
                         if n_left == NL {
-                            pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                            let b = b0.add(n_idx);
+                            let bp = bp0.add(n_idx*k_eff);
+                            pack_k_v0::<NL,NL>(k, b, ldb, bp);
                             return;
                         }
                     });
                 } else if b_cs == 1 {
                     let ldb = b_rs;
-                    while n_idx + NR_LAST_STEP <= n {
-                        pack_k_v1::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                    while n_idx < n_rounded {
+                        let b = b0.add(n_idx*ldb);
+                        let bp = bp0.add(n_idx*k_eff);
+                        pack_k_v1::<NR,NR>(k, b, ldb, bp);
                         n_idx += NR;
-                        bp = bp.add(k_eff*NR);
-                        b =  b.add(NR*ldb);
                     }
                     let n_left = n - n_idx;
                     seq!(NL in 1..$nr {
                         if n_left == NL {
-                            pack_k_v1::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                            let b = b0.add(n_idx*ldb);
+                            let bp = bp0.add(n_idx*k_eff);
+                            pack_k_v1::<NL,NL>(k, b, ldb, bp);
                             return;
                         }
                     });
@@ -476,49 +476,49 @@ macro_rules! def_packa {
         paste! {
             #[target_feature(enable = "avx,avx2")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
-                m_left: usize, k: usize,
+                m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
                 ap: *mut TA, vs: usize
             ) {
                 let k_eff = (k+3) / 4 * 4;
-                let mut ap = ap;
-                let mut a = a;
+                let ap0 = ap;
+                let a0 = a;
                 const MR: usize = $mr;
-                const MR_LAST_STEP: usize = $mr;
+                let m_rounded = m / MR * MR;
                 let mut m_idx = 0;
                 if a_rs == 1 {
                     let lda = a_cs;
-                    let k_iter = k / 8;
-                    let k_left = k % 8;
-                    while m_idx + MR_LAST_STEP <= m_left {
-                        pack_k_v0::<$mr,$mr>(k_iter, k_left, a, lda, ap);
+                    while m_idx < m_rounded {
+                        let a = a0.add(m_idx);
+                        let ap = ap0.add(m_idx*k_eff);
+                        pack_k_v0::<$mr,$mr>(k, a, lda, ap);
                         m_idx += MR;
-                        ap = ap.add(k_eff * MR);
-                        a = a.add(MR);
                     }
-                    let m_left = m_left - m_idx;
-                    pack_scalar_k(
-                        m_left, k,
-                        a, a_rs, a_cs,
-                        ap, vs
-                    );
+                    let m_left = m - m_idx;
+                    if m_left > 0 {
+                        pack_scalar_k(
+                            m_left, k,
+                            a0.add(m_idx), a_rs, a_cs,
+                            ap0.add(m_idx*k_eff), vs
+                        );
+                    }
 
                 } else if a_cs == 1 {
                     let lda = a_rs;
-                    let k_iter = k / 8;
-                    let k_left = k % 8;
-                    while m_idx + MR_LAST_STEP <= m_left {
-                        pack_k_v1::<$mr,$mr>(k_iter, k_left, a, lda, ap);
+                    while m_idx < m_rounded {
+                        let a = a0.add(m_idx*lda);
+                        let ap = ap0.add(m_idx*k_eff);
+                        pack_k_v1::<$mr,$mr>(k, a, lda, ap);
                         m_idx += MR;
-                        ap = ap.add(k_eff * MR);
-                        a = a.add(MR*lda);
                     }
-                    let m_left = m_left - m_idx;
-                    pack_scalar_k(
-                        m_left, k,
-                        a, a_rs, a_cs,
-                        ap, vs
-                    );
+                    let m_left = m - m_idx;
+                    if m_left > 0 {
+                        pack_scalar_k(
+                            m_left, k,
+                            a0.add(m_idx*lda), a_rs, a_cs,
+                            ap0.add(m_idx*k_eff), vs
+                        );
+                    }
                 }
             }
         }

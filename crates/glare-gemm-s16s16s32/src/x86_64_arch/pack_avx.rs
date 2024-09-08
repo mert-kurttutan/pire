@@ -350,35 +350,35 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
+    let k8 = k / 8 * 8;
+    let k2 = k / 2 * 2;
     let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..4 {
             interleave::<M>(a.add(lda*2*i), ap.add(MR*2*i), lda);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
+        k_i += 8;
     }
 
-    k_i = 0;
-
-    while k_i < k_left / 2 {
+    while k_i < k2 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         interleave::<M>(a, ap, lda);
-        ap = ap.add(MR*2);
-        a = a.add(lda*2);
-        k_i += 1;
+        k_i += 2;
     }
 
-    if k_left % 2 != 0 {
+    if k % 2 != 0 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         interleave_left::<M>(a, ap);
     }
 }
@@ -386,51 +386,55 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
+    let k8 = k / 8 * 8;
+    let k2 = k / 2 * 2;
     let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..4 {
             interleave_t::<M>(a.add(2*i), ap.add(MR*2*i), lda);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8);
-
-        k_i += 1;
+        k_i += 8;
     }
 
-    k_i = 0;
-
-    while k_i < k_left / 2 {
+    while k_i < k2 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         interleave_t::<M>(a, ap, lda);
-        ap = ap.add(MR*2);
-        a = a.add(2);
-        k_i += 1;
+
+        k_i += 2;
     }
 
-    if k_left % 2 != 0 {
+    if k % 2 != 0 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
         interleave_left_t::<M>(a, ap, lda);
     }
 }
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_kx16_v0(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
     const MR: usize = 16;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let k8 = k / 8 * 8;
+    let k2 = k / 2 * 2;
+    let mut k_i = 0;
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..4 {
             let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
             let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)) as *const __m256i);
@@ -442,13 +446,11 @@ pub(crate) unsafe fn pack_kx16_v0(
             _mm256_storeu_si256(ap.add(MR*2*i+16) as *mut __m256i, b0);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
+        k_i += 8;
     }
-    k_i = 0;
-    while k_i < k_left / 2 {
+    while k_i < k2 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         let a0 = _mm256_loadu_si256(a as *const __m256i);
         let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
         let t0 = _mm256_unpacklo_epi16(a0, b0);
@@ -458,11 +460,11 @@ pub(crate) unsafe fn pack_kx16_v0(
         _mm256_storeu_si256(ap as *mut __m256i, a0);
         _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
 
-        ap = ap.add(MR*2);
-        a = a.add(lda*2);
-        k_i += 1;
+        k_i += 2;
     }
-    if k_left % 2 != 0 {
+    if k % 2 != 0 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         let a0 = _mm256_loadu_si256(a as *const __m256i);
         let b0 = _mm256_setzero_si256();
         let t0 = _mm256_unpacklo_epi16(a0, b0);
@@ -478,16 +480,19 @@ pub(crate) unsafe fn pack_kx16_v0(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_kx32_v0(
-    k_iter: usize, k_left: usize,
+    k: usize,
     a: *const TA, lda: usize,
     ap: *mut TA,
 ) {
-    let mut k_i = 0;
-    let mut a = a;
-    let mut ap = ap;
     const MR: usize = 32;
-    while k_i < k_iter {
-        // use vector intrinscs
+    let k8 = k / 8 * 8;
+    let k2 = k / 2 * 2;
+    let mut k_i = 0;
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         seq!(i in 0..4 {
             let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
             let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)) as *const __m256i);
@@ -510,13 +515,11 @@ pub(crate) unsafe fn pack_kx32_v0(
             _mm256_storeu_si256(ap.add(MR*2*i+48) as *mut __m256i, b0);
         });
 
-        ap = ap.add(MR*8);
-        a = a.add(8*lda);
-
-        k_i += 1;
+        k_i += 8;
     }
-    k_i = 0;
-    while k_i < k_left / 2 {
+    while k_i < k2 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         let a0 = _mm256_loadu_si256(a as *const __m256i);
         let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
         let t0 = _mm256_unpacklo_epi16(a0, b0);
@@ -536,11 +539,11 @@ pub(crate) unsafe fn pack_kx32_v0(
         _mm256_storeu_si256(ap.add(32) as *mut __m256i, a0);
         _mm256_storeu_si256(ap.add(48) as *mut __m256i, b0);
 
-        ap = ap.add(MR*2);
-        a = a.add(lda*2);
-        k_i += 1;
+        k_i += 2;
     }
-    if k_left % 2 != 0 {
+    if k % 2 != 0 {
+        let a = a0.add(k_i*lda);
+        let ap = ap0.add(k_i*MR);
         let a0 = _mm256_loadu_si256(a as *const __m256i);
         let b0 = _mm256_setzero_si256();
         let t0 = _mm256_unpacklo_epi16(a0, b0);
@@ -565,7 +568,7 @@ pub(crate) unsafe fn pack_kx32_v0(
 
 // #[target_feature(enable = "avx,avx2")]
 // pub(crate) unsafe fn pack_kx16_v1(
-//     k_iter: usize, k_left: usize,
+//     k: usize,
 //     a: *const TA, lda: usize,
 //     ap: *mut TA,
 // ) {
@@ -573,7 +576,7 @@ pub(crate) unsafe fn pack_kx32_v0(
 //     let mut a = a;
 //     let mut ap = ap;
 //     const MR: usize = 16;
-//     while k_i < k_iter {
+//     while k_i < k8 {
 //         // pack_t::<MR>(a, lda, ap);
 //         // pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
 
@@ -582,7 +585,6 @@ pub(crate) unsafe fn pack_kx32_v0(
 //         k_i += 1;
 //     }
 
-//     k_i = 0;
 
 //     while k_i < k_left {
 //         seq!(i in 0..16 {
@@ -606,25 +608,24 @@ macro_rules! def_packb {
                 bp: *mut TB,
             ) {
                 let k_eff = (k+1) / 2 * 2;
-                let k_iter = k / 8;
-                let k_left = k % 8;
-                let mut bp = bp;
-                let mut b = b;
+                let bp0 = bp;
+                let b0 = b;
                 const NR: usize = $nr;
-                const NR_LAST_STEP: usize = $nr;
+                let n_rounded = n / NR * NR;
                 let mut n_idx = 0;
                 if b_rs == 1 {
                     let ldb = b_cs;
-                    while n_idx + NR_LAST_STEP <= n {
-                        pack_k_v0::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                    while n_idx < n_rounded {
+                        let b = b0.add(n_idx);
+                        let bp = bp0.add(n_idx*k_eff);
+                        pack_k_v0::<NR,NR>(k, b, ldb, bp);
                         n_idx += NR;
-                        bp = bp.add(k_eff*NR);
-                        b = b.add(NR);
                     }
                     let n_left = n - n_idx;
                     seq!(NL in 1..$nr {
                         if n_left == NL {
-                            // pack_k_v0::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                            let b = b0.add(n_idx);
+                            let bp = bp0.add(n_idx*k_eff);
                             pack_scalar_k(
                                 NL, k,
                                 b, b_rs, b_cs,
@@ -635,16 +636,17 @@ macro_rules! def_packb {
                     });
                 } else if b_cs == 1 {
                     let ldb = b_rs;
-                    while n_idx + NR_LAST_STEP <= n {
-                        pack_k_v1::<NR,NR>(k_iter, k_left, b, ldb, bp);
+                    while n_idx < n_rounded {
+                        let b = b0.add(n_idx*ldb);
+                        let bp = bp0.add(n_idx*k_eff);
+                        pack_k_v1::<NR,NR>(k, b, ldb, bp);
                         n_idx += NR;
-                        bp = bp.add(k_eff*NR);
-                        b =  b.add(NR*ldb);
                     }
                     let n_left = n - n_idx;
                     seq!(NL in 1..$nr {
                         if n_left == NL {
-                            // pack_k_v1::<NL,NL>(k_iter, k_left, b, ldb, bp);
+                            let b = b0.add(n_idx*ldb);
+                            let bp = bp0.add(n_idx*k_eff);
                             pack_scalar_k(
                                 NL, k,
                                 b, b_rs, b_cs,
@@ -669,50 +671,49 @@ macro_rules! def_packa {
         paste! {
             #[target_feature(enable = "avx,avx2")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
-                m_left: usize, k: usize,
+                m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
                 ap: *mut TA, vs: usize
             ) {
                 let k_eff = (k+1) / 2 * 2;
-                let mut ap = ap;
-                let mut a = a;
+                let ap0 = ap;
+                let a0 = a;
                 const MR: usize = $mr;
-                const MR_LAST_STEP: usize = $mr;
+                let m_rounded = m / MR * MR;
                 let mut m_idx = 0;
                 if a_rs == 1 {
                     let lda = a_cs;
-                    let k_iter = k / 8;
-                    let k_left = k % 8;
-                    while m_idx + MR_LAST_STEP <= m_left {
-                        [<pack_kx$mr _v0>](k_iter, k_left, a, lda, ap);
+                    while m_idx < m_rounded {
+                        let a = a0.add(m_idx);
+                        let ap = ap0.add(m_idx*k_eff);
+                        [<pack_kx$mr _v0>](k, a, lda, ap);
                         m_idx += MR;
-                        ap = ap.add(k_eff * MR);
-                        a = a.add(MR);
                     }
-                    let m_left = m_left - m_idx;
-                    pack_scalar_k(
-                        m_left, k,
-                        a, a_rs, a_cs,
-                        ap, vs
-                    );
+                    let m_left = m - m_idx;
+                    if m_left > 0 {
+                        pack_scalar_k(
+                            m_left, k,
+                            a0.add(m_idx), a_rs, a_cs,
+                            ap0.add(m_idx*k_eff), vs
+                        );
+                    }
 
                 } else if a_cs == 1 {
                     let lda = a_rs;
-                    let k_iter = k / 8;
-                    let k_left = k % 8;
-                    while m_idx + MR_LAST_STEP <= m_left {
-                        // [<pack_kx$mr _v1>](k_iter, k_left, a, lda, ap);
-                        pack_k_v1::<$mr,$mr>(k_iter, k_left, a, lda, ap);
+                    while m_idx < m_rounded {
+                        let a = a0.add(m_idx*lda);
+                        let ap = ap0.add(m_idx*k_eff);
+                        pack_k_v1::<$mr,$mr>(k, a, lda, ap);
                         m_idx += MR;
-                        ap = ap.add(k_eff * MR);
-                        a = a.add(MR*lda);
                     }
-                    let m_left = m_left - m_idx;
-                    pack_scalar_k(
-                        m_left, k,
-                        a, a_rs, a_cs,
-                        ap, vs
-                    );
+                    let m_left = m - m_idx;
+                    if m_left > 0 {
+                        pack_scalar_k(
+                            m_left, k,
+                            a0.add(m_idx*lda), a_rs, a_cs,
+                            ap0.add(m_idx*k_eff), vs
+                        );
+                    }
                 }
             }
         }
