@@ -113,26 +113,26 @@ impl HWModel {
 fn detect_hw_config() -> HWConfig {
     #[cfg(target_arch = "x86_64")]
     {
-        // let cpuid = raw_cpuid::CpuId::new();
-        // let feature_info = cpuid.get_feature_info().unwrap();
-        // let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
-        // let avx = feature_info.has_avx();
-        // let fma = feature_info.has_fma();
-        // let avx2 = extended_feature_info.has_avx2();
-        // let avx512f16 = extended_feature_info.has_avx512_fp16();
-        // let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        // let avx512f = extended_feature_info.has_avx512f();
-        // let f16c = feature_info.has_f16c();
-        // let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        // let fma4 = extended_prcoessor_info.has_fma4();
-        let avx = true;
-        let fma = true;
-        let avx2 = true;
-        let avx512f16 = false;
-        let avx512bf16 = true;
-        let avx512f = true;
-        let f16c = true;
-        let fma4 = true;
+        let cpuid = raw_cpuid::CpuId::new();
+        let feature_info = cpuid.get_feature_info().unwrap();
+        let extended_feature_info = cpuid.get_extended_feature_info().unwrap();
+        let avx = feature_info.has_avx();
+        let fma = feature_info.has_fma();
+        let avx2 = extended_feature_info.has_avx2();
+        let avx512f16 = extended_feature_info.has_avx512_fp16();
+        let avx512bf16 = extended_feature_info.has_avx512_bf16();
+        let avx512f = extended_feature_info.has_avx512f();
+        let f16c = feature_info.has_f16c();
+        let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+        let fma4 = extended_prcoessor_info.has_fma4();
+        // let avx = true;
+        // let fma = true;
+        // let avx2 = true;
+        // let avx512f16 = false;
+        // let avx512bf16 = true;
+        // let avx512f = true;
+        // let f16c = true;
+        // let fma4 = true;
         let cpu_ft = CpuFeatures {
             avx,
             avx2,
@@ -143,10 +143,10 @@ fn detect_hw_config() -> HWConfig {
             fma4,
             f16c,
         };
-        // let family_id = feature_info.family_id();
-        // let model_id = feature_info.model_id();
-        let family_id = 6;
-        let model_id = 78;
+        let family_id = feature_info.family_id();
+        let model_id = feature_info.model_id();
+        // let family_id = 6;
+        // let model_id = 78;
         let hw_model = HWModel::from_hw(family_id, model_id);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig {
