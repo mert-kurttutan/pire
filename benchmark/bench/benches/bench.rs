@@ -130,14 +130,22 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement,TA:AS, TB:'stati
     );
 
 }
+// type TA = Complex<f64>;
+// type TB = Complex<f64>;
+// type TC = Complex<f64>;
 
-// type TA = Complex<f32>;
-// type TB = Complex<f32>;
-// type TC = Complex<f32>;
+type TA = Complex<f32>;
+type TB = Complex<f32>;
+type TC = Complex<f32>;
 
-type TA = f32;
-type TB = f32;
-type TC = f32;
+// type TA = f32;
+// type TB = f32;
+// type TC = f32;
+
+
+// type TA = f64;
+// type TB = f64;
+// type TC = f64;
 
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
@@ -157,7 +165,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 320, 640, 960, 2048,
         // 2400, 3200, 4000, 4800, 
         // 5600, 6400, 
-        4800,
+        3600,
         // 7200, 8000,
     ];
     for dt in mnk_vec {

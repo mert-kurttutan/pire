@@ -21,11 +21,6 @@ macro_rules! beta_fmadd {
 			"vfmadd231ph %zmm1,%zmm0,%zmm", $r1, "\n",
         )
     };
-	(C, $m0:expr) => {
-		concat!(
-			"vfmadd231ph ", $m0, ",%zmm0,%zmm", 0, "\n",
-		) 
-	};
  }
 
 macro_rules! vzeroall {
@@ -1453,7 +1448,7 @@ macro_rules! def_ukernelxn {
 
 							// 6 -> BETAZERO
 							"6:",
-							cum_seq!($acc_macro,ni,$is_partial),
+							cum_seq!($store_macro,ni,$is_partial),
 							
 							// 7 -> DDONE
 							"7:",

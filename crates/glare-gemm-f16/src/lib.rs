@@ -57,7 +57,7 @@ fn get_mcnckc() -> (usize, usize, usize) {
 	if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
 		match (*RUNTIME_HW_CONFIG).hw_model {
 			_ => {
-				return (4800, 192, 512);
+				return (4800, 480, 512);
 			}
 		}
 	}
@@ -161,14 +161,13 @@ pub unsafe fn packa_f16(
 	a_rs: usize, a_cs: usize,
 	ap: *mut f16,
 ) -> Array<f16> {
-	let align_offset = ap.align_offset(256);
-	let mut ap = ap.add(align_offset);
-	let ap0 = ap;
+	assert_eq!(ap.align_offset(glare_base::AB_ALIGN), 0);
+	let mut ap = ap;
 	if m == 1 {
 		for j in 0..k {
 			*ap.add(j) = *a.add(j*a_cs);
 		}
-		return Array::strided_matrix(ap0, 1, m);
+		return Array::strided_matrix(ap, 1, m);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
@@ -188,6 +187,7 @@ pub unsafe fn packa_f16(
 
 	#[cfg(target_arch = "x86_64")]
 	{
+		let ap0 = ap;
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..m).step_by(mc) {
@@ -214,14 +214,13 @@ pub unsafe fn packb_f16(
 	b_rs: usize, b_cs: usize,
 	bp: *mut f16,
 ) -> Array<f16>{
-	let align_offset = bp.align_offset(512);
-	let mut bp = bp.add(align_offset);
-	let bp0 = bp;
+	assert_eq!(bp.align_offset(glare_base::AB_ALIGN), 0);
+	let mut bp = bp;
 	if n == 1 {
 		for j in 0..k {
 			*bp.add(j) = *b.add(j*b_rs);
 		}
-		return Array::strided_matrix(bp0, 1, k);
+		return Array::strided_matrix(bp, 1, k);
 	}
 	let (mc, nc, kc) = get_mcnckc();
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
@@ -230,6 +229,7 @@ pub unsafe fn packb_f16(
 
 	#[cfg(target_arch = "x86_64")]
 	{
+		let bp0 = bp;
 		for p in (0..k).step_by(kc) {
 			let kc_len = if k >= (p + kc) {kc} else {k - p};
 			for i in (0..n).step_by(nc) {
