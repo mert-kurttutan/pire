@@ -73,7 +73,7 @@ macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
                 beta: *const f32,
@@ -83,51 +83,49 @@ macro_rules! def_kernel_bb {
             ) {
                 const MR: usize = $MR;
                 const NR: usize = $NR;
-                let mut m_iter = (m / MR);
+                let m_rounded = m / MR * MR;
+                let n_rounded = n / NR * NR;
                 let m_left = m % MR;
-                let mut ap_cur = ap;
-                let mut c_cur0 = c;
-                
-                
-                let n_iter0 = (n / NR);
-                let n_left = (n % NR);
+                let n_left = n % NR;
+
                 let d_arr = [0, 0, c_rs, c_cs];
                 
-                while m_iter > 0 {
-                    let mut n_iter = n_iter0;
-                    let mut bp_cur = bp;
-                    let mut c_cur1 = c_cur0;
-                    while n_iter > 0 {
+                let mut m_i = 0;
+                while m_i < m_rounded {
+                    let c_cur0 = c.add(m_i * c_rs);
+                    let ap_cur = ap.add(m_i * k);
+                    let mut n_i = 0;
+                    while n_i < n_rounded {
+                        let bp_cur = bp.add(n_i * k);
+                        let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
-                        n_iter -= 1;
-                        bp_cur = bp_cur.add(NR*k);
-                        c_cur1 = c_cur1.add(NR*c_cs);
+                        n_i += NR;
                     }
-                    // let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
                     if n_left != 0 {
+                        let bp_cur = bp.add(n_i * k);
+                        let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
-                    m_iter -= 1;
-                    ap_cur = ap_cur.add(MR*k);
-                    c_cur0 = c_cur0.add(MR*c_rs);
+                    m_i += MR;
                 }
 
 
                 $(
-                    if (m_left+VS-1) / VS *VS == $mr_left {
-                        let mut n_iter = n_iter0;
-                        let mut bp_cur = bp;
-                        let mut c_cur1 = c_cur0;
-                        while n_iter > 0 {
+                    if (m_left+VS-1) / VS * VS == $mr_left {
+                        let c_cur0 = c.add(m_i * c_rs);
+                        let ap_cur = ap.add(m_i * k);
+                        let mut n_i = 0;
+                        while n_i < n_rounded {
+                            let bp_cur = bp.add(n_i * k);
+                            let c_cur1 = c_cur0.add(n_i * c_cs);
                             [<ukernel_$mr_left x $NR _bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
-                            n_iter -= 1;
-                            bp_cur = bp_cur.add(NR*k);
-                            c_cur1 = c_cur1.add(NR*c_cs);
+                            n_i += NR;
                         }
                         if n_left !=0 {
+                            let bp_cur = bp.add(n_i * k);
+                            let c_cur1 = c_cur0.add(n_i * c_cs);
                             [<ukernel_$mr_left x n_bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
                         }
-                        return;
                     }
                 )*
 
@@ -150,8 +148,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
    f: F,
 ) {
     if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_24x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_24x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

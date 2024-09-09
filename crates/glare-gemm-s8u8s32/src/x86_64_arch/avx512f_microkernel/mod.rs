@@ -112,6 +112,11 @@ macro_rules! def_kernel_bb {
     };
 }
 
+// def_kernel_bb!(
+//     i8, u8, i32, f32, f32,
+//     48, 8, 96, 8, 32, 16
+// );
+
 def_kernel_bb!(48, 8, 48, 32, 16);
 // def_kernel_bb!(32, 12, 32, 16);
 

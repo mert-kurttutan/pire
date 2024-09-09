@@ -650,6 +650,11 @@ impl AS for Complex32 {
     type BSType = Complex32;
 }
 
+impl AS for Complex64 {
+    type ASType = Complex64;
+    type BSType = Complex64;
+}
+
 use std::any::TypeId;
 
 // more ergonomic to use in bench
@@ -702,5 +707,15 @@ use std::any::TypeId;
             *(&beta as *const TA::BSType as *const Complex32),
             c as *mut Complex32, c_rs, c_cs,
         )
+    } else if TypeId::of::<TA>() == TypeId::of::<Complex64>() {
+        dispatch_zgemm(
+            backend,
+            m, n, k,
+            *(&alpha as *const TA::ASType as *const Complex64),
+            a as *const Complex64, a_rs, a_cs,
+            b as *const Complex64, b_rs, b_cs,
+            *(&beta as *const TA::BSType as *const Complex64),
+            c as *mut Complex64, c_rs, c_cs,
+        )
     }
- }
+}

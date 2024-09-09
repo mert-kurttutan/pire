@@ -380,8 +380,6 @@ pub(crate) unsafe fn pack_kx24_v1(
 // ) {
 //     let k8 = k / 8 * 8;
 //     let mut k_i = 0;
-//     let mut a = a;
-//     let mut ap = ap;
 //     const MR: usize = 16;
 //     while k_i < k8 {
 //         pack_t::<MR>(a, lda, ap);
@@ -413,8 +411,6 @@ pub(crate) unsafe fn pack_kx24_v1(
 //     ap: *mut f32,
 // ) {
 //     let mut k_i = 0;
-//     let mut a = a;
-//     let mut ap = ap;
 //     const MR: usize = 6;
 //     while k_i < k8 {
 //         pack_t::<4>(a, lda, ap);
