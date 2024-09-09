@@ -35,3 +35,8 @@ the following is slower than mkl and it is not slower when tn is used
 
 This is probably because of packing used in a regardless of whether it is transposed or not.
 We can easily fix this but more code
+
+cblas_hgemm on intel sde on the same machine as above gives (exit code: 0xc0000005 STATUS_ACCESS_VIOLATION)
+MKL_NUM_THREADS=1
+
+but not on windows ec2 saphhier rapid machine from aws
