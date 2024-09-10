@@ -293,16 +293,16 @@ macro_rules! asm_alpha_scale {
     };
 
     (4, 4) => {
-        asm_alpha_scale_0!(7,10)
+        asm_alpha_scale_0!(9,12)
     };
     (4, 3) => {
-        asm_alpha_scale_0!(7,9)
+        asm_alpha_scale_0!(9,11)
     };
     (4, 2) => {
-        asm_alpha_scale_0!(7,8)
+        asm_alpha_scale_0!(9,10)
     };
     (4, 1) => {
-        asm_alpha_scale_0!(7,7)
+        asm_alpha_scale_0!(9,9)
     };
 }
 

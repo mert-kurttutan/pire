@@ -296,8 +296,9 @@ mod tests {
 
     const EPS: f64 = 2e-2;
 
-    static ALPHA_ARR: [f64; 1] = [1.0];
-    static BETA_ARR: [f64; 1] = [1.0];
+    static ALPHA_ARR: [f64; 2] = [1.0, 3.1415];
+    static BETA_ARR: [f64; 3] = [1.0, 3.1415, 0.0];
+
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (24, 8, 8);
@@ -332,7 +333,7 @@ mod tests {
                         Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
                     };
                     for alpha in ALPHA_ARR {
-                        for beta in ALPHA_ARR {
+                        for beta in BETA_ARR {
                             random_matrix_uniform(m, n, &mut c, m);
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);

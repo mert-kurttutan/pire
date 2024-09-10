@@ -77,7 +77,7 @@ macro_rules! storep_unit {
 macro_rules! complex_mul {
     ($r0:tt, $rt:tt) => {
         concat!(
-            "vpermilpd $0x5, %ymm", $r0, ", %ymm", $rt, "\n",
+            "vpermilpd $0b101, %ymm", $r0, ", %ymm", $rt, "\n",
             "vmulpd %ymm0, %ymm", $r0, ", %ymm", $r0, "\n",
             "vmulpd %ymm1, %ymm", $rt, ", %ymm", $rt, "\n",
             "vaddsubpd %ymm", $rt, ", %ymm", $r0, ", %ymm", $r0, "\n",
@@ -512,7 +512,7 @@ macro_rules! load_mask_ptr_asm {
 macro_rules! v_to_c {
     ($r0:tt, $r1:tt) => {
         concat!(
-            "vpermilpd $0x5, %ymm", $r1, ", %ymm", $r1, "\n",
+            "vpermilpd $0b101, %ymm", $r1, ", %ymm", $r1, "\n",
             "vaddsubpd %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
         )
     }

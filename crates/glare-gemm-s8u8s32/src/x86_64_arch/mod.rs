@@ -36,13 +36,8 @@ impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let (mr, nr) = if features.avx512f {
-            (AVX512BW_MR, AVX512BW_NR)
-        } else if features.avx2 {
-            (AVX2_MR, AVX2_NR)
-        } else {
-            (AVX2_MR, AVX2_NR)
-        };
+        let (mr, nr) =
+            if features.avx512bw { (AVX512BW_MR, AVX512BW_NR) } else { (AVX2_MR, AVX2_NR) };
         let vs = if features.avx512bw { 16 } else { 8 };
         Self {
             mc: mc,

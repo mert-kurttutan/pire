@@ -293,8 +293,9 @@ mod tests {
 
     const EPS: f64 = 2e-2;
 
-    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 0.0 }];
-    static BETA_ARR: [TC; 1] = [Complex { re: 0.0, im: 0.0 }];
+    static ALPHA_ARR: [TA; 2] = [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }];
+    static BETA_ARR: [TC; 3] =
+        [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }, Complex { re: 0.0, im: 0.0 }];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();
@@ -330,7 +331,7 @@ mod tests {
                         Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
                     };
                     for alpha in ALPHA_ARR {
-                        for beta in ALPHA_ARR {
+                        for beta in BETA_ARR {
                             random_matrix_uniform(m, n, &mut c, m);
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);

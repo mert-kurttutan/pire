@@ -86,7 +86,7 @@ macro_rules! storep_unit {
 macro_rules! complex_mul {
     ($r0:tt, $rt:tt, $rs:tt) => {
         concat!(
-            "vpermilpd $0x5, %zmm", $r0, ", %zmm", $rt, "\n",
+            "vpermilpd $0b1010101, %zmm", $r0, ", %zmm", $rt, "\n",
             "vmulpd %zmm0, %zmm", $r0, ", %zmm", $r0, "\n",
             "vmulpd %zmm1, %zmm", $rt, ", %zmm", $rt, "\n",
             "vfmadd231pd %zmm", $rt, ", %zmm", $rs, ", %zmm", $r0, "\n",
@@ -121,19 +121,18 @@ macro_rules! asm_alpha_scale_0 {
             vbroadcast!(), " 8({alphax}), %zmm1 \n",
             "vmovupd ({alternate}), %zmm3 \n",
 
-            // complex_mul!(2, 5, 3),
-            // complex_mul!(4, 7, 3),
-            // complex_mul!(6, 9, 3),
-            // complex_mul!(8, 11, 3),
-            // complex_mul!(10, 13, 3),
-            // complex_mul!(12, 15, 3),
-            // complex_mul!(14, 17, 3),
-            // complex_mul!(16, 19, 3),
-            // complex_mul!(18, 21, 3),
-            // complex_mul!(20, 23, 3),
-            // complex_mul!(22, 25, 3),
-            // complex_mul!(24, 27, 3),
-            // complex_mul!(26, 29, 3),
+            complex_mul!(4, 7, 3),
+            complex_mul!(6, 9, 3),
+            complex_mul!(8, 11, 3),
+            complex_mul!(10, 13, 3),
+            complex_mul!(12, 15, 3),
+            complex_mul!(14, 17, 3),
+            complex_mul!(16, 19, 3),
+            complex_mul!(18, 21, 3),
+            complex_mul!(20, 23, 3),
+            complex_mul!(22, 25, 3),
+            complex_mul!(24, 27, 3),
+            complex_mul!(26, 29, 3),
         )
     };
     ($r0:tt, $r1:tt) => {
