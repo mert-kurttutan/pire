@@ -63,7 +63,6 @@ macro_rules! vmovp {
 macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
         concat!(
-            // "vfmadd231ps %ymm", $r1, ", %ymm", $r2,", %ymm", $r3, "\n",
 			"vpmaddubsw %ymm", $r1, ", %ymm", $r2, ", %ymm", $r4, "\n",
 			"vpmaddwd %ymm", $r4, ", %ymm15", ", %ymm", $r4, "\n",
 			"vpaddd %ymm", $r4, ", %ymm", $r3, ", %ymm", $r3, "\n",

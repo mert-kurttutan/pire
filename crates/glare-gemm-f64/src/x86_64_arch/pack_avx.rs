@@ -67,8 +67,8 @@ pub(crate) unsafe fn pack_t2<const MR: usize>(
 ) {
     let mut a0 = [0f64;8];
     let mut a1 = [0f64;8];
-    std::ptr::copy_nonoverlapping(b, a0.as_mut_ptr(), 8);
-    std::ptr::copy_nonoverlapping(b.add(ldb), a1.as_mut_ptr(), 8);
+    copy_nonoverlapping(b, a0.as_mut_ptr(), 8);
+    copy_nonoverlapping(b.add(ldb), a1.as_mut_ptr(), 8);
 
 
     let mut ap0 = [0f64; 2];
@@ -104,14 +104,14 @@ pub(crate) unsafe fn pack_t2<const MR: usize>(
     ap7[0] = a0[7];
     ap7[1] = a1[7];
 
-    std::ptr::copy_nonoverlapping(ap0.as_ptr(), bp, 2);
-    std::ptr::copy_nonoverlapping(ap1.as_ptr(), bp.add(MR), 2);
-    std::ptr::copy_nonoverlapping(ap2.as_ptr(), bp.add(MR*2), 2);
-    std::ptr::copy_nonoverlapping(ap3.as_ptr(), bp.add(MR*3), 2);
-    std::ptr::copy_nonoverlapping(ap4.as_ptr(), bp.add(MR*4), 2);
-    std::ptr::copy_nonoverlapping(ap5.as_ptr(), bp.add(MR*5), 2);
-    std::ptr::copy_nonoverlapping(ap6.as_ptr(), bp.add(MR*6), 2);
-    std::ptr::copy_nonoverlapping(ap7.as_ptr(), bp.add(MR*7), 2);
+    copy_nonoverlapping(ap0.as_ptr(), bp, 2);
+    copy_nonoverlapping(ap1.as_ptr(), bp.add(MR), 2);
+    copy_nonoverlapping(ap2.as_ptr(), bp.add(MR*2), 2);
+    copy_nonoverlapping(ap3.as_ptr(), bp.add(MR*3), 2);
+    copy_nonoverlapping(ap4.as_ptr(), bp.add(MR*4), 2);
+    copy_nonoverlapping(ap5.as_ptr(), bp.add(MR*5), 2);
+    copy_nonoverlapping(ap6.as_ptr(), bp.add(MR*6), 2);
+    copy_nonoverlapping(ap7.as_ptr(), bp.add(MR*7), 2);
 }
 
 
@@ -154,7 +154,7 @@ pub(crate) unsafe fn storeu_ps<const M: usize>(
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f64, b: *mut f64) {
-    std::ptr::copy_nonoverlapping(a, b, M);
+    copy_nonoverlapping(a, b, M);
 }
 
 

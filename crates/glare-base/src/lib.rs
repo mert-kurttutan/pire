@@ -1968,7 +1968,7 @@ macro_rules! def_kernel_sb_pf1 {
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
-                a: *const TB, a_rs: usize, a_cs: usize,
+                a: *const $ta, a_rs: usize, a_cs: usize,
                 bp: *const $tb,
                 c: *mut $tc, c_rs: usize, c_cs: usize,
                 ap: *mut $ta,
@@ -2045,7 +2045,7 @@ macro_rules! def_kernel_sb_v0 {
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
-                a: *const TB, a_rs: usize, a_cs: usize,
+                a: *const $ta, a_rs: usize, a_cs: usize,
                 bp: *const $tb,
                 c: *mut $tc, c_rs: usize, c_cs: usize,
                 ap: *mut $ta,
@@ -2120,7 +2120,7 @@ macro_rules! def_kernel_sb_v0_no_beta {
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
-                a: *const TB, a_rs: usize, a_cs: usize,
+                a: *const $ta, a_rs: usize, a_cs: usize,
                 bp: *const $tb,
                 c: *mut $tc, c_rs: usize, c_cs: usize,
                 ap: *mut $ta,
@@ -2193,7 +2193,7 @@ macro_rules! def_kernel_sb_pf1_no_beta {
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
-                a: *const TB, a_rs: usize, a_cs: usize,
+                a: *const $ta, a_rs: usize, a_cs: usize,
                 bp: *const $tb,
                 c: *mut $tc, c_rs: usize, c_cs: usize,
                 ap: *mut $ta,

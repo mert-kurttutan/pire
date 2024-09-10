@@ -4,7 +4,7 @@ use crate::{TA,TB};
 
 use paste::paste;
 
-// use std::arch::x86_64::*;
+use std::ptr::copy_nonoverlapping;
 
 
 #[target_feature(enable = "avx,avx2")]
@@ -43,46 +43,39 @@ pub(crate) unsafe fn pack_scalar_k(
 pub(crate) unsafe fn interleave_t<const M: usize>(
     a: *const TA, ap: *mut TA, lda: usize
 ) {
-    if M == 1 {
-        let mut t0 = [0_i8; 4];
-        seq!(i in 0..1 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
-        });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 4);
-        return;
-    }
-    if M == 2 {
-        let mut t0 = [0_i8; 8];
-        seq!(i in 0..2 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
-        });
-
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 8);
-        return;
-    }
-    if M == 3 {
-        let mut t0 = [0_i8; 12];
-        seq!(i in 0..3 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
-        });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 12);
-        return;
-    }
     if M == 4 {
         let mut t0 = [0_i8; 16];
         seq!(i in 0..4 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
         });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        return;
+    }
+
+    if M == 8 {
+        let mut t0 = [0_i8; 32];
+        seq!(i in 0..8 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 32);
         return;
     }
 
     if M == 16 {
         let mut t0 = [0_i8; 64];
         seq!(i in 0..16 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
         });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        return;
+    }
+
+    if M == 32 {
+        let mut t0 = [0_i8; 128];
+        seq!(i in 0..32 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
 }
@@ -91,39 +84,6 @@ pub(crate) unsafe fn interleave_t<const M: usize>(
 pub(crate) unsafe fn interleave<const M: usize>(
     a: *const TA, ap: *mut TA, lda: usize
 ) {
-    if M == 1 {
-        let mut t0 = [0_i8; 4];
-        seq!(i in 0..1 {
-            t0[i*4] = *a.add(i);
-            t0[i*4+1] = *a.add(lda+i);
-            t0[i*4+2] = *a.add(2*lda+i);
-            t0[i*4+3] = *a.add(3*lda+i);
-        });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 4);
-        return;
-    }
-    if M == 2 {
-        let mut t0 = [0_i8; 8];
-        seq!(i in 0..2 {
-            t0[i*4] = *a.add(i);
-            t0[i*4+1] = *a.add(lda+i);
-            t0[i*4+2] = *a.add(2*lda+i);
-            t0[i*4+3] = *a.add(3*lda+i);
-        });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 8);
-        return;
-    }
-    if M == 3 {
-        let mut t0 = [0_i8; 12];
-        seq!(i in 0..3 {
-            t0[i*4] = *a.add(i);
-            t0[i*4+1] = *a.add(lda+i);
-            t0[i*4+2] = *a.add(2*lda+i);
-            t0[i*4+3] = *a.add(3*lda+i);
-        });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 12);
-        return;
-    }
     if M == 4 {
         let mut t0 = [0_i8; 16];
         seq!(i in 0..4 {
@@ -132,7 +92,19 @@ pub(crate) unsafe fn interleave<const M: usize>(
             t0[i*4+2] = *a.add(2*lda+i);
             t0[i*4+3] = *a.add(3*lda+i);
         });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        return;
+    }
+
+    if M == 8 {
+        let mut t0 = [0_i8; 32];
+        seq!(i in 0..8 {
+            t0[i*4] = *a.add(i);
+            t0[i*4+1] = *a.add(lda+i);
+            t0[i*4+2] = *a.add(2*lda+i);
+            t0[i*4+3] = *a.add(3*lda+i);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 32);
         return;
     }
 
@@ -144,7 +116,19 @@ pub(crate) unsafe fn interleave<const M: usize>(
             t0[i*4+2] = *a.add(2*lda+i);
             t0[i*4+3] = *a.add(3*lda+i);
         });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        return;
+    }
+
+    if M == 32 {
+        let mut t0 = [0_i8; 128];
+        seq!(i in 0..32 {
+            t0[i*4] = *a.add(i);
+            t0[i*4+1] = *a.add(lda+i);
+            t0[i*4+2] = *a.add(2*lda+i);
+            t0[i*4+3] = *a.add(3*lda+i);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
 }
@@ -153,33 +137,6 @@ pub(crate) unsafe fn interleave<const M: usize>(
 pub(crate) unsafe fn interleave_left<const M: usize>(
     a: *const TA, ap: *mut TA, kl: usize, lda: usize
 ) {
-    if M == 1 {
-        let mut t0 = [0_i8; 4];
-        for i in 0..kl {
-            t0[i] = *a.add(i*lda);
-        }
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 4);
-        return;
-    }
-    if M == 2 {
-        let mut t0 = [0_i8; 8];
-        for i in 0..kl {
-            t0[i] = *a.add(i*lda);
-            t0[i+4] = *a.add(i*lda+1);
-        }
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 8);
-        return;
-    }
-    if M == 3 {
-        let mut t0 = [0_i8; 12];
-        for i in 0..kl {
-            t0[i] = *a.add(i*lda);
-            t0[i+4] = *a.add(i*lda+1);
-            t0[i+8] = *a.add(i*lda+2);
-        }
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 12);
-        return;
-    }
     if M == 4 {
         let mut t0 = [0_i8; 16];
         for i in 0..kl {
@@ -188,7 +145,18 @@ pub(crate) unsafe fn interleave_left<const M: usize>(
             t0[i+8] = *a.add(i*lda+2);
             t0[i+12] = *a.add(i*lda+3);
         }
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        return;
+    }
+
+    if M == 8 {
+        let mut t0 = [0_i8; 32];
+        for i in 0..kl {
+            seq!(j in 0..8 {
+                t0[i+4*j] = *a.add(i*lda+j);
+            });
+        }
+        copy_nonoverlapping(t0.as_ptr(), ap, 32);
         return;
     }
 
@@ -199,7 +167,18 @@ pub(crate) unsafe fn interleave_left<const M: usize>(
                 t0[i+4*j] = *a.add(i*lda+j);
             });
         }
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        return;
+    }
+
+    if M == 32 {
+        let mut t0 = [0_i8; 128];
+        for i in 0..kl {
+            seq!(j in 0..32 {
+                t0[i+4*j] = *a.add(i*lda+j);
+            });
+        }
+        copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
 }
@@ -209,44 +188,40 @@ pub(crate) unsafe fn interleave_left<const M: usize>(
 pub(crate) unsafe fn interleave_left_t<const M: usize>(
     a: *const TA, ap: *mut TA, kl: usize, lda: usize
 ) {
-    if M == 1 {
-        let mut t0 = [0_i8; 4];
-        std::ptr::copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 4);
-        return;
-    }
-    if M == 2 {
-        let mut t0 = [0_i8; 8];
-        std::ptr::copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
-        std::ptr::copy_nonoverlapping(a.add(lda), t0.as_mut_ptr().add(4), kl);
-
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 8);
-        return;
-    }
-    if M == 3 {
-        let mut t0 = [0_i8; 12];
-        std::ptr::copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
-        std::ptr::copy_nonoverlapping(a.add(lda), t0.as_mut_ptr().add(4), kl);
-        std::ptr::copy_nonoverlapping(a.add(2*lda), t0.as_mut_ptr().add(8), kl);
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 12);
-        return;
-    }
     if M == 4 {
         let mut t0 = [0_i8; 16];
-        std::ptr::copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
-        std::ptr::copy_nonoverlapping(a.add(lda), t0.as_mut_ptr().add(4), kl);
-        std::ptr::copy_nonoverlapping(a.add(2*lda), t0.as_mut_ptr().add(8), kl);
-        std::ptr::copy_nonoverlapping(a.add(3*lda), t0.as_mut_ptr().add(12), kl);
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
+        copy_nonoverlapping(a.add(lda), t0.as_mut_ptr().add(4), kl);
+        copy_nonoverlapping(a.add(2*lda), t0.as_mut_ptr().add(8), kl);
+        copy_nonoverlapping(a.add(3*lda), t0.as_mut_ptr().add(12), kl);
+        copy_nonoverlapping(t0.as_ptr(), ap, 16);
+        return;
+    }
+
+    if M == 8 {
+        let mut t0 = [0_i8; 32];
+        seq!(i in 0..8 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 32);
         return;
     }
 
     if M == 16 {
         let mut t0 = [0_i8; 64];
         seq!(i in 0..16 {
-            std::ptr::copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
         });
-        std::ptr::copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        copy_nonoverlapping(t0.as_ptr(), ap, 64);
+        return;
+    }
+
+    if M == 32 {
+        let mut t0 = [0_i8; 128];
+        seq!(i in 0..32 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
 }
@@ -437,14 +412,13 @@ macro_rules! def_packb {
                         n_idx += NR;
                     }
                     let n_left = n - n_idx;
-                    seq!(NL in 1..$nr {
-                        if n_left == NL {
-                            let b = b0.add(n_idx);
-                            let bp = bp0.add(n_idx*k_eff);
-                            pack_k_v0::<NL,NL>(k, b, ldb, bp);
-                            return;
-                        }
-                    });
+                    if n_left > 0 {
+                        pack_scalar_k(
+                            n_left, k,
+                            b0.add(n_idx), b_rs, b_cs,
+                            bp0.add(n_idx*k_eff), 1
+                        );
+                    }
                 } else if b_cs == 1 {
                     let ldb = b_rs;
                     while n_idx < n_rounded {
@@ -454,14 +428,13 @@ macro_rules! def_packb {
                         n_idx += NR;
                     }
                     let n_left = n - n_idx;
-                    seq!(NL in 1..$nr {
-                        if n_left == NL {
-                            let b = b0.add(n_idx*ldb);
-                            let bp = bp0.add(n_idx*k_eff);
-                            pack_k_v1::<NL,NL>(k, b, ldb, bp);
-                            return;
-                        }
-                    });
+                    if n_left > 0 {
+                        pack_scalar_k(
+                            n_left, k,
+                            b0.add(n_idx*ldb), b_rs, b_cs,
+                            bp0.add(n_idx*k_eff), 1
+                        );
+                    }
                 }
             }   
         }
@@ -470,6 +443,7 @@ macro_rules! def_packb {
 
 
 def_packb!(4);
+def_packb!(8);
 
 macro_rules! def_packa {
     ($mr:tt) => {
@@ -526,3 +500,4 @@ macro_rules! def_packa {
 }
 
 def_packa!(16);
+def_packa!(32);

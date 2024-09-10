@@ -1,12 +1,12 @@
-pub(crate) mod avx_fma;
-// pub(crate) mod avx512f;
+pub(crate) mod avx2;
+pub(crate) mod avx512bw;
 pub(crate) mod pack_avx;
 
-const AVX_FMA_GOTO_MR: usize = 16; // register block size
-const AVX_FMA_GOTO_NR: usize = 4; // register block size
+const AVX2_MR: usize = 16; // register block size
+const AVX2_NR: usize = 4; // register block size
 
-const AVX512F_GOTO_MR: usize = 16; // register block size
-const AVX512F_GOTO_NR: usize = 4; // register block size
+const AVX512BW_MR: usize = 32; // register block size
+const AVX512BW_NR: usize = 8; // register block size
 
 
 use glare_base::{
@@ -61,13 +61,13 @@ impl<F: MyFn> X86_64dispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = if features.avx512f {
-            (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
-        } else if features.avx && features.fma {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (AVX512BW_MR, AVX512BW_NR)
+        } else if features.avx2 {
+            (AVX2_MR, AVX2_NR)
         } else {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (AVX2_MR, AVX2_NR)
         };
-        let vs = 8;
+        let vs = if features.avx512bw { 16 } else { 8 };
         Self {
             mc: mc,
             nc: nc,
@@ -84,14 +84,22 @@ impl<F: MyFn> X86_64dispatcher<F> {
     }
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx2{
+        if self.features.avx512bw {
+            pack_avx::packa_panel_32(m, k, x, rs, cs, y, self.vs);
+            return;
+        }
+        if self.features.avx2 {
             pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        if self.features.avx2{
+        if self.features.avx512bw {
+            pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+            return;
+        }
+        if self.features.avx2 {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
@@ -142,8 +150,12 @@ unsafe fn kernel<F:MyFn>(
     ap: *const TA, bp: *const TB,
     _kc_last: bool, _kc_first: bool,
 ) {
+    if hw_cfg.features.avx512bw {
+        avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
     if hw_cfg.features.avx2 {
-        avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
     }
 }
@@ -174,8 +186,12 @@ unsafe fn kernel_n<F:MyFn>(
     c: *mut TC, c_rs: usize, c_cs: usize,
     _kc_last: bool, _kc_first: bool,
 ) {
+    if hw_cfg.features.avx512bw {
+        avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        return;
+    }
     if hw_cfg.features.avx2 {
-        avx_fma::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -192,10 +208,10 @@ unsafe fn glare_gemv<F:MyFn>(
 ) {
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    if hw_cfg.features.avx2 {
+        avx2::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
 }
@@ -211,10 +227,10 @@ unsafe fn glare_gemv2<F:MyFn>(
 ) {
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma::axpy2(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    if hw_cfg.features.avx2 {
+        avx2::axpy2(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
 }

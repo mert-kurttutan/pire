@@ -320,14 +320,14 @@ pub(crate) unsafe fn pack_k_v0_2<const M: usize, const MR: usize>(
     while k_i < k8 {
         let a = a0.add(k_i*lda);
         let ap = ap0.add(k_i*MR);
-        std::ptr::copy_nonoverlapping(a, ap, M);
-        std::ptr::copy_nonoverlapping(a.add(lda), ap.add(MR), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*2), ap.add(MR*2), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*3), ap.add(MR*3), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*4), ap.add(MR*4), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*5), ap.add(MR*5), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*6), ap.add(MR*6), M);
-        std::ptr::copy_nonoverlapping(a.add(lda*7), ap.add(MR*7), M);
+        copy_nonoverlapping(a, ap, M);
+        copy_nonoverlapping(a.add(lda), ap.add(MR), M);
+        copy_nonoverlapping(a.add(lda*2), ap.add(MR*2), M);
+        copy_nonoverlapping(a.add(lda*3), ap.add(MR*3), M);
+        copy_nonoverlapping(a.add(lda*4), ap.add(MR*4), M);
+        copy_nonoverlapping(a.add(lda*5), ap.add(MR*5), M);
+        copy_nonoverlapping(a.add(lda*6), ap.add(MR*6), M);
+        copy_nonoverlapping(a.add(lda*7), ap.add(MR*7), M);
 
         k_i += 8;
     }
@@ -335,7 +335,7 @@ pub(crate) unsafe fn pack_k_v0_2<const M: usize, const MR: usize>(
     while k_i < k {
         let a = a0.add(k_i*lda);
         let ap = ap0.add(k_i*MR);
-        std::ptr::copy_nonoverlapping(a, ap, M);
+        copy_nonoverlapping(a, ap, M);
 
         k_i += 1;
     }

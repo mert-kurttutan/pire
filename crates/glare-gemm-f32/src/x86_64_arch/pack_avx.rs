@@ -108,7 +108,7 @@ pub(crate) unsafe fn storeu_ps<const M: usize>(
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f32, b: *mut f32) {
-    std::ptr::copy_nonoverlapping(a, b, M);
+    copy_nonoverlapping(a, b, M);
 }
 
 
