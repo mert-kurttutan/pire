@@ -1,36 +1,48 @@
 use glare_base::{
-    GlarePar, GlareThreadConfig,
-    HWConfig,
-    Array,
-    ArrayMut,
-    PoolSize,
+    acquire,
+    def_glare_gemm,
+    def_pa,
+    extend,
+    get_apbp_barrier,
     get_mem_pool_size_goto,
     get_mem_pool_size_small_m,
     get_mem_pool_size_small_n,
-    run_small_m, run_small_n,
-    get_apbp_barrier,
-    extend, acquire,
+    is_mixed,
+    run_small_m,
+    run_small_n,
     split_c_range,
     split_range,
-    def_glare_gemm,
-    def_pa,
-    is_mixed,
-    PACK_POOL,
+    Array,
+    ArrayMut,
     GemmPool,
-    PtrData,
+    GlarePar,
+    GlareThreadConfig,
+    HWConfig,
     // PArray,
     PArrayMixed,
+    PoolSize,
+    PtrData,
+    PACK_POOL,
 };
 
 use half::f16;
 
 use crate::{
-//    TA, TB, TC,
-   GemmCache,
-   MyFn, NullFn
+    //    TA, TB, TC,
+    GemmCache,
+    MyFn,
+    NullFn,
 };
 
-unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+unsafe fn packa_ref(
+    a: *const f16,
+    ap: *mut f32,
+    m: usize,
+    k: usize,
+    a_rs: usize,
+    a_cs: usize,
+    mr: usize,
+) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -38,7 +50,7 @@ unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize
         let mut j = 0;
         while j < k {
             for ix in 0..mr {
-                *ap_cur.add(ix+j*mr) = (*a_cur.add(ix*a_rs+j*a_cs)).to_f32();
+                *ap_cur.add(ix + j * mr) = (*a_cur.add(ix * a_rs + j * a_cs)).to_f32();
             }
             j += 1;
         }
@@ -51,13 +63,21 @@ unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize
     let mr_left = m % mr;
     while j < k {
         for ix in 0..mr_left {
-            *ap_cur.add(ix+j*mr_left) = (*a_cur.add(ix*a_rs+j*a_cs)).to_f32();
+            *ap_cur.add(ix + j * mr_left) = (*a_cur.add(ix * a_rs + j * a_cs)).to_f32();
         }
         j += 1;
     }
 }
 
-unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+unsafe fn packb_ref(
+    b: *const f16,
+    bp: *mut f32,
+    n: usize,
+    k: usize,
+    b_rs: usize,
+    b_cs: usize,
+    nr: usize,
+) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -65,7 +85,7 @@ unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize
         let mut j = 0;
         while j < k {
             for ix in 0..nr {
-                *bp_cur.add(ix+j*nr) = (*b_cur.add(ix*b_cs+j*b_rs)).to_f32();
+                *bp_cur.add(ix + j * nr) = (*b_cur.add(ix * b_cs + j * b_rs)).to_f32();
             }
             j += 1;
         }
@@ -78,14 +98,21 @@ unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize
     let n_left = n % nr;
     while j < k {
         for ix in 0..n_left {
-            *bp_cur.add(ix+j*n_left) = (*b_cur.add(ix*b_cs+j*b_rs)).to_f32();
+            *bp_cur.add(ix + j * n_left) = (*b_cur.add(ix * b_cs + j * b_rs)).to_f32();
         }
         j += 1;
     }
 }
 
-
-unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+unsafe fn packa_refsame(
+    a: *const f16,
+    ap: *mut f16,
+    m: usize,
+    k: usize,
+    a_rs: usize,
+    a_cs: usize,
+    mr: usize,
+) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -93,7 +120,7 @@ unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: u
         let mut j = 0;
         while j < k {
             for ix in 0..mr {
-                *ap_cur.add(ix+j*mr) = *a_cur.add(ix*a_rs+j*a_cs);
+                *ap_cur.add(ix + j * mr) = *a_cur.add(ix * a_rs + j * a_cs);
             }
             j += 1;
         }
@@ -106,13 +133,21 @@ unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: u
     let mr_left = m % mr;
     while j < k {
         for ix in 0..mr_left {
-            *ap_cur.add(ix+j*mr_left) = *a_cur.add(ix*a_rs+j*a_cs);
+            *ap_cur.add(ix + j * mr_left) = *a_cur.add(ix * a_rs + j * a_cs);
         }
         j += 1;
     }
 }
 
-unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+unsafe fn packb_refsame(
+    b: *const f16,
+    bp: *mut f16,
+    n: usize,
+    k: usize,
+    b_rs: usize,
+    b_cs: usize,
+    nr: usize,
+) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -120,7 +155,7 @@ unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: u
         let mut j = 0;
         while j < k {
             for ix in 0..nr {
-                *bp_cur.add(ix+j*nr) = *b_cur.add(ix*b_cs+j*b_rs);
+                *bp_cur.add(ix + j * nr) = *b_cur.add(ix * b_cs + j * b_rs);
             }
             j += 1;
         }
@@ -133,17 +168,13 @@ unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: u
     let n_left = n % nr;
     while j < k {
         for ix in 0..n_left {
-            *bp_cur.add(ix+j*n_left) = *b_cur.add(ix*b_cs+j*b_rs);
+            *bp_cur.add(ix + j * n_left) = *b_cur.add(ix * b_cs + j * b_rs);
         }
         j += 1;
     }
 }
 
-
-
-pub(crate) struct RefGemm<
-T: MyFn = NullFn
-> {
+pub(crate) struct RefGemm<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -161,28 +192,65 @@ impl<F: MyFn> RefGemm<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = (24, 4);
-        Self { 
-            mc, nc, kc, mr, nr, 
-            // is_l1_shared, 
-            is_l2_shared, is_l3_shared, 
+        Self {
+            mc,
+            nc,
+            kc,
+            mr,
+            nr,
+            // is_l1_shared,
+            is_l2_shared,
+            is_l3_shared,
             func: f,
             vs: 1,
         }
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(
+        &self,
+        x: *const f16,
+        y: *mut f32,
+        m: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(
+        &self,
+        x: *const f16,
+        y: *mut f32,
+        n: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
-    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fnsame(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        m: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         packa_refsame(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fnsame(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        n: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         packb_refsame(x, y, n, k, rs, cs, self.nr);
     }
 
@@ -192,7 +260,6 @@ impl<F: MyFn> RefGemm<F> {
             *y.add(i) = (*x.add(i)).to_f32();
             i += 1;
         }
-
     }
     pub(crate) fn is_compute_native(&self) -> bool {
         false
@@ -210,7 +277,9 @@ impl<T: MyFn> GemmCache for RefGemm<T> {
     fn nr(&self) -> usize {
         self.nr
     }
-    fn get_kc_eff(&self) -> usize {self.kc}
+    fn get_kc_eff(&self) -> usize {
+        self.kc
+    }
     fn get_mc_eff(&self, par: usize) -> usize {
         if self.is_l3_shared {
             (self.mc / (self.mr * par)) * self.mr
@@ -227,15 +296,20 @@ impl<T: MyFn> GemmCache for RefGemm<T> {
     }
 }
 
-unsafe fn kernel<F:MyFn>(
+unsafe fn kernel<F: MyFn>(
     hw_cfg: &RefGemm<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
     c: *mut f16,
-    c_rs: usize, c_cs: usize,
-    ap: *const f32, bp: *const f32,
-    kc_last: bool, _kc_first: bool,
+    c_rs: usize,
+    c_cs: usize,
+    ap: *const f32,
+    bp: *const f32,
+    kc_last: bool,
+    _kc_first: bool,
 ) {
     let mut i = 0;
     let mut acc = vec![0.0; hw_cfg.mr * hw_cfg.nr];
@@ -266,7 +340,8 @@ unsafe fn kernel<F:MyFn>(
                 let mut jj = 0;
                 while jj < nr_eff {
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
-                    *c_cur = f16::from_f32((*c_cur).to_f32()* *beta + acc[ii * nr_eff + jj] * *alpha);
+                    *c_cur =
+                        f16::from_f32((*c_cur).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
                     if kc_last {
                         hw_cfg.func.call(c_cur, 1);
                     }
@@ -283,35 +358,50 @@ unsafe fn kernel<F:MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_m<F:MyFn>(
+unsafe fn kernel_m<F: MyFn>(
     hw_cfg: &RefGemm<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
-    b: *const f16, b_rs: usize, b_cs: usize,
-    c: *mut f16, c_rs: usize, c_cs: usize,
+    b: *const f16,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
     ap: *const f32,
-    kc_last: bool, _kc_first: bool,
+    kc_last: bool,
+    _kc_first: bool,
 ) {
 }
 
 #[allow(unused)]
-unsafe fn kernel_n<F:MyFn>(
+unsafe fn kernel_n<F: MyFn>(
     hw_cfg: &RefGemm<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
-    a: *const f16, a_rs: usize, a_cs: usize,
+    a: *const f16,
+    a_rs: usize,
+    a_cs: usize,
     ap: *mut f32,
     b: *const f32,
-    c: *mut f16, c_rs: usize, c_cs: usize,
-    kc_last: bool, _kc_first: bool,
-) {  
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
+    kc_last: bool,
+    _kc_first: bool,
+) {
 }
 
-unsafe fn glare_gemv<F:MyFn>(
+unsafe fn glare_gemv<F: MyFn>(
     _hw_cfg: &RefGemm<F>,
-    m: usize, n: usize,
+    m: usize,
+    n: usize,
     alpha: *const f32,
     a: Array<f16>,
     x: Array<f16>,
@@ -323,7 +413,7 @@ unsafe fn glare_gemv<F:MyFn>(
     let a_cs = a.cs();
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
     let a_ptr = a.data_ptr();
 
@@ -334,22 +424,38 @@ unsafe fn glare_gemv<F:MyFn>(
             acc += (*a_ptr.add(i * a_rs + j * a_cs)).to_f32() * (*x_ptr.add(j * inc_x)).to_f32();
             j += 1;
         }
-        *y_ptr.add(i * incy) = f16::from_f32((*y_ptr.add(i * incy)).to_f32() * *beta + acc * *alpha);
+        *y_ptr.add(i * incy) =
+            f16::from_f32((*y_ptr.add(i * incy)).to_f32() * *beta + acc * *alpha);
         i += 1;
     }
 }
 
 def_glare_gemm!(
     RefGemm,
-    f16,f32,f16,f32,f16,f32,f32,
-    PackArrTypeA, PackArrTypeB,
+    f16,
+    f32,
+    f16,
+    f32,
+    f16,
+    f32,
+    f32,
+    PackArrTypeA,
+    PackArrTypeB,
     1_f32,
-    glare_gemm, gemm_mt,
-    gemm_goto_serial, kernel,
-    gemm_small_m_serial, kernel_m,
-    gemm_small_n_serial, kernel_n,
-    glare_gemv, glare_gemv,
-    packa, packb,
-    false, false,
-    into_pack_array2, T,
+    glare_gemm,
+    gemm_mt,
+    gemm_goto_serial,
+    kernel,
+    gemm_small_m_serial,
+    kernel_m,
+    gemm_small_n_serial,
+    kernel_n,
+    glare_gemv,
+    glare_gemv,
+    packa,
+    packb,
+    false,
+    false,
+    into_pack_array2,
+    T,
 );

@@ -1,10 +1,9 @@
 pub(crate) mod avx;
-pub(crate) mod avx_fma;
-pub(crate) mod avx512f;
 pub(crate) mod avx512_f16;
+pub(crate) mod avx512f;
+pub(crate) mod avx_fma;
 pub(crate) mod pack_avx;
 // pub(crate) mod pack_f16_avx;
-
 
 use crate::f16;
 // use avx_fma::axpy;
@@ -18,42 +17,16 @@ const AVX512F_GOTO_NR: usize = 8; // register block size
 const AVX512_F16_GOTO_MR: usize = 64; // register block size
 const AVX512_F16_GOTO_NR: usize = 15; // register block size
 
-
 use glare_base::{
-    GlarePar, GlareThreadConfig,
-    HWConfig,
-    Array,
-    ArrayMut,
-    PoolSize,
-    get_mem_pool_size_goto,
-    get_mem_pool_size_small_m,
-    get_mem_pool_size_small_n,
-    run_small_m, run_small_n,
-    get_apbp_barrier,
-    extend, acquire,
-    split_c_range,
-    split_range,
-    def_glare_gemm,
-    def_pa,
-    is_mixed,
-    PACK_POOL,
-    GemmPool,
-    CpuFeatures,
-    PtrData,
-    PArray,
-    PArrayMixed,
+    acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto,
+    get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n,
+    split_c_range, split_range, Array, ArrayMut, CpuFeatures, GemmPool, GlarePar,
+    GlareThreadConfig, HWConfig, PArray, PArrayMixed, PoolSize, PtrData, PACK_POOL,
 };
 
+use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
 
-use crate::{
-    TA, TB, TC,
-    GemmCache,
-    MyFn, NullFn
- };
-
-pub(crate) struct F32Dispatcher<
-T: MyFn = NullFn
-> {
+pub(crate) struct F32Dispatcher<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -67,8 +40,7 @@ T: MyFn = NullFn
     pub(crate) vs: usize,
 }
 
-
-impl<F: MyFn> F32Dispatcher<F>{
+impl<F: MyFn> F32Dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -79,11 +51,7 @@ impl<F: MyFn> F32Dispatcher<F>{
         } else {
             (16, 4)
         };
-        let vs = if features.avx512f {
-            16
-        } else {
-            8
-        };
+        let vs = if features.avx512f { 16 } else { 8 };
         Self {
             mc: mc,
             nc: nc,
@@ -103,11 +71,19 @@ impl<F: MyFn> F32Dispatcher<F>{
         false
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(
+        &self,
+        x: *const f16,
+        y: *mut f32,
+        m: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f {
             pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs);
             return;
-        } 
+        }
         if self.features.avx && self.features.fma {
             pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
             return;
@@ -118,7 +94,15 @@ impl<F: MyFn> F32Dispatcher<F>{
         }
     }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(
+        &self,
+        x: *const f16,
+        y: *mut f32,
+        n: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
@@ -133,11 +117,19 @@ impl<F: MyFn> F32Dispatcher<F>{
         }
     }
 
-    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fnsame(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        m: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f {
             pack_avx::packa_panel_48_same(m, k, x, rs, cs, y, self.vs);
             return;
-        } 
+        }
         if self.features.avx && self.features.fma {
             pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs);
             return;
@@ -148,7 +140,15 @@ impl<F: MyFn> F32Dispatcher<F>{
         }
     }
 
-    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fnsame(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        n: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f {
             pack_avx::packb_panel_8_same(n, k, x, cs, rs, y);
             return;
@@ -185,9 +185,7 @@ impl<F: MyFn> F32Dispatcher<F>{
     }
 }
 
-pub(crate) struct F16Dispatcher<
-T: MyFn = NullFn
-> {
+pub(crate) struct F16Dispatcher<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -201,7 +199,7 @@ T: MyFn = NullFn
     pub(crate) vs: usize,
 }
 
-impl<F: MyFn> F16Dispatcher<F>{
+impl<F: MyFn> F16Dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -223,19 +221,34 @@ impl<F: MyFn> F16Dispatcher<F>{
         }
     }
 
-
     pub(crate) fn is_compute_native(&self) -> bool {
         true
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packa_fn(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        m: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f16 {
             pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, self.vs);
             return;
-        } 
+        }
     }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    pub(crate) unsafe fn packb_fn(
+        &self,
+        x: *const f16,
+        y: *mut f16,
+        n: usize,
+        k: usize,
+        rs: usize,
+        cs: usize,
+    ) {
         if self.features.avx512f16 {
             pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
             return;
@@ -245,7 +258,6 @@ impl<F: MyFn> F16Dispatcher<F>{
     pub(crate) fn round_up(&self, k: usize) -> usize {
         k
     }
-
 }
 
 impl<T: MyFn> GemmCache for F32Dispatcher<T> {
@@ -255,7 +267,9 @@ impl<T: MyFn> GemmCache for F32Dispatcher<T> {
     fn nr(&self) -> usize {
         self.nr
     }
-    fn get_kc_eff(&self) -> usize {self.kc}
+    fn get_kc_eff(&self) -> usize {
+        self.kc
+    }
     fn get_mc_eff(&self, par: usize) -> usize {
         if self.is_l3_shared {
             (self.mc / (self.mr * par)) * self.mr
@@ -271,7 +285,6 @@ impl<T: MyFn> GemmCache for F32Dispatcher<T> {
         }
     }
 }
-
 
 impl<T: MyFn> GemmCache for F16Dispatcher<T> {
     fn mr(&self) -> usize {
@@ -280,7 +293,9 @@ impl<T: MyFn> GemmCache for F16Dispatcher<T> {
     fn nr(&self) -> usize {
         self.nr
     }
-    fn get_kc_eff(&self) -> usize {self.kc}
+    fn get_kc_eff(&self) -> usize {
+        self.kc
+    }
     fn get_mc_eff(&self, par: usize) -> usize {
         if self.is_l3_shared {
             (self.mc / (self.mr * par)) * self.mr
@@ -297,40 +312,52 @@ impl<T: MyFn> GemmCache for F16Dispatcher<T> {
     }
 }
 
-unsafe fn kernel<F:MyFn>(
+unsafe fn kernel<F: MyFn>(
     hw_cfg: &F32Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
     c: *mut f16,
-    c_rs: usize, c_cs: usize,
-    ap: *const f32, bp: *const f32,
-    _kc_last: bool, _kc_first: bool,
+    c_rs: usize,
+    c_cs: usize,
+    ap: *const f32,
+    bp: *const f32,
+    _kc_last: bool,
+    _kc_first: bool,
 ) {
- if hw_cfg.features.avx512f {
-     avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-     return;
- }
- if hw_cfg.features.avx && hw_cfg.features.fma {
-     avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-     return;
- }
- if hw_cfg.features.avx {
-    avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-    return;
-}
+    if hw_cfg.features.avx512f {
+        avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx && hw_cfg.features.fma {
+        avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx {
+        avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
 }
 
 #[allow(unused)]
-unsafe fn kernel_m<F:MyFn>(
+unsafe fn kernel_m<F: MyFn>(
     hw_cfg: &F32Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
-    b: *const f16, b_rs: usize, b_cs: usize,
-    c: *mut f16, c_rs: usize, c_cs: usize,
+    b: *const f16,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
     ap: *const f32,
-    kc_last: bool, kc_first: bool,
+    kc_last: bool,
+    kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
     //     avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -343,16 +370,23 @@ unsafe fn kernel_m<F:MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_n<F:MyFn>(
+unsafe fn kernel_n<F: MyFn>(
     hw_cfg: &F32Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
-    a: *const f16, a_rs: usize, a_cs: usize,
+    a: *const f16,
+    a_rs: usize,
+    a_cs: usize,
     ap: *mut f32,
     b: *const f32,
-    c: *mut f16, c_rs: usize, c_cs: usize,
-    kc_last: bool, kc_first: bool,
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
+    kc_last: bool,
+    kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
     //     avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -364,9 +398,10 @@ unsafe fn kernel_n<F:MyFn>(
     // }
 }
 
-unsafe fn glare_gemv<F:MyFn>(
+unsafe fn glare_gemv<F: MyFn>(
     hw_cfg: &F32Dispatcher<F>,
-    m: usize, n: usize,
+    m: usize,
+    n: usize,
     alpha: *const f32,
     a: Array<TA>,
     x: Array<TB>,
@@ -375,14 +410,40 @@ unsafe fn glare_gemv<F:MyFn>(
 ) {
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        avx_fma::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        avx_fma::axpy(
+            m,
+            n,
+            alpha,
+            a.data_ptr(),
+            a.rs(),
+            a.cs(),
+            x_ptr,
+            inc_x,
+            beta,
+            y_ptr,
+            incy,
+            hw_cfg.func,
+        );
         return;
     }
     if hw_cfg.features.avx {
-        avx::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        avx::axpy(
+            m,
+            n,
+            alpha,
+            a.data_ptr(),
+            a.rs(),
+            a.cs(),
+            x_ptr,
+            inc_x,
+            beta,
+            y_ptr,
+            incy,
+            hw_cfg.func,
+        );
         return;
     }
 }
@@ -390,47 +451,72 @@ unsafe fn glare_gemv<F:MyFn>(
 
 def_glare_gemm!(
     F32Dispatcher,
-    f16,f32,f16,f32,f16,f32,f32,
-    PackArrTypeAM, PackArrTypeBM,
+    f16,
+    f32,
+    f16,
+    f32,
+    f16,
+    f32,
+    f32,
+    PackArrTypeAM,
+    PackArrTypeBM,
     1_f32,
-    glare_gemm, gemm_mt,
-    gemm_goto_serial, kernel,
-    gemm_small_m_serial, kernel_m,
-    gemm_small_n_serial, kernel_n,
-    glare_gemv, glare_gemv,
-    packa, packb,
-    false, false,
-    into_pack_array2, T,
+    glare_gemm,
+    gemm_mt,
+    gemm_goto_serial,
+    kernel,
+    gemm_small_m_serial,
+    kernel_m,
+    gemm_small_n_serial,
+    kernel_n,
+    glare_gemv,
+    glare_gemv,
+    packa,
+    packb,
+    false,
+    false,
+    into_pack_array2,
+    T,
 );
 
-
-
-unsafe fn kernel_native<F:MyFn>(
+unsafe fn kernel_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f16,
     beta: *const f16,
     c: *mut f16,
-    c_rs: usize, c_cs: usize,
-    ap: *const f16, bp: *const f16,
-    _kc_last: bool, _kc_first: bool,
+    c_rs: usize,
+    c_cs: usize,
+    ap: *const f16,
+    bp: *const f16,
+    _kc_last: bool,
+    _kc_first: bool,
 ) {
- if hw_cfg.features.avx512f {
-     avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-     return;
- }
+    if hw_cfg.features.avx512f {
+        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        return;
+    }
 }
 
 #[allow(unused)]
-unsafe fn kernel_m_native<F:MyFn>(
+unsafe fn kernel_m_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f16,
     beta: *const f16,
-    b: *const f16, b_rs: usize, b_cs: usize,
-    c: *mut f16, c_rs: usize, c_cs: usize,
+    b: *const f16,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
     ap: *const f16,
-    kc_last: bool, _kc_first: bool,
+    kc_last: bool,
+    _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
         avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -439,26 +525,49 @@ unsafe fn kernel_m_native<F:MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_n_native<F:MyFn>(
+unsafe fn kernel_n_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f16,
     beta: *const f16,
-    a: *const f16, a_rs: usize, a_cs: usize,
+    a: *const f16,
+    a_rs: usize,
+    a_cs: usize,
     ap: *mut f16,
     b: *const f16,
-    c: *mut f16, c_rs: usize, c_cs: usize,
-    kc_last: bool, _kc_first: bool,
+    c: *mut f16,
+    c_rs: usize,
+    c_cs: usize,
+    kc_last: bool,
+    _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
-        avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512_f16::kernel_sb(
+            m,
+            n,
+            k,
+            alpha,
+            beta,
+            a,
+            a_rs,
+            a_cs,
+            b,
+            c,
+            c_rs,
+            c_cs,
+            ap,
+            hw_cfg.func,
+        );
         return;
     }
 }
 
-unsafe fn glare_gemv_native<F:MyFn>(
+unsafe fn glare_gemv_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
-    m: usize, n: usize,
+    m: usize,
+    n: usize,
     alpha: *const f16,
     a: Array<f16>,
     x: Array<f16>,
@@ -467,7 +576,7 @@ unsafe fn glare_gemv_native<F:MyFn>(
 ) {
     let x_ptr = x.data_ptr();
     let inc_x = x.rs();
-    let y_ptr   = y.data_ptr();
+    let y_ptr = y.data_ptr();
     let incy = y.rs();
     let beta_val = (*beta).to_f32();
     let beta_t = &beta_val as *const f32;
@@ -476,22 +585,50 @@ unsafe fn glare_gemv_native<F:MyFn>(
     let alpha_t = &alhpa_val as *const f32;
     // use compute_f32 until we have f16 axpy
     if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma::axpy(m, n, alpha_t, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta_t, y_ptr, incy, hw_cfg.func);
+        avx_fma::axpy(
+            m,
+            n,
+            alpha_t,
+            a.data_ptr(),
+            a.rs(),
+            a.cs(),
+            x_ptr,
+            inc_x,
+            beta_t,
+            y_ptr,
+            incy,
+            hw_cfg.func,
+        );
         return;
     }
 }
 
 def_glare_gemm!(
     F16Dispatcher,
-    f16,f16,f16,f16,f16,f16,f16,
-    PackArrTypeA, PackArrTypeB,
+    f16,
+    f16,
+    f16,
+    f16,
+    f16,
+    f16,
+    f16,
+    PackArrTypeA,
+    PackArrTypeB,
     f16::ONE,
-    glare_gemm_native, gemm_mt_native,
-    gemm_goto_serial_native, kernel_native,
-    gemm_small_m_serial_native, kernel_m_native,
-    gemm_small_n_serial_native, kernel_n_native,
-    glare_gemv_native, glare_gemv_native,
-    packa_native, packb_native,
-    true, true,
-    into_pack_array, F,
+    glare_gemm_native,
+    gemm_mt_native,
+    gemm_goto_serial_native,
+    kernel_native,
+    gemm_small_m_serial_native,
+    kernel_m_native,
+    gemm_small_n_serial_native,
+    kernel_n_native,
+    glare_gemv_native,
+    glare_gemv_native,
+    packa_native,
+    packb_native,
+    true,
+    true,
+    into_pack_array,
+    F,
 );

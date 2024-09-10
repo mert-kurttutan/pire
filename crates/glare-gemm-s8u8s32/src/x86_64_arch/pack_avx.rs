@@ -1,48 +1,47 @@
+use crate::{TA, TB};
 use seq_macro::seq;
-use crate::{TA,TB};
-
 
 use paste::paste;
 
 use std::ptr::copy_nonoverlapping;
 
-
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_scalar_k(
-    m_left: usize, k: usize,
-    a: *const TA, a_rs: usize, a_cs: usize,
-    ap: *mut TA, vs: usize
+    m_left: usize,
+    k: usize,
+    a: *const TA,
+    a_rs: usize,
+    a_cs: usize,
+    ap: *mut TA,
+    vs: usize,
 ) {
     let mr = (m_left + vs - 1) / vs * vs;
     let k4 = k / 4 * 4;
     let kl = k % 4;
     let kl_4 = if kl == 0 { 0 } else { 4 };
-    for i in 0..m_left  {
+    for i in 0..m_left {
         let mut j = 0;
         while j < k4 {
-            *ap.add(j*mr+i*4) = *a.add(j*a_cs + i*a_rs);
-            *ap.add(j*mr+i*4+1) = *a.add((j+1)*a_cs + i*a_rs);
-            *ap.add(j*mr+i*4+2) = *a.add((j+2)*a_cs + i*a_rs);
-            *ap.add(j*mr+i*4+3) = *a.add((j+3)*a_cs + i*a_rs);
+            *ap.add(j * mr + i * 4) = *a.add(j * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 4 + 1) = *a.add((j + 1) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 4 + 2) = *a.add((j + 2) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 4 + 3) = *a.add((j + 3) * a_cs + i * a_rs);
             j += 4;
         }
         let mut jl = 0;
         while jl < kl {
-            *ap.add(j*mr+i*4+jl) = *a.add((j+jl)*a_cs + i*a_rs);
+            *ap.add(j * mr + i * 4 + jl) = *a.add((j + jl) * a_cs + i * a_rs);
             jl += 1;
         }
         while jl < kl_4 {
-            *ap.add(j*mr+i*4+jl) = 0;
+            *ap.add(j * mr + i * 4 + jl) = 0;
             jl += 1;
         }
-
     }
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave_t<const M: usize>(
-    a: *const TA, ap: *mut TA, lda: usize
-) {
+pub(crate) unsafe fn interleave_t<const M: usize>(a: *const TA, ap: *mut TA, lda: usize) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         seq!(i in 0..4 {
@@ -81,9 +80,7 @@ pub(crate) unsafe fn interleave_t<const M: usize>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave<const M: usize>(
-    a: *const TA, ap: *mut TA, lda: usize
-) {
+pub(crate) unsafe fn interleave<const M: usize>(a: *const TA, ap: *mut TA, lda: usize) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         seq!(i in 0..4 {
@@ -135,15 +132,18 @@ pub(crate) unsafe fn interleave<const M: usize>(
 
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave_left<const M: usize>(
-    a: *const TA, ap: *mut TA, kl: usize, lda: usize
+    a: *const TA,
+    ap: *mut TA,
+    kl: usize,
+    lda: usize,
 ) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         for i in 0..kl {
-            t0[i] = *a.add(i*lda);
-            t0[i+4] = *a.add(i*lda+1);
-            t0[i+8] = *a.add(i*lda+2);
-            t0[i+12] = *a.add(i*lda+3);
+            t0[i] = *a.add(i * lda);
+            t0[i + 4] = *a.add(i * lda + 1);
+            t0[i + 8] = *a.add(i * lda + 2);
+            t0[i + 12] = *a.add(i * lda + 3);
         }
         copy_nonoverlapping(t0.as_ptr(), ap, 16);
         return;
@@ -183,17 +183,19 @@ pub(crate) unsafe fn interleave_left<const M: usize>(
     }
 }
 
-
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn interleave_left_t<const M: usize>(
-    a: *const TA, ap: *mut TA, kl: usize, lda: usize
+    a: *const TA,
+    ap: *mut TA,
+    kl: usize,
+    lda: usize,
 ) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
         copy_nonoverlapping(a.add(lda), t0.as_mut_ptr().add(4), kl);
-        copy_nonoverlapping(a.add(2*lda), t0.as_mut_ptr().add(8), kl);
-        copy_nonoverlapping(a.add(3*lda), t0.as_mut_ptr().add(12), kl);
+        copy_nonoverlapping(a.add(2 * lda), t0.as_mut_ptr().add(8), kl);
+        copy_nonoverlapping(a.add(3 * lda), t0.as_mut_ptr().add(12), kl);
         copy_nonoverlapping(t0.as_ptr(), ap, 16);
         return;
     }
@@ -229,7 +231,8 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     k: usize,
-    a: *const TA, lda: usize,
+    a: *const TA,
+    lda: usize,
     ap: *mut TA,
 ) {
     let k8 = k / 8 * 8;
@@ -238,8 +241,8 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     let a0 = a;
     let ap0 = ap;
     while k_i < k8 {
-        let a = a0.add(k_i*lda);
-        let ap = ap0.add(k_i*MR);
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
         seq!(i in 0..2 {
             interleave::<M>(a.add(lda*4*i), ap.add(MR*4*i), lda);
         });
@@ -248,25 +251,25 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     }
 
     while k_i < k4 {
-        let a = a0.add(k_i*lda);
-        let ap = ap0.add(k_i*MR);
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
         interleave::<M>(a, ap, lda);
         k_i += 4;
     }
 
     let kl = k % 4;
     if kl != 0 {
-        let a = a0.add(k_i*lda);
-        let ap = ap0.add(k_i*MR);
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
         interleave_left::<M>(a, ap, kl, lda);
     }
 }
 
-
 #[target_feature(enable = "avx,avx2")]
 pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     k: usize,
-    a: *const TA, lda: usize,
+    a: *const TA,
+    lda: usize,
     ap: *mut TA,
 ) {
     let k8 = k / 8 * 8;
@@ -276,7 +279,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     let ap0 = ap;
     while k_i < k8 {
         let a = a0.add(k_i);
-        let ap = ap0.add(k_i*MR);
+        let ap = ap0.add(k_i * MR);
         seq!(i in 0..2 {
             interleave_t::<M>(a.add(4*i), ap.add(MR*4*i), lda);
         });
@@ -286,7 +289,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 
     while k_i < k4 {
         let a = a0.add(k_i);
-        let ap = ap0.add(k_i*MR);
+        let ap = ap0.add(k_i * MR);
         interleave_t::<M>(a, ap, lda);
         k_i += 4;
     }
@@ -294,7 +297,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     let kl = k % 4;
     if kl != 0 {
         let a = a0.add(k_i);
-        let ap = ap0.add(k_i*MR);
+        let ap = ap0.add(k_i * MR);
         interleave_left_t::<M>(a, ap, kl, lda);
     }
 }
@@ -354,7 +357,6 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 //     }
 // }
 
-
 // #[target_feature(enable = "avx,avx2")]
 // pub(crate) unsafe fn pack_kx16_v1(
 //     k: usize,
@@ -387,9 +389,8 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
 //     }
 // }
 
-
 macro_rules! def_packb {
-   ($nr:tt) => {
+    ($nr:tt) => {
         paste! {
         #[target_feature(enable = "avx,avx2")]
         pub(crate) unsafe fn [<packb_panel_ $nr>](
@@ -436,11 +437,10 @@ macro_rules! def_packb {
                         );
                     }
                 }
-            }   
+            }
         }
-   };
+    };
 }
-
 
 def_packb!(4);
 def_packb!(8);

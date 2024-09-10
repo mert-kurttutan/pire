@@ -1,53 +1,53 @@
+use crate::{TA, TB};
 use seq_macro::seq;
 use std::ptr::copy_nonoverlapping;
-use crate::{TA,TB};
-
 
 use paste::paste;
 
-
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_scalar_k(
-    m_left: usize, k: usize,
-    a: *const TA, a_rs: usize, a_cs: usize,
-    ap: *mut TA, vs: usize
+    m_left: usize,
+    k: usize,
+    a: *const TA,
+    a_rs: usize,
+    a_cs: usize,
+    ap: *mut TA,
+    vs: usize,
 ) {
     let mr = (m_left + vs - 1) / vs * vs;
-    for i in 0..m_left  {
+    for i in 0..m_left {
         for j in 0..k {
-            *ap.add(j*mr+i) = *a.add(j*a_cs + i*a_rs);
+            *ap.add(j * mr + i) = *a.add(j * a_cs + i * a_rs);
         }
     }
 }
-
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
     k: usize,
-    a: *const TA, lda: usize,
+    a: *const TA,
+    lda: usize,
     ap: *mut TA,
 ) {
-    for i in 0..M  {
+    for i in 0..M {
         for j in 0..k {
-            *ap.add(j*MR+i) = *a.add(j + i*lda);
+            *ap.add(j * MR + i) = *a.add(j + i * lda);
         }
     }
 }
-
-
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const TA, b: *mut TA) {
     let a = a as *const f32;
     let b = b as *mut f32;
-    copy_nonoverlapping(a, b, M*2);
+    copy_nonoverlapping(a, b, M * 2);
 }
-
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     k: usize,
-    a: *const TA, lda: usize,
+    a: *const TA,
+    lda: usize,
     ap: *mut TA,
 ) {
     let k8 = k / 8 * 8;
@@ -55,33 +55,31 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
     let ap0 = ap;
     let mut k_i = 0;
     while k_i < k8 {
-        let a = a0.add(k_i*lda);
-        let ap = ap0.add(k_i*MR);
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
         copy_packed::<M>(a, ap);
         copy_packed::<M>(a.add(lda), ap.add(MR));
-        copy_packed::<M>(a.add(lda*2), ap.add(MR*2));
-        copy_packed::<M>(a.add(lda*3), ap.add(MR*3));
-        copy_packed::<M>(a.add(lda*4), ap.add(MR*4));
-        copy_packed::<M>(a.add(lda*5), ap.add(MR*5));
-        copy_packed::<M>(a.add(lda*6), ap.add(MR*6));
-        copy_packed::<M>(a.add(lda*7), ap.add(MR*7));
+        copy_packed::<M>(a.add(lda * 2), ap.add(MR * 2));
+        copy_packed::<M>(a.add(lda * 3), ap.add(MR * 3));
+        copy_packed::<M>(a.add(lda * 4), ap.add(MR * 4));
+        copy_packed::<M>(a.add(lda * 5), ap.add(MR * 5));
+        copy_packed::<M>(a.add(lda * 6), ap.add(MR * 6));
+        copy_packed::<M>(a.add(lda * 7), ap.add(MR * 7));
 
         k_i += 8;
     }
 
     while k_i < k {
-        let a = a0.add(k_i*lda);
-        let ap = ap0.add(k_i*MR);
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
         copy_packed::<M>(a, ap);
 
         k_i += 1;
     }
-
 }
 
-
 macro_rules! def_packb {
-   ($nr:tt) => {
+    ($nr:tt) => {
         paste! {
         // #[target_feature(enable = "avx")]
         pub(crate) unsafe fn [<packb_panel_ $nr>](
@@ -130,11 +128,10 @@ macro_rules! def_packb {
                         }
                     });
                 }
-            }   
+            }
         }
-   };
+    };
 }
-
 
 def_packb!(2);
 def_packb!(4);

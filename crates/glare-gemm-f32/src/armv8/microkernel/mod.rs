@@ -1,90 +1,95 @@
+#[rustfmt::skip]
 pub mod asm_ukernel;
 pub(crate) mod axpy_kernel;
 pub(crate) mod intrinsics_pack;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use intrinsics_pack::{
-    packa_panel_24,
-    packa_panel_16,
-    packb_panel_6,
-    packb_panel_4,
-};
 pub(crate) use axpy_kernel::*;
+pub(crate) use intrinsics_pack::{packa_panel_16, packa_panel_24, packb_panel_4, packb_panel_6};
 
-use seq_macro::seq;
 use paste::paste;
+use seq_macro::seq;
 
-use crate::{TA,TB,TC};
+use crate::{TA, TB, TC};
 
 const VS: usize = 8;
 
 #[target_feature(enable = "neon")]
 pub unsafe fn axpy(
-   m: usize, n: usize,
-   alpha: *const TA,
-   a: *const TA, a_rs: usize, a_cs: usize,
-   x: *const TB, incx: usize,
-   beta: *const TC,
-   y: *mut TC, incy: usize,
+    m: usize,
+    n: usize,
+    alpha: *const TA,
+    a: *const TA,
+    a_rs: usize,
+    a_cs: usize,
+    x: *const TB,
+    incx: usize,
+    beta: *const TC,
+    y: *mut TC,
+    incy: usize,
 ) {
-   if a_cs == 1 && incx == 1 {
-       axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-       return;
-   }
-   if a_rs == 1 && incy == 1 {
-       axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-       return;
-   }
-   if a_cs == 1 {
-       for i in 0..m {
-           let a_cur = a.add(i*a_rs);
-           let y_cur = y.add(i * incy);
-           let mut acc = 0.0;
-           for j in 0..n {
-               let x_cur = x.add(j * incx);
-               acc += *a_cur.add(j) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-       }
-       return;
-   }
-   if a_rs == 1 || true {
-       for i in 0..m {
-           let y_cur = y.add(i*incy);
-           let mut acc = 0.0;
-           for j in 0..n {
-               let a_cur = a.add(j*a_cs);
-               let x_cur = x.add(j*incx);
-               acc += *a_cur.add(i) * *x_cur;
-           }
-           *y_cur = *beta * *y_cur + *alpha * acc;
-       }
-       return;
-   }
+    if a_cs == 1 && incx == 1 {
+        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+        return;
+    }
+    if a_rs == 1 && incy == 1 {
+        axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+        return;
+    }
+    if a_cs == 1 {
+        for i in 0..m {
+            let a_cur = a.add(i * a_rs);
+            let y_cur = y.add(i * incy);
+            let mut acc = 0.0;
+            for j in 0..n {
+                let x_cur = x.add(j * incx);
+                acc += *a_cur.add(j) * *x_cur;
+            }
+            *y_cur = *beta * *y_cur + *alpha * acc;
+        }
+        return;
+    }
+    if a_rs == 1 || true {
+        for i in 0..m {
+            let y_cur = y.add(i * incy);
+            let mut acc = 0.0;
+            for j in 0..n {
+                let a_cur = a.add(j * a_cs);
+                let x_cur = x.add(j * incx);
+                acc += *a_cur.add(i) * *x_cur;
+            }
+            *y_cur = *beta * *y_cur + *alpha * acc;
+        }
+        return;
+    }
 }
 
 #[target_feature(enable = "neon")]
 pub unsafe fn load_c_strided<const MR: usize, const NR: usize>(
-    c: *const TC, ct: *mut TC,
+    c: *const TC,
+    ct: *mut TC,
     m: usize,
-    c_rs: usize, c_cs: usize,
+    c_rs: usize,
+    c_cs: usize,
 ) {
     for i in 0..NR {
         for j in 0..m {
-            *ct.add(MR*i+j) = *c.add(i*c_cs + j*c_rs);
+            *ct.add(MR * i + j) = *c.add(i * c_cs + j * c_rs);
         }
     }
 }
 
 #[target_feature(enable = "neon")]
 pub unsafe fn store_c_strided<const MR: usize, const NR: usize>(
-    c: *mut TC, ct: *const TC,
+    c: *mut TC,
+    ct: *const TC,
     m: usize,
-    c_rs: usize, c_cs: usize,
+    c_rs: usize,
+    c_cs: usize,
 ) {
     for i in 0..NR {
         for j in 0..m {
-            *c.add(i*c_cs + j*c_rs) = *ct.add(MR*i+j);
+            *c.add(i * c_cs + j * c_rs) = *ct.add(MR * i + j);
         }
     }
 }
@@ -106,11 +111,11 @@ macro_rules! def_kernel_bb {
                 let m_left = m % MR;
                 let mut ap_cur = ap;
                 let mut c_cur0 = c;
-                
+
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [0, 0, m_left];
-                
+
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut bp_cur = bp;
@@ -161,7 +166,7 @@ macro_rules! def_kernel_bb {
                         return;
                     }
                 )*
-            }        
+            }
         }});
     };
 }
@@ -186,15 +191,15 @@ macro_rules! def_kernel_bb_strided {
                 let m_left = m % MR;
                 let mut ap_cur = ap;
                 let mut c_cur0 = c;
-                
-                
+
+
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [0, 0, m_left];
                 let mut c_temp_buf = [0_f32; MR*NR];
                 let ct = c_temp_buf.as_mut_ptr();
-                
-                
+
+
                 while m_iter > 0 {
                     let mut n_iter = n_iter0;
                     let mut bp_cur = bp;
@@ -254,7 +259,7 @@ macro_rules! def_kernel_bb_strided {
                         return;
                     }
                 )*
-            }        
+            }
         }});
     };
 }
@@ -280,7 +285,7 @@ macro_rules! def_kernel_bs {
                 let m_left = m % MR;
                 let mut c_cur0 = c;
                 let mut ap_cur = ap_cur;
-                
+
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [b_rs*4, b_cs*4, m_left];
@@ -336,7 +341,7 @@ macro_rules! def_kernel_bs {
                         return;
                     }
                 )*
-            }        
+            }
         }});
     };
 }
@@ -344,24 +349,23 @@ macro_rules! def_kernel_bs {
 def_kernel_bs!(24, 4, 24, 16, 8);
 
 pub(crate) unsafe fn kernel_bs(
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const TA,
     beta: *const TC,
-    b: *const TB, b_rs: usize, b_cs: usize,
-    c: *mut TC, c_rs: usize, c_cs: usize,
+    b: *const TB,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
     ap: *const TA,
-) {  
+) {
     if c_rs == 1 {
-        kernel_bs_v0(
-            m, n, k,
-            alpha, beta,
-            b, b_rs, b_cs,
-            c, c_cs,
-            ap
-        );
+        kernel_bs_v0(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_cs, ap);
         return;
     }
-
 }
 
 macro_rules! def_kernel_sb {
@@ -383,7 +387,7 @@ macro_rules! def_kernel_sb {
                 let m_left = m % MR;
                 let mut c_cur0 = c;
                 let mut a_cur = a;
-                
+
                 let n_iter0 = (n / NR) as u64;
                 let n_left = (n % NR) as u64;
                 let ld_arr = [0*4, 0*4, m_left];
@@ -441,7 +445,7 @@ macro_rules! def_kernel_sb {
                         return;
                     }
                 )*
-            }        
+            }
         }});
     };
 }
@@ -450,46 +454,49 @@ def_kernel_sb!(24, 4, 24, 16, 8);
 
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb(
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const TA,
     beta: *const TC,
-    a: *const TB, a_rs: usize, a_cs: usize,
+    a: *const TB,
+    a_rs: usize,
+    a_cs: usize,
     b: *const TB,
-    c: *mut TC, c_rs: usize, c_cs: usize,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
     ap_buf: *mut TA,
- ) { 
+) {
     if c_rs == 1 {
-        kernel_sb_v0(
-            m, n, k,
-            alpha, beta,
-            a, a_rs, a_cs,
-            b,
-            c, c_cs,
-            ap_buf
-        );
+        kernel_sb_v0(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_cs, ap_buf);
         return;
     }
- } 
-
+}
 
 // Make sure compiler optimizes the const conditional below
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel<const MR: usize, const NR: usize>(
-   m: usize, n: usize, k: usize,
-   alpha: *const TA, beta: *const TC,
-   c: *mut TC,
-   c_rs: usize, c_cs: usize,
-   ap: *const TA, bp: *const TB,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
+    ap: *const TA,
+    bp: *const TB,
 ) {
-   if MR == 24 && NR == 4 {
+    if MR == 24 && NR == 4 {
         if c_rs == 1 {
             kernel_24x4(m, n, k, alpha, beta, c, c_cs, ap, bp)
         } else {
             kernel_24x4_strided(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp)
         }
         return;
-   }
-   if MR == 16 && NR == 6 {
+    }
+    if MR == 16 && NR == 6 {
         if c_rs == 1 {
             kernel_16x6(m, n, k, alpha, beta, c, c_cs, ap, bp)
         } else {
@@ -502,10 +509,13 @@ pub(crate) unsafe fn kernel<const MR: usize, const NR: usize>(
 
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn packa_panel<const MR: usize>(
-    m: usize, k: usize,
-    a: *const TB, a_rs: usize, a_cs: usize,
+    m: usize,
+    k: usize,
+    a: *const TB,
+    a_rs: usize,
+    a_cs: usize,
     ap: *mut TB,
-){
+) {
     if MR == 24 {
         packa_panel_24(m, k, a, a_rs, a_cs, ap);
         return;
@@ -517,13 +527,15 @@ pub(crate) unsafe fn packa_panel<const MR: usize>(
     panic!("Packing for MR = {} not implemented", MR);
 }
 
-
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn packb_panel<const NR: usize>(
-    m: usize, k: usize,
-    a: *const TB, a_rs: usize, a_cs: usize,
+    m: usize,
+    k: usize,
+    a: *const TB,
+    a_rs: usize,
+    a_cs: usize,
     ap: *mut TB,
-){
+) {
     if NR == 4 {
         packb_panel_4(m, k, a, a_rs, a_cs, ap);
         return;

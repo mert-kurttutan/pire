@@ -1,23 +1,19 @@
-use std::sync::{
-    Arc,Barrier,Mutex,
-    RwLock,RwLockReadGuard, MutexGuard,
-    RwLockWriteGuard,
-};
+use std::sync::{Arc, Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 // Consider Once Cell
 use once_cell::sync::Lazy;
 
 #[macro_export]
 macro_rules! env_or {
-	($name:expr, $default:expr) => {
-		if let Some(value) = std::option_env!($name) {
-			const_str::parse!(value, usize)
-		} else {
-			$default
-		}
-	};
- }
+    ($name:expr, $default:expr) => {
+        if let Some(value) = std::option_env!($name) {
+            const_str::parse!(value, usize)
+        } else {
+            $default
+        }
+    };
+}
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub struct CpuFeatures {
     pub avx: bool,
     pub avx2: bool,
@@ -60,7 +56,7 @@ pub struct HWConfig {
     neon: bool,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum HWModel {
     Reference,
     Haswell,
@@ -68,26 +64,22 @@ pub enum HWModel {
     Skylake,
 }
 
-const SKYLAKE: [u8; 12] = [
-    78, 94, 126, 140, 141, 167, 151, 154, 183, 186,
-    143, 207
-];
+const SKYLAKE: [u8; 12] = [78, 94, 126, 140, 141, 167, 151, 154, 183, 186, 143, 207];
 
 const HASWELL: [u8; 6] = [69, 70, 63, 42, 58, 165];
 const BROADWELL: [u8; 4] = [79, 86, 61, 71];
 
 impl HWModel {
     pub fn from_hw(family_id: u8, model_id: u8) -> Self {
-
         if family_id == 6 {
             if SKYLAKE.contains(&model_id) {
-                return HWModel::Skylake
+                return HWModel::Skylake;
             }
             if HASWELL.contains(&model_id) {
-                return HWModel::Haswell
+                return HWModel::Haswell;
             }
             if BROADWELL.contains(&model_id) {
-                return HWModel::Broadwell
+                return HWModel::Broadwell;
             }
         }
 
@@ -102,8 +94,6 @@ impl HWModel {
             HWModel::Skylake => (false, false, true),
         }
     }
-
-
 }
 
 // Use family and model id instead of cache size parameters
@@ -125,7 +115,8 @@ fn detect_hw_config() -> HWConfig {
         let avx512f = extended_feature_info.has_avx512f();
         let avx512bw = extended_feature_info.has_avx512bw();
         let f16c = feature_info.has_f16c();
-        let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+        let extended_prcoessor_info =
+            cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
         // let avx = true;
         // let fma = true;
@@ -135,43 +126,23 @@ fn detect_hw_config() -> HWConfig {
         // let avx512f = true;
         // let f16c = true;
         // let fma4 = true;
-        let cpu_ft = CpuFeatures {
-            avx,
-            avx2,
-            avx512f,
-            avx512f16,
-            avx512bf16,
-            avx512bw,
-            fma,
-            fma4,
-            f16c,
-        };
+        let cpu_ft =
+            CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bf16, avx512bw, fma, fma4, f16c };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
         // let family_id = 6;
         // let model_id = 78;
         let hw_model = HWModel::from_hw(family_id, model_id);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
-        return HWConfig {
-            cpu_ft,
-            hw_model,
-            is_l1_shared,
-            is_l2_shared,
-            is_l3_shared,
-        };
+        return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
     }
     #[cfg(target_arch = "aarch64")]
     {
-        return HWConfig {
-            neon: true,
-        };
+        return HWConfig { neon: true };
     }
 }
 
-
-pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
-    detect_hw_config()
-});
+pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| detect_hw_config());
 
 pub static GLARE_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
     let n_core = std::thread::available_parallelism().unwrap().get();
@@ -180,9 +151,9 @@ pub static GLARE_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
     x.parse::<usize>().unwrap()
 });
 #[cfg(target_arch = "x86_64")]
-pub(crate) mod cpu_features{
-    use super::RUNTIME_HW_CONFIG;
+pub(crate) mod cpu_features {
     use super::HWModel;
+    use super::RUNTIME_HW_CONFIG;
 
     pub fn hw_model() -> HWModel {
         RUNTIME_HW_CONFIG.hw_model
@@ -190,14 +161,14 @@ pub(crate) mod cpu_features{
 
     pub fn has_f32_compute() -> bool {
         // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
-        // dont use above since some avx512f also rely on avx instructions 
+        // dont use above since some avx512f also rely on avx instructions
         // (even though avx512f should imply), we are being super conservative here
         RUNTIME_HW_CONFIG.cpu_ft.avx
     }
 
     pub fn has_f16f32_compute() -> bool {
         // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
-        // dont use above since some avx512f also rely on avx instructions 
+        // dont use above since some avx512f also rely on avx instructions
         // (even though avx512f should imply), we are being super conservative here
         RUNTIME_HW_CONFIG.cpu_ft.avx && RUNTIME_HW_CONFIG.cpu_ft.f16c
     }
@@ -226,7 +197,7 @@ pub(crate) mod cpu_features{
     }
 }
 #[cfg(target_arch = "aarch64")]
-pub(crate) mod cpu_features{ 
+pub(crate) mod cpu_features {
     use super::RUNTIME_HW_CONFIG;
     pub fn hw_neon() -> bool {
         RUNTIME_HW_CONFIG.neon
@@ -235,14 +206,15 @@ pub(crate) mod cpu_features{
 pub use cpu_features::*;
 
 pub struct PackPool {
-    pub buffer: RwLock<Vec<Mutex<Vec<u8>>>>
+    pub buffer: RwLock<Vec<Mutex<Vec<u8>>>>,
 }
 
-pub static PACK_POOL: PackPool = PackPool {
-    buffer: RwLock::new(vec![])
-};
+pub static PACK_POOL: PackPool = PackPool { buffer: RwLock::new(vec![]) };
 
-pub fn acquire<'a>(pool_guard: &'a RwLockReadGuard<'a, Vec<Mutex<Vec<u8>>>>, pack_size: usize) -> Option<MutexGuard<'a, Vec<u8>>> {
+pub fn acquire<'a>(
+    pool_guard: &'a RwLockReadGuard<'a, Vec<Mutex<Vec<u8>>>>,
+    pack_size: usize,
+) -> Option<MutexGuard<'a, Vec<u8>>> {
     // find the first free buffer with enough size
     // let x = PACK_POOL.buffer.read().unwrap();
     for i in pool_guard.iter() {
@@ -268,7 +240,6 @@ pub fn extend<'a>(pool_vec: Vec<u8>) {
     pool_guard.push(Mutex::new(pool_vec));
 }
 
-
 pub struct GlareThreadConfig {
     pub ic_id: usize,
     // pc_id: usize,
@@ -280,9 +251,9 @@ pub struct GlareThreadConfig {
     pub kc_eff: usize,
     pub run_packa: bool,
     pub run_packb: bool,
-   pub par: GlarePar,
-   pub packa_barrier: Arc<Vec<Arc<Barrier>>>,
-   pub packb_barrier: Arc<Vec<Arc<Barrier>>>,
+    pub par: GlarePar,
+    pub packa_barrier: Arc<Vec<Arc<Barrier>>>,
+    pub packb_barrier: Arc<Vec<Arc<Barrier>>>,
 }
 
 pub fn get_apbp_barrier(par: &GlarePar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
@@ -301,17 +272,24 @@ pub fn get_apbp_barrier(par: &GlarePar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<
     (Arc::new(packa_barrier), Arc::new(packb_barrier))
 }
 
-
 impl<'a> GlareThreadConfig {
-   pub fn new(par: GlarePar, packa_barrier: Arc<Vec<Arc<Barrier>>>, packb_barrier: Arc<Vec<Arc<Barrier>>>, t_id: usize, mc_eff: usize, nc_eff: usize, kc_eff: usize) -> Self {
-         let ic_id = par.get_ic_id(t_id);
-            // let pc_id = par.get_pc_id(t_id);
-            let jc_id = par.get_jc_id(t_id);
-            let ir_id = par.get_ir_id(t_id);
-            let jr_id = par.get_jr_id(t_id);
-            let run_packa = jc_id == 0 && ir_id == 0 && jr_id == 0;
-            let run_packb = ic_id == 0 && ir_id == 0 && jr_id == 0;
-       Self {
+    pub fn new(
+        par: GlarePar,
+        packa_barrier: Arc<Vec<Arc<Barrier>>>,
+        packb_barrier: Arc<Vec<Arc<Barrier>>>,
+        t_id: usize,
+        mc_eff: usize,
+        nc_eff: usize,
+        kc_eff: usize,
+    ) -> Self {
+        let ic_id = par.get_ic_id(t_id);
+        // let pc_id = par.get_pc_id(t_id);
+        let jc_id = par.get_jc_id(t_id);
+        let ir_id = par.get_ir_id(t_id);
+        let jr_id = par.get_jr_id(t_id);
+        let run_packa = jc_id == 0 && ir_id == 0 && jr_id == 0;
+        let run_packb = ic_id == 0 && ir_id == 0 && jr_id == 0;
+        Self {
             ic_id,
             // pc_id,
             jc_id,
@@ -322,17 +300,17 @@ impl<'a> GlareThreadConfig {
             kc_eff,
             run_packa,
             run_packb,
-           par,
-           packa_barrier,
-           packb_barrier,
-       }
-   }
-   #[inline]
-   pub fn wait_packa(&self) {
-    if self.par.jc_par * self.par.pc_par * self.par.ir_par * self.par.jr_par  > 1 {
-        self.packa_barrier[self.ic_id].wait();
+            par,
+            packa_barrier,
+            packb_barrier,
+        }
     }
-   }
+    #[inline]
+    pub fn wait_packa(&self) {
+        if self.par.jc_par * self.par.pc_par * self.par.ir_par * self.par.jr_par > 1 {
+            self.packa_barrier[self.ic_id].wait();
+        }
+    }
 
     #[inline]
     pub fn wait_packb(&self) {
@@ -353,7 +331,7 @@ pub fn glare_num_threads() -> usize {
     return *GLARE_NUM_THREADS;
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub struct GlarePar {
     pub num_threads: usize,
     pub ic_par: usize,
@@ -363,111 +341,101 @@ pub struct GlarePar {
     pub jr_par: usize,
 }
 
-
 impl GlarePar {
-   pub fn new(
-       num_threads: usize,
-       ic_par: usize,
-       pc_par: usize,
-       jc_par: usize,
-       ir_par: usize,
-       jr_par: usize,
-   ) -> Self {
-       assert_eq!(num_threads, jc_par*pc_par*ic_par*jr_par*ir_par);
-       Self {
-           num_threads,
-           ic_par,
-           pc_par,
-           jc_par,
-           ir_par,
-           jr_par,
-       }
-   }
-   pub fn from_num_threads(num_threads: usize) -> Self {
-       let ic_par = num_threads;
-       let pc_par = 1;
-       let jc_par = 1;
-       let ir_par = 1;
-       let jr_par = 1;
-       Self {
-           num_threads,
-           ic_par,
-           pc_par,
-           jc_par,
-           ir_par,
-           jr_par,
-       }
-   }
-   #[inline(always)]
-   pub fn default() -> Self {
-       let num_threads = glare_num_threads();
-       Self::from_num_threads(num_threads)
-    // Self::new(30, 3, 1, 5, 2, 1)
-   }
-   #[inline]
-   fn get_ic_id(&self, t_id: usize) -> usize {
-       (t_id / (self.pc_par*self.jc_par*self.ir_par*self.jr_par)) % self.ic_par
-   }
+    pub fn new(
+        num_threads: usize,
+        ic_par: usize,
+        pc_par: usize,
+        jc_par: usize,
+        ir_par: usize,
+        jr_par: usize,
+    ) -> Self {
+        assert_eq!(num_threads, jc_par * pc_par * ic_par * jr_par * ir_par);
+        Self { num_threads, ic_par, pc_par, jc_par, ir_par, jr_par }
+    }
+    pub fn from_num_threads(num_threads: usize) -> Self {
+        let ic_par = num_threads;
+        let pc_par = 1;
+        let jc_par = 1;
+        let ir_par = 1;
+        let jr_par = 1;
+        Self { num_threads, ic_par, pc_par, jc_par, ir_par, jr_par }
+    }
+    #[inline(always)]
+    pub fn default() -> Self {
+        let num_threads = glare_num_threads();
+        Self::from_num_threads(num_threads)
+        // Self::new(30, 3, 1, 5, 2, 1)
+    }
+    #[inline]
+    fn get_ic_id(&self, t_id: usize) -> usize {
+        (t_id / (self.pc_par * self.jc_par * self.ir_par * self.jr_par)) % self.ic_par
+    }
 
-//    #[inline]
-//    fn get_pc_id(&self, t_id: usize) -> usize {
-//        (t_id / (self.jr_par*self.ir_par*self.ic_par)) % self.pc_par
-//    }
-   #[inline]
-   fn get_jc_id(&self, t_id: usize) -> usize {
-       (t_id / (self.jr_par*self.ir_par)) % self.jc_par
-   }
-   #[inline]
-   fn get_jr_id(&self, t_id: usize) -> usize {
-       (t_id / self.ir_par) % self.jr_par
-   }
-   #[inline]
-   fn get_ir_id(&self, t_id: usize) -> usize {
-       t_id % self.ir_par
-   }
+    //    #[inline]
+    //    fn get_pc_id(&self, t_id: usize) -> usize {
+    //        (t_id / (self.jr_par*self.ir_par*self.ic_par)) % self.pc_par
+    //    }
+    #[inline]
+    fn get_jc_id(&self, t_id: usize) -> usize {
+        (t_id / (self.jr_par * self.ir_par)) % self.jc_par
+    }
+    #[inline]
+    fn get_jr_id(&self, t_id: usize) -> usize {
+        (t_id / self.ir_par) % self.jr_par
+    }
+    #[inline]
+    fn get_ir_id(&self, t_id: usize) -> usize {
+        t_id % self.ir_par
+    }
 }
 
 #[inline]
-pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) -> (usize, usize, bool) {
-   let chunk_len = (m / (mr*ic_par)) * mr;
-   let rem = m % (mr*ic_par);
-   if ic_id == 0 {
-        let x = chunk_len + rem%mr;
-        let mc_left = ((((x+mc-1) / mc ) * mc) * ic_par) < m;
-        return (m - chunk_len - (rem%mr), m, mc_left);
+pub fn split_c_range(
+    m: usize,
+    mc: usize,
+    mr: usize,
+    ic_id: usize,
+    ic_par: usize,
+) -> (usize, usize, bool) {
+    let chunk_len = (m / (mr * ic_par)) * mr;
+    let rem = m % (mr * ic_par);
+    if ic_id == 0 {
+        let x = chunk_len + rem % mr;
+        let mc_left = ((((x + mc - 1) / mc) * mc) * ic_par) < m;
+        return (m - chunk_len - (rem % mr), m, mc_left);
     }
     let ic_id = ic_id - 1;
     let m0 = (m / mr) * mr;
-   let rem = m0 % (mr*ic_par);
-   let start_delta =  rem.min(ic_id*mr);
-   let end_delta = rem.min((ic_id + 1)*mr);
-//    let is_m_boundary = (chunk_len + end_delta - start_delta ) % mc == 0;
-   let mc_coeff = (chunk_len + end_delta - start_delta + mc -1) / mc;
-   let mc_left = ((mc_coeff * mc) * ic_par ) < m;
-//    let mc_left = is_m_boundary && rem != 0 && end_delta == start_delta;
-   (chunk_len * ic_id + start_delta, chunk_len * (ic_id + 1) + end_delta, mc_left)
+    let rem = m0 % (mr * ic_par);
+    let start_delta = rem.min(ic_id * mr);
+    let end_delta = rem.min((ic_id + 1) * mr);
+    //    let is_m_boundary = (chunk_len + end_delta - start_delta ) % mc == 0;
+    let mc_coeff = (chunk_len + end_delta - start_delta + mc - 1) / mc;
+    let mc_left = ((mc_coeff * mc) * ic_par) < m;
+    //    let mc_left = is_m_boundary && rem != 0 && end_delta == start_delta;
+    (chunk_len * ic_id + start_delta, chunk_len * (ic_id + 1) + end_delta, mc_left)
 }
 
 #[inline]
 pub fn split_range(range_len: usize, unit_len: usize, r_id: usize, r_par: usize) -> (usize, usize) {
-   let chunk_start = (range_len / (unit_len*r_par)) * unit_len * r_id;
-   let chunk_end = (range_len / (unit_len*r_par)) * unit_len * (r_id + 1);
-   let rem = range_len % (unit_len*r_par);
-   let rem = rem - rem % unit_len;
-   let rem_start =  rem.min(r_id*unit_len);
-   let rem_end = rem.min((r_id + 1)*unit_len);
-   if r_id == r_par - 1 {
-       return (chunk_start + rem_start, range_len);
-   }
-   (chunk_start + rem_start, chunk_end + rem_end)
+    let chunk_start = (range_len / (unit_len * r_par)) * unit_len * r_id;
+    let chunk_end = (range_len / (unit_len * r_par)) * unit_len * (r_id + 1);
+    let rem = range_len % (unit_len * r_par);
+    let rem = rem - rem % unit_len;
+    let rem_start = rem.min(r_id * unit_len);
+    let rem_end = rem.min((r_id + 1) * unit_len);
+    if r_id == r_par - 1 {
+        return (chunk_start + rem_start, range_len);
+    }
+    (chunk_start + rem_start, chunk_end + rem_end)
 }
 
 pub trait BaseNum: Copy + 'static + Send {}
 
 impl<T> BaseNum for T where T: Copy + 'static + Send {}
 
-
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub struct PoolSize {
     pub ap_pool_size: usize,
     pub ap_pool_multiplicity: usize,
@@ -477,9 +445,11 @@ pub struct PoolSize {
 
 impl PoolSize {
     // add alignment padding for ab only for total memory pool sizes
-    pub fn mem_pool_size_b<TA,TB>(&self) -> usize {
+    pub fn mem_pool_size_b<TA, TB>(&self) -> usize {
         // be conservative and add 2 * AB_ALIGN padding always
-        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity + self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity + 2 * AB_ALIGN
+        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity
+            + self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity
+            + 2 * AB_ALIGN
     }
 
     pub fn ap_size_b<TA>(&self) -> usize {
@@ -498,7 +468,10 @@ impl PoolSize {
         self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity
     }
 
-    pub fn slice_mut_from_pool<TA,TB>(&self, mem_pool: &mut [u8]) -> (Vec<Arc<RwLock<&mut [TA]>>>, Vec<Arc<RwLock<&mut [TB]>>>) {
+    pub fn slice_mut_from_pool<TA, TB>(
+        &self,
+        mem_pool: &mut [u8],
+    ) -> (Vec<Arc<RwLock<&mut [TA]>>>, Vec<Arc<RwLock<&mut [TB]>>>) {
         let ap_pool_size = self.ap_pool_size;
         let ap_pool_size_b = ap_pool_size * std::mem::size_of::<TA>();
         let a_alignment = std::mem::align_of::<TA>();
@@ -510,8 +483,8 @@ impl PoolSize {
         let mut ap = vec![];
         let mut bp = vec![];
         // safety for pointer to slice casting: assert len of mem_pool is enough
-        // ap_pool_size 
-        assert!(mem_pool.len() >= self.mem_pool_size_b::<TA,TB>());
+        // ap_pool_size
+        assert!(mem_pool.len() >= self.mem_pool_size_b::<TA, TB>());
         // align mem_pool
         let align_offset = mem_pool.as_ptr().align_offset(AB_ALIGN);
         let mut mem_pool = &mut mem_pool[align_offset..];
@@ -530,7 +503,7 @@ impl PoolSize {
         // safety for pointer to slice casting: bp has right alignment
         assert_eq!(mem_pool.as_ptr().align_offset(b_alignment), 0);
         for _ in 0..self.bp_pool_multiplicity {
-            let (b, rest) =  mem_pool.split_at_mut(bp_pool_size_b);
+            let (b, rest) = mem_pool.split_at_mut(bp_pool_size_b);
             let bp_pool = unsafe {
                 std::slice::from_raw_parts_mut::<TB>(b.as_mut_ptr() as *mut TB, bp_pool_size)
             };
@@ -539,52 +512,43 @@ impl PoolSize {
         }
         (ap, bp)
     }
-    
 }
 
-pub fn get_mem_pool_size_goto<
-AP: BaseNum,
-BP: BaseNum,
-HWConfig: GemmCache
->(hw_config: &HWConfig, par: &GlarePar, a_need_pool: bool, b_need_pool: bool) -> PoolSize
-{
+pub fn get_mem_pool_size_goto<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
+    hw_config: &HWConfig,
+    par: &GlarePar,
+    a_need_pool: bool,
+    b_need_pool: bool,
+) -> PoolSize {
     let (ap_pool_size, ap_pool_multiplicity) = if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        let ap_pool_size =
+            hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
         (ap_pool_size, ap_pool_multiplicity)
     } else {
         (0, 1)
     };
     let (bp_pool_size, bp_pool_multiplicity) = if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        let bp_pool_size =
+            hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
         (bp_pool_size, bp_pool_multiplicity)
     } else {
         (0, 1)
     };
-    PoolSize {
-        ap_pool_size,
-        ap_pool_multiplicity,
-        bp_pool_size,
-        bp_pool_multiplicity,
-    }
+    PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size, bp_pool_multiplicity }
 }
 
-pub fn get_mem_pool_size_small_m<
-AP: BaseNum,
-BP: BaseNum,
-HWConfig: GemmCache
->(hw_config: &HWConfig,par: &GlarePar, a_need_pool: bool) -> PoolSize
-{
+pub fn get_mem_pool_size_small_m<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
+    hw_config: &HWConfig,
+    par: &GlarePar,
+    a_need_pool: bool,
+) -> PoolSize {
     if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
-        PoolSize {
-            ap_pool_size,
-            ap_pool_multiplicity,
-            bp_pool_size: 0,
-            bp_pool_multiplicity: 1,
-        }
+        let ap_pool_size =
+            hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
     } else {
         PoolSize {
             ap_pool_size: 0,
@@ -593,34 +557,23 @@ HWConfig: GemmCache
             bp_pool_multiplicity: 1,
         }
     }
-    
 }
 
-pub fn get_mem_pool_size_small_n<
-AP: BaseNum,
-BP: BaseNum,
-HWConfig: GemmCache
->(hw_config: &HWConfig, par: &GlarePar, b_need_pool: bool) -> PoolSize
-{
+pub fn get_mem_pool_size_small_n<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
+    hw_config: &HWConfig,
+    par: &GlarePar,
+    b_need_pool: bool,
+) -> PoolSize {
     let ap_pool_size = hw_config.get_ap_pool_size2() + CACHELINE_PAD / std::mem::size_of::<AP>();
     let ap_pool_multiplicity = par.num_threads;
 
     if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
-        PoolSize {
-            ap_pool_size,
-            ap_pool_multiplicity,
-            bp_pool_size,
-            bp_pool_multiplicity,
-        }
+        let bp_pool_size =
+            hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size, bp_pool_multiplicity }
     } else {
-        PoolSize {
-            ap_pool_size,
-            ap_pool_multiplicity,
-            bp_pool_size: 0,
-            bp_pool_multiplicity: 1,
-        }
+        PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
     }
 }
 
@@ -639,68 +592,54 @@ pub fn run_small_n(n: usize) -> bool {
     n < 144
 }
 
-
 pub enum GemmPool {
     Goto,
     SmallM,
     SmallN,
 }
 
-pub fn ap_size<T>(
-	m: usize, k: usize,
-) -> usize {
-	let vs = 64 / std::mem::size_of::<T>();
-	let m_max = (m + vs - 1) / vs * vs;
-	m_max*k + AB_ALIGN / std::mem::size_of::<T>()
+pub fn ap_size<T>(m: usize, k: usize) -> usize {
+    let vs = 64 / std::mem::size_of::<T>();
+    let m_max = (m + vs - 1) / vs * vs;
+    m_max * k + AB_ALIGN / std::mem::size_of::<T>()
 }
 
-pub fn bp_size<T>(
-	n: usize, k: usize,
-) -> usize {
-	n*k + AB_ALIGN / std::mem::size_of::<T>()
+pub fn bp_size<T>(n: usize, k: usize) -> usize {
+    n * k + AB_ALIGN / std::mem::size_of::<T>()
 }
 
-pub fn ap_size_int<T,P>(
-	m: usize, k: usize,
-) -> usize {
-	let vs = 64 / std::mem::size_of::<T>();
+pub fn ap_size_int<T, P>(m: usize, k: usize) -> usize {
+    let vs = 64 / std::mem::size_of::<T>();
     let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
     let k_r = (k + c_r - 1) / c_r * c_r;
-	let m_max = (m + vs - 1) / vs * vs;
-	m_max*k_r + AB_ALIGN / std::mem::size_of::<T>()
+    let m_max = (m + vs - 1) / vs * vs;
+    m_max * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }
 
-pub fn bp_size_int<T,P>(
-	n: usize, k: usize,
-) -> usize {
+pub fn bp_size_int<T, P>(n: usize, k: usize) -> usize {
     let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
     let k_r = (k + c_r - 1) / c_r * c_r;
-	n*k_r + AB_ALIGN / std::mem::size_of::<T>()
+    n * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }
 
 #[derive(Clone, Copy)]
 pub struct StridedMatrix<T> {
-    pub(crate) data_ptr : *const T,
+    pub(crate) data_ptr: *const T,
     pub(crate) rs: usize,
     pub(crate) cs: usize,
 }
 
 impl<T> StridedMatrix<T> {
     pub fn new(data_ptr: *const T, rs: usize, cs: usize) -> Self {
-        Self {
-            data_ptr,
-            rs,
-            cs,
-        }
+        Self { data_ptr, rs, cs }
     }
 }
 
 unsafe impl<T> Send for StridedMatrix<T> {}
 
-
 #[derive(Clone, Copy)]
 pub struct StridedMatrixMut<T> {
-    pub(crate) data_ptr : *mut T,
+    pub(crate) data_ptr: *mut T,
     pub(crate) rs: usize,
     pub(crate) cs: usize,
 }
@@ -709,25 +648,21 @@ unsafe impl<T> Send for StridedMatrixMut<T> {}
 
 impl<T> StridedMatrixMut<T> {
     pub fn new(data_ptr: *mut T, rs: usize, cs: usize) -> Self {
-        Self {
-            data_ptr,
-            rs,
-            cs,
-        }
+        Self { data_ptr, rs, cs }
     }
 }
 
 #[derive(Clone)]
-pub struct StridedMatrixP<'a,T,U> {
-    pub(crate) data_ptr : *const T,
+pub struct StridedMatrixP<'a, T, U> {
+    pub(crate) data_ptr: *const T,
     pub(crate) rs: usize,
     pub(crate) cs: usize,
     pub(crate) data_p_ptr: Arc<RwLock<&'a mut [U]>>,
 }
 
-unsafe impl<'a,T,U> Send for StridedMatrixP<'a,T,U> {}
+unsafe impl<'a, T, U> Send for StridedMatrixP<'a, T, U> {}
 
-impl<'a,T,U> StridedMatrixP<'a,T,U> {
+impl<'a, T, U> StridedMatrixP<'a, T, U> {
     pub fn data_ptr(&self) -> *const T {
         self.data_ptr
     }
@@ -747,7 +682,7 @@ impl<'a,T,U> StridedMatrixP<'a,T,U> {
 
 #[derive(Clone, Copy)]
 pub struct PackedMatrix<T> {
-    pub(crate) data_ptr : *const T,
+    pub(crate) data_ptr: *const T,
     pub(crate) k: usize,
     pub(crate) m: usize,
 }
@@ -766,16 +701,15 @@ impl<T> PackedMatrix<T> {
     }
 }
 
-
 #[derive(Clone)]
-pub struct PackedMatrixMixed<'a,X,Y> {
-    pub(crate) data_ptr : *const X,
+pub struct PackedMatrixMixed<'a, X, Y> {
+    pub(crate) data_ptr: *const X,
     pub(crate) data_p_ptr: Arc<RwLock<&'a mut [Y]>>,
     pub(crate) k: usize,
     pub(crate) m: usize,
 }
 
-impl<'a,X,Y> PackedMatrixMixed<'a,X,Y> {
+impl<'a, X, Y> PackedMatrixMixed<'a, X, Y> {
     pub fn data_ptr(&self) -> *const X {
         self.data_ptr
     }
@@ -795,7 +729,7 @@ impl<'a,X,Y> PackedMatrixMixed<'a,X,Y> {
     }
 }
 
-unsafe impl<X,Y> Send for PackedMatrixMixed<'_,X,Y> {}
+unsafe impl<X, Y> Send for PackedMatrixMixed<'_, X, Y> {}
 
 // must be multiple largest vector size that we support
 // Now, it avx512 -> 64 bytes
@@ -804,9 +738,9 @@ pub const AB_ALIGN: usize = 1024;
 pub trait GemmCache {
     fn mr(&self) -> usize;
     fn nr(&self) -> usize;
-    fn get_mc_eff(&self,par: usize) -> usize;
+    fn get_mc_eff(&self, par: usize) -> usize;
     fn get_kc_eff(&self) -> usize;
-    fn get_nc_eff(&self,par: usize) -> usize;
+    fn get_nc_eff(&self, par: usize) -> usize;
     fn get_ap_pool_size(&self, ic_par: usize) -> usize {
         let mc_eff = self.get_mc_eff(ic_par);
         let kc_eff = self.get_kc_eff();
@@ -816,14 +750,14 @@ pub trait GemmCache {
         let kc_eff = self.get_kc_eff();
         self.mr() * kc_eff
     }
-    fn get_bp_pool_size(&self,jc_par: usize) -> usize {
+    fn get_bp_pool_size(&self, jc_par: usize) -> usize {
         let nc_eff = self.get_nc_eff(jc_par);
         let kc_eff = self.get_kc_eff();
         nc_eff * kc_eff
     }
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum Array<X> {
     StridedMatrix(StridedMatrix<X>),
     PackedMatrix(PackedMatrix<X>),
@@ -834,33 +768,43 @@ impl<X> Array<X> {
         Array::StridedMatrix(StridedMatrix::new(data_ptr, rs, cs))
     }
     pub fn packed_matrix(data_ptr: *const X, m: usize, k: usize) -> Self {
-        Array::PackedMatrix(PackedMatrix {
-            data_ptr,
-            k,
-            m,
-        })
+        Array::PackedMatrix(PackedMatrix { data_ptr, k, m })
     }
-    pub fn into_pack_array<'a>(&self, a: &[Arc<RwLock<&'a mut [X]>>], p_id: usize) -> PArray<'a,X> {
+    pub fn into_pack_array<'a>(
+        &self,
+        a: &[Arc<RwLock<&'a mut [X]>>],
+        p_id: usize,
+    ) -> PArray<'a, X> {
         match self {
             Array::StridedMatrix(x) => {
-                let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a[p_id].clone() };
+                let x = StridedMatrixP {
+                    data_ptr: x.data_ptr,
+                    rs: x.rs,
+                    cs: x.cs,
+                    data_p_ptr: a[p_id].clone(),
+                };
                 PArray::<X>::StridedMatrix(x)
             }
             Array::PackedMatrix(x) => {
-                let x = PackedMatrix {
-                    data_ptr: x.data_ptr,
-                    k: x.k,
-                    m: x.m,
-                };
+                let x = PackedMatrix { data_ptr: x.data_ptr, k: x.k, m: x.m };
                 PArray::PackedMatrix(x)
             }
         }
     }
-    pub fn into_pack_array2<'a,Y>(&self, a: &[Arc<RwLock<&'a mut [Y]>>], p_id: usize) -> PArrayMixed<'a,X,Y> {
+    pub fn into_pack_array2<'a, Y>(
+        &self,
+        a: &[Arc<RwLock<&'a mut [Y]>>],
+        p_id: usize,
+    ) -> PArrayMixed<'a, X, Y> {
         match self {
             Array::StridedMatrix(x) => {
-                let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a[p_id].clone() };
-                PArrayMixed::<X,Y>::StridedMatrix(x)
+                let x = StridedMatrixP {
+                    data_ptr: x.data_ptr,
+                    rs: x.rs,
+                    cs: x.cs,
+                    data_p_ptr: a[p_id].clone(),
+                };
+                PArrayMixed::<X, Y>::StridedMatrix(x)
             }
             Array::PackedMatrix(x) => {
                 let x = PackedMatrixMixed {
@@ -876,12 +820,8 @@ impl<X> Array<X> {
 
     pub fn data_ptr(&self) -> *const X {
         match self {
-            Array::StridedMatrix(x) => {
-                x.data_ptr
-            }
-            Array::PackedMatrix(x) => {
-                x.data_ptr
-            }
+            Array::StridedMatrix(x) => x.data_ptr,
+            Array::PackedMatrix(x) => x.data_ptr,
         }
     }
 
@@ -900,9 +840,7 @@ impl<X> Array<X> {
 
     pub fn rs(&self) -> usize {
         match self {
-            Array::StridedMatrix(x) => {
-                x.rs
-            }
+            Array::StridedMatrix(x) => x.rs,
             _ => {
                 panic!("Only StridedMatrix has rs");
             }
@@ -911,9 +849,7 @@ impl<X> Array<X> {
 
     pub fn cs(&self) -> usize {
         match self {
-            Array::StridedMatrix(x) => {
-                x.cs
-            }
+            Array::StridedMatrix(x) => x.cs,
             _ => {
                 panic!("Only StridedMatrix has cs");
             }
@@ -928,23 +864,19 @@ impl<X> Array<X> {
     }
 }
 
-
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum ArrayMut<X> {
     StridedMatrix(StridedMatrixMut<X>),
 }
 
 impl<X> ArrayMut<X> {
-
     pub fn strided_matrix(data_ptr: *mut X, rs: usize, cs: usize) -> Self {
         ArrayMut::StridedMatrix(StridedMatrixMut::new(data_ptr, rs, cs))
     }
 
     pub fn data_ptr(&self) -> *mut X {
         match self {
-            ArrayMut::StridedMatrix(x) => {
-                x.data_ptr
-            }
+            ArrayMut::StridedMatrix(x) => x.data_ptr,
         }
     }
 
@@ -960,45 +892,34 @@ impl<X> ArrayMut<X> {
 
     pub fn rs(&self) -> usize {
         match self {
-            ArrayMut::StridedMatrix(x) => {
-                x.rs
-            }
+            ArrayMut::StridedMatrix(x) => x.rs,
         }
     }
 
     pub fn cs(&self) -> usize {
         match self {
-            ArrayMut::StridedMatrix(x) => {
-                x.cs
-            }
+            ArrayMut::StridedMatrix(x) => x.cs,
         }
     }
 }
 
 #[derive(Clone)]
-pub enum PArray<'a,X> {
-    StridedMatrix(StridedMatrixP<'a,X,X>),
+pub enum PArray<'a, X> {
+    StridedMatrix(StridedMatrixP<'a, X, X>),
     PackedMatrix(PackedMatrix<X>),
 }
 
-impl<'a, X> PArray<'a,X> {
-
+impl<'a, X> PArray<'a, X> {
     pub fn data_ptr(&self) -> *const X {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_ptr
-            }
-            Self::PackedMatrix(x) => {
-                x.data_ptr
-            }
+            Self::StridedMatrix(x) => x.data_ptr,
+            Self::PackedMatrix(x) => x.data_ptr,
         }
     }
 
     pub fn rs(&self) -> usize {
         match self {
-            Self::StridedMatrix(x) => {
-                x.rs
-            }
+            Self::StridedMatrix(x) => x.rs,
             _ => {
                 panic!("Only StridedMatrix has rs");
             }
@@ -1007,9 +928,7 @@ impl<'a, X> PArray<'a,X> {
 
     pub fn cs(&self) -> usize {
         match self {
-            Self::StridedMatrix(x) => {
-                x.cs
-            }
+            Self::StridedMatrix(x) => x.cs,
             _ => {
                 panic!("Only StridedMatrix has cs");
             }
@@ -1018,9 +937,7 @@ impl<'a, X> PArray<'a,X> {
 
     pub fn data_p_write(&self) -> RwLockWriteGuard<&'a mut [X]> {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_p_ptr.write().unwrap()
-            }
+            Self::StridedMatrix(x) => x.data_p_ptr.write().unwrap(),
             _ => {
                 panic!("Only StridedMatrix has write guard");
             }
@@ -1029,9 +946,7 @@ impl<'a, X> PArray<'a,X> {
 
     pub fn data_p_read(&self) -> RwLockReadGuard<&'a mut [X]> {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_p_ptr.read().unwrap()
-            }
+            Self::StridedMatrix(x) => x.data_p_ptr.read().unwrap(),
             _ => {
                 panic!("Only StridedMatrix has read guard");
             }
@@ -1046,31 +961,23 @@ impl<'a, X> PArray<'a,X> {
     }
 }
 
-
-
 #[derive(Clone)]
-pub enum PArrayMixed<'a,X,Y> {
-    StridedMatrix(StridedMatrixP<'a,X,Y>),
-    PackedMatrix(PackedMatrixMixed<'a,X,Y>),
+pub enum PArrayMixed<'a, X, Y> {
+    StridedMatrix(StridedMatrixP<'a, X, Y>),
+    PackedMatrix(PackedMatrixMixed<'a, X, Y>),
 }
 
-impl<'a,X,Y> PArrayMixed<'a,X,Y> {
+impl<'a, X, Y> PArrayMixed<'a, X, Y> {
     pub fn data_ptr(&self) -> *const X {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_ptr
-            }
-            Self::PackedMatrix(x) => {
-                x.data_ptr
-            }
+            Self::StridedMatrix(x) => x.data_ptr,
+            Self::PackedMatrix(x) => x.data_ptr,
         }
     }
 
     pub fn rs(&self) -> usize {
         match self {
-            Self::StridedMatrix(x) => {
-                x.rs
-            }
+            Self::StridedMatrix(x) => x.rs,
             _ => {
                 panic!("Only StridedMatrix has rs");
             }
@@ -1079,9 +986,7 @@ impl<'a,X,Y> PArrayMixed<'a,X,Y> {
 
     pub fn cs(&self) -> usize {
         match self {
-            Self::StridedMatrix(x) => {
-                x.cs
-            }
+            Self::StridedMatrix(x) => x.cs,
             _ => {
                 panic!("Only StridedMatrix has cs");
             }
@@ -1090,22 +995,14 @@ impl<'a,X,Y> PArrayMixed<'a,X,Y> {
 
     pub fn data_p_write(&self) -> RwLockWriteGuard<&'a mut [Y]> {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_p_ptr.write().unwrap()
-            }
-            Self::PackedMatrix(x) => {
-                x.data_p_ptr.write().unwrap()
-            }
+            Self::StridedMatrix(x) => x.data_p_ptr.write().unwrap(),
+            Self::PackedMatrix(x) => x.data_p_ptr.write().unwrap(),
         }
     }
     pub fn data_p_read(&self) -> RwLockReadGuard<&'a mut [Y]> {
         match self {
-            Self::StridedMatrix(x) => {
-                x.data_p_ptr.read().unwrap()
-            }
-            Self::PackedMatrix(x) => {
-                x.data_p_ptr.read().unwrap()
-            }
+            Self::StridedMatrix(x) => x.data_p_ptr.read().unwrap(),
+            Self::PackedMatrix(x) => x.data_p_ptr.read().unwrap(),
         }
     }
     pub fn is_strided(&self) -> bool {
@@ -1116,41 +1013,37 @@ impl<'a,X,Y> PArrayMixed<'a,X,Y> {
     }
 }
 
-pub enum PtrData<'a,X> {
-    RefData(RwLockReadGuard<'a,&'a mut [X]>),
+pub enum PtrData<'a, X> {
+    RefData(RwLockReadGuard<'a, &'a mut [X]>),
     PtrData(*const X),
 }
 
-impl<'a,X> PtrData<'a,X> {
+impl<'a, X> PtrData<'a, X> {
     pub fn data_ptr(&self) -> *const X {
         match self {
-            PtrData::RefData(x) => {
-                x.as_ptr()
-            }
-            PtrData::PtrData(x) => {
-                x.clone()
-            }
+            PtrData::RefData(x) => x.as_ptr(),
+            PtrData::PtrData(x) => x.clone(),
         }
     }
 }
 
 #[macro_export]
-macro_rules! is_mixed{
+macro_rules! is_mixed {
     (T, $st1:expr, $st2:expr) => {
         $st1
     };
     (F, $src:expr, $st2:expr) => {
         $st2
-    }
+    };
 }
 
 #[macro_export]
-macro_rules! def_pa{
+macro_rules! def_pa {
     ($packa_ty:tt,F,$ta:tt,$tap:tt) => {
-        type $packa_ty<'a> = PArray<'a,$tap>;
+        type $packa_ty<'a> = PArray<'a, $tap>;
     };
     ($packa_ty:tt,T,$ta:tt,$tap:tt) => {
-        type $packa_ty<'a> = PArrayMixed<'a,$ta,$tap>;
+        type $packa_ty<'a> = PArrayMixed<'a, $ta, $tap>;
     };
 }
 
@@ -1206,7 +1099,7 @@ macro_rules! def_glare_gemm {
             let (gemm_mode, gemm_fun, pool_info)
             : (
                 GemmPool, unsafe fn(
-                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig, 
+                    &$t_dispatcher <F>, usize, usize, usize, *const $t_as, $packa_ty, $packb_ty, *const $t_bs, ArrayMut<$tc>, &GlareThreadConfig,
                 ),
                 PoolSize
             )
@@ -1233,7 +1126,7 @@ macro_rules! def_glare_gemm {
                 let y = acquire(&pool_guard, mem_pool_size);
                 if let Some(mut pool_vec) = y {
                     let pool_buf = &mut pool_vec;
-                    $name_mt( 
+                    $name_mt(
                         hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, pool_info, gemm_fun
                     );
                     return;
@@ -1241,12 +1134,12 @@ macro_rules! def_glare_gemm {
             }
             let mut pool_vec = vec![0_u8; mem_pool_size];
             let pool_buf = &mut pool_vec;
-            $name_mt( 
+            $name_mt(
                 hw_config, m, n, k, alpha, a, b, beta, c, par, pool_buf, gemm_mode, pool_info, gemm_fun
             );
             extend(pool_vec);
         }
-        
+
         pub unsafe fn $name_mt<F:MyFn>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
@@ -1365,11 +1258,11 @@ macro_rules! def_glare_gemm {
                         let bp = bp_data.data_ptr();
                         let bp = bp.add(nr_start*kc_len_eff);
                         $goto_kernel(
-                             hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
-                             ap, bp,
-                             kc_last, kc_first
+                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, c_ij, c_rs, c_cs,
+                            ap, bp,
+                            kc_last, kc_first
                          );
-        
+
                         nc_i += nc_eff;
                     }
                     if nc_left {
@@ -1426,7 +1319,7 @@ macro_rules! def_glare_gemm {
             let (nc_start, nc_end, _) = split_c_range(n, nc_eff, nr, jc_id, par.jc_par);
             let (kc_start, kc_end) = (0, k);
             let one = $one;
-        
+
             let mut mc = mc_start;
             let mc_end = mc_end;
             let b_ptr = b.data_ptr();
@@ -1438,7 +1331,7 @@ macro_rules! def_glare_gemm {
             while mc < mc_end {
                 let mc_len = mc_eff.min(mc_end - mc);
                 let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
-        
+
                 let mr_len = mr_end - mr_start;
                 let c_i = c_ptr.add((mc+mr_start) * c_rs);
                 let mut kc = kc_start;
@@ -1460,7 +1353,7 @@ macro_rules! def_glare_gemm {
                         let c_ij = c_i.add((nc + nr_start) * c_cs);
                         let b_cur = b_j.add((nc+nr_start) * b_cs);
                         $small_m_kernel(
-                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, 
+                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t,
                             b_cur, b_rs, b_cs,
                             c_ij, c_rs, c_cs,
                             ap,
@@ -1472,7 +1365,7 @@ macro_rules! def_glare_gemm {
                 }
                 mc += mc_eff;
             }
-        
+
             if mc_left {
                 let mut kc_i = kc_start;
                 while kc_i < kc_end {
@@ -1508,7 +1401,7 @@ macro_rules! def_glare_gemm {
             let (nc_start, nc_end, nc_left) = split_c_range(n, nc_eff, nr, jc_id, par.jc_par);
             let (kc_start, kc_end) = (0, k);
             let one = $one;
-        
+
             let mut mc = mc_start;
             let mc_end = mc_end;
             let c_rs = c.rs();
@@ -1522,7 +1415,7 @@ macro_rules! def_glare_gemm {
             while mc < mc_end {
                 let mc_len = mc_eff.min(mc_end - mc);
                  let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
-        
+
                 let mr_len = mr_end - mr_start;
                 let c_i = c_ptr.add((mc+mr_start) * c_rs);
                 let a_i = a_ptr.add((mc+mr_start) * a_rs);
@@ -1534,7 +1427,7 @@ macro_rules! def_glare_gemm {
                     let beta_t = if kc == kc_start { beta } else { &one as *const $t_bs};
                     let a_cur = a_i.add(kc*a_cs);
                     let mut nc = nc_start;
-        
+
                     while nc < nc_end {
                         let nc_len = nc_eff.min(nc_end - nc);
                         let (nr_start, nr_end) = split_range(nc_len, nr, jr_id, jr_par);
@@ -1543,7 +1436,7 @@ macro_rules! def_glare_gemm {
                         let bp = bp_data.data_ptr();
                         let c_ij = c_i.add((nc + nr_start) * c_cs);
                         $small_n_kernel(
-                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t, 
+                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t,
                             a_cur, a_rs, a_cs,
                             ap,
                             bp,
@@ -1556,7 +1449,7 @@ macro_rules! def_glare_gemm {
                         t_cfg.wait_packb();
                         t_cfg.wait_packb();
                     }
-        
+
                     kc += kc_eff;
                 }
                 mc += mc_eff;
@@ -1605,7 +1498,7 @@ macro_rules! def_glare_gemm {
                     let m_eff = (m.m() + vs - 1) / vs * vs;
                     let src = m.data_ptr().add(mc_i*kc_len + kc_i*m_eff);
                     let res = is_mixed!(
-                        $include_flag,          
+                        $include_flag,
                         {
                             let mc_eff = (mc_len + vs - 1) / vs * vs;
                             if t_cfg.run_packa {
@@ -1620,7 +1513,7 @@ macro_rules! def_glare_gemm {
                             t_cfg.wait_packa();
                             PtrData::PtrData(src)
                         }
-                    
+
                     );
                     res
 
@@ -1648,7 +1541,7 @@ macro_rules! def_glare_gemm {
                     let kc_len = hw_cfg.round_up(kc_len);
                     let src = m.data_ptr().add(nc_i*kc_len + kc_i*m.m());
                     let res = is_mixed!(
-                        $include_flag,          
+                        $include_flag,
                         {
                             if t_cfg.run_packb {
                                 let mut bp_ptr0 = m.data_p_write();
@@ -1662,7 +1555,7 @@ macro_rules! def_glare_gemm {
                             t_cfg.wait_packb();
                             PtrData::PtrData(src)
                         }
-                    
+
                     );
                     res
                 }
@@ -1695,7 +1588,7 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -1740,7 +1633,7 @@ macro_rules! def_kernel_bb_pf1_no_beta {
 
                 asm!("vzeroupper");
             }
-        }   
+        }
     };
 }
 
@@ -1768,7 +1661,7 @@ macro_rules! def_kernel_bb_pf1 {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -1813,7 +1706,7 @@ macro_rules! def_kernel_bb_pf1 {
 
                 asm!("vzeroupper");
             }
-        }   
+        }
     };
 }
 
@@ -1841,7 +1734,7 @@ macro_rules! def_kernel_bb_v0 {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -1882,7 +1775,7 @@ macro_rules! def_kernel_bb_v0 {
 
                 asm!("vzeroupper");
             }
-        }   
+        }
     };
 }
 
@@ -1909,7 +1802,7 @@ macro_rules! def_kernel_bb_v0_no_beta {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -1951,10 +1844,9 @@ macro_rules! def_kernel_bb_v0_no_beta {
 
                 asm!("vzeroupper");
             }
-        }   
+        }
     };
 }
-
 
 #[macro_export]
 macro_rules! def_kernel_sb_pf1 {
@@ -1983,7 +1875,7 @@ macro_rules! def_kernel_sb_pf1 {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2001,7 +1893,7 @@ macro_rules! def_kernel_sb_pf1 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
-                    }   
+                    }
                     m_i += MR;
                 }
 
@@ -2027,11 +1919,10 @@ macro_rules! def_kernel_sb_pf1 {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
-
 
 #[macro_export]
 macro_rules! def_kernel_sb_v0 {
@@ -2060,7 +1951,7 @@ macro_rules! def_kernel_sb_v0 {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2077,7 +1968,7 @@ macro_rules! def_kernel_sb_v0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
-                    }   
+                    }
                     m_i += MR;
                 }
 
@@ -2103,11 +1994,10 @@ macro_rules! def_kernel_sb_v0 {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
-
 
 #[macro_export]
 macro_rules! def_kernel_sb_v0_no_beta {
@@ -2134,7 +2024,7 @@ macro_rules! def_kernel_sb_v0_no_beta {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2151,7 +2041,7 @@ macro_rules! def_kernel_sb_v0_no_beta {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
-                    }   
+                    }
                     m_i += MR;
                 }
 
@@ -2177,7 +2067,7 @@ macro_rules! def_kernel_sb_v0_no_beta {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
@@ -2207,7 +2097,7 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                 let n_left = n % NR;
 
                 let d_arr = [0, 0, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2225,7 +2115,7 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
-                    }   
+                    }
                     m_i += MR;
                 }
 
@@ -2251,7 +2141,7 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
@@ -2280,7 +2170,7 @@ macro_rules! def_kernel_bs_no_beta {
                 let n_left = n % NR;
 
                 let d_arr = [b_rs, b_cs, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2321,11 +2211,10 @@ macro_rules! def_kernel_bs_no_beta {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
-
 
 #[macro_export]
 macro_rules! def_kernel_bs {
@@ -2351,7 +2240,7 @@ macro_rules! def_kernel_bs {
                 let n_left = n % NR;
 
                 let d_arr = [b_rs, b_cs, c_rs, c_cs];
-                
+
                 let mut m_i = 0;
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2392,11 +2281,10 @@ macro_rules! def_kernel_bs {
                 )*
 
                 asm!("vzeroupper");
-            }        
+            }
         }
     };
 }
-
 
 // mod test {
 //     // test split_c_range
