@@ -139,15 +139,26 @@ unsafe fn kernel<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     bp: *const TB,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512bw {
+            avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx2 {
+            avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+    }
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512bw {
-        avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx2 {
-        avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
 }
@@ -188,15 +199,26 @@ unsafe fn kernel_n<F: MyFn>(
     c: *mut TC,
     c_rs: usize,
     c_cs: usize,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512bw {
+            avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx2 {
+            avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512bw {
-        avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx2 {
-        avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
 }

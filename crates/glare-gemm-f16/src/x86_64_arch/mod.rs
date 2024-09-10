@@ -324,20 +324,35 @@ unsafe fn kernel<F: MyFn>(
     c_cs: usize,
     ap: *const f32,
     bp: *const f32,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx && hw_cfg.features.fma {
+            avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx {
+            avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+    }
+
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx {
-        avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-        return;
+        avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
     }
 }
 
@@ -491,16 +506,22 @@ unsafe fn kernel_native<F: MyFn>(
     c_cs: usize,
     ap: *const f16,
     bp: *const f16,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+    }
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
 }
 
-#[allow(unused)]
 unsafe fn kernel_m_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
     m: usize,
@@ -518,8 +539,15 @@ unsafe fn kernel_m_native<F: MyFn>(
     kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
 }
@@ -543,6 +571,29 @@ unsafe fn kernel_n_native<F: MyFn>(
     kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512_f16::kernel_sb(
+                m,
+                n,
+                k,
+                alpha,
+                beta,
+                a,
+                a_rs,
+                a_cs,
+                b,
+                c,
+                c_rs,
+                c_cs,
+                ap,
+                hw_cfg.func,
+            );
+            return;
+        }
+    }
+
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
         avx512_f16::kernel_sb(
             m,
@@ -558,7 +609,7 @@ unsafe fn kernel_n_native<F: MyFn>(
             c_rs,
             c_cs,
             ap,
-            hw_cfg.func,
+            null_fn,
         );
         return;
     }
