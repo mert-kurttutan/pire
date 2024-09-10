@@ -1,12 +1,13 @@
-pub(crate) mod avx_fma_microkernel;
-pub(crate) mod avx512f_microkernel;
-pub(crate) mod avx512_f16_microkernel;
+pub(crate) mod avx;
+pub(crate) mod avx_fma;
+pub(crate) mod avx512f;
+pub(crate) mod avx512_f16;
 pub(crate) mod pack_avx;
 // pub(crate) mod pack_f16_avx;
 
 
 use crate::f16;
-// use avx_fma_microkernel::axpy;
+// use avx_fma::axpy;
 
 const AVX_FMA_GOTO_MR: usize = 24; // register block size
 const AVX_FMA_GOTO_NR: usize = 4; // register block size
@@ -76,7 +77,7 @@ impl<F: MyFn> F32Dispatcher<F>{
         } else if features.avx && features.fma {
             (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
         } else {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (16, 4)
         };
         let vs = if features.avx512f {
             16
@@ -112,7 +113,7 @@ impl<F: MyFn> F32Dispatcher<F>{
             return;
         }
         if self.features.avx {
-            pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
+            pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
@@ -142,7 +143,7 @@ impl<F: MyFn> F32Dispatcher<F>{
             return;
         }
         if self.features.avx {
-            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs);
+            pack_avx::packa_panel_16_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
     }
@@ -307,13 +308,17 @@ unsafe fn kernel<F:MyFn>(
     _kc_last: bool, _kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
-     avx512f_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
  if hw_cfg.features.avx && hw_cfg.features.fma {
-     avx_fma_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
+ if hw_cfg.features.avx {
+    avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+    return;
+}
 }
 
 #[allow(unused)]
@@ -328,11 +333,11 @@ unsafe fn kernel_m<F:MyFn>(
     kc_last: bool, kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
-    //     avx512f_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
     //     return;
     // }
     // if hw_cfg.features.avx && hw_cfg.features.fma {
-    //     avx_fma_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     avx_fma::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
     //     return;
     // }
 }
@@ -350,11 +355,11 @@ unsafe fn kernel_n<F:MyFn>(
     kc_last: bool, kc_first: bool,
 ) {
     // if hw_cfg.features.avx512f {
-    //     avx512f_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
     //     return;
     // }
     // if hw_cfg.features.avx && hw_cfg.features.fma {
-    //     avx_fma_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+    //     avx_fma::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
     //     return;
     // }
 }
@@ -372,8 +377,12 @@ unsafe fn glare_gemv<F:MyFn>(
     let inc_x = x.rs();
     let y_ptr   = y.data_ptr();
     let incy = y.rs();
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma_microkernel::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    if hw_cfg.features.avx && hw_cfg.features.fma {
+        avx_fma::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+        return;
+    }
+    if hw_cfg.features.avx {
+        avx::axpy(m, n, alpha, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
         return;
     }
 }
@@ -407,7 +416,7 @@ unsafe fn kernel_native<F:MyFn>(
     _kc_last: bool, _kc_first: bool,
 ) {
  if hw_cfg.features.avx512f {
-     avx512_f16_microkernel::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+     avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
      return;
  }
 }
@@ -424,7 +433,7 @@ unsafe fn kernel_m_native<F:MyFn>(
     kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
-        avx512_f16_microkernel::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -442,7 +451,7 @@ unsafe fn kernel_n_native<F:MyFn>(
     kc_last: bool, _kc_first: bool,
 ) {
     if hw_cfg.features.avx512f {
-        avx512_f16_microkernel::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
         return;
     }
 }
@@ -467,13 +476,10 @@ unsafe fn glare_gemv_native<F:MyFn>(
     let alpha_t = &alhpa_val as *const f32;
     // use compute_f32 until we have f16 axpy
     if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma_microkernel::axpy(m, n, alpha_t, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta_t, y_ptr, incy, hw_cfg.func);
+        avx_fma::axpy(m, n, alpha_t, a.data_ptr(), a.rs(), a.cs(), x_ptr, inc_x, beta_t, y_ptr, incy, hw_cfg.func);
         return;
     }
 }
-
-
-// type F16Pack0<'a> = PArray<'a,f16>;
 
 def_glare_gemm!(
     F16Dispatcher,

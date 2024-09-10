@@ -24,7 +24,7 @@ use glare_base::{
 	GlarePar,
 	RUNTIME_HW_CONFIG,
 	get_cache_params,
-	has_f32_compute,
+	has_f16f32_compute,
 	has_f16_compute,
 	ap_size,
 	bp_size,
@@ -98,7 +98,7 @@ F: MyFn,
 		x86_64_arch::glare_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 		return;
 	}
-	if has_f32_compute() {
+	if has_f16f32_compute() {
 		let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
 		x86_64_arch::glare_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
 		return;
@@ -174,11 +174,11 @@ pub unsafe fn packa_f16(
 	let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
 	// if none of the optimized paths are available, use reference implementation
 	let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn{});
-	// let vs = if has_f32_compute() {hw_config.vs} else {hw_config_ref.vs};
+	// let vs = if has_f16f32_compute() {hw_config.vs} else {hw_config_ref.vs};
 	let vs = {
 		if has_f16_compute() {
 			hw_config_f16.vs
-		} else if has_f32_compute() {
+		} else if has_f16f32_compute() {
 			hw_config.vs
 		} else {
 			hw_config_ref.vs
@@ -196,7 +196,7 @@ pub unsafe fn packa_f16(
 				let a_cur = a.add(i*a_rs+p*a_cs);
 				if has_f16_compute() {
 					hw_config_f16.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
-				} else if has_f32_compute() {
+				} else if has_f16f32_compute() {
 					hw_config.packa_fnsame(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
 				} else {
 					hw_config_ref.packa_fnsame(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
@@ -238,7 +238,7 @@ pub unsafe fn packb_f16(
 				let b_cur = b.add(i*b_cs+p*b_rs);
 				if has_f16_compute() {
 					hw_config_f16.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
-				} else if has_f32_compute() {
+				} else if has_f16f32_compute() {
 					hw_config.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
 				} else {
 					hw_config_ref.packb_fnsame(b_cur, bp, nc_len, kc_len, b_rs, b_cs);

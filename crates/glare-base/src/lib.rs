@@ -24,6 +24,7 @@ pub struct CpuFeatures {
     pub avx512f: bool,
     pub avx512f16: bool,
     pub avx512bf16: bool,
+    pub avx512bw: bool,
     pub fma: bool,
     pub fma4: bool,
     pub f16c: bool,
@@ -122,6 +123,7 @@ fn detect_hw_config() -> HWConfig {
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         let avx512bf16 = extended_feature_info.has_avx512_bf16();
         let avx512f = extended_feature_info.has_avx512f();
+        let avx512bw = extended_feature_info.has_avx512bw();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
@@ -139,6 +141,7 @@ fn detect_hw_config() -> HWConfig {
             avx512f,
             avx512f16,
             avx512bf16,
+            avx512bw,
             fma,
             fma4,
             f16c,
@@ -191,6 +194,13 @@ pub(crate) mod cpu_features{
         // (even though avx512f should imply), we are being super conservative here
         RUNTIME_HW_CONFIG.cpu_ft.avx
     }
+
+    pub fn has_f16f32_compute() -> bool {
+        // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
+        // dont use above since some avx512f also rely on avx instructions 
+        // (even though avx512f should imply), we are being super conservative here
+        RUNTIME_HW_CONFIG.cpu_ft.avx && RUNTIME_HW_CONFIG.cpu_ft.f16c
+    }
     pub fn has_f64_compute() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx
     }
@@ -198,10 +208,10 @@ pub(crate) mod cpu_features{
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
     }
     pub fn has_i16i32_compute() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.avx2
+        RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx
     }
     pub fn has_i8i32_compute() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.avx2
+        RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx
     }
     pub fn hw_avx512f16() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16

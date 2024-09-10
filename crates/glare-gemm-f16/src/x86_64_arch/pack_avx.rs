@@ -472,6 +472,38 @@ pub(crate) unsafe fn pack_kx48_v1(
 
 
 #[target_feature(enable = "avx,f16c")]
+pub(crate) unsafe fn pack_kx16_v1(
+    k: usize,
+    a: *const f16, lda: usize,
+    ap: *mut f32,
+) {
+    let k8 = k / 8 * 8;
+    let mut k_i = 0;
+    let a0 = a;
+    let ap0 = ap;
+    const MR: usize = 16;
+    while k_i < k8 {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
+        pack_t::<MR>(a, lda, ap);
+        pack_t::<MR>(a.add(8*lda), lda, ap.add(8));
+
+        k_i += 8;
+    }
+
+    while k_i < k {
+        let a = a0.add(k_i);
+        let ap = ap0.add(k_i*MR);
+        seq!(i in 0..16 {
+            copy_packed::<1>(a.add(i*lda), ap.add(i));
+        });
+        k_i += 1;
+    }
+}
+
+
+
+#[target_feature(enable = "avx,f16c")]
 pub(crate) unsafe fn pack_kx4_v1(
     k: usize,
     b: *const f16, ldb: usize,
@@ -681,7 +713,7 @@ macro_rules! def_packa {
         }
     };
 }
-
+def_packa!(16);
 def_packa!(24);
 def_packa!(48);
 
@@ -815,7 +847,7 @@ macro_rules! def_packb {
          }
      };
  }
- 
+ def_packa!(16);
  def_packa!(24);
  def_packa!(48);
  def_packa!(64);
