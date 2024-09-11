@@ -666,6 +666,62 @@ pub unsafe fn gemm_fallback_f32(
     }
 }
 
+pub unsafe fn gemm_fallback_s16s16s32(
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: f32,
+    a: *const i16,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const i16,
+    b_rs: usize,
+    b_cs: usize,
+    beta: f32,
+    c: *mut i32,
+    c_rs: usize,
+    c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = 0i32;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) as i32 * *b.add(b_rs * p + b_cs * j) as i32;
+            }
+            *c.add(c_rs * i + c_cs * j) =
+                (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
+        }
+    }
+}
+
+pub unsafe fn gemm_fallback_s8u8s32(
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: f32,
+    a: *const i8,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const u8,
+    b_rs: usize,
+    b_cs: usize,
+    beta: f32,
+    c: *mut i32,
+    c_rs: usize,
+    c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = 0i32;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) as i32 * *b.add(b_rs * p + b_cs * j) as i32;
+            }
+            *c.add(c_rs * i + c_cs * j) =
+                (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
+        }
+    }
+}
+
 pub unsafe fn gemm_fallback_c32(
     m: usize,
     n: usize,
@@ -685,6 +741,33 @@ pub unsafe fn gemm_fallback_c32(
     for i in 0..m {
         for j in 0..n {
             let mut dx = Complex32::ZERO;
+            for p in 0..k {
+                dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
+            }
+            *c.add(c_rs * i + c_cs * j) = alpha * dx + beta * *c.add(c_rs * i + c_cs * j);
+        }
+    }
+}
+
+pub unsafe fn gemm_fallback_c64(
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: Complex64,
+    a: *const Complex64,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const Complex64,
+    b_rs: usize,
+    b_cs: usize,
+    beta: Complex64,
+    c: *mut Complex64,
+    c_rs: usize,
+    c_cs: usize,
+) {
+    for i in 0..m {
+        for j in 0..n {
+            let mut dx = Complex64::ZERO;
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
             }
@@ -805,6 +888,7 @@ pub unsafe fn check_gemm_s16s16s32(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [i32],
+    unary: unsafe fn(*mut i32, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -833,17 +917,47 @@ pub unsafe fn check_gemm_s16s16s32(
             ldc,
             oc,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
-        // // calculate diff using fallback
-        // gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        // let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        // return diff;
-        return 0.;
+        // calculate diff using fallback
+        gemm_fallback_s16s16s32(
+            m,
+            n,
+            k,
+            alpha,
+            a,
+            a_rs,
+            a_cs,
+            b,
+            b_rs,
+            b_cs,
+            beta,
+            c_ref.as_mut_ptr(),
+            c_rs,
+            c_cs,
+        );
     }
+
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub unsafe fn check_gemm_s8u8s32(
@@ -862,6 +976,7 @@ pub unsafe fn check_gemm_s8u8s32(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [i32],
+    unary: unsafe fn(*mut i32, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -892,17 +1007,47 @@ pub unsafe fn check_gemm_s8u8s32(
             ldc,
             oc,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
-        // // calculate diff using fallback
-        // gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-        // let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        // return diff;
-        return 0.;
+        // calculate diff using fallback
+        gemm_fallback_s8u8s32(
+            m,
+            n,
+            k,
+            alpha,
+            a,
+            a_rs,
+            a_cs,
+            b,
+            b_rs,
+            b_cs,
+            beta,
+            c_ref.as_mut_ptr(),
+            c_rs,
+            c_cs,
+        );
     }
+
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub unsafe fn check_gemm_f16(
@@ -921,6 +1066,7 @@ pub unsafe fn check_gemm_f16(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [f16],
+    unary: unsafe fn(*mut f16, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -936,8 +1082,6 @@ pub unsafe fn check_gemm_f16(
             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb,
             beta, c_ref_ptr, ldc,
         );
-        let diff = max_abs_diff(&c, &c_ref, 1e-1);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -958,9 +1102,27 @@ pub unsafe fn check_gemm_f16(
             c_rs,
             c_cs,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
+
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub unsafe fn check_gemm_f64(
@@ -979,6 +1141,7 @@ pub unsafe fn check_gemm_f64(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [f64],
+    unary: unsafe fn(*mut f64, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -1001,8 +1164,6 @@ pub unsafe fn check_gemm_f64(
             c_ref.as_mut_ptr(),
             ldc,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1023,9 +1184,27 @@ pub unsafe fn check_gemm_f64(
             c_rs,
             c_cs,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
+
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub unsafe fn check_gemm_f32(
@@ -1044,6 +1223,7 @@ pub unsafe fn check_gemm_f32(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [f32],
+    unary: unsafe fn(*mut f32, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -1066,8 +1246,6 @@ pub unsafe fn check_gemm_f32(
             c_ref.as_mut_ptr(),
             ldc,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1088,9 +1266,26 @@ pub unsafe fn check_gemm_f32(
             c_rs,
             c_cs,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 // pub unsafe fn check_gemm_f16(
@@ -1141,6 +1336,7 @@ pub unsafe fn check_gemm_c32(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [Complex32],
+    unary: unsafe fn(*mut Complex32, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -1156,8 +1352,6 @@ pub unsafe fn check_gemm_c32(
             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb,
             beta_ptr, c_ref_ptr, ldc,
         );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1178,9 +1372,26 @@ pub unsafe fn check_gemm_c32(
             c_rs,
             c_cs,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub unsafe fn check_gemm_c64(
@@ -1199,6 +1410,7 @@ pub unsafe fn check_gemm_c64(
     c_rs: usize,
     c_cs: usize,
     c_ref: &mut [Complex64],
+    unary: unsafe fn(*mut Complex64, m: usize),
     eps: f64,
 ) -> f64 {
     #[cfg(feature = "mkl")]
@@ -1214,8 +1426,6 @@ pub unsafe fn check_gemm_c64(
             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb,
             beta_ptr, c_ref_ptr, ldc,
         );
-        let diff = max_abs_diff(&c, &c_ref, 1e-3);
-        return diff;
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1236,9 +1446,27 @@ pub unsafe fn check_gemm_c64(
             c_rs,
             c_cs,
         );
-        let diff = max_abs_diff(&c, &c_ref, eps);
-        return diff;
     }
+
+    let c_ref_ptr = c_ref.as_mut_ptr();
+    if c_rs == 1 {
+        for j in 0..n {
+            unary(c_ref_ptr.add(j * c_cs), m);
+        }
+    } else if c_cs == 1 {
+        for i in 0..m {
+            unary(c_ref_ptr.add(i * c_rs), n);
+        }
+    } else {
+        for i in 0..m {
+            for j in 0..n {
+                unary(c_ref_ptr.add(i * c_rs + j * c_cs), 1);
+            }
+        }
+    }
+
+    let diff = max_abs_diff(&c, &c_ref, eps);
+    return diff;
 }
 
 pub fn cblas_params_from_str(
@@ -1261,6 +1489,7 @@ pub fn cblas_params_from_str(
 }
 
 pub fn generate_m_dims(mc: usize, mr: usize) -> Vec<usize> {
+    // return vec![1, 47, 101, 1201];
     let mut a_dims = vec![];
     for m in 1..mr {
         a_dims.push(m);
@@ -1272,6 +1501,7 @@ pub fn generate_m_dims(mc: usize, mr: usize) -> Vec<usize> {
 }
 
 pub fn generate_n_dims(nc: usize, nr: usize) -> Vec<usize> {
+    // return vec![1, 17, 47, 101, 901];
     let mut a_dims = vec![];
     for n in 1..nr {
         a_dims.push(n);
@@ -1283,6 +1513,7 @@ pub fn generate_n_dims(nc: usize, nr: usize) -> Vec<usize> {
 // kr does not really exist, it is to have the same patter as other dims, also
 // it might be also be thought of as being tested against k_unrolling parameter
 pub fn generate_k_dims(kc: usize, kr: usize) -> Vec<usize> {
+    // return vec![1, 17, 47, 101, 901]
     let mut a_dims = vec![];
     let kr = 8;
     for k in 1..kr {

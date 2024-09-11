@@ -29,47 +29,29 @@ pub unsafe fn axpy<F: MyFn>(
     incy: usize,
     f: F,
 ) {
-    //    if a_cs == 1 && incx == 1 {
-    //        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-    //        for i in 0..m {
-    //            f.call(y.add(i*incy), m);
-    //        }
-    //        return;
-    //    }
-    //    if a_rs == 1 && incy == 1 {
-    //         axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-    //         // move this inside axpy_v, and benchmark
-    //         f.call(y, m);
-    //         return;
-    //    }
+    // if a_cs == 1 && incx == 1 {
+    //     axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+    //     for i in 0..m {
+    //         f.call(y.add(i * incy), 1);
+    //     }
+    //     return;
+    // }
+    // if a_rs == 1 && incy == 1 {
+    //     axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+    //     f.call(y, m);
+    //     return;
+    // }
 
-    if a_cs == 1 {
-        for i in 0..m {
-            let a_cur = a.add(i * a_rs);
-            let y_cur = y.add(i * incy);
-            let mut acc = TC::ZERO;
-            for j in 0..n {
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(j) * *x_cur;
-            }
-            *y_cur = *beta * *y_cur + *alpha * acc;
-            f.call(y_cur, 1);
+    for i in 0..m {
+        let y_cur = y.add(i * incy);
+        let mut acc = TC::ZERO;
+        for j in 0..n {
+            let a_cur = a.add(i * a_rs + j * a_cs);
+            let x_cur = x.add(j * incx);
+            acc += *a_cur * *x_cur;
         }
-        return;
-    }
-    if a_rs == 1 || true {
-        for i in 0..m {
-            let y_cur = y.add(i * incy);
-            let mut acc = TC::ZERO;
-            for j in 0..n {
-                let a_cur = a.add(j * a_cs);
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(i) * *x_cur;
-            }
-            *y_cur = *beta * *y_cur + *alpha * acc;
-            f.call(y_cur, 1);
-        }
-        return;
+        *y_cur = *beta * *y_cur + *alpha * acc;
+        f.call(y_cur, 1);
     }
 }
 

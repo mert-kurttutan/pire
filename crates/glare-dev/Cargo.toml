@@ -12,7 +12,7 @@ half = { version = "2.4.1", features = ["rand_distr", "num-traits"] }
 num-complex = { version = "0.4.6"}
 
 [features]
-default = ["mkl"]
+default = []
 mkl = []
 blis = []
 blasfeo = []

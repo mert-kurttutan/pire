@@ -2,6 +2,10 @@ use std::sync::{Arc, Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLock
 // Consider Once Cell
 use once_cell::sync::Lazy;
 
+pub fn matrix_size(rs: usize, cs: usize, m: usize, n: usize) -> usize {
+    m * rs + n * cs - (rs + cs) + 1
+}
+
 #[macro_export]
 macro_rules! env_or {
     ($name:expr, $default:expr) => {

@@ -388,6 +388,10 @@ unsafe fn kernel_n<F: MyFn>(
             return;
         }
     }
+    if hw_cfg.features.avx {
+        avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
+        return;
+    }
 }
 
 unsafe fn glare_gemv<F: MyFn>(
