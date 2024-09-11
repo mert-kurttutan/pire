@@ -8,14 +8,14 @@ pub(crate) mod pack_avx;
 use crate::f16;
 // use avx_fma::axpy;
 
-const AVX_FMA_GOTO_MR: usize = 24; // register block size
-const AVX_FMA_GOTO_NR: usize = 4; // register block size
+const AVX_FMA_MR: usize = 24; // register block size
+const AVX_FMA_NR: usize = 4; // register block size
 
-const AVX512F_GOTO_MR: usize = 48; // register block size
-const AVX512F_GOTO_NR: usize = 8; // register block size
+const AVX512F_MR: usize = 48; // register block size
+const AVX512F_NR: usize = 8; // register block size
 
-const AVX512_F16_GOTO_MR: usize = 64; // register block size
-const AVX512_F16_GOTO_NR: usize = 15; // register block size
+const AVX512_F16_MR: usize = 64; // register block size
+const AVX512_F16_NR: usize = 15; // register block size
 
 use glare_base::{
     acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto,
@@ -45,9 +45,9 @@ impl<F: MyFn> F32Dispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr) = if features.avx512f {
-            (AVX512F_GOTO_MR, AVX512F_GOTO_NR)
+            (AVX512F_MR, AVX512F_NR)
         } else if features.avx && features.fma {
-            (AVX_FMA_GOTO_MR, AVX_FMA_GOTO_NR)
+            (AVX_FMA_MR, AVX_FMA_NR)
         } else {
             (16, 4)
         };
@@ -80,15 +80,15 @@ impl<F: MyFn> F32Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f {
+        if self.mr == 48 {
             pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs);
             return;
         }
-        if self.features.avx && self.features.fma {
+        if self.mr == 24 {
             pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs);
             return;
         }
-        if self.features.avx {
+        if self.mr == 16 {
             pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs);
             return;
         }
@@ -103,15 +103,11 @@ impl<F: MyFn> F32Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f {
+        if self.nr == 8 {
             pack_avx::packb_panel_8(n, k, x, cs, rs, y);
             return;
         }
-        if self.features.avx && self.features.fma {
-            pack_avx::packb_panel_4(n, k, x, cs, rs, y);
-            return;
-        }
-        if self.features.avx {
+        if self.nr == 4 {
             pack_avx::packb_panel_4(n, k, x, cs, rs, y);
             return;
         }
@@ -126,15 +122,15 @@ impl<F: MyFn> F32Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f {
+        if self.mr == 48 {
             pack_avx::packa_panel_48_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
-        if self.features.avx && self.features.fma {
+        if self.mr == 24 {
             pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
-        if self.features.avx {
+        if self.mr == 16 {
             pack_avx::packa_panel_16_same(m, k, x, rs, cs, y, self.vs);
             return;
         }
@@ -149,20 +145,17 @@ impl<F: MyFn> F32Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f {
+        if self.nr == 8 {
             pack_avx::packb_panel_8_same(n, k, x, cs, rs, y);
             return;
         }
-        if self.features.avx && self.features.fma {
-            pack_avx::packb_panel_4_same(n, k, x, cs, rs, y);
-            return;
-        }
-        if self.features.avx {
+        if self.nr == 4 {
             pack_avx::packb_panel_4_same(n, k, x, cs, rs, y);
             return;
         }
     }
 
+    #[target_feature(enable = "avx,f16c")]
     unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
         use std::arch::x86_64::*;
         let m_iter = m / 8;
@@ -195,16 +188,14 @@ pub(crate) struct F16Dispatcher<T: MyFn = NullFn> {
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    features: CpuFeatures,
     pub(crate) vs: usize,
 }
 
 impl<F: MyFn> F16Dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
-        let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let mr = AVX512_F16_GOTO_MR;
-        let nr = AVX512_F16_GOTO_NR;
+        let mr = AVX512_F16_MR;
+        let nr = AVX512_F16_NR;
         let vs = 32;
         Self {
             mc: mc,
@@ -216,7 +207,6 @@ impl<F: MyFn> F16Dispatcher<F> {
             func: f,
             mr,
             nr,
-            features: features,
             vs: vs,
         }
     }
@@ -234,10 +224,7 @@ impl<F: MyFn> F16Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f16 {
-            pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, self.vs);
-            return;
-        }
+        pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, self.vs);
     }
 
     pub(crate) unsafe fn packb_fn(
@@ -249,10 +236,7 @@ impl<F: MyFn> F16Dispatcher<F> {
         rs: usize,
         cs: usize,
     ) {
-        if self.features.avx512f16 {
-            pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
-            return;
-        }
+        pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
     }
 
     pub(crate) fn round_up(&self, k: usize) -> usize {
@@ -462,7 +446,6 @@ unsafe fn glare_gemv<F: MyFn>(
         return;
     }
 }
-// type F16Pack = PArrayMixed<f16,f32>;
 
 def_glare_gemm!(
     F32Dispatcher,
@@ -510,16 +493,12 @@ unsafe fn kernel_native<F: MyFn>(
     _kc_first: bool,
 ) {
     if kc_last {
-        if hw_cfg.features.avx512f {
-            avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-            return;
-        }
-    }
-    let null_fn = NullFn {};
-    if hw_cfg.features.avx512f {
-        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
+        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
         return;
     }
+    let null_fn = NullFn {};
+    avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
+    return;
 }
 
 unsafe fn kernel_m_native<F: MyFn>(
@@ -540,16 +519,10 @@ unsafe fn kernel_m_native<F: MyFn>(
     _kc_first: bool,
 ) {
     if kc_last {
-        if hw_cfg.features.avx512f {
-            avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
-            return;
-        }
+        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
     }
     let null_fn = NullFn {};
-    if hw_cfg.features.avx512f {
-        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
-        return;
-    }
+    avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
 }
 
 #[allow(unused)]
@@ -572,29 +545,6 @@ unsafe fn kernel_n_native<F: MyFn>(
     _kc_first: bool,
 ) {
     if kc_last {
-        if hw_cfg.features.avx512f {
-            avx512_f16::kernel_sb(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                a,
-                a_rs,
-                a_cs,
-                b,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.func,
-            );
-            return;
-        }
-    }
-
-    let null_fn = NullFn {};
-    if hw_cfg.features.avx512f {
         avx512_f16::kernel_sb(
             m,
             n,
@@ -609,10 +559,14 @@ unsafe fn kernel_n_native<F: MyFn>(
             c_rs,
             c_cs,
             ap,
-            null_fn,
+            hw_cfg.func,
         );
         return;
     }
+
+    let null_fn = NullFn {};
+    avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
+    return;
 }
 
 unsafe fn glare_gemv_native<F: MyFn>(
@@ -635,23 +589,21 @@ unsafe fn glare_gemv_native<F: MyFn>(
     let alhpa_val = (*alpha).to_f32();
     let alpha_t = &alhpa_val as *const f32;
     // use compute_f32 until we have f16 axpy
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
-        avx_fma::axpy(
-            m,
-            n,
-            alpha_t,
-            a.data_ptr(),
-            a.rs(),
-            a.cs(),
-            x_ptr,
-            inc_x,
-            beta_t,
-            y_ptr,
-            incy,
-            hw_cfg.func,
-        );
-        return;
-    }
+    avx_fma::axpy(
+        m,
+        n,
+        alpha_t,
+        a.data_ptr(),
+        a.rs(),
+        a.cs(),
+        x_ptr,
+        inc_x,
+        beta_t,
+        y_ptr,
+        incy,
+        hw_cfg.func,
+    );
+    return;
 }
 
 def_glare_gemm!(

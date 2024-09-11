@@ -154,48 +154,33 @@ unsafe fn kernel<F: MyFn>(
     kc_last: bool,
     kc_first: bool,
 ) {
+    if kc_first {
+        avx::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         if hw_cfg.features.avx512f {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx512f::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
             return;
         }
         if hw_cfg.features.avx && hw_cfg.features.fma {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx_fma::kernel_4x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
             return;
         }
         if hw_cfg.features.avx {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func);
             return;
         }
     }
     let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx512f::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx_fma::kernel_4x3(m, n, k, alpha, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
@@ -218,25 +203,19 @@ unsafe fn kernel_m<F: MyFn>(
     kc_last: bool,
     kc_first: bool,
 ) {
+    if kc_first {
+        avx::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         if hw_cfg.features.avx512f {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx512f::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
         if hw_cfg.features.avx && hw_cfg.features.fma {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx_fma::kernel_4x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
         if hw_cfg.features.avx {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
@@ -244,23 +223,14 @@ unsafe fn kernel_m<F: MyFn>(
 
     let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx512f::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx_fma::kernel_4x3_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
@@ -284,19 +254,30 @@ unsafe fn kernel_n<F: MyFn>(
     kc_last: bool,
     kc_first: bool,
 ) {
+    if kc_first {
+        avx::scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         if hw_cfg.features.avx512f {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
             avx512f::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
             return;
         }
         if hw_cfg.features.avx && hw_cfg.features.fma {
-            if kc_first {
-                avx::scale_c(m, n, beta, c, c_rs, c_cs);
-            }
-            avx_fma::kernel_4x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+            avx_fma::kernel_4x3_sb(
+                m,
+                n,
+                k,
+                alpha,
+                a,
+                a_rs,
+                a_cs,
+                b,
+                c,
+                c_rs,
+                c_cs,
+                ap,
+                hw_cfg.func,
+            );
             return;
         }
         if hw_cfg.features.avx {
@@ -307,16 +288,10 @@ unsafe fn kernel_n<F: MyFn>(
 
     let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx512f::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
-        if kc_first {
-            avx::scale_c(m, n, beta, c, c_rs, c_cs);
-        }
         avx_fma::kernel_4x3_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
@@ -340,7 +315,7 @@ unsafe fn glare_gemv<F: MyFn>(
     let inc_x = x.rs();
     let y_ptr = y.data_ptr();
     let incy = y.rs();
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+    if hw_cfg.features.avx && hw_cfg.features.fma {
         avx_fma::axpy(
             m,
             n,
@@ -357,7 +332,7 @@ unsafe fn glare_gemv<F: MyFn>(
         );
         return;
     }
-    if hw_cfg.features.avx || hw_cfg.features.avx512f {
+    if hw_cfg.features.avx {
         avx::axpy(
             m,
             n,
