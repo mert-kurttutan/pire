@@ -271,7 +271,7 @@ unsafe fn kernel_n<F: MyFn>(
 }
 
 unsafe fn glare_gemv<F: MyFn>(
-    _hw_cfg: &RefGemm<F>,
+    hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -297,6 +297,8 @@ unsafe fn glare_gemv<F: MyFn>(
             j += 1;
         }
         *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32 * *alpha) as i32;
+
+        hw_cfg.func.call(y_ptr.add(i * incy), 1);
         i += 1;
     }
 }
