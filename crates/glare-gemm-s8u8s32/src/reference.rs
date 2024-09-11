@@ -180,7 +180,7 @@ unsafe fn kernel<F: MyFn>(
     c_cs: usize,
     ap: *const i8,
     bp: *const u8,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
     let mut i = 0;
@@ -214,7 +214,9 @@ unsafe fn kernel<F: MyFn>(
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
                     *c_cur =
                         ((*c_cur as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
-                    hw_cfg.func.call(c_cur, 1);
+                    if kc_last {
+                        hw_cfg.func.call(c_cur, 1);
+                    }
                     acc[ii * nr_eff + jj] = 0;
                     jj += 1;
                 }
@@ -269,7 +271,7 @@ unsafe fn kernel_n<F: MyFn>(
 }
 
 unsafe fn glare_gemv<F: MyFn>(
-    _hw_cfg: &RefGemm<F>,
+    hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -295,12 +297,13 @@ unsafe fn glare_gemv<F: MyFn>(
             j += 1;
         }
         *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32 * *alpha) as i32;
+        hw_cfg.func.call(y_ptr.add(i * incy), 1);
         i += 1;
     }
 }
 
 unsafe fn glare_gemv2<F: MyFn>(
-    _hw_cfg: &RefGemm<F>,
+    hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -326,6 +329,7 @@ unsafe fn glare_gemv2<F: MyFn>(
             j += 1;
         }
         *y_ptr.add(i * incy) = ((*y_ptr.add(i * incy) as f32) * *beta + acc as f32 * *alpha) as i32;
+        hw_cfg.func.call(y_ptr.add(i * incy), 1);
         i += 1;
     }
 }

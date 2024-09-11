@@ -3,6 +3,7 @@ use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
+use crate::{load_buf, store_buf};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -551,7 +552,7 @@ macro_rules! def_ukernel {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
             k: usize,
-            ld_arr: [usize; 4],
+            d_arr: [usize; 4],
             m: usize,
             f: F,
         ) {
@@ -559,21 +560,14 @@ macro_rules! def_ukernel {
             let mask_ptr = x;
             let k_iter = (k-0) / 4;
             let k_left = k % 4+0;
-            let mut dim_arr = [ld_arr[0]*8, ld_arr[1]*8, ld_arr[3]*8, k_iter, k_left];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
-            let c_cs = ld_arr[3];
+            let c_cs = d_arr[3];
             if BUF {
-                let c_rs = ld_arr[2];
-                if m != $mr || c_rs != 1 {
-                    for j in 0..$nr {
-                        for i in 0..m {
-                            c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
-                        }
-                    }
-                    cf = c_buf.as_mut_ptr();
-                    dim_arr[2] = $mr*8;
-                }
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr);
+                dim_arr[2] = m*8;
+                cf = c_buf.as_mut_ptr();
             }
             // prefetch for c
             use std::arch::x86_64::_mm_prefetch;
@@ -652,18 +646,13 @@ macro_rules! def_ukernel {
                 options(att_syntax)
             );
             if BUF {
-                let c_rs = ld_arr[2];
-                if m != $mr || c_rs != 1 {
-                    for j in 0..$nr {
-                        for i in 0..m {
-                            *c.add(i*c_rs+j*c_cs) = c_buf[j*$mr+i];
-                        }
-                    }
+                for j in 0..$nr {
+                    f.call(cf.add(j*m), m);
                 }
-            }
-            for j in 0..$nr {
-                for i in 0..$mr/8 {
-                    f.call(c.add(i*8+j*c_cs), 8);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr);
+            } else {
+                for j in 0..$nr {
+                    f.call(cf.add(j*c_cs), m);
                 }
             }
         }
@@ -698,16 +687,9 @@ macro_rules! def_ukernelxn {
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                let c_rs = d_arr[2];
-                if m != $mr || c_rs != 1 {
-                    for j in 0..n {
-                        for i in 0..m {
-                            c_buf[j*$mr+i] = *c.add(i*c_rs+j*c_cs);
-                        }
-                    }
-                    cf = c_buf.as_mut_ptr();
-                    dim_arr[2] = $mr*8;
-                }
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n);
+                dim_arr[2] = m*8;
+                cf = c_buf.as_mut_ptr();
             }
             use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
@@ -795,18 +777,13 @@ macro_rules! def_ukernelxn {
                 });
             };
             if BUF {
-                let c_rs = d_arr[2];
-                if m != $mr || c_rs != 1 {
-                    for j in 0..n {
-                        for i in 0..m {
-                            *c.add(i*c_rs+j*c_cs) = c_buf[j*$mr+i];
-                        }
-                    }
+                for j in 0..n {
+                    f.call(cf.add(j*m), m);
                 }
-            }
-            for j in 0..n {
-                for i in 0..$mr/8 {
-                    f.call(c.add(i*8+j*c_cs), 8);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n);
+            } else {
+                for j in 0..n {
+                    f.call(cf.add(j*c_cs), m);
                 }
             }
         }

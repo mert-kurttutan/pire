@@ -152,25 +152,46 @@ unsafe fn kernel<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     bp: *const TB,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx && hw_cfg.features.fma {
+            if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
+                avx_fma::kernel_8x6(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+                return;
+            }
+            if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
+                avx_fma::kernel_12x4(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+                return;
+            }
+        }
+        if hw_cfg.features.avx {
+            avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            return;
+        }
+    }
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
-            avx_fma::kernel_8x6(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            avx_fma::kernel_8x6(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
             return;
         }
         if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
-            avx_fma::kernel_12x4(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+            avx_fma::kernel_12x4(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
             return;
         }
     }
     if hw_cfg.features.avx {
-        avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
+        avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
         return;
     }
 }
@@ -189,53 +210,77 @@ unsafe fn kernel_m<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     ap: *const TA,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+        if hw_cfg.features.avx && hw_cfg.features.fma {
+            if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
+                avx_fma::kernel_8x6_bs(
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    b,
+                    b_rs,
+                    b_cs,
+                    c,
+                    c_rs,
+                    c_cs,
+                    ap,
+                    hw_cfg.func,
+                );
+                return;
+            }
+            if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
+                avx_fma::kernel_12x4_bs(
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    b,
+                    b_rs,
+                    b_cs,
+                    c,
+                    c_rs,
+                    c_cs,
+                    ap,
+                    hw_cfg.func,
+                );
+                return;
+            }
+        }
+        if hw_cfg.features.avx {
+            avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
-            avx_fma::kernel_8x6_bs(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                b,
-                b_rs,
-                b_cs,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.func,
-            );
+            avx_fma::kernel_8x6_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
             return;
         }
         if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
             avx_fma::kernel_12x4_bs(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                b,
-                b_rs,
-                b_cs,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.func,
+                m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn,
             );
             return;
         }
     }
     if hw_cfg.features.avx {
-        avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
         return;
     }
 }
@@ -255,55 +300,96 @@ unsafe fn kernel_n<F: MyFn>(
     c: *mut TC,
     c_rs: usize,
     c_cs: usize,
-    _kc_last: bool,
+    kc_last: bool,
     _kc_first: bool,
 ) {
+    if kc_last {
+        if hw_cfg.features.avx512f {
+            avx512f::kernel_sb(
+                m,
+                n,
+                k,
+                alpha,
+                beta,
+                a,
+                a_rs,
+                a_cs,
+                b,
+                c,
+                c_rs,
+                c_cs,
+                ap,
+                hw_cfg.func,
+            );
+            return;
+        }
+        if hw_cfg.features.avx && hw_cfg.features.fma {
+            if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
+                avx_fma::kernel_8x6_sb(
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    a,
+                    a_rs,
+                    a_cs,
+                    b,
+                    c,
+                    c_rs,
+                    c_cs,
+                    ap,
+                    hw_cfg.func,
+                );
+                return;
+            }
+            if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
+                avx_fma::kernel_12x4_sb(
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    a,
+                    a_rs,
+                    a_cs,
+                    b,
+                    c,
+                    c_rs,
+                    c_cs,
+                    ap,
+                    hw_cfg.func,
+                );
+                return;
+            }
+        }
+        if hw_cfg.features.avx {
+            avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+            return;
+        }
+    }
+
+    let null_fn = NullFn {};
     if hw_cfg.features.avx512f {
-        avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
     if hw_cfg.features.avx && hw_cfg.features.fma {
         if hw_cfg.mr == 8 && hw_cfg.nr == 6 {
             avx_fma::kernel_8x6_sb(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                a,
-                a_rs,
-                a_cs,
-                b,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.func,
+                m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn,
             );
             return;
         }
         if hw_cfg.mr == 12 && hw_cfg.nr == 4 {
             avx_fma::kernel_12x4_sb(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                a,
-                a_rs,
-                a_cs,
-                b,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.func,
+                m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn,
             );
             return;
         }
     }
     if hw_cfg.features.avx {
-        avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
+        avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
         return;
     }
 }
@@ -322,7 +408,7 @@ unsafe fn glare_gemv<F: MyFn>(
     let inc_x = x.rs();
     let y_ptr = y.data_ptr();
     let incy = y.rs();
-    if hw_cfg.features.avx512f || (hw_cfg.features.avx && hw_cfg.features.fma) {
+    if hw_cfg.features.avx && hw_cfg.features.fma {
         avx_fma::axpy(
             m,
             n,
@@ -339,7 +425,7 @@ unsafe fn glare_gemv<F: MyFn>(
         );
         return;
     }
-    if hw_cfg.features.avx || hw_cfg.features.avx512f {
+    if hw_cfg.features.avx {
         avx::axpy(
             m,
             n,

@@ -2,6 +2,10 @@ use std::sync::{Arc, Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLock
 // Consider Once Cell
 use once_cell::sync::Lazy;
 
+pub fn matrix_size(rs: usize, cs: usize, m: usize, n: usize) -> usize {
+    m * rs + n * cs - (rs + cs) + 1
+}
+
 #[macro_export]
 macro_rules! env_or {
     ($name:expr, $default:expr) => {
@@ -176,20 +180,19 @@ pub(crate) mod cpu_features {
         RUNTIME_HW_CONFIG.cpu_ft.avx
     }
     pub fn has_f16_compute() -> bool {
+        // since avx512_f16 is not stabilized, we use avx+fma+f16c as f16f32 compute
+        // this should not be a problem since all avx512_f16 has also these features
+        // otherwise it is very obscure cpu / vm for which the support is worth the effort
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
+            && RUNTIME_HW_CONFIG.cpu_ft.avx
+            && RUNTIME_HW_CONFIG.cpu_ft.f16c
+            && RUNTIME_HW_CONFIG.cpu_ft.fma
     }
     pub fn has_i16i32_compute() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx
     }
     pub fn has_i8i32_compute() -> bool {
         RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx
-    }
-    pub fn hw_avx512f16() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.avx512f16
-    }
-
-    pub fn hw_avx512bf16() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.avx512f
     }
     // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {

@@ -29,55 +29,29 @@ pub unsafe fn axpy<F: MyFn>(
     incy: usize,
     f: F,
 ) {
-    // TODO! implement axpy_d and axpy_v with avx2
-    //    if a_cs == 1 && incx == 1 {
-    //        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-    //        for i in 0..m {
-    //            f.call(y.add(i*incy), m);
-    //        }
-    //        return;
-    //    }
-    //    if a_rs == 1 && incy == 1 {
+    // if a_cs == 1 && incx == 1 {
+    //     axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+    //     for i in 0..m {
+    //         f.call(y.add(i * incy), 1);
+    //     }
+    //     return;
+    // }
+    // if a_rs == 1 && incy == 1 {
     //     axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-    //     // move this inside axpy_v, and benchmark
     //     f.call(y, m);
     //     return;
-    //    }
+    // }
 
-    if a_cs == 1 {
-        for i in 0..m {
-            let a_cur = a.add(i * a_rs);
-            let y_cur = y.add(i * incy);
-            let mut acc = 0_i32;
-            for j in 0..n {
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(j) as i32 * *x_cur as i32;
-            }
-            acc = if *alpha == 1.0 { acc } else { (*alpha * acc as f32) as i32 };
-            if *beta == 0.0 {
-                *y_cur = acc;
-            } else if *beta == 1.0 {
-                *y_cur = *y_cur + acc;
-            } else {
-                *y_cur = (*beta * *y_cur as f32 + acc as f32) as i32;
-            }
-            f.call(y_cur, 1);
+    for i in 0..m {
+        let y_cur = y.add(i * incy);
+        let mut acc = 0i32;
+        for j in 0..n {
+            let a_cur = a.add(i * a_rs + j * a_cs);
+            let x_cur = x.add(j * incx);
+            acc += *a_cur as i32 * *x_cur as i32;
         }
-        return;
-    }
-    if a_rs == 1 {
-        for i in 0..m {
-            let y_cur = y.add(i * incy);
-            let mut acc = 0_i32;
-            for j in 0..n {
-                let a_cur = a.add(j * a_cs);
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(i) as i32 * *x_cur as i32;
-            }
-            *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
-            f.call(y_cur, 1);
-        }
-        return;
+        *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
+        f.call(y_cur, 1);
     }
 }
 
@@ -96,54 +70,29 @@ pub unsafe fn axpy2<F: MyFn>(
     incy: usize,
     f: F,
 ) {
-    //    if a_cs == 1 && incx == 1 {
-    //        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-    //        for i in 0..m {
-    //            f.call(y.add(i*incy), m);
-    //        }
-    //        return;
-    //    }
-    //    if a_rs == 1 && incy == 1 {
+    // if a_cs == 1 && incx == 1 {
+    //     axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+    //     for i in 0..m {
+    //         f.call(y.add(i * incy), 1);
+    //     }
+    //     return;
+    // }
+    // if a_rs == 1 && incy == 1 {
     //     axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-    //     // move this inside axpy_v, and benchmark
     //     f.call(y, m);
     //     return;
-    //    }
+    // }
 
-    if a_cs == 1 {
-        for i in 0..m {
-            let a_cur = a.add(i * a_rs);
-            let y_cur = y.add(i * incy);
-            let mut acc = 0_i32;
-            for j in 0..n {
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(j) as i32 * *x_cur as i32;
-            }
-            acc = if *alpha == 1.0 { acc } else { (*alpha * acc as f32) as i32 };
-            if *beta == 0.0 {
-                *y_cur = acc;
-            } else if *beta == 1.0 {
-                *y_cur = *y_cur + acc;
-            } else {
-                *y_cur = (*beta * *y_cur as f32 + acc as f32) as i32;
-            }
-            f.call(y_cur, 1);
+    for i in 0..m {
+        let y_cur = y.add(i * incy);
+        let mut acc = 0i32;
+        for j in 0..n {
+            let a_cur = a.add(i * a_rs + j * a_cs);
+            let x_cur = x.add(j * incx);
+            acc += *a_cur as i32 * *x_cur as i32;
         }
-        return;
-    }
-    if a_rs == 1 {
-        for i in 0..m {
-            let y_cur = y.add(i * incy);
-            let mut acc = 0_i32;
-            for j in 0..n {
-                let a_cur = a.add(j * a_cs);
-                let x_cur = x.add(j * incx);
-                acc += *a_cur.add(i) as i32 * *x_cur as i32;
-            }
-            *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
-            f.call(y_cur, 1);
-        }
-        return;
+        *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
+        f.call(y_cur, 1);
     }
 }
 

@@ -1,35 +1,43 @@
 use glare_dev::{
-    random_matrix_std, random_matrix_uniform,
-    // CBLAS_LAYOUT, 
-    CBLAS_TRANSPOSE,
-    check_gemm_f16, check_gemm_f32, check_gemm_f64, check_gemm_s16s16s32, check_gemm_s8u8s32, 
     check_gemm_c32,
     check_gemm_c64,
+    check_gemm_f16,
+    check_gemm_f32,
+    check_gemm_f64,
+    check_gemm_s16s16s32,
+    check_gemm_s8u8s32,
+    random_matrix_std,
+    random_matrix_uniform,
+    // CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
 };
 use half::f16;
 
 use bench::{
-    dispatch_sgemm, dispatch_dgemm, dispatch_cgemm, dispatch_gemm_batch_f32, dispatch_hgemm,
-    dispatch_gemm_s16s16s32, dispatch_gemm_s8u8s32,
-    dispatch_zgemm,
-    GemmBackend, gemm_backend_from_str, BenchType,
+    dispatch_cgemm, dispatch_dgemm, dispatch_gemm_batch_f32, dispatch_gemm_s16s16s32,
+    dispatch_gemm_s8u8s32, dispatch_hgemm, dispatch_sgemm, dispatch_zgemm, gemm_backend_from_str,
+    BenchType, GemmBackend,
 };
 
+unsafe fn null_unary<T>(_: *mut T, _: usize) {}
 
-use num_complex::{
-    c32,
-    Complex32,
-    c64,
-    Complex64,
-};
+use num_complex::{c32, c64, Complex32, Complex64};
 
 pub unsafe fn gemm_fallback_f32(
-	m: usize, n: usize, k: usize,
-	alpha: f32,
-	a: *const f32, a_rs: usize, a_cs: usize,
-	b: *const f32, b_rs: usize, b_cs: usize,
-	beta: f32,
-	c: *mut f32, c_rs: usize, c_cs: usize,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: f32,
+    a: *const f32,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const f32,
+    b_rs: usize,
+    b_cs: usize,
+    beta: f32,
+    c: *mut f32,
+    c_rs: usize,
+    c_cs: usize,
 ) {
     for i in 0..m {
         for j in 0..n {
@@ -37,19 +45,26 @@ pub unsafe fn gemm_fallback_f32(
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
             }
-            *c.add(c_rs * i + c_cs * j ) = alpha * dx +  beta * *c.add(c_rs * i + c_cs * j );
+            *c.add(c_rs * i + c_cs * j) = alpha * dx + beta * *c.add(c_rs * i + c_cs * j);
         }
     }
 }
-
 
 pub unsafe fn gemm_fallback_f64(
-	m: usize, n: usize, k: usize,
-	alpha: f64,
-	a: *const f64, a_rs: usize, a_cs: usize,
-	b: *const f64, b_rs: usize, b_cs: usize,
-	beta: f64,
-	c: *mut f64, c_rs: usize, c_cs: usize,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: f64,
+    a: *const f64,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const f64,
+    b_rs: usize,
+    b_cs: usize,
+    beta: f64,
+    c: *mut f64,
+    c_rs: usize,
+    c_cs: usize,
 ) {
     for i in 0..m {
         for j in 0..n {
@@ -57,27 +72,60 @@ pub unsafe fn gemm_fallback_f64(
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) * *b.add(b_rs * p + b_cs * j);
             }
-            *c.add(c_rs * i + c_cs * j ) = alpha * dx +  beta * *c.add(c_rs * i + c_cs * j );
+            *c.add(c_rs * i + c_cs * j) = alpha * dx + beta * *c.add(c_rs * i + c_cs * j);
         }
     }
 }
 
-pub fn cblas_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(i32, i32, i32, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE) {
+pub fn cblas_params_from_str(
+    layout_str: &str,
+    m: usize,
+    n: usize,
+    k: usize,
+) -> (i32, i32, i32, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE) {
     if layout_str == "nn" {
-        (m as i32, k as i32, m as i32, CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasNoTrans)
+        (
+            m as i32,
+            k as i32,
+            m as i32,
+            CBLAS_TRANSPOSE::CblasNoTrans,
+            CBLAS_TRANSPOSE::CblasNoTrans,
+        )
     } else if layout_str == "nt" {
-        (m as i32, n as i32, m as i32, CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasTrans)
+        (
+            m as i32,
+            n as i32,
+            m as i32,
+            CBLAS_TRANSPOSE::CblasNoTrans,
+            CBLAS_TRANSPOSE::CblasTrans,
+        )
     } else if layout_str == "tn" {
-        (k as i32, k as i32, m as i32, CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasNoTrans)
+        (
+            k as i32,
+            k as i32,
+            m as i32,
+            CBLAS_TRANSPOSE::CblasTrans,
+            CBLAS_TRANSPOSE::CblasNoTrans,
+        )
     } else if layout_str == "tt" {
-        (k as i32, n as i32, m as i32, CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasTrans)
+        (
+            k as i32,
+            n as i32,
+            m as i32,
+            CBLAS_TRANSPOSE::CblasTrans,
+            CBLAS_TRANSPOSE::CblasTrans,
+        )
     } else {
         panic!("Unsupported layout str");
     }
- }
- 
- 
-pub fn blis_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(isize, isize, isize, isize, isize, isize) {
+}
+
+pub fn blis_params_from_str(
+    layout_str: &str,
+    m: usize,
+    n: usize,
+    k: usize,
+) -> (isize, isize, isize, isize, isize, isize) {
     if layout_str == "nn" {
         (1, m as isize, 1, k as isize, 1, m as isize)
     } else if layout_str == "nt" {
@@ -89,18 +137,18 @@ pub fn blis_params_from_str(layout_str: &str, m: usize, n: usize, k: usize) ->(i
     } else {
         panic!("Unsupported layout str");
     }
- }
+}
 
 pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
     if bench_type_str == "sgemm" {
         return BenchType::SGemm;
-    } 
+    }
     if bench_type_str == "sgemm_batched" {
         return BenchType::SGemmBatched;
-    } 
+    }
     if bench_type_str == "hgemm" {
         return BenchType::HGemm;
-    } 
+    }
     if bench_type_str == "dgemm" {
         return BenchType::DGemm;
     }
@@ -119,14 +167,20 @@ pub fn bench_type_from_str(bench_type_str: &str) -> BenchType {
     panic!("Unsupported bench type str");
 }
 
-
 fn test_dgemm(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let alpha = alpha as f64;
     let beta = beta as f64;
@@ -141,25 +195,42 @@ fn test_dgemm(
     unsafe {
         dispatch_dgemm(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
 
     if args.check {
         let diff = unsafe {
             check_gemm_f64(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
+                null_unary::<f64>,
                 1e-3,
             )
         };
@@ -171,14 +242,20 @@ fn test_dgemm(
     end_time
 }
 
-
 fn test_sgemm(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
@@ -191,24 +268,41 @@ fn test_sgemm(
     unsafe {
         dispatch_sgemm(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
     if args.check {
         let diff = unsafe {
             check_gemm_f32(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
+                null_unary::<f32>,
                 1e-3,
             )
         };
@@ -221,12 +315,19 @@ fn test_sgemm(
 }
 
 fn test_cgemm(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let alpha = c32(alpha, 0.0);
     let beta = c32(beta, 0.0);
@@ -242,25 +343,42 @@ fn test_cgemm(
     unsafe {
         dispatch_cgemm(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
     if args.check {
         let diff = unsafe {
             check_gemm_c32(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
-                1e-3
+                null_unary::<Complex32>,
+                1e-3,
             )
         };
         println!("diff: {}", diff);
@@ -273,14 +391,20 @@ fn test_cgemm(
     end_time
 }
 
-
 fn test_zgemm(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f64,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f64,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let alpha = c64(alpha as f64, 0.0);
     let beta = c64(beta, 0.0);
@@ -296,25 +420,42 @@ fn test_zgemm(
     unsafe {
         dispatch_zgemm(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
     if args.check {
         let diff = unsafe {
             check_gemm_c64(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
-                1e-3
+                null_unary::<Complex64>,
+                1e-3,
             )
         };
         // println!("c    : {:?}", &c[..8]);
@@ -327,14 +468,20 @@ fn test_zgemm(
     end_time
 }
 
-
 fn test_sgemm_batched(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
     batch_size: usize,
 ) -> f64 {
     let mut a = vec![0.0; m * k * batch_size];
@@ -353,12 +500,23 @@ fn test_sgemm_batched(
     unsafe {
         dispatch_gemm_batch_f32(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs, stridea as isize,
-            b.as_ptr(), b_rs, b_cs, strideb as isize,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            stridea as isize,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
+            strideb as isize,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs, stridec as isize,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
+            stridec as isize,
             batch_size,
         );
     }
@@ -366,13 +524,22 @@ fn test_sgemm_batched(
     if args.check {
         let diff = unsafe {
             check_gemm_f32(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
+                null_unary::<f32>,
                 1e-3,
             )
         };
@@ -384,14 +551,20 @@ fn test_sgemm_batched(
     end_time
 }
 
-
 fn test_hgemm(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let alpha = f16::from_f32(alpha);
     let beta = f16::from_f32(beta);
@@ -406,25 +579,42 @@ fn test_hgemm(
     unsafe {
         dispatch_hgemm(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
 
     if args.check {
         let diff = unsafe {
             check_gemm_f16(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
+                null_unary::<f16>,
                 1e-1,
             )
         };
@@ -436,14 +626,20 @@ fn test_hgemm(
     end_time
 }
 
-
 fn test_gemm_s16s16s32(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let mut a = vec![0_i16; m * k];
     let mut b = vec![0_i16; k * n];
@@ -458,25 +654,42 @@ fn test_gemm_s16s16s32(
     unsafe {
         dispatch_gemm_s16s16s32(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
     if args.check {
         let diff = unsafe {
             check_gemm_s16s16s32(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
-                1e-3
+                null_unary::<i32>,
+                1e-3,
             )
         };
         // println!("c    : {:?}", c);
@@ -489,16 +702,20 @@ fn test_gemm_s16s16s32(
     end_time
 }
 
-
-
-
 fn test_gemm_s8u8s32(
-    m: usize, n: usize, k: usize,
-    gemm_backend: GemmBackend, args: &Args,
-    alpha: f32, beta: f32,
-    a_rs: isize, a_cs: isize,
-    b_rs: isize, b_cs: isize,
-    c_rs: isize, c_cs: isize,
+    m: usize,
+    n: usize,
+    k: usize,
+    gemm_backend: GemmBackend,
+    args: &Args,
+    alpha: f32,
+    beta: f32,
+    a_rs: isize,
+    a_cs: isize,
+    b_rs: isize,
+    b_cs: isize,
+    c_rs: isize,
+    c_cs: isize,
 ) -> f64 {
     let mut a = vec![0_i8; m * k];
     let mut b = vec![0_u8; k * n];
@@ -511,24 +728,41 @@ fn test_gemm_s8u8s32(
     unsafe {
         dispatch_gemm_s8u8s32(
             gemm_backend,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            a.as_ptr(), a_rs, a_cs,
-            b.as_ptr(), b_rs, b_cs,
+            a.as_ptr(),
+            a_rs,
+            a_cs,
+            b.as_ptr(),
+            b_rs,
+            b_cs,
             beta,
-            c.as_mut_ptr(), c_rs, c_cs,
+            c.as_mut_ptr(),
+            c_rs,
+            c_cs,
         );
     }
     if args.check {
         let diff = unsafe {
             check_gemm_s8u8s32(
-                m, n, k, 
-                alpha, 
-                a.as_ptr(), a_rs as usize, a_cs as usize, 
-                b.as_ptr(), b_rs as usize, b_cs as usize, 
-                beta, 
-                &c, c_rs as usize, c_cs as usize, 
+                m,
+                n,
+                k,
+                alpha,
+                a.as_ptr(),
+                a_rs as usize,
+                a_cs as usize,
+                b.as_ptr(),
+                b_rs as usize,
+                b_cs as usize,
+                beta,
+                &c,
+                c_rs as usize,
+                c_cs as usize,
                 &mut c_ref,
+                null_unary::<i32>,
                 1e-3,
             )
         };
@@ -542,11 +776,8 @@ fn test_gemm_s8u8s32(
     end_time
 }
 
-
- 
 use clap::Parser;
- 
- 
+
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -571,14 +802,14 @@ struct Args {
     #[arg(short, long, default_value_t = 5)]
     batch_dim: usize,
 
-   // tranpose layout
-   #[arg(short, long, default_value_t = String::from("nt"))]
-   t_layout: String,
+    // tranpose layout
+    #[arg(short, long, default_value_t = String::from("nt"))]
+    t_layout: String,
 
-   #[arg(short, long, default_value_t = false)]
-   check: bool,
+    #[arg(short, long, default_value_t = false)]
+    check: bool,
 
-   // gemm backend
+    // gemm backend
     #[arg(short, long, default_value_t = String::from("glare"))]
     backend: String,
 
@@ -595,10 +826,9 @@ struct Args {
     beta: f32,
 }
 
- 
- fn main() {
+fn main() {
     let mut total_time = 0.0;
- 
+
     let mut best_time = f64::INFINITY;
     // let beta = 1.0;
     // let alpha = 1.0;
@@ -619,14 +849,127 @@ struct Args {
     let mut rep = 0;
     while rep < n_repeats {
         let end_time = match bench_type {
-            BenchType::DGemm => test_dgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::SGemm => test_sgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::SGemmBatched => test_sgemm_batched(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, batch_dim),
-            BenchType::HGemm => test_hgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::CGemm => test_cgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::ZGemm => test_zgemm(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::GemmS16S16S32 => test_gemm_s16s16s32(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
-            BenchType::GemmS8U8S32 => test_gemm_s8u8s32(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs),
+            BenchType::DGemm => test_dgemm(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::SGemm => test_sgemm(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::SGemmBatched => test_sgemm_batched(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+                batch_dim,
+            ),
+            BenchType::HGemm => test_hgemm(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::CGemm => test_cgemm(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::ZGemm => test_zgemm(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::GemmS16S16S32 => test_gemm_s16s16s32(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
+            BenchType::GemmS8U8S32 => test_gemm_s8u8s32(
+                m,
+                n,
+                k,
+                gemm_backend,
+                &args,
+                alpha,
+                beta.into(),
+                a_rs,
+                a_cs,
+                b_rs,
+                b_cs,
+                c_rs,
+                c_cs,
+            ),
         };
         total_time += end_time;
 
@@ -638,5 +981,4 @@ struct Args {
     }
     let gflops = 2.0 * m as f64 * n as f64 * k as f64 / best_time / 1e9;
     println!("best_time: {}, GFLOPS: {}", best_time, gflops);
- }
- 
+}
