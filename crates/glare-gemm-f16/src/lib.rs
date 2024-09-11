@@ -41,6 +41,38 @@ impl MyFn for fn(*mut TC, m: usize) {
 }
 
 #[inline(always)]
+pub(crate) unsafe fn load_buf(
+    c: *const TC,
+    c_rs: usize,
+    c_cs: usize,
+    c_buf: &mut [TC],
+    m: usize,
+    n: usize,
+) {
+    for j in 0..n {
+        for i in 0..m {
+            c_buf[i + j * m] = *c.add(i * c_rs + j * c_cs);
+        }
+    }
+}
+
+#[inline(always)]
+pub(crate) unsafe fn store_buf(
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
+    c_buf: &[TC],
+    m: usize,
+    n: usize,
+) {
+    for j in 0..n {
+        for i in 0..m {
+            *c.add(i * c_rs + j * c_cs) = c_buf[i + j * m];
+        }
+    }
+}
+
+#[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
     if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
         match (*RUNTIME_HW_CONFIG).hw_model {
