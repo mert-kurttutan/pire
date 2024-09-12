@@ -17,14 +17,7 @@ use crate::MyFn;
 use core::arch::x86_64::*;
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn scale_c(
-    m: usize,
-    n: usize,
-    beta: *const TC,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-) {
+pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_rs: usize, c_cs: usize) {
     if *beta == TC::ZERO {
         if c_rs == 1 {
             for j in 0..n {

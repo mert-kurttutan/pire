@@ -35,12 +35,7 @@ pub(crate) unsafe fn acc_store(
 }
 
 #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn acc_start<const BETA: usize>(
-    a: *const TA,
-    y: *const TC,
-    xt0: __m256,
-    beta_v: __m256,
-) -> __m256 {
+pub(crate) unsafe fn acc_start<const BETA: usize>(a: *const TA, y: *const TC, xt0: __m256, beta_v: __m256) -> __m256 {
     if BETA == 1 {
         _mm256_fmadd_ps(_mm256_loadu_ps(a), xt0, _mm256_loadu_ps(y))
     } else if BETA == 0 {
@@ -216,14 +211,7 @@ use seq_macro::seq;
 pub(crate) unsafe fn acc_vec(x: __m256) -> TC {
     let mut acc_arr = [0.0; VS];
     _mm256_storeu_ps(acc_arr.as_mut_ptr(), x);
-    acc_arr[0]
-        + acc_arr[1]
-        + acc_arr[2]
-        + acc_arr[3]
-        + acc_arr[4]
-        + acc_arr[5]
-        + acc_arr[6]
-        + acc_arr[7]
+    acc_arr[0] + acc_arr[1] + acc_arr[2] + acc_arr[3] + acc_arr[4] + acc_arr[5] + acc_arr[6] + acc_arr[7]
 }
 
 #[target_feature(enable = "avx,fma")]

@@ -34,15 +34,7 @@ use crate::{
     NullFn,
 };
 
-unsafe fn packa_ref(
-    a: *const f16,
-    ap: *mut f32,
-    m: usize,
-    k: usize,
-    a_rs: usize,
-    a_cs: usize,
-    mr: usize,
-) {
+unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -69,15 +61,7 @@ unsafe fn packa_ref(
     }
 }
 
-unsafe fn packb_ref(
-    b: *const f16,
-    bp: *mut f32,
-    n: usize,
-    k: usize,
-    b_rs: usize,
-    b_cs: usize,
-    nr: usize,
-) {
+unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -104,15 +88,7 @@ unsafe fn packb_ref(
     }
 }
 
-unsafe fn packa_refsame(
-    a: *const f16,
-    ap: *mut f16,
-    m: usize,
-    k: usize,
-    a_rs: usize,
-    a_cs: usize,
-    mr: usize,
-) {
+unsafe fn packa_refsame(a: *const f16, ap: *mut f16, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -139,15 +115,7 @@ unsafe fn packa_refsame(
     }
 }
 
-unsafe fn packb_refsame(
-    b: *const f16,
-    bp: *mut f16,
-    n: usize,
-    k: usize,
-    b_rs: usize,
-    b_cs: usize,
-    nr: usize,
-) {
+unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -206,51 +174,19 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(
-        &self,
-        x: *const f16,
-        y: *mut f32,
-        m: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fn(
-        &self,
-        x: *const f16,
-        y: *mut f32,
-        n: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
-    pub(crate) unsafe fn packa_fnsame(
-        &self,
-        x: *const f16,
-        y: *mut f16,
-        m: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
         packa_refsame(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fnsame(
-        &self,
-        x: *const f16,
-        y: *mut f16,
-        n: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
         packb_refsame(x, y, n, k, rs, cs, self.nr);
     }
 
@@ -340,8 +276,7 @@ unsafe fn kernel<F: MyFn>(
                 let mut jj = 0;
                 while jj < nr_eff {
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
-                    *c_cur =
-                        f16::from_f32((*c_cur).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
+                    *c_cur = f16::from_f32((*c_cur).to_f32() * *beta + acc[ii * nr_eff + jj] * *alpha);
                     if kc_last {
                         hw_cfg.func.call(c_cur, 1);
                     }
@@ -424,8 +359,7 @@ unsafe fn glare_gemv<F: MyFn>(
             acc += (*a_ptr.add(i * a_rs + j * a_cs)).to_f32() * (*x_ptr.add(j * inc_x)).to_f32();
             j += 1;
         }
-        *y_ptr.add(i * incy) =
-            f16::from_f32((*y_ptr.add(i * incy)).to_f32() * *beta + acc * *alpha);
+        *y_ptr.add(i * incy) = f16::from_f32((*y_ptr.add(i * incy)).to_f32() * *beta + acc * *alpha);
 
         hw_cfg.func.call(y_ptr.add(i * incy), 1);
         i += 1;

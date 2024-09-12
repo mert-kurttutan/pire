@@ -50,15 +50,7 @@ impl<
     > Gemv<TA, TB, A, B, C> for AvxFma<GOTO_MR, GOTO_NR>
 {
     #[target_feature(enable = "neon")]
-    unsafe fn gemv_serial(
-        m: usize,
-        n: usize,
-        alpha: *const TA,
-        a: A,
-        x: B,
-        beta: *const C::X,
-        y: C,
-    ) {
+    unsafe fn gemv_serial(m: usize, n: usize, alpha: *const TA, a: A, x: B, beta: *const C::X, y: C) {
         let x_ptr = x.get_data_ptr();
         let inc_x = x.rs();
         let y_ptr = y.data_ptr();
@@ -109,8 +101,8 @@ impl<const GOTO_MR: usize, const GOTO_NR: usize> GemmPackB<TA, TA> for AvxFma<GO
 //     }
 // }
 
-impl<const GOTO_MR: usize, const GOTO_NR: usize, AP, BP, A: GemmArray<AP>, B: GemmArray<BP>>
-    GemmCache<AP, BP, A, B> for AvxFma<GOTO_MR, GOTO_NR>
+impl<const GOTO_MR: usize, const GOTO_NR: usize, AP, BP, A: GemmArray<AP>, B: GemmArray<BP>> GemmCache<AP, BP, A, B>
+    for AvxFma<GOTO_MR, GOTO_NR>
 {
     const CACHELINE_PAD: usize = 256;
     const MR: usize = GOTO_MR;

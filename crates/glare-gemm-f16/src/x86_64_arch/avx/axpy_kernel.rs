@@ -217,18 +217,15 @@ pub(crate) unsafe fn axpy_v(
 
         if beta == 1.0 {
             axpy_v_inner::<1>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         } else if beta == 0.0 {
             axpy_v_inner::<0>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         } else {
             axpy_v_inner::<2>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         }
         a_cur = a_cur.add(lda * K_UNROLL);
@@ -261,14 +258,7 @@ use seq_macro::seq;
 pub(crate) unsafe fn acc_vec(x: __m256) -> TC {
     let mut acc_arr = [0.0; VS];
     _mm256_storeu_ps(acc_arr.as_mut_ptr(), x);
-    let x = acc_arr[0]
-        + acc_arr[1]
-        + acc_arr[2]
-        + acc_arr[3]
-        + acc_arr[4]
-        + acc_arr[5]
-        + acc_arr[6]
-        + acc_arr[7];
+    let x = acc_arr[0] + acc_arr[1] + acc_arr[2] + acc_arr[3] + acc_arr[4] + acc_arr[5] + acc_arr[6] + acc_arr[7];
     f16::from_f32(x)
 }
 

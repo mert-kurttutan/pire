@@ -15,8 +15,8 @@ pub use half::f16;
 // };
 
 use glare_base::{
-    ap_size, bp_size, get_cache_params, has_f16_compute, has_f16f32_compute, Array, ArrayMut,
-    GemmCache, GlarePar, RUNTIME_HW_CONFIG,
+    ap_size, bp_size, get_cache_params, has_f16_compute, has_f16f32_compute, Array, ArrayMut, GemmCache, GlarePar,
+    RUNTIME_HW_CONFIG,
 };
 
 use reference::RefGemm;
@@ -41,14 +41,7 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
 }
 
 #[inline(always)]
-pub(crate) unsafe fn load_buf(
-    c: *const TC,
-    c_rs: usize,
-    c_cs: usize,
-    c_buf: &mut [TC],
-    m: usize,
-    n: usize,
-) {
+pub(crate) unsafe fn load_buf(c: *const TC, c_rs: usize, c_cs: usize, c_buf: &mut [TC], m: usize, n: usize) {
     for j in 0..n {
         for i in 0..m {
             c_buf[i + j * m] = *c.add(i * c_rs + j * c_cs);
@@ -57,14 +50,7 @@ pub(crate) unsafe fn load_buf(
 }
 
 #[inline(always)]
-pub(crate) unsafe fn store_buf(
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    c_buf: &[TC],
-    m: usize,
-    n: usize,
-) {
+pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC], m: usize, n: usize) {
     for j in 0..n {
         for i in 0..m {
             *c.add(i * c_rs + j * c_cs) = c_buf[i + j * m];
@@ -187,14 +173,7 @@ pub unsafe fn glare_hgemm_fused(
     glare_hgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
-pub unsafe fn packa_f16(
-    m: usize,
-    k: usize,
-    a: *const f16,
-    a_rs: usize,
-    a_cs: usize,
-    ap: *mut f16,
-) -> Array<f16> {
+pub unsafe fn packa_f16(m: usize, k: usize, a: *const f16, a_rs: usize, a_cs: usize, ap: *mut f16) -> Array<f16> {
     assert_eq!(ap.align_offset(glare_base::AB_ALIGN), 0);
     let mut ap = ap;
     if m == 1 {
@@ -204,10 +183,8 @@ pub unsafe fn packa_f16(
         return Array::strided_matrix(ap, 1, m);
     }
     let (mc, nc, kc) = get_mcnckc();
-    let hw_config =
-        x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-    let hw_config_f16 =
-        x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
+    let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
+    let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
     // if none of the optimized paths are available, use reference implementation
     let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
     // let vs = if has_f16f32_compute() {hw_config.vs} else {hw_config_ref.vs};
@@ -244,14 +221,7 @@ pub unsafe fn packa_f16(
     }
 }
 
-pub unsafe fn packb_f16(
-    n: usize,
-    k: usize,
-    b: *const f16,
-    b_rs: usize,
-    b_cs: usize,
-    bp: *mut f16,
-) -> Array<f16> {
+pub unsafe fn packb_f16(n: usize, k: usize, b: *const f16, b_rs: usize, b_cs: usize, bp: *mut f16) -> Array<f16> {
     assert_eq!(bp.align_offset(glare_base::AB_ALIGN), 0);
     let mut bp = bp;
     if n == 1 {
@@ -262,10 +232,8 @@ pub unsafe fn packb_f16(
     }
     let (mc, nc, kc) = get_mcnckc();
     let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-    let hw_config =
-        x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-    let hw_config_f16 =
-        x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
+    let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
+    let hw_config_f16 = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -290,14 +258,7 @@ pub unsafe fn packb_f16(
     }
 }
 
-pub unsafe fn packa_f16_with_ref(
-    m: usize,
-    k: usize,
-    a: &[TA],
-    a_rs: usize,
-    a_cs: usize,
-    ap: &mut [TA],
-) -> Array<TA> {
+pub unsafe fn packa_f16_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
     let pack_size = ap_size::<TA>(m, k);
     let ap_align_offset = ap.as_ptr().align_offset(glare_base::AB_ALIGN);
     // safety check
@@ -306,14 +267,7 @@ pub unsafe fn packa_f16_with_ref(
     unsafe { packa_f16(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr()) }
 }
 
-pub unsafe fn packb_f16_with_ref(
-    n: usize,
-    k: usize,
-    b: &[TB],
-    b_rs: usize,
-    b_cs: usize,
-    bp: &mut [TB],
-) -> Array<TB> {
+pub unsafe fn packb_f16_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
     let pack_size = bp_size::<TB>(n, k);
     let bp_align_offset = bp.as_ptr().align_offset(glare_base::AB_ALIGN);
     // safety check
@@ -327,8 +281,8 @@ mod tests {
     use super::*;
     use glare_base::matrix_size;
     use glare_dev::{
-        check_gemm_f16, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides,
-        random_matrix_uniform, ABLayout,
+        check_gemm_f16, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides, random_matrix_uniform,
+        ABLayout,
     };
 
     unsafe fn my_unary(c: *mut TC, m: usize) {
@@ -390,9 +344,7 @@ mod tests {
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                             unsafe {
-                                glare_hgemm_generic(
-                                    m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn,
-                                );
+                                glare_hgemm_generic(m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn);
                             }
                             let diff_max = unsafe {
                                 check_gemm_f16(

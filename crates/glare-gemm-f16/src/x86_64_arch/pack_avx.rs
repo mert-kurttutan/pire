@@ -268,12 +268,7 @@ pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f16, b: *mut f32) {
 }
 
 #[target_feature(enable = "avx,f16c")]
-pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const f16,
-    lda: usize,
-    ap: *mut f32,
-) {
+pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(k: usize, a: *const f16, lda: usize, ap: *mut f32) {
     let k8 = k / 8 * 8;
     let mut k_i = 0;
     let a0 = a;
@@ -303,12 +298,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_k_v0_2<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const u16,
-    lda: usize,
-    ap: *mut u16,
-) {
+pub(crate) unsafe fn pack_k_v0_2<const M: usize, const MR: usize>(k: usize, a: *const u16, lda: usize, ap: *mut u16) {
     let k8 = k / 8 * 8;
     let mut k_i = 0;
     let a0 = a;

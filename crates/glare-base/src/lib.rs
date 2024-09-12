@@ -119,8 +119,7 @@ fn detect_hw_config() -> HWConfig {
         let avx512f = extended_feature_info.has_avx512f();
         let avx512bw = extended_feature_info.has_avx512bw();
         let f16c = feature_info.has_f16c();
-        let extended_prcoessor_info =
-            cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+        let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
         // let avx = true;
         // let fma = true;
@@ -130,8 +129,7 @@ fn detect_hw_config() -> HWConfig {
         // let avx512f = true;
         // let f16c = true;
         // let fma4 = true;
-        let cpu_ft =
-            CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bf16, avx512bw, fma, fma4, f16c };
+        let cpu_ft = CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bf16, avx512bw, fma, fma4, f16c };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
         // let family_id = 6;
@@ -345,14 +343,7 @@ pub struct GlarePar {
 }
 
 impl GlarePar {
-    pub fn new(
-        num_threads: usize,
-        ic_par: usize,
-        pc_par: usize,
-        jc_par: usize,
-        ir_par: usize,
-        jr_par: usize,
-    ) -> Self {
+    pub fn new(num_threads: usize, ic_par: usize, pc_par: usize, jc_par: usize, ir_par: usize, jr_par: usize) -> Self {
         assert_eq!(num_threads, jc_par * pc_par * ic_par * jr_par * ir_par);
         Self { num_threads, ic_par, pc_par, jc_par, ir_par, jr_par }
     }
@@ -394,13 +385,7 @@ impl GlarePar {
 }
 
 #[inline]
-pub fn split_c_range(
-    m: usize,
-    mc: usize,
-    mr: usize,
-    ic_id: usize,
-    ic_par: usize,
-) -> (usize, usize, bool) {
+pub fn split_c_range(m: usize, mc: usize, mr: usize, ic_id: usize, ic_par: usize) -> (usize, usize, bool) {
     let chunk_len = (m / (mr * ic_par)) * mr;
     let rem = m % (mr * ic_par);
     if ic_id == 0 {
@@ -495,9 +480,7 @@ impl PoolSize {
         assert_eq!(mem_pool.as_ptr().align_offset(a_alignment), 0);
         for _ in 0..self.ap_pool_multiplicity {
             let (a, rest) = mem_pool.split_at_mut(ap_pool_size_b);
-            let ap_pool = unsafe {
-                std::slice::from_raw_parts_mut::<TA>(a.as_mut_ptr() as *mut TA, ap_pool_size)
-            };
+            let ap_pool = unsafe { std::slice::from_raw_parts_mut::<TA>(a.as_mut_ptr() as *mut TA, ap_pool_size) };
             ap.push(Arc::new(RwLock::new(ap_pool)));
             mem_pool = rest;
         }
@@ -507,9 +490,7 @@ impl PoolSize {
         assert_eq!(mem_pool.as_ptr().align_offset(b_alignment), 0);
         for _ in 0..self.bp_pool_multiplicity {
             let (b, rest) = mem_pool.split_at_mut(bp_pool_size_b);
-            let bp_pool = unsafe {
-                std::slice::from_raw_parts_mut::<TB>(b.as_mut_ptr() as *mut TB, bp_pool_size)
-            };
+            let bp_pool = unsafe { std::slice::from_raw_parts_mut::<TB>(b.as_mut_ptr() as *mut TB, bp_pool_size) };
             bp.push(Arc::new(RwLock::new(bp_pool)));
             mem_pool = rest;
         }
@@ -525,16 +506,14 @@ pub fn get_mem_pool_size_goto<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
 ) -> PoolSize {
     let (ap_pool_size, ap_pool_multiplicity) = if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size =
-            hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
         (ap_pool_size, ap_pool_multiplicity)
     } else {
         (0, 1)
     };
     let (bp_pool_size, bp_pool_multiplicity) = if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size =
-            hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
         (bp_pool_size, bp_pool_multiplicity)
     } else {
         (0, 1)
@@ -549,16 +528,10 @@ pub fn get_mem_pool_size_small_m<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
 ) -> PoolSize {
     if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size =
-            hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
         PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
     } else {
-        PoolSize {
-            ap_pool_size: 0,
-            ap_pool_multiplicity: 1,
-            bp_pool_size: 0,
-            bp_pool_multiplicity: 1,
-        }
+        PoolSize { ap_pool_size: 0, ap_pool_multiplicity: 1, bp_pool_size: 0, bp_pool_multiplicity: 1 }
     }
 }
 
@@ -572,8 +545,7 @@ pub fn get_mem_pool_size_small_n<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
 
     if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size =
-            hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
         PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size, bp_pool_multiplicity }
     } else {
         PoolSize { ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
@@ -773,19 +745,10 @@ impl<X> Array<X> {
     pub fn packed_matrix(data_ptr: *const X, m: usize, k: usize) -> Self {
         Array::PackedMatrix(PackedMatrix { data_ptr, k, m })
     }
-    pub fn into_pack_array<'a>(
-        &self,
-        a: &[Arc<RwLock<&'a mut [X]>>],
-        p_id: usize,
-    ) -> PArray<'a, X> {
+    pub fn into_pack_array<'a>(&self, a: &[Arc<RwLock<&'a mut [X]>>], p_id: usize) -> PArray<'a, X> {
         match self {
             Array::StridedMatrix(x) => {
-                let x = StridedMatrixP {
-                    data_ptr: x.data_ptr,
-                    rs: x.rs,
-                    cs: x.cs,
-                    data_p_ptr: a[p_id].clone(),
-                };
+                let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a[p_id].clone() };
                 PArray::<X>::StridedMatrix(x)
             }
             Array::PackedMatrix(x) => {
@@ -794,28 +757,14 @@ impl<X> Array<X> {
             }
         }
     }
-    pub fn into_pack_array2<'a, Y>(
-        &self,
-        a: &[Arc<RwLock<&'a mut [Y]>>],
-        p_id: usize,
-    ) -> PArrayMixed<'a, X, Y> {
+    pub fn into_pack_array2<'a, Y>(&self, a: &[Arc<RwLock<&'a mut [Y]>>], p_id: usize) -> PArrayMixed<'a, X, Y> {
         match self {
             Array::StridedMatrix(x) => {
-                let x = StridedMatrixP {
-                    data_ptr: x.data_ptr,
-                    rs: x.rs,
-                    cs: x.cs,
-                    data_p_ptr: a[p_id].clone(),
-                };
+                let x = StridedMatrixP { data_ptr: x.data_ptr, rs: x.rs, cs: x.cs, data_p_ptr: a[p_id].clone() };
                 PArrayMixed::<X, Y>::StridedMatrix(x)
             }
             Array::PackedMatrix(x) => {
-                let x = PackedMatrixMixed {
-                    data_ptr: x.data_ptr,
-                    data_p_ptr: a[p_id].clone(),
-                    k: x.k,
-                    m: x.m,
-                };
+                let x = PackedMatrixMixed { data_ptr: x.data_ptr, data_p_ptr: a[p_id].clone(), k: x.k, m: x.m };
                 PArrayMixed::PackedMatrix(x)
             }
         }

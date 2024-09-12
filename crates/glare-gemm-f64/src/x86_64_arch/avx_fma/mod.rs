@@ -93,13 +93,9 @@ pub(crate) unsafe fn kernel_12x4_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_12x4_sb_v0::<_, false>(
-            m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f,
-        );
+        kernel_12x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_12x4_sb_v0::<_, true>(
-            m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f,
-        );
+        kernel_12x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
@@ -142,13 +138,9 @@ pub(crate) unsafe fn kernel_8x6_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_8x6_sb_v0::<_, false>(
-            m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f,
-        );
+        kernel_8x6_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_8x6_sb_v0::<_, true>(
-            m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f,
-        );
+        kernel_8x6_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 

@@ -10,16 +10,9 @@ use super::super::VS;
 // modify so that we use 16 registers for each loop step
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave<const PARTIAL: bool>(
-    a: *const TA,
-    lda: usize,
-) -> (__m256i, __m256i) {
+pub(crate) unsafe fn interleave<const PARTIAL: bool>(a: *const TA, lda: usize) -> (__m256i, __m256i) {
     let a0 = _mm256_loadu_si256(a as *const __m256i);
-    let b0 = if PARTIAL {
-        _mm256_setzero_si256()
-    } else {
-        _mm256_loadu_si256(a.add(lda) as *const __m256i)
-    };
+    let b0 = if PARTIAL { _mm256_setzero_si256() } else { _mm256_loadu_si256(a.add(lda) as *const __m256i) };
     let t0 = _mm256_unpacklo_epi16(a0, b0);
     let t1 = _mm256_unpackhi_epi16(a0, b0);
     let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);

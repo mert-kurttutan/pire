@@ -248,12 +248,7 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(a: *const TA, ap: *mut TA
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let k8 = k / 8 * 8;
     let k2 = k / 2 * 2;
     let mut k_i = 0;
@@ -284,12 +279,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let k8 = k / 8 * 8;
     let k2 = k / 2 * 2;
     let mut k_i = 0;

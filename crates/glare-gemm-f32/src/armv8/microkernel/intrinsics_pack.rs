@@ -133,13 +133,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx24_v0(
-    k_iter: usize,
-    k_left: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_kx24_v0(k_iter: usize, k_left: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
@@ -176,13 +170,7 @@ pub(crate) unsafe fn pack_kx24_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx16_v0(
-    k_iter: usize,
-    k_left: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_kx16_v0(k_iter: usize, k_left: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
@@ -215,13 +203,7 @@ pub(crate) unsafe fn pack_kx16_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx6_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx6_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -252,13 +234,7 @@ pub(crate) unsafe fn pack_kx6_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx5_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx5_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -289,13 +265,7 @@ pub(crate) unsafe fn pack_kx5_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx4_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx4_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -326,13 +296,7 @@ pub(crate) unsafe fn pack_kx4_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx3_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx3_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -364,13 +328,7 @@ pub(crate) unsafe fn pack_kx3_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx2_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx2_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -402,13 +360,7 @@ pub(crate) unsafe fn pack_kx2_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx1_v0(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx1_v0(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -440,13 +392,7 @@ pub(crate) unsafe fn pack_kx1_v0(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx24_v1(
-    k_iter: usize,
-    k_left: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_kx24_v1(k_iter: usize, k_left: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
@@ -497,13 +443,7 @@ pub(crate) unsafe fn pack_kx24_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx16_v1(
-    k_iter: usize,
-    k_left: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_kx16_v1(k_iter: usize, k_left: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let mut k_i = 0;
     let mut a = a;
     let mut ap = ap;
@@ -544,13 +484,7 @@ pub(crate) unsafe fn pack_kx16_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx6_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx6_v1(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -640,13 +574,7 @@ pub(crate) unsafe fn pack_kx6_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx5_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx5_v1(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -734,13 +662,7 @@ pub(crate) unsafe fn pack_kx5_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx4_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx4_v1(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -799,13 +721,7 @@ pub(crate) unsafe fn pack_kx4_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx3_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx3_v1(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -862,13 +778,7 @@ pub(crate) unsafe fn pack_kx3_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx2_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx2_v1(k_iter: usize, k_left: usize, b: *const TB, ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 
@@ -922,13 +832,7 @@ pub(crate) unsafe fn pack_kx2_v1(
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_kx1_v1(
-    k_iter: usize,
-    k_left: usize,
-    b: *const TB,
-    _ldb: usize,
-    bp: *mut TB,
-) {
+pub(crate) unsafe fn pack_kx1_v1(k_iter: usize, k_left: usize, b: *const TB, _ldb: usize, bp: *mut TB) {
     let mut b = b;
     let mut bp = bp;
 

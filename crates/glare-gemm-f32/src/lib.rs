@@ -35,19 +35,12 @@ use x86_64_arch::X86_64dispatcher;
 use reference::RefGemm;
 
 use glare_base::{
-    ap_size, bp_size, get_cache_params, has_f32_compute, Array, ArrayMut, GemmCache, GlarePar,
-    HWModel, RUNTIME_HW_CONFIG,
+    ap_size, bp_size, get_cache_params, has_f32_compute, Array, ArrayMut, GemmCache, GlarePar, HWModel,
+    RUNTIME_HW_CONFIG,
 };
 
 #[inline(always)]
-pub(crate) unsafe fn load_buf(
-    c: *const TC,
-    c_rs: usize,
-    c_cs: usize,
-    c_buf: &mut [TC],
-    m: usize,
-    n: usize,
-) {
+pub(crate) unsafe fn load_buf(c: *const TC, c_rs: usize, c_cs: usize, c_buf: &mut [TC], m: usize, n: usize) {
     for j in 0..n {
         for i in 0..m {
             c_buf[i + j * m] = *c.add(i * c_rs + j * c_cs);
@@ -56,14 +49,7 @@ pub(crate) unsafe fn load_buf(
 }
 
 #[inline(always)]
-pub(crate) unsafe fn store_buf(
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    c_buf: &[TC],
-    m: usize,
-    n: usize,
-) {
+pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC], m: usize, n: usize) {
     for j in 0..n {
         for i in 0..m {
             *c.add(i * c_rs + j * c_cs) = c_buf[i + j * m];
@@ -201,14 +187,7 @@ pub unsafe fn glare_sdot(
 // this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
 // this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
 // in the special case of very large k and small m, n
-pub unsafe fn packa_f32(
-    m: usize,
-    k: usize,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    ap: *mut TA,
-) -> Array<TA> {
+pub unsafe fn packa_f32(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     assert_eq!(ap.align_offset(glare_base::AB_ALIGN), 0);
     let mut ap = ap;
     if m == 1 {
@@ -244,14 +223,7 @@ pub unsafe fn packa_f32(
     }
 }
 
-pub unsafe fn packb_f32(
-    n: usize,
-    k: usize,
-    b: *const TB,
-    b_rs: usize,
-    b_cs: usize,
-    bp: *mut TB,
-) -> Array<TB> {
+pub unsafe fn packb_f32(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     assert_eq!(bp.align_offset(glare_base::AB_ALIGN), 0);
     let mut bp = bp;
     if n == 1 {
@@ -284,14 +256,7 @@ pub unsafe fn packb_f32(
     }
 }
 
-pub unsafe fn packa_f32_with_ref(
-    m: usize,
-    k: usize,
-    a: &[TA],
-    a_rs: usize,
-    a_cs: usize,
-    ap: &mut [TA],
-) -> Array<TA> {
+pub unsafe fn packa_f32_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
     let pack_size = ap_size::<TA>(m, k);
     let ap_align_offset = ap.as_ptr().align_offset(glare_base::AB_ALIGN);
     // safety check
@@ -300,14 +265,7 @@ pub unsafe fn packa_f32_with_ref(
     unsafe { packa_f32(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr()) }
 }
 
-pub unsafe fn packb_f32_with_ref(
-    n: usize,
-    k: usize,
-    b: &[TB],
-    b_rs: usize,
-    b_cs: usize,
-    bp: &mut [TB],
-) -> Array<TB> {
+pub unsafe fn packb_f32_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
     let pack_size = bp_size::<TB>(n, k);
     let bp_align_offset = bp.as_ptr().align_offset(glare_base::AB_ALIGN);
     // safety check
@@ -321,8 +279,8 @@ mod tests {
     use super::*;
     use glare_base::matrix_size;
     use glare_dev::{
-        check_gemm_f32, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides,
-        random_matrix_uniform, ABLayout,
+        check_gemm_f32, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides, random_matrix_uniform,
+        ABLayout,
     };
 
     unsafe fn my_unary(c: *mut TC, m: usize) {
@@ -382,9 +340,7 @@ mod tests {
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                             unsafe {
-                                glare_sgemm_generic(
-                                    m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn,
-                                );
+                                glare_sgemm_generic(m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn);
                             }
                             let diff_max = unsafe {
                                 check_gemm_f32(

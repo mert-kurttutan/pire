@@ -688,8 +688,7 @@ pub unsafe fn gemm_fallback_s16s16s32(
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) as i32 * *b.add(b_rs * p + b_cs * j) as i32;
             }
-            *c.add(c_rs * i + c_cs * j) =
-                (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
+            *c.add(c_rs * i + c_cs * j) = (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
         }
     }
 }
@@ -716,8 +715,7 @@ pub unsafe fn gemm_fallback_s8u8s32(
             for p in 0..k {
                 dx += *a.add(a_rs * i + a_cs * p) as i32 * *b.add(b_rs * p + b_cs * j) as i32;
             }
-            *c.add(c_rs * i + c_cs * j) =
-                (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
+            *c.add(c_rs * i + c_cs * j) = (alpha * dx as f32 + beta * *c.add(c_rs * i + c_cs * j) as f32) as i32;
         }
     }
 }
@@ -846,28 +844,12 @@ fn cblas_to_stride(
     ldc: c_int,
 ) -> (usize, usize, usize, usize, usize, usize) {
     if layout == CBLAS_LAYOUT::CblasColMajor {
-        let (a_rs, a_cs) = if transa == CBLAS_TRANSPOSE::CblasNoTrans {
-            (1, lda as usize)
-        } else {
-            (lda as usize, 1)
-        };
-        let (b_rs, b_cs) = if transb == CBLAS_TRANSPOSE::CblasNoTrans {
-            (1, ldb as usize)
-        } else {
-            (ldb as usize, 1)
-        };
+        let (a_rs, a_cs) = if transa == CBLAS_TRANSPOSE::CblasNoTrans { (1, lda as usize) } else { (lda as usize, 1) };
+        let (b_rs, b_cs) = if transb == CBLAS_TRANSPOSE::CblasNoTrans { (1, ldb as usize) } else { (ldb as usize, 1) };
         (a_rs, a_cs, b_rs, b_cs, 1, ldc as usize)
     } else {
-        let (a_rs, a_cs) = if transa == CBLAS_TRANSPOSE::CblasNoTrans {
-            (lda as usize, 1)
-        } else {
-            (1, lda as usize)
-        };
-        let (b_rs, b_cs) = if transb == CBLAS_TRANSPOSE::CblasNoTrans {
-            (ldb as usize, 1)
-        } else {
-            (1, ldb as usize)
-        };
+        let (a_rs, a_cs) = if transa == CBLAS_TRANSPOSE::CblasNoTrans { (lda as usize, 1) } else { (1, lda as usize) };
+        let (b_rs, b_cs) = if transb == CBLAS_TRANSPOSE::CblasNoTrans { (ldb as usize, 1) } else { (1, ldb as usize) };
         (a_rs, a_cs, b_rs, b_cs, ldc as usize, 1)
     }
 }
@@ -895,8 +877,7 @@ pub unsafe fn check_gemm_s16s16s32(
     {
         let oc_val = 0;
         let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         cblas_gemm_s16s16s32(
             layout,
             transa,
@@ -921,22 +902,7 @@ pub unsafe fn check_gemm_s16s16s32(
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_s16s16s32(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_s16s16s32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
 
     let c_ref_ptr = c_ref.as_mut_ptr();
@@ -983,8 +949,7 @@ pub unsafe fn check_gemm_s8u8s32(
     {
         let oc_val = 0;
         let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         let a = a as *const c_void;
         let b = b as *const c_void;
         cblas_gemm_s8u8s32(
@@ -1011,22 +976,7 @@ pub unsafe fn check_gemm_s8u8s32(
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_s8u8s32(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_s8u8s32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
 
     let c_ref_ptr = c_ref.as_mut_ptr();
@@ -1071,37 +1021,20 @@ pub unsafe fn check_gemm_f16(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         let a = a as *const c_ushort;
         let b = b as *const c_ushort;
         let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_ushort;
         let alpha = alpha.to_bits();
         let beta = beta.to_bits();
         cblas_hgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb,
-            beta, c_ref_ptr, ldc,
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc,
         );
     }
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_f16(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_f16(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
 
     let c_ref_ptr = c_ref.as_mut_ptr();
@@ -1146,8 +1079,7 @@ pub unsafe fn check_gemm_f64(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         cblas_dgemm(
             layout,
             transa,
@@ -1168,22 +1100,7 @@ pub unsafe fn check_gemm_f64(
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_f64(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_f64(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
 
     let c_ref_ptr = c_ref.as_mut_ptr();
@@ -1228,8 +1145,7 @@ pub unsafe fn check_gemm_f32(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         cblas_sgemm(
             layout,
             transa,
@@ -1250,22 +1166,7 @@ pub unsafe fn check_gemm_f32(
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_f32(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_f32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
     let c_ref_ptr = c_ref.as_mut_ptr();
     if c_rs == 1 {
@@ -1341,37 +1242,21 @@ pub unsafe fn check_gemm_c32(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         let a = a as *const c_void;
         let b = b as *const c_void;
         let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
         let alpha_ptr = &alpha as *const Complex32 as *const c_void;
         let beta_ptr = &beta as *const Complex32 as *const c_void;
         cblas_cgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb,
-            beta_ptr, c_ref_ptr, ldc,
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr,
+            ldc,
         );
     }
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_c32(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_c32(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
     let c_ref_ptr = c_ref.as_mut_ptr();
     if c_rs == 1 {
@@ -1415,37 +1300,21 @@ pub unsafe fn check_gemm_c64(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) =
-            stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
         let a = a as *const c_void;
         let b = b as *const c_void;
         let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
         let alpha_ptr = &alpha as *const Complex64 as *const c_void;
         let beta_ptr = &beta as *const Complex64 as *const c_void;
         cblas_zgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb,
-            beta_ptr, c_ref_ptr, ldc,
+            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr,
+            ldc,
         );
     }
     #[cfg(not(feature = "mkl"))]
     {
         // calculate diff using fallback
-        gemm_fallback_c64(
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            a_rs,
-            a_cs,
-            b,
-            b_rs,
-            b_cs,
-            beta,
-            c_ref.as_mut_ptr(),
-            c_rs,
-            c_cs,
-        );
+        gemm_fallback_c64(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
     }
 
     let c_ref_ptr = c_ref.as_mut_ptr();

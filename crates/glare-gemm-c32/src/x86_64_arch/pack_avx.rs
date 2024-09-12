@@ -23,12 +23,7 @@ pub(crate) unsafe fn pack_scalar_k(
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     for i in 0..M {
         for j in 0..k {
             *ap.add(j * MR + i) = *a.add(j + i * lda);
@@ -44,12 +39,7 @@ pub(crate) unsafe fn copy_packed<const M: usize>(a: *const TA, b: *mut TA) {
 }
 
 #[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let k8 = k / 8 * 8;
     let a0 = a;
     let ap0 = ap;

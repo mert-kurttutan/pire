@@ -1,21 +1,12 @@
 use glare_base::{
-    acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto,
-    get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n,
-    split_c_range, split_range, Array, ArrayMut, GemmPool, GlarePar, GlareThreadConfig, HWConfig,
-    PArray, PoolSize, PtrData, PACK_POOL,
+    acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range, split_range, Array, ArrayMut,
+    GemmPool, GlarePar, GlareThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL,
 };
 
 use crate::{GemmCache, MyFn, NullFn};
 
-unsafe fn packa_ref(
-    a: *const i8,
-    ap: *mut i8,
-    m: usize,
-    k: usize,
-    a_rs: usize,
-    a_cs: usize,
-    mr: usize,
-) {
+unsafe fn packa_ref(a: *const i8, ap: *mut i8, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -42,15 +33,7 @@ unsafe fn packa_ref(
     }
 }
 
-unsafe fn packb_ref(
-    b: *const u8,
-    bp: *mut u8,
-    n: usize,
-    k: usize,
-    b_rs: usize,
-    b_cs: usize,
-    nr: usize,
-) {
+unsafe fn packb_ref(b: *const u8, bp: *mut u8, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -109,27 +92,11 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(
-        &self,
-        x: *const i8,
-        y: *mut i8,
-        m: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packa_fn(&self, x: *const i8, y: *mut i8, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fn(
-        &self,
-        x: *const u8,
-        y: *mut u8,
-        n: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packb_fn(&self, x: *const u8, y: *mut u8, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
@@ -212,8 +179,7 @@ unsafe fn kernel<F: MyFn>(
                 let mut jj = 0;
                 while jj < nr_eff {
                     let c_cur = c.add(i * c_rs + j * c_cs + ii * c_rs + jj * c_cs);
-                    *c_cur =
-                        ((*c_cur as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
+                    *c_cur = ((*c_cur as f32) * *beta + acc[ii * nr_eff + jj] as f32 * *alpha) as i32;
                     if kc_last {
                         hw_cfg.func.call(c_cur, 1);
                     }

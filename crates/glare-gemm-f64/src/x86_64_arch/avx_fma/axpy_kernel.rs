@@ -195,18 +195,15 @@ pub(crate) unsafe fn axpy_v(
 
         if beta == 1.0 {
             axpy_v_inner::<1>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         } else if beta == 0.0 {
             axpy_v_inner::<0>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         } else {
             axpy_v_inner::<2>(
-                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3],
-                xt, beta_v, beta,
+                m_lane4, m_lane, m, a_cur, lda, y, xtv_arr[0], xtv_arr[1], xtv_arr[2], xtv_arr[3], xt, beta_v, beta,
             );
         }
         a_cur = a_cur.add(lda * K_UNROLL);

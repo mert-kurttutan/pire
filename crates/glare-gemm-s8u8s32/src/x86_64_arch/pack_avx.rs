@@ -131,12 +131,7 @@ pub(crate) unsafe fn interleave<const M: usize>(a: *const TA, ap: *mut TA, lda: 
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave_left<const M: usize>(
-    a: *const TA,
-    ap: *mut TA,
-    kl: usize,
-    lda: usize,
-) {
+pub(crate) unsafe fn interleave_left<const M: usize>(a: *const TA, ap: *mut TA, kl: usize, lda: usize) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         for i in 0..kl {
@@ -184,12 +179,7 @@ pub(crate) unsafe fn interleave_left<const M: usize>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn interleave_left_t<const M: usize>(
-    a: *const TA,
-    ap: *mut TA,
-    kl: usize,
-    lda: usize,
-) {
+pub(crate) unsafe fn interleave_left_t<const M: usize>(a: *const TA, ap: *mut TA, kl: usize, lda: usize) {
     if M == 4 {
         let mut t0 = [0_i8; 16];
         copy_nonoverlapping(a, t0.as_mut_ptr(), kl);
@@ -229,12 +219,7 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let k8 = k / 8 * 8;
     let k4 = k / 4 * 4;
     let mut k_i = 0;
@@ -266,12 +251,7 @@ pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(
-    k: usize,
-    a: *const TA,
-    lda: usize,
-    ap: *mut TA,
-) {
+pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
     let k8 = k / 8 * 8;
     let k4 = k / 4 * 4;
     let mut k_i = 0;

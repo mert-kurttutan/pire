@@ -1,21 +1,12 @@
 use glare_base::{
-    acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto,
-    get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n,
-    split_c_range, split_range, Array, ArrayMut, GemmPool, GlarePar, GlareThreadConfig, HWConfig,
-    PArray, PoolSize, PtrData, PACK_POOL,
+    acquire, def_glare_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
+    get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range, split_range, Array, ArrayMut,
+    GemmPool, GlarePar, GlareThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL,
 };
 
 use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
 
-unsafe fn packa_ref(
-    a: *const TA,
-    ap: *mut TA,
-    m: usize,
-    k: usize,
-    a_rs: usize,
-    a_cs: usize,
-    mr: usize,
-) {
+unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
@@ -42,15 +33,7 @@ unsafe fn packa_ref(
     }
 }
 
-unsafe fn packb_ref(
-    b: *const TB,
-    bp: *mut TB,
-    n: usize,
-    k: usize,
-    b_rs: usize,
-    b_cs: usize,
-    nr: usize,
-) {
+unsafe fn packb_ref(b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
     let mut i = 0;
@@ -109,27 +92,11 @@ impl<F: MyFn> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(
-        self: &Self,
-        x: *const TA,
-        y: *mut TA,
-        m: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         packa_ref(x, y, m, k, rs, cs, self.mr);
     }
 
-    pub(crate) unsafe fn packb_fn(
-        self: &Self,
-        x: *const TB,
-        y: *mut TB,
-        n: usize,
-        k: usize,
-        rs: usize,
-        cs: usize,
-    ) {
+    pub(crate) unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
