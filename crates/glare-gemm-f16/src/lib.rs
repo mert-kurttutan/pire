@@ -96,7 +96,7 @@ pub(crate) unsafe fn glare_hgemm_generic<F: MyFn>(
     c: ArrayMut<TC>,
     f: F,
 ) {
-    let par = GlarePar::default();
+    let par = GlarePar::default(m, n);
     let (mc, nc, kc) = get_mcnckc();
     if has_f16_compute() {
         let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);

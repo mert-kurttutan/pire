@@ -342,23 +342,94 @@ pub struct GlarePar {
     pub jr_par: usize,
 }
 
+// greedy algo to distribute the number of threads evenly
+// simple works for the time being
+#[inline(always)]
+fn inc_par(ic_par: usize, jc_par: usize, ic_max: usize, jc_max: usize, factor: usize) -> (usize, usize, usize, usize) {
+    if (ic_par < jc_par && ic_par < ic_max) || (jc_par >= jc_max && ic_par < ic_max) {
+        (ic_par * factor, jc_par, ic_max / factor, jc_max)
+    } else if (ic_par >= jc_par && jc_par < jc_max) || (ic_par >= ic_max && jc_par < jc_max) {
+        (ic_par, jc_par * factor, ic_max, jc_max / factor)
+    } else {
+        (ic_par, jc_par, ic_max, jc_max)
+    }
+}
 impl GlarePar {
     pub fn new(num_threads: usize, ic_par: usize, pc_par: usize, jc_par: usize, ir_par: usize, jr_par: usize) -> Self {
         assert_eq!(num_threads, jc_par * pc_par * ic_par * jr_par * ir_par);
         Self { num_threads, ic_par, pc_par, jc_par, ir_par, jr_par }
     }
-    pub fn from_num_threads(num_threads: usize) -> Self {
-        let ic_par = num_threads;
+    pub fn from_num_threads(num_threads: usize, m: usize, n: usize) -> Self {
+        let mut num_threads = num_threads;
+        let mut ic_par_max = if m < 96 {
+            1
+        } else if m < 400 {
+            2
+        } else {
+            m / 200
+        };
+        let mut jc_par_max = if n < 48 {
+            1
+        } else if n < 200 {
+            2
+        } else {
+            n / 100
+        };
+        // let mut jr_par_max = if k < 96 { 1 } else if jc_par_max => 4 { 4.min(k / 4) };
+        num_threads = num_threads.min(ic_par_max * jc_par_max);
+        let mut ic_par = 1;
         let pc_par = 1;
-        let jc_par = 1;
-        let ir_par = 1;
+        let mut jc_par = 1;
+        let mut ir_par = 1;
         let jr_par = 1;
+
+        while num_threads > 1 {
+            if num_threads % 2 == 0 {
+                num_threads = num_threads / 2;
+                (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 2);
+            } else if num_threads % 3 == 0 {
+                num_threads = num_threads / 3;
+                (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 3);
+            } else if num_threads % 5 == 0 {
+                num_threads = num_threads / 5;
+                (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 5);
+                continue;
+            } else if num_threads % 7 == 0 {
+                num_threads = num_threads / 7;
+                (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 7);
+                continue;
+            } else {
+                // if it is non trivial prime factor (i.e. not divisible by 2,3,5,7)
+                // round it so it is a "nice" number
+                num_threads = num_threads / 2 * 2;
+            }
+            // if num_threads % 11 == 0 {
+            //     num_threads = num_threads / 11;
+            //     (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 11);
+            //     continue;
+            // }
+            // if num_threads % 13 == 0 {
+            //     num_threads = num_threads / 13;
+            //     (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 13);
+            //     continue;
+            // }
+            // if num_threads % 17 == 0 {
+            //     num_threads = num_threads / 17;
+            //     (ic_par, jc_par, ic_par_max, jc_par_max) = inc_par(ic_par, jc_par, ic_par_max, jc_par_max, 17);
+            //     continue;
+            // }
+        }
+        if ic_par >= 8 {
+            ic_par = ic_par / 2;
+            ir_par = 2;
+        }
+        let num_threads = ic_par * pc_par * jc_par * ir_par * jr_par;
         Self { num_threads, ic_par, pc_par, jc_par, ir_par, jr_par }
     }
     #[inline(always)]
-    pub fn default() -> Self {
+    pub fn default(m: usize, n: usize) -> Self {
         let num_threads = glare_num_threads();
-        Self::from_num_threads(num_threads)
+        Self::from_num_threads(num_threads, m, n)
         // Self::new(30, 3, 1, 5, 2, 1)
     }
     #[inline]

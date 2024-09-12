@@ -658,6 +658,7 @@ macro_rules! cum_seq {
 macro_rules! load_b {
     (S, 0, $X:tt, $r:expr) => {
         concat!(
+            "prefetcht0 64({bx},{x1},8) \n",
             vbroadcast!(), " ({bx}),%zmm", $r, "\n",
         )
     };
@@ -673,7 +674,7 @@ macro_rules! load_b {
     };
     (S, 3, $X:tt, $r:expr) => {
         concat!(
-            "prefetcht0 64({x3}) \n",
+            "prefetcht0 64({x3},{x1},8) \n",
             vbroadcast!(), " ({x3}),%zmm", $r, "\n",
         )
     };
@@ -689,7 +690,7 @@ macro_rules! load_b {
     };
     (S, 6, $X:tt, $r:expr) => {
         concat!(
-            "prefetcht0 64({x4}) \n",
+            "prefetcht0 64({x4},{x1}) \n",
             vbroadcast!(), " ({x4}),%zmm", $r, "\n",
         )
     };

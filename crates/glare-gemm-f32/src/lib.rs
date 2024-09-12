@@ -61,7 +61,7 @@ pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC
 fn get_mcnckc() -> (usize, usize, usize) {
     // let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
-    // let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+    // let kc = std::env::var("GLARE_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         HWModel::Skylake => (4800, 192, 512),
@@ -83,7 +83,7 @@ pub(crate) unsafe fn glare_sgemm_generic<F: MyFn>(
     c: ArrayMut<TC>,
     f: F,
 ) {
-    let par = GlarePar::default();
+    let par = GlarePar::default(m, n);
     let (mc, nc, kc) = get_mcnckc();
     if has_f32_compute() {
         let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
