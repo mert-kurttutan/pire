@@ -349,7 +349,7 @@ mod tests {
         let unary_fn: unsafe fn(*mut TC, usize) = my_unary;
         for m in m_dims.iter() {
             let m = *m;
-            let (c_rs, c_cs) = (2, m);
+            let (c_rs, c_cs) = (1, m);
             for n in n_dims.iter() {
                 let n = *n;
                 let c_size = matrix_size(c_rs, c_cs, m, n);
