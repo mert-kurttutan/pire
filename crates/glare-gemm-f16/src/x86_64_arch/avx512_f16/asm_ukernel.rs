@@ -122,11 +122,6 @@ macro_rules! loadp_unit {
             vmovp!($layout), $m0, ",%zmm", $r1, "\n",
         )
     };
-    (4, $layout:tt, $m0:expr, $r1:expr) => {
-        concat!(
-            vmovp!($layout), $m0, ",", "%xmm", $r1, "\n",
-        )
-    };
 }
 
 macro_rules! storep_unit {
@@ -268,16 +263,16 @@ macro_rules! asm_init_ab {
     ($ker:tt,B,S) => {
         concat!(
             // mov cs_b to reg
-            "mov ({dim_arrx}), {x1}", "\n",
-            "mov 8({dim_arrx}), {x2}", "\n",
-            "lea ({x2}, {x2}, 2), {x6}", "\n",
-            "lea ({bx}, {x6}, 1), {x3}", "\n",
-            "lea ({x3}, {x6}, 1), {x4}", "\n",
-            "lea ({x4}, {x6}, 1), {x5}", "\n",
-            "lea ({x5}, {x6}, 1), {x6}", "\n",
+                "mov ({dim_arrx}), {x1}", "\n",
+                "mov 8({dim_arrx}), {x2}", "\n",
+                "lea ({x2}, {x2}, 2), {x6}", "\n",
+                "lea ({bx}, {x6}, 1), {x3}", "\n",
+                "lea ({x3}, {x6}, 1), {x4}", "\n",
+                "lea ({x4}, {x6}, 1), {x5}", "\n",
+                "lea ({x5}, {x6}, 1), {x6}", "\n",
 
-            "mov 24({dim_arrx}),{x0}", "\n",
-            "test {x0},{x0}", "\n",
+                "mov 24({dim_arrx}),{x0}", "\n",
+                "test {x0},{x0}", "\n",
         )
     };
 }
@@ -1661,12 +1656,12 @@ pub(crate) unsafe fn ukernel_64x15_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 12;
-    let k_left = if k_left0 == 0 {12} else {k_left0};
+    let k_left0 = k % 16;
+    let k_left = if k_left0 == 0 {16} else {k_left0};
     let k_iter = (k - k_left) / 4;
     let mut dim_arr = [d_arr[3]*2, k_iter, k_left, a_pft1_offset];
     let mut cf = c;
-    let mut c_buf = [f16::ZERO; 96 * 8];
+    let mut c_buf = [f16::ZERO; 64 * 15];
     let c_cs = d_arr[3];
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 64, 15);
@@ -1686,9 +1681,6 @@ pub(crate) unsafe fn ukernel_64x15_bb<F: MyFn, const BUF: bool>(
         "mov ({dim_arrx}),{x1}",
         "2:",
         step_64x15!(15, B, B),
-
-        // "prefetcht1 ({x5})",
-        // "addq $64, {x5}",
 
         "movq $64*4, {x4}",
         // divisiblity by 4
