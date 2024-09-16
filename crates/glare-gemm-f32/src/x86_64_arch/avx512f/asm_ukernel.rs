@@ -985,7 +985,7 @@ macro_rules! step_48x8 {
             load_b!(B, 1, 8, 4),
             fmadd_3v!(1),
             "prefetcht0 384({ax}) \n",
-            "prefetcht0 64({bx}) \n",
+            "prefetcht0 128({bx}) \n",
             load_b!(B, 2, 8, 5),
             fmadd_3v!(2),
             load_b!(B, 3, 8, 6),
