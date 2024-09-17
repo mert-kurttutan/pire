@@ -629,7 +629,7 @@ macro_rules! cum_seq {
 
 
 macro_rules! load_b {
-    (B, $N:tt, $X:tt, $r:expr) => {
+    (B, $N:tt, $r:expr) => {
         concat!(
             vbroadcast!(), " ", $N, "*4({bx}), %zmm", $r, "\n",
         )
@@ -890,25 +890,25 @@ macro_rules! step_48x8 {
         concat!(
             load_a!(48, B),
             "addq $192, {ax} \n",
-            load_b!(B, 0, 8, 3),
+            load_b!(B, 0, 3),
             fmadd_3v!(0),
-            load_b!(B, 1, 8, 4),
+            load_b!(B, 1, 4),
             fmadd_3v!(1),
             "prefetcht0 384({ax}) \n",
             "prefetcht0 64({bx}) \n",
-            load_b!(B, 2, 8, 5),
+            load_b!(B, 2, 5),
             fmadd_3v!(2),
-            load_b!(B, 3, 8, 6),
+            load_b!(B, 3, 6),
             fmadd_3v!(3),
             "prefetcht0 448({ax}) \n",
-            load_b!(B, 4, 8, 7),
+            load_b!(B, 4, 7),
             fmadd_3v!(4),
-            load_b!(B, 5, 8, 3),
+            load_b!(B, 5, 3),
             fmadd_3v!(5),
             "prefetcht0 512({ax}) \n",
-            load_b!(B, 6, 8, 4),
+            load_b!(B, 6, 4),
             fmadd_3v!(6),
-            load_b!(B, 7, 8, 5),
+            load_b!(B, 7, 5),
             fmadd_3v!(7),
             "addq $32, {bx} \n",
         )
@@ -920,7 +920,7 @@ macro_rules! step_48x8 {
                 inc_a!($a_layout, 48),
                 prefetch_0!(64, "{bx}", 0),
                 #(
-                    load_b!($b_layout, n, $nr, b_num_48x8!(n)),
+                    load_b!($b_layout, n, b_num_48x8!(n)),
                     fmadd_3v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
@@ -938,7 +938,7 @@ macro_rules! step_32x12 {
                 inc_a!($a_layout, 32),
                 prefetch_0!(64, "{bx}", 0),
                 #(
-                    load_b!($b_layout, n, $nr, b_num_32x12!(n)),
+                    load_b!($b_layout, n, b_num_32x12!(n)),
                     fmadd_2v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
@@ -956,7 +956,7 @@ macro_rules! step_16x12 {
                 inc_a!($a_layout, 16),
                 prefetch_0!(64, "{bx}", 0),
                 #(
-                    load_b!($b_layout, n, $nr, b_num_16x12!(n)),
+                    load_b!($b_layout, n, b_num_16x12!(n)),
                     fmadd_1v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
