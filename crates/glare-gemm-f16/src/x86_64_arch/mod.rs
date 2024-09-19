@@ -378,11 +378,10 @@ unsafe fn kernel_native<F: MyFn>(
 ) {
     if kc_last {
         avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
-        return;
+    } else {
+        let null_fn = NullFn {};
+        avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
     }
-    let null_fn = NullFn {};
-    avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn);
-    return;
 }
 
 unsafe fn kernel_m_native<F: MyFn>(
@@ -404,12 +403,12 @@ unsafe fn kernel_m_native<F: MyFn>(
 ) {
     if kc_last {
         avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
+    } else {
+        let null_fn = NullFn {};
+        avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
     }
-    let null_fn = NullFn {};
-    avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn);
 }
 
-#[allow(unused)]
 unsafe fn kernel_n_native<F: MyFn>(
     hw_cfg: &F16Dispatcher<F>,
     m: usize,
@@ -430,12 +429,10 @@ unsafe fn kernel_n_native<F: MyFn>(
 ) {
     if kc_last {
         avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);
-        return;
+    } else {
+        let null_fn = NullFn {};
+        avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
     }
-
-    let null_fn = NullFn {};
-    avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn);
-    return;
 }
 
 unsafe fn glare_gemv_native<F: MyFn>(
