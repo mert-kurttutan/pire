@@ -3,6 +3,7 @@ use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC};
 use crate::{load_buf, store_buf};
+use glare_base::c_mem;
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -307,66 +308,46 @@ macro_rules! asm_alpha_scale {
     };
 }
 
+macro_rules! c_reg_16x4 {
+    (0,0) => { 8 };
+    (1,0) => { 9 };
+    (0,1) => { 10 };
+    (1,1) => { 11 };
+    (0,2) => { 12 };
+    (1,2) => { 13 };
+    (0,3) => { 14 };
+    (1,3) => { 15 };
+}
 
+macro_rules! c_reg_8x4 {
+    (0,0) => { 9 };
+    (0,1) => { 10 };
+    (0,2) => { 11 };
+    (0,3) => { 12 };
+}
 
 
 macro_rules! acc_16x4 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 8, 9)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 10, 11)
-    };
-    (2, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 12, 13)
-    }; 
-    (3, $layout:tt) => {
-        acc_p!($layout, "0({x1})", 14, 15)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_16x4!(0,$ni), c_reg_16x4!(1,$ni))
     };
 }
 
 macro_rules! store_16x4 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 8, 9)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 10, 11)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 12, 13)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 14, 15)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_16x4!(0,$ni), c_reg_16x4!(1,$ni))
     };
 }
 
 macro_rules! acc_8x4 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 9)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 10)
-    };
-    (2, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 11)
-    }; 
-    (3, $layout:tt) => {
-        acc_p!($layout, "0({x1})", 12)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_8x4!(0,$ni))
     };
 }
 
 macro_rules! store_8x4 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 9)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 10)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 11)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 12)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_8x4!(0,$ni))
     };
 }
 
