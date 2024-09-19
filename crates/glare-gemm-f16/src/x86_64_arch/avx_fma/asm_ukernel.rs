@@ -483,104 +483,28 @@ macro_rules! load_a {
 }
 
 macro_rules! fmadd_3v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 3, 4),
-            vfmadd!(1, 3, 5),
-            vfmadd!(2, 3, 6),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 7),
-            vfmadd!(1, 3, 8),
-            vfmadd!(2, 3, 9),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 3, 10),
-            vfmadd!(1, 3, 11),
-            vfmadd!(2, 3, 12),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 3, 13),
-            vfmadd!(1, 3, 14),
-            vfmadd!(2, 3, 15),
+            vfmadd!(0, 3, c_reg_24x4!(0,$ni)),
+            vfmadd!(1, 3, c_reg_24x4!(1,$ni)),
+            vfmadd!(2, 3, c_reg_24x4!(2,$ni)),
         )
     };
 }
 
 macro_rules! fmadd_2v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 2, 4),
-            vfmadd!(1, 2, 5),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 6),
-            vfmadd!(1, 3, 7),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 2, 8),
-            vfmadd!(1, 2, 9),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 3, 10),
-            vfmadd!(1, 3, 11),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 2, 12),
-            vfmadd!(1, 2, 13),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 3, 14),
-            vfmadd!(1, 3, 15),
+            vfmadd!(0, b_num_16x6!($ni), c_reg_16x6!(0,$ni)),
+            vfmadd!(1, b_num_16x6!($ni), c_reg_16x6!(1,$ni)),
         )
     };
 }
 
 macro_rules! fmadd_1v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 1, 7),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 2, 8),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 3, 9),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 10),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 5, 11),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 6, 12),
+            vfmadd!(0, b_num_8x6!($ni), c_reg_8x6!(0,$ni)),
         )
     };
 }
