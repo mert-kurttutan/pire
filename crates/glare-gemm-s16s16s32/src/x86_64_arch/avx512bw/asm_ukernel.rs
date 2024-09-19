@@ -5,6 +5,7 @@ use super::VS;
 
 use crate::{TA, TB, TC};
 use crate::{load_buf, store_buf};
+use glare_base::c_mem;
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
@@ -321,116 +322,51 @@ macro_rules! asm_alpha_scale {
     (16, 2) => {asm_alpha_scale_0!(2,3)};
     (16, 1) => {asm_alpha_scale_0!(2,2)};
 }
+macro_rules! c_reg_32x8 {
+    (0,0) => { 2 }; (1,0) => { 3 };
+    (0,1) => { 4 }; (1,1) => { 5 };
+    (0,2) => { 6 }; (1,2) => { 7 };
+    (0,3) => { 8 }; (1,3) => { 9 };
+    (0,4) => { 10 }; (1,4) => { 11 };
+    (0,5) => { 12 }; (1,5) => { 13 };
+    (0,6) => { 14 }; (1,6) => { 15 };
+    (0,7) => { 16 }; (1,7) => { 17 };
+}
+
+macro_rules! c_reg_16x8 {
+    (0,0) => { 2 };
+    (0,1) => { 3 };
+    (0,2) => { 4 };
+    (0,3) => { 5 };
+    (0,4) => { 6 };
+    (0,5) => { 7 };
+    (0,6) => { 8 };
+    (0,7) => { 9 };
+}
 
 macro_rules! acc_32x8 {
-    (0, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx})", 2, 3, $b)
-    };
-    (1, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 4, 5, $b)
-    };
-    (2, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 6, 7, $b)
-    }; 
-    (3, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1})", 8, 9, $b)
-    };
-    (4, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1}, {x0})", 10, 11, $b)
-    };
-    (5, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1}, {x0}, 2)", 12, 13, $b)
-    };
-    (6, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x2})", 14, 15, $b)
-    };
-    (7, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x2}, {x0})", 16, 17, $b)
+    ($ni:tt, $layout:tt, $b:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_32x8!(0,$ni), c_reg_32x8!(1,$ni), $b)
     };
 }
 
 macro_rules! store_32x8 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 2, 3)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 4, 5)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 6, 7)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 8, 9)
-    };
-    (4, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0})", 10, 11)
-    };
-    (5, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0}, 2)", 12, 13)
-    };
-    (6, $layout:tt) => {
-        storep!($layout, "0({x2})", 14, 15)
-    };
-    (7, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0})", 16, 17)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_32x8!(0,$ni), c_reg_32x8!(1,$ni))
     };
 }
 
 macro_rules! acc_16x8 {
-    (0, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx})", 2, $b)
+    ($ni:tt, $layout:tt, $b:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_16x8!(0,$ni), $b)
     };
-    (1, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 3, $b)
-    };
-    (2, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 4, $b)
-    }; 
-    (3, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1})", 5, $b)
-    };
-    (4, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1}, {x0})", 6, $b)
-    };
-    (5, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x1}, {x0}, 2)", 7, $b)
-    };
-    (6, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x2})", 8, $b)
-    };
-    (7, $layout:tt, $b:tt) => {
-        acc_p!($layout, "0({x2}, {x0})", 9, $b)
-    };
-
 }
 
 macro_rules! store_16x8 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 2)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 3)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 4)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 5)
-    };
-    (4, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0})", 6)
-    };
-    (5, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0}, 2)", 7)
-    };
-    (6, $layout:tt) => {
-        storep!($layout, "0({x2})", 8)
-    };
-    (7, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0})", 9)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_16x8!(0,$ni))
     };
 }
-
 
 macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt, $b:tt) => {

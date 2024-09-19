@@ -4,6 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
 use crate::{load_buf, store_buf};
+use glare_base::c_mem;
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -438,214 +439,80 @@ macro_rules! inc_b {
     };
 }
 
+macro_rules! c_reg_24x8 {
+    (0,0) => { 8 }; (1,0) => { 9 }; (2,0) => { 10 };
+    (0,1) => { 11 }; (1,1) => { 12 }; (2,1) => { 13 };
+    (0,2) => { 14 }; (1,2) => { 15 }; (2,2) => { 16 };
+    (0,3) => { 17 }; (1,3) => { 18 }; (2,3) => { 19 };
+    (0,4) => { 20 }; (1,4) => { 21 }; (2,4) => { 22 };
+    (0,5) => { 23 }; (1,5) => { 24 }; (2,5) => { 25 };
+    (0,6) => { 26 }; (1,6) => { 27 }; (2,6) => { 28 };
+    (0,7) => { 29 }; (1,7) => { 30 }; (2,7) => { 31 };
+}
+
+macro_rules! c_reg_16x12 {
+    (0,0) => { 8 }; (1,0) => { 9 };
+    (0,1) => { 10 }; (1,1) => { 11 };
+    (0,2) => { 12 }; (1,2) => { 13 };
+    (0,3) => { 14 }; (1,3) => { 15 };
+    (0,4) => { 16 }; (1,4) => { 17 };
+    (0,5) => { 18 }; (1,5) => { 19 };
+    (0,6) => { 20 }; (1,6) => { 21 };
+    (0,7) => { 22 }; (1,7) => { 23 };
+    (0,8) => { 24 }; (1,8) => { 25 };
+    (0,9) => { 26 }; (1,9) => { 27 };
+    (0,10) => { 28 }; (1,10) => { 29 };
+    (0,11) => { 30 }; (1,11) => { 31 };
+}
+
+macro_rules! c_reg_8x12 {
+    (0,0) => { 20 };
+    (0,1) => { 21 };
+    (0,2) => { 22 };
+    (0,3) => { 23 };
+    (0,4) => { 24 };
+    (0,5) => { 25 };
+    (0,6) => { 26 };
+    (0,7) => { 27 };
+    (0,8) => { 28 };
+    (0,9) => { 29 };
+    (0,10) => { 30 };
+    (0,11) => { 31 };
+}
 
 macro_rules! acc_24x8 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 8, 9, 10)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 11, 12, 13)
-    };
-    (2, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)",  14, 15, 16)
-    }; 
-    (3, $layout:tt) => {
-        acc_p!($layout, "0({x1})",  17, 18, 19)
-    };
-    (4, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0})", 20, 21, 22)
-    };
-    (5, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0}, 2)", 23, 24, 25)
-    };
-    (6, $layout:tt) => {
-        acc_p!($layout, "0({x2})", 26, 27, 28)
-    };
-    (7, $layout:tt) => {
-        acc_p!($layout, "0({x2}, {x0})", 29, 30, 31)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_24x8!(0,$ni), c_reg_24x8!(1,$ni), c_reg_24x8!(2,$ni))
     };
 }
 
 macro_rules! store_24x8 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 8, 9, 10)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 11, 12, 13)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)",  14, 15, 16)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})",  17, 18, 19)
-    };
-    (4, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0})", 20, 21, 22)
-    };
-    (5, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0}, 2)", 23, 24, 25)
-    };
-    (6, $layout:tt) => {
-        storep!($layout, "0({x2})", 26, 27, 28)
-    };
-    (7, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0})", 29, 30, 31)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_24x8!(0,$ni), c_reg_24x8!(1,$ni), c_reg_24x8!(2,$ni))
     };
 }
 
 macro_rules! acc_16x12 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 8, 9)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 10, 11)
-    };
-    (2, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 12, 13)
-    }; 
-    (3, $layout:tt) => {
-        acc_p!($layout, "0({x1})", 14, 15)
-    };
-    (4, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0})", 16, 17)
-    };
-    (5, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0}, 2)", 18, 19)
-    };
-    (6, $layout:tt) => {
-        acc_p!($layout, "0({x2})", 20, 21)
-    };
-    (7, $layout:tt) => {
-        acc_p!($layout, "0({x2}, {x0})", 22, 23)
-    };
-    (8, $layout:tt) => {
-        acc_p!($layout, "0({x2}, {x0}, 2)", 24, 25)
-    };
-    (9, $layout:tt) => {
-        acc_p!($layout, "0({x3})", 26, 27)
-    };
-    (10, $layout:tt) => {
-        acc_p!($layout, "0({x3}, {x0})", 28, 29)
-    };
-    (11, $layout:tt) => {
-        acc_p!($layout, "0({x3}, {x0}, 2)", 30, 31)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_16x12!(0,$ni), c_reg_16x12!(1,$ni))
     };
 }
 
 macro_rules! store_16x12 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 8, 9)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 10, 11)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 12, 13)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 14, 15)
-    };
-    (4, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0})", 16, 17)
-    };
-    (5, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0}, 2)", 18, 19)
-    };
-    (6, $layout:tt) => {
-        storep!($layout, "0({x2})", 20, 21)
-    };
-    (7, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0})", 22, 23)
-    };
-    (8, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0}, 2)", 24, 25)
-    };
-    (9, $layout:tt) => {
-        storep!($layout, "0({x3})", 26, 27)
-    };
-    (10, $layout:tt) => {
-        storep!($layout, "0({x3}, {x0})", 28, 29)
-    };
-    (11, $layout:tt) => {
-        storep!($layout, "0({x3}, {x0}, 2)", 30, 31)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_16x12!(0,$ni), c_reg_16x12!(1,$ni))
     };
 }
 
 macro_rules! acc_8x12 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 20)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 21)
-    };
-    (2, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0}, 2)", 22)
-    }; 
-    (3, $layout:tt) => {
-        acc_p!($layout, "0({x1})", 23)
-    };
-    (4, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0})", 24)
-    };
-    (5, $layout:tt) => {
-        acc_p!($layout, "0({x1}, {x0}, 2)", 25)
-    };
-    (6, $layout:tt) => {
-        acc_p!($layout, "0({x2})", 26)
-    };
-    (7, $layout:tt) => {
-        acc_p!($layout, "0({x2}, {x0})", 27)
-    };
-    (8, $layout:tt) => {
-        acc_p!($layout, "0({x2}, {x0}, 2)", 28)
-    };
-    (9, $layout:tt) => {
-        acc_p!($layout, "0({x3})", 29)
-    };
-    (10, $layout:tt) => {
-        acc_p!($layout, "0({x3}, {x0})", 30)
-    };
-    (11, $layout:tt) => {
-        acc_p!($layout, "0({x3}, {x0}, 2)", 31)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_8x12!(0,$ni))
     };
 }
 
 macro_rules! store_8x12 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 20)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 21)
-    };
-    (2, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0}, 2)", 22)
-    }; 
-    (3, $layout:tt) => {
-        storep!($layout, "0({x1})", 23)
-    };
-    (4, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0})", 24)
-    };
-    (5, $layout:tt) => {
-        storep!($layout, "0({x1}, {x0}, 2)", 25)
-    };
-    (6, $layout:tt) => {
-        storep!($layout, "0({x2})", 26)
-    };
-    (7, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0})", 27)
-    };
-    (8, $layout:tt) => {
-        storep!($layout, "0({x2}, {x0}, 2)", 28)
-    };
-    (9, $layout:tt) => {
-        storep!($layout, "0({x3})", 29)
-    };
-    (10, $layout:tt) => {
-        storep!($layout, "0({x3}, {x0})", 30)
-    };
-    (11, $layout:tt) => {
-        storep!($layout, "0({x3}, {x0}, 2)", 31)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_8x12!(0,$ni))
     };
 }
 
@@ -738,201 +605,32 @@ macro_rules! load_a {
 }
 
 macro_rules! fmadd_3v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 3, 8),
-            vfmadd!(1, 3, 9),
-            vfmadd!(2, 3, 10),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 4, 11),
-            vfmadd!(1, 4, 12),
-            vfmadd!(2, 4, 13),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 5, 14),
-            vfmadd!(1, 5, 15),
-            vfmadd!(2, 5, 16),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 6, 17),
-            vfmadd!(1, 6, 18),
-            vfmadd!(2, 6, 19),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 7, 20),
-            vfmadd!(1, 7, 21),
-            vfmadd!(2, 7, 22),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 3, 23),
-            vfmadd!(1, 3, 24),
-            vfmadd!(2, 3, 25),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 4, 26),
-            vfmadd!(1, 4, 27),
-            vfmadd!(2, 4, 28),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 5, 29),
-            vfmadd!(1, 5, 30),
-            vfmadd!(2, 5, 31),
+            vfmadd!(0, b_num_24x8!($ni), c_reg_24x8!(0,$ni)),
+            vfmadd!(1, b_num_24x8!($ni), c_reg_24x8!(1,$ni)),
+            vfmadd!(2, b_num_24x8!($ni), c_reg_24x8!(2,$ni)),
         )
     };
 }
 
 macro_rules! fmadd_2v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 2, 8),
-            vfmadd!(1, 2, 9),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 10),
-            vfmadd!(1, 3, 11),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 4, 12),
-            vfmadd!(1, 4, 13),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 5, 14),
-            vfmadd!(1, 5, 15),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 6, 16),
-            vfmadd!(1, 6, 17),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 7, 18),
-            vfmadd!(1, 7, 19),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 2, 20),
-            vfmadd!(1, 2, 21),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 3, 22),
-            vfmadd!(1, 3, 23),
-        )
-    };
-    (8) => {
-        concat!(
-            vfmadd!(0, 4, 24),
-            vfmadd!(1, 4, 25),
-        )
-    };
-    (9) => {
-        concat!(
-            vfmadd!(0, 5, 26),
-            vfmadd!(1, 5, 27),
-        )
-    };
-    (10) => {
-        concat!(
-            vfmadd!(0, 6, 28),
-            vfmadd!(1, 6, 29),
-        )
-    };
-    (11) => {
-        concat!(
-            vfmadd!(0, 7, 30),
-            vfmadd!(1, 7, 31),
+            vfmadd!(0, b_num_16x12!($ni), c_reg_16x12!(0,$ni)),
+            vfmadd!(1, b_num_16x12!($ni), c_reg_16x12!(1,$ni)),
         )
     };
 }
 
 macro_rules! fmadd_1v {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 1, 20),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 2, 21),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 3, 22),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 23),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 5, 24),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 6, 25),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 7, 26),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 8, 27),
-        )
-    };
-    (8) => {
-        concat!(
-            vfmadd!(0, 9, 28),
-        )
-    };
-    (9) => {
-        concat!(
-            vfmadd!(0, 10, 29),
-        )
-    };
-    (10) => {
-        concat!(
-            vfmadd!(0, 11, 30),
-        )
-    };
-    (11) => {
-        concat!(
-            vfmadd!(0, 12, 31),
+            vfmadd!(0, b_num_8x12!($ni), c_reg_8x12!(0,$ni)),
         )
     };
 }
+
 
 macro_rules! b_num_24x8 {
     (0) => {3};

@@ -4,6 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
 use crate::{load_buf, store_buf};
+use glare_base::c_mem;
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -276,39 +277,39 @@ macro_rules! asm_alpha_scale {
 }
 
 
+macro_rules! c_reg_8x2 {
+    (0,0) => { 4 };
+    (1,0) => { 6 };
+    (0,1) => { 8 };
+    (1,1) => { 10 };
+}
+
+macro_rules! c_reg_4x2 {
+    (0,0) => { 4 };
+    (0,1) => { 6 };
+}
+
 macro_rules! acc_8x2 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 4, 6)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 8, 10)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_8x2!(0,$ni), c_reg_8x2!(1,$ni))
     };
 }
 
 macro_rules! store_8x2 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 4, 6)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 8, 10)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_8x2!(0,$ni), c_reg_8x2!(1,$ni))
     };
 }
 
 macro_rules! acc_4x2 {
-    (0, $layout:tt) => {
-        acc_p!($layout, "0({cx})", 4)
-    };
-    (1, $layout:tt) => {
-        acc_p!($layout, "0({cx}, {x0})", 6)
+    ($ni:tt, $layout:tt) => {
+        acc_p!($layout, c_mem!($ni), c_reg_4x2!(0,$ni))
     };
 }
 
 macro_rules! store_4x2 {
-    (0, $layout:tt) => {
-        storep!($layout, "0({cx})", 4)
-    };
-    (1, $layout:tt) => {
-        storep!($layout, "0({cx}, {x0})", 6)
+    ($ni:tt, $layout:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_4x2!(0,$ni))
     };
 }
 
