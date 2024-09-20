@@ -14,7 +14,7 @@ use crate::MyFn;
 
 use glare_base::def_kernel_bb_pf1_no_beta;
 
-def_kernel_bb_pf1_no_beta!(TA, TB, TC, TA, TC, 8, 7, 64, 8, 8, 4);
+def_kernel_bb_pf1_no_beta!(TA, TB, TC, TA, TC, 12, 4, 64, 8, 12, 8, 4);
 
 use glare_base::def_kernel_bs_no_beta;
 

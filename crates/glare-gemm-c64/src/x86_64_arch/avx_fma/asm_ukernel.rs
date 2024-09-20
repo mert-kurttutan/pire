@@ -43,9 +43,10 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($r1:expr, $b1:expr, $b2:expr, $r3:expr, $r4:expr) => {
         concat!(
-            "vfmadd231pd %ymm", $r1, ", %ymm", $r2,", %ymm", $r3, "\n",
+            "vfmadd231pd ", "%zmm",$b1, ", %zmm", $r1,", %zmm", $r3, "\n",
+            "vfmadd231pd ", "%zmm",$b2, ", %zmm", $r1,", %zmm", $r4, "\n",
         ) 
     };
 }
@@ -93,12 +94,36 @@ macro_rules! asm_alpha_scale_0 {
             "vbroadcastsd ({alphax}), %ymm0 \n",
             "vbroadcastsd 8({alphax}), %ymm1 \n",
             
-            complex_mul!(4, 3),
-            complex_mul!(6, 3),
-            complex_mul!(8, 3),
-            complex_mul!(10, 3),
-            complex_mul!(12, 3),
-            complex_mul!(14, 3),
+            complex_mul!(4, 5),
+            complex_mul!(6, 7),
+            complex_mul!(8, 9),
+            complex_mul!(10, 11),
+            complex_mul!(12, 13),
+            complex_mul!(14, 15),
+        )
+    }
+}
+
+
+macro_rules! v_to_c {
+    ($r0:tt, $r1:tt) => {
+        concat!(
+            "vpermilpd $0b101, %ymm", $r1, ", %ymm", $r1, "\n",
+            "vaddsubpd %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
+        )
+    }
+}
+
+macro_rules! permute_complex {
+    () => {
+        concat!(
+            // permute even and odd elements
+            v_to_c!(4, 5),
+            v_to_c!(6, 7),
+            v_to_c!(8, 9),
+            v_to_c!(10, 11),
+            v_to_c!(12, 13),
+            v_to_c!(14, 15),
         )
     }
 }
@@ -366,26 +391,20 @@ macro_rules! load_a {
 macro_rules! fmadd_2v {
     (0) => {
         concat!(
-            vfmadd!(0, 2, 4),
-            vfmadd!(0, 3, 5),
-            vfmadd!(1, 2, 6),
-            vfmadd!(1, 3, 7),
+            vfmadd!(0, 2, 3, 4, 5),
+            vfmadd!(1, 2, 3, 6, 7),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 8),
-            vfmadd!(0, 3, 9),
-            vfmadd!(1, 2, 10),
-            vfmadd!(1, 3, 11),
+            vfmadd!(0, 2, 3, 8, 9),
+            vfmadd!(1, 2, 3, 10, 11),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 2, 12),
-            vfmadd!(0, 3, 13),
-            vfmadd!(1, 2, 14),
-            vfmadd!(1, 3, 15),
+            vfmadd!(0, 2, 3, 12, 13),
+            vfmadd!(1, 2, 3, 14, 15),
         )
     };
 }
@@ -393,21 +412,18 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 2, 4),
-            vfmadd!(0, 3, 5),
+            vfmadd!(0, 2, 3, 4, 5),
         )
 
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 6),
-            vfmadd!(0, 3, 7),
+            vfmadd!(0, 2, 3, 6, 7),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 2, 8),
-            vfmadd!(0, 3, 9),
+            vfmadd!(0, 2, 3, 8, 9),
         )
     };
 }
@@ -497,30 +513,6 @@ macro_rules! load_mask_ptr_asm {
     };
     (C) => {
         "/* {maskx} */"
-    }
-}
-
-
-macro_rules! v_to_c {
-    ($r0:tt, $r1:tt) => {
-        concat!(
-            "vpermilpd $0b101, %ymm", $r1, ", %ymm", $r1, "\n",
-            "vaddsubpd %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
-        )
-    }
-}
-
-macro_rules! permute_complex {
-    () => {
-        concat!(
-            // permute even and odd elements
-            v_to_c!(4, 5),
-            v_to_c!(6, 7),
-            v_to_c!(8, 9),
-            v_to_c!(10, 11),
-            v_to_c!(12, 13),
-            v_to_c!(14, 15),
-        )
     }
 }
 
