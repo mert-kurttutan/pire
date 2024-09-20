@@ -45,8 +45,8 @@ macro_rules! vbroadcast {
 macro_rules! vfmadd {
     ($r1:expr, $b1:expr, $b2:expr, $r3:expr, $r4:expr) => {
         concat!(
-            "vfmadd231pd ", "%zmm",$b1, ", %zmm", $r1,", %zmm", $r3, "\n",
-            "vfmadd231pd ", "%zmm",$b2, ", %zmm", $r1,", %zmm", $r4, "\n",
+            "vfmadd231pd ", "%ymm",$b1, ", %ymm", $r1,", %ymm", $r3, "\n",
+            "vfmadd231pd ", "%ymm",$b2, ", %ymm", $r1,", %ymm", $r4, "\n",
         ) 
     };
 }
