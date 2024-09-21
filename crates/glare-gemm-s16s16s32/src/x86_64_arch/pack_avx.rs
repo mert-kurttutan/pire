@@ -122,6 +122,15 @@ pub(crate) unsafe fn interleave_t<const M: usize>(a: *const TA, ap: *mut TA, lda
         });
         copy_nonoverlapping(t0.as_ptr(), ap, 64);
     }
+
+    if M == 48 {
+        let mut t0 = [0_i16; 96];
+        seq!(i in 0..48 {
+            t0[2*i] = *a.add(lda*i);
+            t0[2*i+1] = *a.add(lda*i+1);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 96);
+    }
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -244,6 +253,14 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(a: *const TA, ap: *mut TA
             t0[2*i] = *a.add(lda*i);
         });
         copy_nonoverlapping(t0.as_ptr(), ap, 64);
+    }
+
+    if M == 48 {
+        let mut t0 = [0_i16; 96];
+        seq!(i in 0..48 {
+            t0[2*i] = *a.add(lda*i);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 96);
     }
 }
 
@@ -444,6 +461,117 @@ pub(crate) unsafe fn pack_kx32_v0(k: usize, a: *const TA, lda: usize, ap: *mut T
     }
 }
 
+#[target_feature(enable = "avx,avx2")]
+pub(crate) unsafe fn pack_kx48_v0(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
+    const MR: usize = 48;
+    let k8 = k / 8 * 8;
+    let k2 = k / 2 * 2;
+    let mut k_i = 0;
+    let a0 = a;
+    let ap0 = ap;
+    while k_i < k8 {
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
+        seq!(i in 0..4 {
+            let a0 = _mm256_loadu_si256(a.add(lda*2*i) as *const __m256i);
+            let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)) as *const __m256i);
+            let t0 = _mm256_unpacklo_epi16(a0, b0);
+            let t1 = _mm256_unpackhi_epi16(a0, b0);
+            let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+            let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+            _mm256_storeu_si256(ap.add(MR*2*i) as *mut __m256i, a0);
+            _mm256_storeu_si256(ap.add(MR*2*i+16) as *mut __m256i, b0);
+        });
+
+        seq!(i in 0..4 {
+            let a0 = _mm256_loadu_si256(a.add(lda*2*i+16) as *const __m256i);
+            let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)+16) as *const __m256i);
+            let t0 = _mm256_unpacklo_epi16(a0, b0);
+            let t1 = _mm256_unpackhi_epi16(a0, b0);
+            let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+            let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+            _mm256_storeu_si256(ap.add(MR*2*i+32) as *mut __m256i, a0);
+            _mm256_storeu_si256(ap.add(MR*2*i+48) as *mut __m256i, b0);
+        });
+
+        seq!(i in 0..4 {
+            let a0 = _mm256_loadu_si256(a.add(lda*2*i+32) as *const __m256i);
+            let b0 = _mm256_loadu_si256(a.add(lda*(2*i+1)+32) as *const __m256i);
+            let t0 = _mm256_unpacklo_epi16(a0, b0);
+            let t1 = _mm256_unpackhi_epi16(a0, b0);
+            let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+            let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+            _mm256_storeu_si256(ap.add(MR*2*i+64) as *mut __m256i, a0);
+            _mm256_storeu_si256(ap.add(MR*2*i+80) as *mut __m256i, b0);
+        });
+
+        k_i += 8;
+    }
+    while k_i < k2 {
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
+        let a0 = _mm256_loadu_si256(a as *const __m256i);
+        let b0 = _mm256_loadu_si256(a.add(lda) as *const __m256i);
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+        _mm256_storeu_si256(ap as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
+
+        let a0 = _mm256_loadu_si256(a.add(16) as *const __m256i);
+        let b0 = _mm256_loadu_si256(a.add(lda + 16) as *const __m256i);
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+        _mm256_storeu_si256(ap.add(32) as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(48) as *mut __m256i, b0);
+
+        let a0 = _mm256_loadu_si256(a.add(32) as *const __m256i);
+        let b0 = _mm256_loadu_si256(a.add(lda + 32) as *const __m256i);
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+        _mm256_storeu_si256(ap.add(64) as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(80) as *mut __m256i, b0);
+
+        k_i += 2;
+    }
+    if k % 2 != 0 {
+        let a = a0.add(k_i * lda);
+        let ap = ap0.add(k_i * MR);
+        let a0 = _mm256_loadu_si256(a as *const __m256i);
+        let b0 = _mm256_setzero_si256();
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+
+        _mm256_storeu_si256(ap as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(16) as *mut __m256i, b0);
+
+        let a0 = _mm256_loadu_si256(a.add(16) as *const __m256i);
+        let b0 = _mm256_setzero_si256();
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+        _mm256_storeu_si256(ap.add(32) as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(48) as *mut __m256i, b0);
+
+        let a0 = _mm256_loadu_si256(a.add(32) as *const __m256i);
+        let b0 = _mm256_setzero_si256();
+        let t0 = _mm256_unpacklo_epi16(a0, b0);
+        let t1 = _mm256_unpackhi_epi16(a0, b0);
+        let a0 = _mm256_permute2f128_si256(t0, t1, 0b0010_0000);
+        let b0 = _mm256_permute2f128_si256(t0, t1, 0b0011_0001);
+        _mm256_storeu_si256(ap.add(64) as *mut __m256i, a0);
+        _mm256_storeu_si256(ap.add(80) as *mut __m256i, b0);
+    }
+}
+
 // #[target_feature(enable = "avx,avx2")]
 // pub(crate) unsafe fn pack_kx16_v1(
 //     k: usize,
@@ -587,3 +715,4 @@ macro_rules! def_packa {
 def_packa!(16);
 
 def_packa!(32);
+def_packa!(48);
