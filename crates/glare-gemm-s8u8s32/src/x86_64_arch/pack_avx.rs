@@ -77,6 +77,15 @@ pub(crate) unsafe fn interleave_t<const M: usize>(a: *const TA, ap: *mut TA, lda
         copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
+
+    if M == 48 {
+        let mut t0 = [0_i8; 192];
+        seq!(i in 0..48 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), 4);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 192);
+        return;
+    }
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -128,6 +137,18 @@ pub(crate) unsafe fn interleave<const M: usize>(a: *const TA, ap: *mut TA, lda: 
         copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
+
+    if M == 48 {
+        let mut t0 = [0_i8; 192];
+        seq!(i in 0..48 {
+            t0[i*4] = *a.add(i);
+            t0[i*4+1] = *a.add(lda+i);
+            t0[i*4+2] = *a.add(2*lda+i);
+            t0[i*4+3] = *a.add(3*lda+i);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 192);
+        return;
+    }
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -176,6 +197,17 @@ pub(crate) unsafe fn interleave_left<const M: usize>(a: *const TA, ap: *mut TA, 
         copy_nonoverlapping(t0.as_ptr(), ap, 128);
         return;
     }
+
+    if M == 48 {
+        let mut t0 = [0_i8; 192];
+        for i in 0..kl {
+            seq!(j in 0..48 {
+                t0[i+4*j] = *a.add(i*lda+j);
+            });
+        }
+        copy_nonoverlapping(t0.as_ptr(), ap, 192);
+        return;
+    }
 }
 
 #[target_feature(enable = "avx,avx2")]
@@ -214,6 +246,15 @@ pub(crate) unsafe fn interleave_left_t<const M: usize>(a: *const TA, ap: *mut TA
             copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
         });
         copy_nonoverlapping(t0.as_ptr(), ap, 128);
+        return;
+    }
+
+    if M == 48 {
+        let mut t0 = [0_i8; 192];
+        seq!(i in 0..48 {
+            copy_nonoverlapping(a.add(lda*i), t0.as_mut_ptr().add(4*i), kl);
+        });
+        copy_nonoverlapping(t0.as_ptr(), ap, 192);
         return;
     }
 }
@@ -481,3 +522,4 @@ macro_rules! def_packa {
 
 def_packa!(16);
 def_packa!(32);
+def_packa!(48);

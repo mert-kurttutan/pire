@@ -1,4 +1,5 @@
 pub(crate) mod avx2;
+pub(crate) mod avx512_vnni;
 pub(crate) mod avx512bw;
 pub(crate) mod pack_avx;
 
@@ -11,6 +12,7 @@ use glare_base::{
 use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
 
 pub(crate) enum RegDim {
+    Reg48x8,
     Reg32x8,
     Reg16x4,
 }
@@ -35,7 +37,13 @@ impl<F: MyFn> X86_64dispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let (mr, nr, reg_dim) = if features.avx512bw { (32, 8, RegDim::Reg32x8) } else { (16, 4, RegDim::Reg16x4) };
+        let (mr, nr, reg_dim) = if features.avx512_vnni {
+            (48, 8, RegDim::Reg48x8)
+        } else if features.avx512bw {
+            (32, 8, RegDim::Reg32x8)
+        } else {
+            (16, 4, RegDim::Reg16x4)
+        };
         let vs = if features.avx512bw { 16 } else { 8 };
         Self {
             mc,
@@ -55,6 +63,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
 
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         match self.reg_dim {
+            RegDim::Reg48x8 => pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs),
             RegDim::Reg32x8 => pack_avx::packa_panel_32(m, k, x, rs, cs, y, self.vs),
             RegDim::Reg16x4 => pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs),
         }
@@ -62,6 +71,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
         match self.reg_dim {
+            RegDim::Reg48x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
             RegDim::Reg32x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
             RegDim::Reg16x4 => pack_avx::packb_panel_4(n, k, x, cs, rs, y),
         }
@@ -119,12 +129,14 @@ unsafe fn kernel<F: MyFn>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
+            RegDim::Reg48x8 => avx512_vnni::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
             RegDim::Reg32x8 => avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
             RegDim::Reg16x4 => avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
+            RegDim::Reg48x8 => avx512_vnni::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
             RegDim::Reg32x8 => avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
             RegDim::Reg16x4 => avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
@@ -172,6 +184,9 @@ unsafe fn kernel_n<F: MyFn>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
+            RegDim::Reg48x8 => {
+                avx512_vnni::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func)
+            }
             RegDim::Reg32x8 => {
                 avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func)
             }
@@ -180,6 +195,9 @@ unsafe fn kernel_n<F: MyFn>(
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
+            RegDim::Reg48x8 => {
+                avx512_vnni::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn)
+            }
             RegDim::Reg32x8 => avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
             RegDim::Reg16x4 => avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
