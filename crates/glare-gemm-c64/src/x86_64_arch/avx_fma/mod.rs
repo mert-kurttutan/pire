@@ -55,18 +55,18 @@ pub unsafe fn axpy<F: MyFn>(
     }
 }
 use glare_base::def_kernel_bb_v0_no_beta;
-def_kernel_bb_v0_no_beta!(TA, TB, TC, TA, TC, 4, 3, 4, 2);
+def_kernel_bb_v0_no_beta!(TA, TB, TC, TA, TC, 6, 2, 6, 4, 2);
 
 use glare_base::def_kernel_bs_no_beta;
 
-def_kernel_bs_no_beta!(TA, TB, TC, TA, TC, 4, 3, 4, 2);
+def_kernel_bs_no_beta!(TA, TB, TC, TA, TC, 6, 2, 6, 4, 2);
 
-use super::pack_avx::packa_panel_4;
+use super::pack_avx::packa_panel_6;
 use glare_base::def_kernel_sb_v0_no_beta;
 
-def_kernel_sb_v0_no_beta!(TA, TB, TC, TA, TC, 4, 3, 4, 2);
+def_kernel_sb_v0_no_beta!(TA, TB, TC, TA, TC, 6, 2, 6, 4, 2);
 
-pub(crate) unsafe fn kernel_4x3_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_6x2_sb<F: MyFn>(
     m: usize,
     n: usize,
     k: usize,
@@ -82,13 +82,13 @@ pub(crate) unsafe fn kernel_4x3_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_4x3_sb_v0::<_, false>(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_6x2_sb_v0::<_, false>(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_4x3_sb_v0::<_, true>(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_6x2_sb_v0::<_, true>(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
-pub(crate) unsafe fn kernel_4x3_bs<F: MyFn>(
+pub(crate) unsafe fn kernel_6x2_bs<F: MyFn>(
     m: usize,
     n: usize,
     k: usize,
@@ -103,14 +103,14 @@ pub(crate) unsafe fn kernel_4x3_bs<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_4x3_bs_v0::<_, false>(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
+        kernel_6x2_bs_v0::<_, false>(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     } else {
-        kernel_4x3_bs_v0::<_, true>(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
+        kernel_6x2_bs_v0::<_, true>(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     }
 }
 
 // #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel_4x3<F: MyFn>(
+pub(crate) unsafe fn kernel_6x2<F: MyFn>(
     m: usize,
     n: usize,
     k: usize,
@@ -123,8 +123,8 @@ pub(crate) unsafe fn kernel_4x3<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_4x3_bb::<_, false>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
+        kernel_6x2_bb::<_, false>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_4x3_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
+        kernel_6x2_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     }
 }

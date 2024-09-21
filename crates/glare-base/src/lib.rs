@@ -430,7 +430,6 @@ impl GlarePar {
     pub fn default(m: usize, n: usize) -> Self {
         let num_threads = glare_num_threads();
         Self::from_num_threads(num_threads, m, n)
-        // Self::new(30, 3, 1, 5, 2, 1)
     }
     #[inline]
     fn get_ic_id(&self, t_id: usize) -> usize {
@@ -1633,7 +1632,6 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                     }
                     m_i += MR;
                 }
-
 
                 $(
                     if (m_left+VS-1) / VS * VS == $mr_left {

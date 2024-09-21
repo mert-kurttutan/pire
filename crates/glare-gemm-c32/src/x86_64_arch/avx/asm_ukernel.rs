@@ -43,10 +43,13 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($r1:expr, $b1:expr, $b2:expr, $r2:expr, $r3:expr, $r4:expr, $r5:expr) => {
         concat!(
-            "vmulps %ymm", $r1, ", %ymm", $r2,", %ymm", $r4, "\n",
-            "vaddps %ymm", $r4, ", %ymm", $r3, ", %ymm", $r3, "\n",
+            "vmulps %ymm", $r1, ", %ymm", $b1,", %ymm", $r4, "\n",
+            "vaddps %ymm", $r4, ", %ymm", $r2, ", %ymm", $r2, "\n",
+
+            "vmulps %ymm", $r1, ", %ymm", $b2,", %ymm", $r5, "\n",
+            "vaddps %ymm", $r5, ", %ymm", $r3, ", %ymm", $r3, "\n",
         ) 
     };
 }
@@ -94,13 +97,31 @@ macro_rules! asm_alpha_scale_0 {
             "vbroadcastss ({alphax}), %ymm0 \n",
             "vbroadcastss 4({alphax}), %ymm1 \n",
         
-            complex_mul!(4, 3),
-            
-            complex_mul!(6, 5),
-            
-            complex_mul!(8, 7),
-        
-            complex_mul!(10, 9),
+            complex_mul!(4, 5),
+            complex_mul!(6, 7),
+            complex_mul!(8, 9),
+            complex_mul!(10, 11),
+        )
+    }
+}
+
+macro_rules! v_to_c {
+    ($r0:tt, $r1:tt) => {
+        concat!(
+            "vpermilps $0xb1, %ymm", $r1, ", %ymm", $r1, "\n",
+            "vaddsubps %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
+        )
+    }
+}
+
+macro_rules! permute_complex {
+    () => {
+        concat!(
+            // permute even and odd elements
+            v_to_c!(4, 5),
+            v_to_c!(6, 7),
+            v_to_c!(8, 9),
+            v_to_c!(10, 11),
         )
     }
 }
@@ -212,19 +233,14 @@ macro_rules! asm_c_load {
 
 
 macro_rules! asm_vzeroall {
-    (8,3) => {vzeroall!(4,15)};
-    (8,2) => {vzeroall!(4,15)};
-    (8,1) => {vzeroall!(4,15)};
+    (8,2) => {vzeroall!(4,11)};
+    (8,1) => {vzeroall!(4,7)};
 
-    (4,3) => {vzeroall!(4,15)};
-    (4,2) => {vzeroall!(4,15)};
-    (4,1) => {vzeroall!(4,15)};
+    (4,2) => {vzeroall!(4,7)};
+    (4,1) => {vzeroall!(4,5)};
 }	
 
 macro_rules! inc_b {
-    (S,3) => {
-        "add {x1},{bx} \n"
-    };
     (S,2) => {
         "add {x1},{bx} \n"
     };
@@ -269,10 +285,10 @@ macro_rules! asm_alpha_scale {
     };
 
     (4, 2) => {
-        asm_alpha_scale_0!(4,11)
+        asm_alpha_scale_0!(4,7)
     };
     (4, 1) => {
-        asm_alpha_scale_0!(4,7)
+        asm_alpha_scale_0!(4,5)
     };
 }
 
@@ -355,18 +371,14 @@ macro_rules! load_a {
 macro_rules! fmadd_2v {
     (0) => {
         concat!(
-            vfmadd!(0, 2, 4, 12),
-            vfmadd!(0, 3, 5, 13),
-            vfmadd!(1, 2, 6, 14),
-            vfmadd!(1, 3, 7, 15),
+            vfmadd!(0, 2, 3, 4, 5, 12, 13),
+            vfmadd!(1, 2, 3, 6, 7, 14, 15),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 8, 12),
-            vfmadd!(0, 3, 9, 13),
-            vfmadd!(1, 2, 10, 14),
-            vfmadd!(1, 3, 11, 15),
+            vfmadd!(0, 2, 3, 8, 9, 12, 13),
+            vfmadd!(1, 2, 3, 10, 11, 14, 15),
         )
     };
 }
@@ -374,15 +386,13 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 2, 4, 12),
-            vfmadd!(0, 3, 5, 13),
+            vfmadd!(0, 2, 3, 4, 5, 12, 13),
         )
 
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 6, 14),
-            vfmadd!(0, 3, 7, 15),
+            vfmadd!(0, 2, 3, 6, 7, 14, 15),
         )
     };
 }
@@ -471,27 +481,6 @@ macro_rules! load_mask_ptr_asm {
     };
     (C) => {
         "/* {maskx} */"
-    }
-}
-
-macro_rules! v_to_c {
-    ($r0:tt, $r1:tt) => {
-        concat!(
-            "vpermilps $0xb1, %ymm", $r1, ", %ymm", $r1, "\n",
-            "vaddsubps %ymm", $r1, ", %ymm", $r0, ", %ymm", $r0, "\n",
-        )
-    }
-}
-
-macro_rules! permute_complex {
-    () => {
-        concat!(
-            // permute even and odd elements
-            v_to_c!(4, 5),
-            v_to_c!(6, 7),
-            v_to_c!(8, 9),
-            v_to_c!(10, 11),
-        )
     }
 }
 
