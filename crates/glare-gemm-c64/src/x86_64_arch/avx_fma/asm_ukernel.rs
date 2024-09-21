@@ -709,13 +709,13 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(384, "{bx}", 0),
+                prefetch_0!(256, "{bx}", 0),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
-                prefetch_0!(448, "{bx}", 0),
+                prefetch_0!(320, "{bx}", 0),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
                 $step_macro!($nr, $a_layout, $b_layout, 3),
-                prefetch_0!(512, "{bx}", 0),
+                // prefetch_0!(512, "{bx}", 0),
 
                 inc_a_k_unroll!($a_layout, $mr, 4),
                 inc_b_k_unroll!($b_layout, $nr, 4),
@@ -836,13 +836,13 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(392, "{bx}", 0),
+                            prefetch_0!(256, "{bx}", 0),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
-                            prefetch_0!(448, "{bx}", 0),
+                            prefetch_0!(320, "{bx}", 0),
                             $step_macro!(ni, $a_layout, $b_layout, 2),
                             $step_macro!(ni, $a_layout, $b_layout, 3),
-                            prefetch_0!(512, "{bx}", 0),
+                            // prefetch_0!(512, "{bx}", 0),
             
                             inc_a_k_unroll!($a_layout, $mr, 4),
                             inc_b_k_unroll!($b_layout, ni, 4),
