@@ -183,9 +183,9 @@ fn bench_bbb(c: &mut Criterion) {
     let m = 4800;
     let alpha = TA::ONE;
     let beta = TA::ONE;
-    let a = vec![TA::ZERO; m * m];
-    let b_vec = vec![TB::ZERO; m * m];
-    let mut c_vec = vec![TC::ZERO; m * m];
+    let a = vec![TA::ONE; m * m];
+    let b_vec = vec![TB::ONE; m * m];
+    let mut c_vec = vec![TC::ONE; m * m];
     let d0 = 1;
     let mnk_vec = vec![
         // 10, 100,

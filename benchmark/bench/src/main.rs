@@ -331,13 +331,13 @@ fn test_cgemm(
 ) -> f64 {
     let alpha = c32(alpha, 0.0);
     let beta = c32(beta, 0.0);
-    let mut a = vec![Complex32::ZERO; m * k];
-    let mut b = vec![Complex32::ZERO; k * n];
-    let mut c = vec![Complex32::ZERO; m * n];
+    let mut a = vec![Complex32::ONE; m * k];
+    let mut b = vec![Complex32::ONE; k * n];
+    let mut c = vec![Complex32::ONE; m * n];
     random_matrix_std(m, k, &mut a, m);
     random_matrix_std(k, n, &mut b, k);
     random_matrix_std(m, n, &mut c, m);
-    let mut c_ref = vec![Complex32::ZERO; m * n];
+    let mut c_ref = vec![Complex32::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
     unsafe {
@@ -408,13 +408,13 @@ fn test_zgemm(
 ) -> f64 {
     let alpha = c64(alpha as f64, 0.0);
     let beta = c64(beta, 0.0);
-    let mut a = vec![Complex64::ZERO; m * k];
-    let mut b = vec![Complex64::ZERO; k * n];
-    let mut c = vec![Complex64::ZERO; m * n];
+    let mut a = vec![Complex64::ONE; m * k];
+    let mut b = vec![Complex64::ONE; k * n];
+    let mut c = vec![Complex64::ONE; m * n];
     random_matrix_std(m, k, &mut a, m);
     random_matrix_std(k, n, &mut b, k);
     random_matrix_std(m, n, &mut c, m);
-    let mut c_ref = vec![Complex64::ZERO; m * n];
+    let mut c_ref = vec![Complex64::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
     unsafe {
@@ -568,12 +568,12 @@ fn test_hgemm(
 ) -> f64 {
     let alpha = f16::from_f32(alpha);
     let beta = f16::from_f32(beta);
-    let mut a = vec![f16::ZERO; m * k];
-    let mut b = vec![f16::ZERO; k * n];
-    let mut c = vec![f16::ZERO; m * n];
+    let mut a = vec![f16::ONE; m * k];
+    let mut b = vec![f16::ONE; k * n];
+    let mut c = vec![f16::ONE; m * n];
     random_matrix_uniform(m, k, &mut a, m);
     random_matrix_uniform(k, n, &mut b, k);
-    let mut c_ref = vec![f16::ZERO; m * n];
+    let mut c_ref = vec![f16::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
     unsafe {
