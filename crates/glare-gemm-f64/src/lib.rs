@@ -61,9 +61,9 @@ fn get_mcnckc() -> (usize, usize, usize) {
     // let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Broadwell => (2400, 96, 256),
+        HWModel::Broadwell => (2400, 192, 192),
         HWModel::Skylake => (4800, 512, 1024),
-        HWModel::Haswell => (2400, 384, 384),
+        HWModel::Haswell => (2400, 192, 192),
         _ => get_cache_params(),
     };
     (mc, nc, kc)
