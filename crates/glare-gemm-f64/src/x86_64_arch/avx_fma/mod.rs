@@ -58,7 +58,11 @@ pub unsafe fn axpy<F: MyFn>(
 use glare_base::def_kernel_bb_v0;
 def_kernel_bb_v0!(f64, f64, f64, f64, f64, 8, 6, 8, 4);
 
-def_kernel_bb_v0!(f64, f64, f64, f64, f64, 12, 4, 12, 8, 4);
+// def_kernel_bb_v0!(f64, f64, f64, f64, f64, 12, 4, 12, 8, 4);
+
+use glare_base::def_kernel_bb_pf1;
+
+def_kernel_bb_pf1!(f64, f64, f64, f64, f64, 12, 4, 96, 4, 12, 8, 4);
 
 use glare_base::def_kernel_bs;
 
@@ -201,8 +205,8 @@ pub(crate) unsafe fn kernel_12x4<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_12x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_12x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

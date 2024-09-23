@@ -971,16 +971,16 @@ pub(crate) unsafe fn ukernel_24x4_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 8;
-    let k_left = if k_left0 == 0 {8} else {k_left0};
+    let k_left0 = k % 4;
+    let k_left = if k_left0 == 0 {4} else {k_left0};
     let k_iter = (k - k_left) / 4;
     let mut dim_arr = [d_arr[3]*4, k_iter, k_left, a_pft1_offset];
     let mut cf = c;
-    let mut c_buf = [0f32; 48 * 8];
+    let mut c_buf = [0f32; 24 * 4];
     let c_cs = d_arr[3];
     if BUF {
-        load_buf(c, d_arr[2], c_cs, &mut c_buf, 48, 8);
-        dim_arr[2] = 48*4;
+        load_buf(c, d_arr[2], c_cs, &mut c_buf, 24, 4);
+        dim_arr[2] = 24*4;
         cf = c_buf.as_mut_ptr();
     }
     asm!(
@@ -1080,13 +1080,13 @@ pub(crate) unsafe fn ukernel_24x4_bb<F: MyFn, const BUF: bool>(
         options(att_syntax)
     );
     if BUF {
-        for j in 0..8 {
-            f.call(cf.add(j*48), 48);
+        for j in 0..4 {
+            f.call(cf.add(j*24), 24);
         }
-        store_buf(c, d_arr[2], c_cs, &c_buf, 48, 8);
+        store_buf(c, d_arr[2], c_cs, &c_buf, 24, 4);
     } else {
-        for j in 0..8 {
-            f.call(cf.add(j*c_cs), 48);
+        for j in 0..4 {
+            f.call(cf.add(j*c_cs), 24);
         }
     }
 }

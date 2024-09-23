@@ -915,7 +915,7 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, C, ukernel_12x4_bb);
+// def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, C, ukernel_12x4_bb);
 def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, C, ukernel_8x6_bb);
 // def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, B, C, ukernel_8x8_bb);
 
@@ -952,3 +952,140 @@ def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, M, ukernel_12xn_bs_
 def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 4, B, S, M, ukernel_8xn_bs_partial);
 def_ukernelxn!(step_4x6, acc_4x6, store_4x6, 4, 4, B, S, M, ukernel_4xn_bs_partial);
 
+
+
+
+
+
+// based on l1 prefetching scheme is from openblas impl for skylax
+// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
+// this is adapted to our ukernel of 12x4
+// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
+// where the same l1 prefetching does not benefit as much)
+pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
+    a: *const TA, b: *const TB, c: *mut TC,
+    alpha: *const TA, beta: *const TB,
+    k: usize,
+    d_arr: [usize; 4],
+    a_pft1_offset: usize,
+    f: F,
+) {
+    let k_left0 = k % 4;
+    let k_left = if k_left0 == 0 {4} else {k_left0};
+    let k_iter = (k - k_left) / 4;
+    let mut dim_arr = [d_arr[3]*8, k_iter, k_left, a_pft1_offset];
+    let mut cf = c;
+    let mut c_buf = [0f64; 24 * 4];
+    let c_cs = d_arr[3];
+    if BUF {
+        load_buf(c, d_arr[2], c_cs, &mut c_buf, 24, 4);
+        dim_arr[2] = 24*4;
+        cf = c_buf.as_mut_ptr();
+    }
+    asm!(
+        asm_vzeroall!(12,4),
+        "mov 8({dim_arrx}),{x0}",
+        "test {x0},{x0}",
+        "je 3f",
+        // "je 3f",
+        "mov {cx}, {x2}",
+        "mov {ax}, {x5}",
+        "mov 24({dim_arrx}),{x1}",
+        "add {x1}, {x5}",
+        "mov ({dim_arrx}),{x1}",
+        "2:",
+        step_12x4!(4, B, B, 0),
+
+        "movq $64*4, {x4}",
+        // divisiblity by 4
+        "testq $3, {x0}",
+        "cmovz {x1},{x4}",
+
+        step_12x4!(4, B, B, 1),
+
+        "prefetcht1 ({x2})",
+
+        "subq $64*3, {x2}",
+        "addq {x4}, {x2}",
+
+        step_12x4!(4, B, B, 2),
+
+        "prefetcht1 ({x5})",
+        "addq $16, {x5}",
+
+        "testq $63, {x0}",
+        "cmovz {cx},{x2}",
+
+        step_12x4!(4, B, B, 3),
+
+        inc_a_k_unroll!(B, 12, 4),
+        inc_b_k_unroll!(B, 4, 4),
+
+        "dec {x0}",
+        "jne 2b",
+        "3:",
+        "mov 16({dim_arrx}),{x0}",
+        "test {x0},{x0}",
+
+        // 5 -> POSTACCUM
+        "je 5f",
+        "mov {cx}, {x2}",
+        "mov ({dim_arrx}),{x1}",
+        "4:",
+        "prefetcht0 ({x2})",
+        "prefetcht0 64({x2})",
+        "prefetcht0 92({x2})",
+        step_12x4!(4, B, B, 0),
+        inc_a_k_unroll!(B, 12, 1),
+        inc_b_k_unroll!(B, 4, 1),
+
+        "add {x1}, {x2}",
+        "dec {x0}",
+        "jne 4b",
+        "5:",
+        "mov ({dim_arrx}),{x0}",
+        "lea ({x0}, {x0}, 2), {x3}",
+        "lea ({cx}, {x3},), {x1}",
+        "lea ({x1}, {x3},), {x2}",
+        // scale by alpha
+        asm_alpha_scale!(12, 4),
+        load_beta!(),
+
+        // 6 -> BETAZERO
+        "je 6f",
+        cum_seq!(acc_12x4,4,C),
+
+        // 6 -> BETAZERO
+        "6:",
+        cum_seq!(store_12x4,4,C),
+
+        "7:",
+        ax = inout(reg) a => _, 
+        bx = inout(reg) b => _, 
+        cx = inout(reg) cf => _,
+        dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
+        alphax = inout(reg) alpha => _, 
+        betax = inout(reg) beta => _, 
+        x0 = out(reg) _, 
+        x1 = out(reg)_, 
+        x2 = out(reg) _, 
+        x3 = out(reg) _, 
+        x4 = out(reg) _,
+        x5 = out(reg) _, 
+        out("xmm0") _, out("xmm1") _,
+        out("xmm2") _, out("xmm3") _, out("xmm4") _, out("xmm5") _, out("xmm6") _,
+        out("xmm7") _, out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+        out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+        options(att_syntax)
+    );
+    if BUF {
+        for j in 0..4 {
+            f.call(cf.add(j*12), 12);
+        }
+        store_buf(c, d_arr[2], c_cs, &c_buf, 12, 4);
+    } else {
+        for j in 0..4 {
+            f.call(cf.add(j*c_cs), 12);
+        }
+    }
+}
