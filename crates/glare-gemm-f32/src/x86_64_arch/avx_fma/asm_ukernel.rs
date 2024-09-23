@@ -971,7 +971,7 @@ pub(crate) unsafe fn ukernel_24x4_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 4;
+    let k_left0 = k % 8;
     let k_left = if k_left0 == 0 {8} else {k_left0};
     let k_iter = (k - k_left) / 4;
     let mut dim_arr = [d_arr[3]*4, k_iter, k_left, a_pft1_offset];
