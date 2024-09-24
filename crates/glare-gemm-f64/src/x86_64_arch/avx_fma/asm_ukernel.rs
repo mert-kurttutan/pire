@@ -1048,7 +1048,6 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "mov ({dim_arrx}),{x0}",
         "lea ({x0}, {x0}, 2), {x3}",
         "lea ({cx}, {x3},), {x1}",
-        "lea ({x1}, {x3},), {x2}",
         // scale by alpha
         asm_alpha_scale!(12, 4),
         load_beta!(),
