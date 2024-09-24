@@ -96,8 +96,13 @@ pub unsafe fn axpy2<F: MyFn>(
     }
 }
 
-use glare_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, f32, 16, 4, 16, 8);
+// use glare_base::def_kernel_bb_v0;
+// def_kernel_bb_v0!(i8, u8, i32, f32, f32, 16, 4, 16, 8);
+
+
+use glare_base::def_kernel_bb_pf1;
+
+def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 16, 4, 96, 4, 16, 8);
 
 use super::pack_avx::packa_panel_16;
 
@@ -144,8 +149,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
 ) {
     let k_eff = (k + 3) / 4 * 4;
     if c_rs == 1 {
-        kernel_16x4_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_16x4_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

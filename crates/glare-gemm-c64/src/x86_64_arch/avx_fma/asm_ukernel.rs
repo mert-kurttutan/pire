@@ -935,7 +935,7 @@ macro_rules! def_ukernelxn {
 // def_ukernel!(step_2x3, acc_2x3, store_2x3, 2, 3, B, S, M, ukernel_2x3_bs_partial);
 
 
-def_ukernel!(step_6x2, acc_6x2, store_6x2, 6, 2, B, B, C, ukernel_6x2_bb);
+// def_ukernel!(step_6x2, acc_6x2, store_6x2, 6, 2, B, B, C, ukernel_6x2_bb);
 
 def_ukernel!(step_6x2, acc_6x2, store_6x2, 6, 2, B, B, M, ukernel_6x2_bb_partial);
 def_ukernel!(step_4x3, acc_4x3, store_4x3, 4, 2, B, B, M, ukernel_4x2_bb_partial);
@@ -963,3 +963,131 @@ def_ukernelxn!(step_4x3, acc_4x3, store_4x3, 4, 3, B, S, M, ukernel_4xn_bs_parti
 def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 2, 3, B, S, M, ukernel_2xn_bs_partial);
 
 
+
+
+
+// based on l1 prefetching scheme is from openblas impl for skylax
+// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
+// this is adapted to our ukernel of 6x2
+// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
+// where the same l1 prefetching does not benefit as much)
+pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
+    a: *const TA, b: *const TB, c: *mut TC,
+    alpha: *const TA,
+    k: usize,
+    d_arr: [usize; 4],
+    a_pft1_offset: usize,
+    f: F,
+) {
+    let k_left0 = k % 2;
+    let k_left = if k_left0 == 0 {2} else {k_left0};
+    let k_iter = (k - k_left) / 4;
+    let mut dim_arr = [d_arr[3]*16, k_iter, k_left, a_pft1_offset];
+    let mut cf = c;
+    let mut c_buf = [TC::ZERO; 6 * 2];
+    let c_cs = d_arr[3];
+    if BUF {
+        load_buf(c, d_arr[2], c_cs, &mut c_buf, 6, 2);
+        dim_arr[2] = 6*8;
+        cf = c_buf.as_mut_ptr();
+    }
+    asm!(
+        asm_vzeroall!(6,2),
+        "mov 8({dim_arrx}),{x0}",
+        "test {x0},{x0}",
+        "je 3f",
+        // "je 3f",
+        "mov {cx}, {x2}",
+        "mov {ax}, {x5}",
+        "mov 24({dim_arrx}),{x1}",
+        "add {x1}, {x5}",
+        "mov ({dim_arrx}),{x1}",
+        "2:",
+        prefetch_0!(256, "{bx}", 0),
+        step_6x2!(2, B, B, 0),
+
+        "movq $64*4, {x4}",
+        // divisiblity by 4
+        "testq $3, {x0}",
+        "cmovz {x1},{x4}",
+
+        step_6x2!(2, B, B, 1),
+
+        "prefetcht1 ({x2})",
+
+        "subq $64*3, {x2}",
+        "addq {x4}, {x2}",
+
+        prefetch_0!(320, "{bx}", 0),
+        step_6x2!(2, B, B, 2),
+
+        "prefetcht1 ({x5})",
+        "addq $16, {x5}",
+
+        "testq $63, {x0}",
+        "cmovz {cx},{x2}",
+
+        step_6x2!(2, B, B, 3),
+
+        inc_a_k_unroll!(B, 6, 4),
+        inc_b_k_unroll!(B, 2, 4),
+
+        "dec {x0}",
+        "jne 2b",
+        "3:",
+        "mov 16({dim_arrx}),{x0}",
+        "test {x0},{x0}",
+
+        // 5 -> POSTACCUM
+        "je 5f",
+        "mov {cx}, {x2}",
+        "mov ({dim_arrx}),{x1}",
+        "4:",
+        "prefetcht0 ({x2})",
+        "prefetcht0 64({x2})",
+        "prefetcht0 92({x2})",
+        step_6x2!(2, B, B, 0),
+        inc_a_k_unroll!(B, 6, 1),
+        inc_b_k_unroll!(B, 2, 1),
+
+        "add {x1}, {x2}",
+        "dec {x0}",
+        "jne 4b",
+        "5:",
+        "mov ({dim_arrx}),{x0}",
+        permute_complex!(),
+        // scale by alpha
+        // asm_alpha_scale!(6, 2),
+
+        cum_seq!(acc_6x2,2,C),
+        cum_seq!(store_6x2,2,C),
+
+        "7:",
+        ax = inout(reg) a => _, 
+        bx = inout(reg) b => _, 
+        cx = inout(reg) cf => _,
+        dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
+        // alphax = inout(reg) alpha => _, 
+        x0 = out(reg) _, 
+        x1 = out(reg)_, 
+        x2 = out(reg) _, 
+        // x3 = out(reg) _, 
+        x4 = out(reg) _,
+        x5 = out(reg) _, 
+        out("xmm0") _, out("xmm1") _,
+        out("xmm2") _, out("xmm3") _, out("xmm4") _, out("xmm5") _, out("xmm6") _,
+        out("xmm7") _, out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+        out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+        options(att_syntax)
+    );
+    if BUF {
+        for j in 0..2 {
+            f.call(cf.add(j*6), 6);
+        }
+        store_buf(c, d_arr[2], c_cs, &c_buf, 6, 4);
+    } else {
+        for j in 0..2 {
+            f.call(cf.add(j*c_cs), 6);
+        }
+    }
+}

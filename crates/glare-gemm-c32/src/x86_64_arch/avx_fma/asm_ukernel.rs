@@ -98,6 +98,9 @@ macro_rules! complex_mul {
 macro_rules! asm_alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         concat!(
+            // "vpxor %xmm0, %xmm0, %xmm0", "\n",
+            // "vucomiss 4({alphax}), %xmm0", "\n",
+            // "je 9f", "\n",
             "vbroadcastss ({alphax}), %ymm0 \n",
             "vbroadcastss 4({alphax}), %ymm1 \n",
         
@@ -107,6 +110,7 @@ macro_rules! asm_alpha_scale_0 {
             complex_mul!(10, 11),
             complex_mul!(12, 13),
             complex_mul!(14, 15),
+            // "9:", "\n",
         )
     }
 }
@@ -1047,18 +1051,11 @@ pub(crate) unsafe fn ukernel_12x2_bb<F: MyFn, const BUF: bool>(
         "jne 4b",
         "5:",
         "mov ({dim_arrx}),{x0}",
-        "lea ({x0}, {x0}, 2), {x3}",
-        "lea ({cx}, {x3},), {x1}",
-        "lea ({x1}, {x3},), {x2}",
+        permute_complex!(),
         // scale by alpha
         asm_alpha_scale!(12, 2),
 
-        // 6 -> BETAZERO
-        "je 6f",
         cum_seq!(acc_12x2,2,C),
-
-        // 6 -> BETAZERO
-        "6:",
         cum_seq!(store_12x2,2,C),
 
         "7:",
@@ -1070,7 +1067,7 @@ pub(crate) unsafe fn ukernel_12x2_bb<F: MyFn, const BUF: bool>(
         x0 = out(reg) _, 
         x1 = out(reg)_, 
         x2 = out(reg) _, 
-        x3 = out(reg) _, 
+        // x3 = out(reg) _, 
         x4 = out(reg) _,
         x5 = out(reg) _, 
         out("xmm0") _, out("xmm1") _,
