@@ -54,8 +54,12 @@ pub unsafe fn axpy<F: MyFn>(
         f.call(y_cur, 1);
     }
 }
-use glare_base::def_kernel_bb_v0_no_beta;
-def_kernel_bb_v0_no_beta!(TA, TB, TC, TA, TC, 6, 2, 6, 4, 2);
+// use glare_base::def_kernel_bb_v0_no_beta;
+// def_kernel_bb_v0_no_beta!(TA, TB, TC, TA, TC, 6, 2, 6, 4, 2);
+
+use glare_base::def_kernel_bb_pf1_no_beta;
+
+def_kernel_bb_pf1_no_beta!(TA, TB, TC, TA, TC, 6, 2, 48, 4, 6, 4, 2);
 
 use glare_base::def_kernel_bs_no_beta;
 
@@ -123,8 +127,8 @@ pub(crate) unsafe fn kernel_6x2<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_6x2_bb::<_, false>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_6x2_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     }
 }

@@ -54,12 +54,12 @@ pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
     // let mc = std::env::var("GLARE_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
-    // let nc = std::env::var("GLARE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
-    // let kc = std::env::var("GLARE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+    // let nc = std::env::var("GLARE_NC").unwrap_or("320".to_string()).parse::<usize>().unwrap();
+    // let kc = std::env::var("GLARE_KC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         HWModel::Skylake => (4800, 192, 512),
-        HWModel::Haswell | HWModel::Broadwell => (4800, 320, 192),
+        HWModel::Haswell | HWModel::Broadwell => (4800, 320, 576),
         _ => get_cache_params(),
     };
     (mc, nc, kc)

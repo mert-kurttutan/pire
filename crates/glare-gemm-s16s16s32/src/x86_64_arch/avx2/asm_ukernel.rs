@@ -461,7 +461,8 @@ macro_rules! prefetch_0 {
 macro_rules! prefetch_c {
     (16, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
-            _mm_prefetch($c.add(4+j*$ldc) as *const i8, 3);
+            _mm_prefetch($c.add(0+j*$ldc) as *const i8, 3);
+            _mm_prefetch($c.add(15+j*$ldc) as *const i8, 3);
         });
     };
     (8, $nr:tt, $c:tt, $ldc:tt) => {

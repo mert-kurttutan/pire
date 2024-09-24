@@ -416,93 +416,93 @@ pub(crate) unsafe fn pack_kx16_v1(k: usize, a: *const TA, lda: usize, ap: *mut T
     }
 }
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx6_v1(k: usize, b: *const TB, ldb: usize, bp: *mut TB) {
-    let k8 = k / 8 * 8;
-    let mut k_i = 0;
-    let b0 = b;
-    let bp0 = bp;
-    const M: usize = 6;
-    const M1: usize = 4;
-    const M2: usize = 2;
-    while k_i < k8 {
-        let b = b0.add(k_i);
-        let bp = bp0.add(k_i * M);
-        let a0 = _mm256_loadu_ps(b);
-        let a1 = _mm256_loadu_ps(b.add(ldb));
-        let a2 = _mm256_loadu_ps(b.add(ldb * 2));
-        let a3 = _mm256_loadu_ps(b.add(ldb * 3));
+// #[target_feature(enable = "avx")]
+// pub(crate) unsafe fn pack_kx6_v1(k: usize, b: *const TB, ldb: usize, bp: *mut TB) {
+//     let k8 = k / 8 * 8;
+//     let mut k_i = 0;
+//     let b0 = b;
+//     let bp0 = bp;
+//     const M: usize = 6;
+//     const M1: usize = 4;
+//     const M2: usize = 2;
+//     while k_i < k8 {
+//         let b = b0.add(k_i);
+//         let bp = bp0.add(k_i * M);
+//         let a0 = _mm256_loadu_ps(b);
+//         let a1 = _mm256_loadu_ps(b.add(ldb));
+//         let a2 = _mm256_loadu_ps(b.add(ldb * 2));
+//         let a3 = _mm256_loadu_ps(b.add(ldb * 3));
 
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
-        let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
-        let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
+//         // transpose
+//         let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
+//         let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
+//         let t2 = _mm256_castps_pd(_mm256_unpacklo_ps(a2, a3));
+//         let t3 = _mm256_castps_pd(_mm256_unpackhi_ps(a2, a3));
 
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
+//         let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
+//         let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
 
-        storeu_ps::<M1>(x0, bp);
-        storeu_ps::<M1>(x0_h, bp.add(M * 4));
+//         storeu_ps::<M1>(x0, bp);
+//         storeu_ps::<M1>(x0_h, bp.add(M * 4));
 
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M1>(x1, bp.add(M));
-        storeu_ps::<M1>(x1_h, bp.add(M + M * 4));
+//         let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
+//         let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
+//         storeu_ps::<M1>(x1, bp.add(M));
+//         storeu_ps::<M1>(x1_h, bp.add(M + M * 4));
 
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M1>(x2, bp.add(2 * M));
-        storeu_ps::<M1>(x2_h, bp.add(2 * M + M * 4));
+//         let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
+//         let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
+//         storeu_ps::<M1>(x2, bp.add(2 * M));
+//         storeu_ps::<M1>(x2_h, bp.add(2 * M + M * 4));
 
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M1>(x3, bp.add(3 * M));
-        storeu_ps::<M1>(x3_h, bp.add(3 * M + M * 4));
+//         let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
+//         let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
+//         storeu_ps::<M1>(x3, bp.add(3 * M));
+//         storeu_ps::<M1>(x3_h, bp.add(3 * M + M * 4));
 
-        let a0 = _mm256_loadu_ps(b.add(ldb * 4));
-        let a1 = _mm256_loadu_ps(b.add(ldb * 5));
+//         let a0 = _mm256_loadu_ps(b.add(ldb * 4));
+//         let a1 = _mm256_loadu_ps(b.add(ldb * 5));
 
-        // transpose
-        let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
-        let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
+//         // transpose
+//         let t0 = _mm256_castps_pd(_mm256_unpacklo_ps(a0, a1));
+//         let t1 = _mm256_castps_pd(_mm256_unpackhi_ps(a0, a1));
 
-        let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
-        let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
+//         let x0 = _mm256_castpd_ps(_mm256_unpacklo_pd(t0, t2));
+//         let x0_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x0, 1));
 
-        storeu_ps::<M2>(x0, bp.add(4));
-        storeu_ps::<M2>(x0_h, bp.add(M * 4 + 4));
+//         storeu_ps::<M2>(x0, bp.add(4));
+//         storeu_ps::<M2>(x0_h, bp.add(M * 4 + 4));
 
-        let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
-        let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
-        storeu_ps::<M2>(x1, bp.add(M + 4));
-        storeu_ps::<M2>(x1_h, bp.add(M + M * 4 + 4));
+//         let x1 = _mm256_castpd_ps(_mm256_unpackhi_pd(t0, t2));
+//         let x1_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x1, 1));
+//         storeu_ps::<M2>(x1, bp.add(M + 4));
+//         storeu_ps::<M2>(x1_h, bp.add(M + M * 4 + 4));
 
-        let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
-        let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
-        storeu_ps::<M2>(x2, bp.add(2 * M + 4));
-        storeu_ps::<M2>(x2_h, bp.add(2 * M + M * 4 + 4));
+//         let x2 = _mm256_castpd_ps(_mm256_unpacklo_pd(t1, t3));
+//         let x2_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x2, 1));
+//         storeu_ps::<M2>(x2, bp.add(2 * M + 4));
+//         storeu_ps::<M2>(x2_h, bp.add(2 * M + M * 4 + 4));
 
-        let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
-        let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
-        storeu_ps::<M2>(x3, bp.add(3 * M + 4));
-        storeu_ps::<M2>(x3_h, bp.add(3 * M + M * 4 + 4));
+//         let x3 = _mm256_castpd_ps(_mm256_unpackhi_pd(t1, t3));
+//         let x3_h = _mm256_castps128_ps256(_mm256_extractf128_ps(x3, 1));
+//         storeu_ps::<M2>(x3, bp.add(3 * M + 4));
+//         storeu_ps::<M2>(x3_h, bp.add(3 * M + M * 4 + 4));
 
-        k_i += 8;
-    }
+//         k_i += 8;
+//     }
 
-    while k_i < k {
-        let b = b0.add(k_i);
-        let bp = bp0.add(k_i * M);
-        copy_packed::<1>(b, bp);
-        copy_packed::<1>(b.add(ldb), bp.add(1));
-        copy_packed::<1>(b.add(ldb * 2), bp.add(2));
-        copy_packed::<1>(b.add(ldb * 3), bp.add(3));
-        copy_packed::<1>(b.add(ldb * 4), bp.add(4));
-        copy_packed::<1>(b.add(ldb * 5), bp.add(5));
-        k_i += 1;
-    }
-}
+//     while k_i < k {
+//         let b = b0.add(k_i);
+//         let bp = bp0.add(k_i * M);
+//         copy_packed::<1>(b, bp);
+//         copy_packed::<1>(b.add(ldb), bp.add(1));
+//         copy_packed::<1>(b.add(ldb * 2), bp.add(2));
+//         copy_packed::<1>(b.add(ldb * 3), bp.add(3));
+//         copy_packed::<1>(b.add(ldb * 4), bp.add(4));
+//         copy_packed::<1>(b.add(ldb * 5), bp.add(5));
+//         k_i += 1;
+//     }
+// }
 
 macro_rules! def_packb {
     ($nr:tt) => {
@@ -560,7 +560,7 @@ macro_rules! def_packb {
 
 def_packb!(4);
 def_packb!(8);
-def_packb!(6);
+// def_packb!(6);
 
 macro_rules! def_packa {
     ($mr:tt) => {

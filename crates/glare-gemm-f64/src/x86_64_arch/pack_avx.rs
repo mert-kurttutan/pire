@@ -54,55 +54,55 @@ pub(crate) unsafe fn pack_t4<const MR: usize>(b: *const TA, ldb: usize, bp: *mut
     storeu_ps::<4>(x1_h, bp.add(MR * 7));
 }
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_t2<const MR: usize>(b: *const TA, ldb: usize, bp: *mut TB) {
-    let mut a0 = [0f64; 8];
-    let mut a1 = [0f64; 8];
-    copy_nonoverlapping(b, a0.as_mut_ptr(), 8);
-    copy_nonoverlapping(b.add(ldb), a1.as_mut_ptr(), 8);
+// #[target_feature(enable = "avx")]
+// pub(crate) unsafe fn pack_t2<const MR: usize>(b: *const TA, ldb: usize, bp: *mut TB) {
+//     let mut a0 = [0f64; 8];
+//     let mut a1 = [0f64; 8];
+//     copy_nonoverlapping(b, a0.as_mut_ptr(), 8);
+//     copy_nonoverlapping(b.add(ldb), a1.as_mut_ptr(), 8);
 
-    let mut ap0 = [0f64; 2];
-    let mut ap1 = [0f64; 2];
-    let mut ap2 = [0f64; 2];
-    let mut ap3 = [0f64; 2];
-    let mut ap4 = [0f64; 2];
-    let mut ap5 = [0f64; 2];
-    let mut ap6 = [0f64; 2];
-    let mut ap7 = [0f64; 2];
+//     let mut ap0 = [0f64; 2];
+//     let mut ap1 = [0f64; 2];
+//     let mut ap2 = [0f64; 2];
+//     let mut ap3 = [0f64; 2];
+//     let mut ap4 = [0f64; 2];
+//     let mut ap5 = [0f64; 2];
+//     let mut ap6 = [0f64; 2];
+//     let mut ap7 = [0f64; 2];
 
-    ap0[0] = a0[0];
-    ap0[1] = a1[0];
+//     ap0[0] = a0[0];
+//     ap0[1] = a1[0];
 
-    ap1[0] = a0[1];
-    ap1[1] = a1[1];
+//     ap1[0] = a0[1];
+//     ap1[1] = a1[1];
 
-    ap2[0] = a0[2];
-    ap2[1] = a1[2];
+//     ap2[0] = a0[2];
+//     ap2[1] = a1[2];
 
-    ap3[0] = a0[3];
-    ap3[1] = a1[3];
+//     ap3[0] = a0[3];
+//     ap3[1] = a1[3];
 
-    ap4[0] = a0[4];
-    ap4[1] = a1[4];
+//     ap4[0] = a0[4];
+//     ap4[1] = a1[4];
 
-    ap5[0] = a0[5];
-    ap5[1] = a1[5];
+//     ap5[0] = a0[5];
+//     ap5[1] = a1[5];
 
-    ap6[0] = a0[6];
-    ap6[1] = a1[6];
+//     ap6[0] = a0[6];
+//     ap6[1] = a1[6];
 
-    ap7[0] = a0[7];
-    ap7[1] = a1[7];
+//     ap7[0] = a0[7];
+//     ap7[1] = a1[7];
 
-    copy_nonoverlapping(ap0.as_ptr(), bp, 2);
-    copy_nonoverlapping(ap1.as_ptr(), bp.add(MR), 2);
-    copy_nonoverlapping(ap2.as_ptr(), bp.add(MR * 2), 2);
-    copy_nonoverlapping(ap3.as_ptr(), bp.add(MR * 3), 2);
-    copy_nonoverlapping(ap4.as_ptr(), bp.add(MR * 4), 2);
-    copy_nonoverlapping(ap5.as_ptr(), bp.add(MR * 5), 2);
-    copy_nonoverlapping(ap6.as_ptr(), bp.add(MR * 6), 2);
-    copy_nonoverlapping(ap7.as_ptr(), bp.add(MR * 7), 2);
-}
+//     copy_nonoverlapping(ap0.as_ptr(), bp, 2);
+//     copy_nonoverlapping(ap1.as_ptr(), bp.add(MR), 2);
+//     copy_nonoverlapping(ap2.as_ptr(), bp.add(MR * 2), 2);
+//     copy_nonoverlapping(ap3.as_ptr(), bp.add(MR * 3), 2);
+//     copy_nonoverlapping(ap4.as_ptr(), bp.add(MR * 4), 2);
+//     copy_nonoverlapping(ap5.as_ptr(), bp.add(MR * 5), 2);
+//     copy_nonoverlapping(ap6.as_ptr(), bp.add(MR * 6), 2);
+//     copy_nonoverlapping(ap7.as_ptr(), bp.add(MR * 7), 2);
+// }
 
 #[target_feature(enable = "avx")]
 pub(crate) unsafe fn pack_scalar_k(
@@ -477,34 +477,34 @@ pub(crate) unsafe fn pack_kx4_v1(k: usize, a: *const TA, lda: usize, ap: *mut TA
     }
 }
 
-#[target_feature(enable = "avx")]
-pub(crate) unsafe fn pack_kx6_v1(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
-    const MR: usize = 6;
-    let mut a = a;
-    let mut ap = ap;
-    let a0 = a;
-    let ap0 = ap;
-    let k8 = k / 8 * 8;
-    let mut k_i = 0;
-    while k_i < k8 {
-        a = a0.add(k_i);
-        ap = ap0.add(k_i * MR);
-        pack_t4::<MR>(a, lda, ap);
-        pack_t2::<MR>(a.add(lda * 4), lda, ap.add(4));
+// #[target_feature(enable = "avx")]
+// pub(crate) unsafe fn pack_kx6_v1(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
+//     const MR: usize = 6;
+//     let mut a = a;
+//     let mut ap = ap;
+//     let a0 = a;
+//     let ap0 = ap;
+//     let k8 = k / 8 * 8;
+//     let mut k_i = 0;
+//     while k_i < k8 {
+//         a = a0.add(k_i);
+//         ap = ap0.add(k_i * MR);
+//         pack_t4::<MR>(a, lda, ap);
+//         pack_t2::<MR>(a.add(lda * 4), lda, ap.add(4));
 
-        k_i += 8;
-    }
+//         k_i += 8;
+//     }
 
-    while k_i < k {
-        a = a0.add(k_i);
-        ap = ap0.add(k_i * MR);
-        seq!(i in 0..6 {
-            copy_packed::<1>(a.add(lda*i), ap.add(i));
-        });
+//     while k_i < k {
+//         a = a0.add(k_i);
+//         ap = ap0.add(k_i * MR);
+//         seq!(i in 0..6 {
+//             copy_packed::<1>(a.add(lda*i), ap.add(i));
+//         });
 
-        k_i += 1;
-    }
-}
+//         k_i += 1;
+//     }
+// }
 
 macro_rules! def_packb {
     ($nr:tt) => {
@@ -563,7 +563,7 @@ macro_rules! def_packb {
 def_packb!(4);
 def_packb!(8);
 
-def_packb!(6);
+// def_packb!(6);
 
 macro_rules! def_packa {
     ($mr:tt) => {
