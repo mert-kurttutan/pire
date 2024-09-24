@@ -99,7 +99,6 @@ pub unsafe fn axpy2<F: MyFn>(
 // use glare_base::def_kernel_bb_v0;
 // def_kernel_bb_v0!(i8, u8, i32, f32, f32, 16, 4, 16, 8);
 
-
 use glare_base::def_kernel_bb_pf1;
 
 def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 16, 4, 96, 4, 16, 8);
