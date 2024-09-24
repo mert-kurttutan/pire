@@ -994,6 +994,7 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "add {x1}, {x5}",
         "mov ({dim_arrx}),{x1}",
         "2:",
+        "prefetcht0 256({bx})",
         step_12x4!(4, B, B, 0),
 
         "movq $64*4, {x4}",
@@ -1008,6 +1009,7 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "subq $64*3, {x2}",
         "addq {x4}, {x2}",
 
+        "prefetcht0 320({bx})",
         step_12x4!(4, B, B, 2),
 
         "prefetcht1 ({x5})",
