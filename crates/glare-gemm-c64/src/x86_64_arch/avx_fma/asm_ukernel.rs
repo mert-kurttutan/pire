@@ -1057,7 +1057,7 @@ pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
         "mov ({dim_arrx}),{x0}",
         permute_complex!(),
         // scale by alpha
-        // asm_alpha_scale!(6, 2),
+        asm_alpha_scale!(6, 2),
 
         cum_seq!(acc_6x2,2,C),
         cum_seq!(store_6x2,2,C),
@@ -1067,7 +1067,7 @@ pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
         bx = inout(reg) b => _, 
         cx = inout(reg) cf => _,
         dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
-        // alphax = inout(reg) alpha => _, 
+        alphax = inout(reg) alpha => _, 
         x0 = out(reg) _, 
         x1 = out(reg)_, 
         x2 = out(reg) _, 
