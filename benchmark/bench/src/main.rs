@@ -1,4 +1,4 @@
-use glare_dev::{
+use glar_dev::{
     check_gemm_c32,
     check_gemm_c64,
     check_gemm_f16,
@@ -810,7 +810,7 @@ struct Args {
     check: bool,
 
     // gemm backend
-    #[arg(short, long, default_value_t = String::from("glare"))]
+    #[arg(short, long, default_value_t = String::from("glar"))]
     backend: String,
 
     // bench type

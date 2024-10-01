@@ -9,21 +9,21 @@ def scan_params(
 
     for nc in nc_arr:
         for kc in kc_arr:
-            # set env GLARE_NC=nc, GLARE_KC=kc
-            os.environ['GLARE_NC'] = str(nc)
-            os.environ['GLARE_KC'] = str(kc)
+            # set env GLAR_NC=nc, GLAR_KC=kc
+            os.environ['GLAR_NC'] = str(nc)
+            os.environ['GLAR_KC'] = str(kc)
 
-            # append print the value of env vars GLARE_NC and GLAR_KC to the output file
+            # append print the value of env vars GLAR_NC and GLAR_KC to the output file
             with open(output_file, 'a') as f:
-                nc = os.environ['GLARE_NC']
-                kc = os.environ['GLARE_KC']
+                nc = os.environ['GLAR_NC']
+                kc = os.environ['GLAR_KC']
                 f.write(f"NC={nc}, KC={kc}\n")
 
-            glare_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend glare"
+            glar_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend glar"
             mkl_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend mkl"
 
-            # execute the glare and mkl commands and append the output to the output file
-            subprocess.run(glare_command_str, shell=True, stdout=open(output_file, 'a'))
+            # execute the glar and mkl commands and append the output to the output file
+            subprocess.run(glar_command_str, shell=True, stdout=open(output_file, 'a'))
             subprocess.run(mkl_command_str, shell=True, stdout=open(output_file, 'a'))
 
 

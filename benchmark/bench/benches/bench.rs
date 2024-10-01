@@ -3,7 +3,7 @@ use num_traits::identities::{ConstOne, ConstZero};
 use std::time::Duration;
 
 #[cfg(feature = "blis")]
-use glare_dev::BLIS_NO_TRANSPOSE;
+use glar_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{c32, Complex};
 
@@ -81,12 +81,12 @@ pub fn bench_blas_group3<
         },
     );
     bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-glare-gemm", type_name), dt),
+        BenchmarkId::new(format!("{}-glar-gemm", type_name), dt),
         &dt,
         |bench_b, _x| {
             bench_b.iter(|| unsafe {
                 dispatch_gemm(
-                    GemmBackend::Glare,
+                    GemmBackend::Glar,
                     m,
                     n,
                     k,

@@ -31,7 +31,7 @@ but not sure aobut omp_num_threads=1
 
 
 the following is slower than mkl and it is not slower when tn is used
- .\target\release\bench.exe --m 4800 --n 91 --k 4800 --t-layout nn --bench-type sgemm --backend glare
+ .\target\release\bench.exe --m 4800 --n 91 --k 4800 --t-layout nn --bench-type sgemm --backend glar
 
 This is probably because of packing used in a regardless of whether it is transposed or not.
 We can easily fix this but more code

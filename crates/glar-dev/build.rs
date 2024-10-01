@@ -46,7 +46,7 @@ pub const BLASFEO: &str = "blasfeo";
 #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 pub const UNSUPPORTED_OS_ERROR: _ = "Target OS is not supported. Please contact me";
 
-pub const LINK_DIRS: &[&str] = &[env_or!("GLARE_MKL_PATH"), env_or!("GLARE_BLIS_PATH"), env_or!("GLARE_BLASFEO_PATH")];
+pub const LINK_DIRS: &[&str] = &[env_or!("GLAR_MKL_PATH"), env_or!("GLAR_BLIS_PATH"), env_or!("GLAR_BLASFEO_PATH")];
 
 pub const LIB_DIRS: &[&str] = LINK_DIRS;
 
