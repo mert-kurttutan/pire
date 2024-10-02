@@ -4,10 +4,10 @@ use num_complex::Complex;
 type C32 = Complex<f32>;
 
 #[cfg(feature = "mkl")]
-use glare_dev::{stride_to_cblas, CBLAS_OFFSET::*};
+use glar_dev::{stride_to_cblas, CBLAS_OFFSET::*};
 
 #[cfg(feature = "blis")]
-use glare_dev::BLIS_NO_TRANSPOSE;
+use glar_dev::BLIS_NO_TRANSPOSE;
 #[cfg(feature = "mkl")]
 use libc::{c_int, c_ushort, c_void};
 
@@ -29,7 +29,7 @@ pub enum GemmBackend {
     Blis,
     Mkl,
     RustGemm,
-    Glare,
+    Glar,
 }
 
 pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
@@ -42,8 +42,8 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     if backend_str == "rustgemm" {
         return GemmBackend::RustGemm;
     }
-    if backend_str == "glare" {
-        return GemmBackend::Glare;
+    if backend_str == "glar" {
+        return GemmBackend::Glar;
     }
     panic!("Unsupported backend str");
 }
@@ -68,7 +68,7 @@ pub unsafe fn dispatch_dgemm(
     match backend {
         GemmBackend::Blis => {
             #[cfg(feature = "blis")]
-            glare_dev::bli_dgemm(
+            glar_dev::bli_dgemm(
                 BLIS_NO_TRANSPOSE,
                 BLIS_NO_TRANSPOSE,
                 m as i32,
@@ -101,7 +101,7 @@ pub unsafe fn dispatch_dgemm(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_dgemm(
+                glar_dev::cblas_dgemm(
                     layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
                     ldb as i32, beta, c, ldc as i32,
                 );
@@ -131,8 +131,8 @@ pub unsafe fn dispatch_dgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glare => {
-            glare_gemm_f64::glare_dgemm(
+        GemmBackend::Glar => {
+            glar_gemm_f64::glar_dgemm(
                 m,
                 n,
                 k,
@@ -172,7 +172,7 @@ pub unsafe fn dispatch_sgemm(
     match backend {
         GemmBackend::Blis => {
             #[cfg(feature = "blis")]
-            glare_dev::bli_sgemm(
+            glar_dev::bli_sgemm(
                 BLIS_NO_TRANSPOSE,
                 BLIS_NO_TRANSPOSE,
                 m as i32,
@@ -205,7 +205,7 @@ pub unsafe fn dispatch_sgemm(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_sgemm(
+                glar_dev::cblas_sgemm(
                     layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
                     ldb as i32, beta, c, ldc as i32,
                 );
@@ -235,8 +235,8 @@ pub unsafe fn dispatch_sgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glare => {
-            glare_gemm_f32::glare_sgemm(
+        GemmBackend::Glar => {
+            glar_gemm_f32::glar_sgemm(
                 m,
                 n,
                 k,
@@ -282,7 +282,7 @@ pub unsafe fn dispatch_cgemm(
                 let c = c as *mut libc::c_void;
                 let alpha_ptr = &alpha as *const Complex32 as *const libc::c_void;
                 let beta_ptr = &beta as *const Complex32 as *const libc::c_void;
-                glare_dev::bli_cgemm(
+                glar_dev::bli_cgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32,
@@ -321,7 +321,7 @@ pub unsafe fn dispatch_cgemm(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_cgemm(
+                glar_dev::cblas_cgemm(
                     layout, transa, transb, m as i32, n as i32, k as i32, alpha_ptr, a, lda as i32,
                     b, ldb as i32, beta_ptr, c, ldc as i32,
                 );
@@ -351,8 +351,8 @@ pub unsafe fn dispatch_cgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glare => {
-            glare_gemm_c32::glare_cgemm(
+        GemmBackend::Glar => {
+            glar_gemm_c32::glar_cgemm(
                 m,
                 n,
                 k,
@@ -398,7 +398,7 @@ pub unsafe fn dispatch_zgemm(
                 let c = c as *mut libc::c_void;
                 let alpha_ptr = &alpha as *const Complex64 as *const libc::c_void;
                 let beta_ptr = &beta as *const Complex64 as *const libc::c_void;
-                glare_dev::bli_zgemm(
+                glar_dev::bli_zgemm(
                     BLIS_NO_TRANSPOSE,
                     BLIS_NO_TRANSPOSE,
                     m as i32,
@@ -437,7 +437,7 @@ pub unsafe fn dispatch_zgemm(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_zgemm(
+                glar_dev::cblas_zgemm(
                     layout, transa, transb, m as i32, n as i32, k as i32, alpha_ptr, a, lda as i32,
                     b, ldb as i32, beta_ptr, c, ldc as i32,
                 );
@@ -467,8 +467,8 @@ pub unsafe fn dispatch_zgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glare => {
-            glare_gemm_c64::glare_zgemm(
+        GemmBackend::Glar => {
+            glar_gemm_c64::glar_zgemm(
                 m,
                 n,
                 k,
@@ -514,7 +514,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
             #[cfg(feature = "blis")]
             {
                 for i in 0..batch_size {
-                    glare_dev::bli_sgemm(
+                    glar_dev::bli_sgemm(
                         BLIS_NO_TRANSPOSE,
                         BLIS_NO_TRANSPOSE,
                         m as i32,
@@ -570,7 +570,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
                     .collect::<Vec<*mut f32>>();
                 let stride_size_vec = [batch_size as i32; 1];
 
-                glare_dev::cblas_sgemm_batch(
+                glar_dev::cblas_sgemm_batch(
                     layout,
                     transa_vec.as_ptr(),
                     transb_vec.as_ptr(),
@@ -618,9 +618,9 @@ pub unsafe fn dispatch_gemm_batch_f32(
                 }
             }
         }
-        GemmBackend::Glare => {
+        GemmBackend::Glar => {
             for i in 0..batch_size {
-                glare_gemm_f32::glare_sgemm(
+                glar_gemm_f32::glar_sgemm(
                     m,
                     n,
                     k,
@@ -682,7 +682,7 @@ pub unsafe fn dispatch_hgemm(
                 let c = c as *mut c_ushort;
                 let alpha = alpha.to_bits();
                 let beta = beta.to_bits();
-                glare_dev::cblas_hgemm(
+                glar_dev::cblas_hgemm(
                     layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
                     ldb as i32, beta, c, ldc as i32,
                 );
@@ -712,8 +712,8 @@ pub unsafe fn dispatch_hgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glare => {
-            glare_gemm_f16::glare_hgemm(
+        GemmBackend::Glar => {
+            glar_gemm_f16::glar_hgemm(
                 m,
                 n,
                 k,
@@ -771,7 +771,7 @@ pub unsafe fn dispatch_gemm_s16s16s32(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_gemm_s16s16s32(
+                glar_dev::cblas_gemm_s16s16s32(
                     layout,
                     transa,
                     transb,
@@ -797,8 +797,8 @@ pub unsafe fn dispatch_gemm_s16s16s32(
             #[cfg(feature = "rustgemm")]
             panic!("s16s16s32 is not supported in rustgemm");
         }
-        GemmBackend::Glare => {
-            use glare_gemm_s16s16s32::glare_gemm_s16s16s32 as gemm_s16s16s32;
+        GemmBackend::Glar => {
+            use glar_gemm_s16s16s32::glar_gemm_s16s16s32 as gemm_s16s16s32;
             gemm_s16s16s32(
                 m,
                 n,
@@ -859,7 +859,7 @@ pub unsafe fn dispatch_gemm_s8u8s32(
                     c_rs as usize,
                     c_cs as usize,
                 );
-                glare_dev::cblas_gemm_s8u8s32(
+                glar_dev::cblas_gemm_s8u8s32(
                     layout,
                     transa,
                     transb,
@@ -885,8 +885,8 @@ pub unsafe fn dispatch_gemm_s8u8s32(
             #[cfg(feature = "rustgemm")]
             panic!("s16s16s32 is not supported in rustgemm");
         }
-        GemmBackend::Glare => {
-            use glare_gemm_s8u8s32::glare_gemm_s8u8s32 as gemm_s8u8s32;
+        GemmBackend::Glar => {
+            use glar_gemm_s8u8s32::glar_gemm_s8u8s32 as gemm_s8u8s32;
             gemm_s8u8s32(
                 m,
                 n,

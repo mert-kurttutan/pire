@@ -5,15 +5,15 @@ edition = "2021"
 
 [dependencies]
 libc = "0.2"
-glare-base = { path = "../../crates/glare-base" }
-glare-gemm-f32 = { path = "../../crates/glare-gemm-f32" }
-glare-gemm-f64 = { path = "../../crates/glare-gemm-f64" }
-glare-gemm-f16 = { path = "../../crates/glare-gemm-f16" }
-glare-gemm-s16s16s32 = { path = "../../crates/glare-gemm-s16s16s32" }
-glare-gemm-s8u8s32 = { path = "../../crates/glare-gemm-s8u8s32" }
-glare-gemm-c32 = { path = "../../crates/glare-gemm-c32" }
-glare-gemm-c64 = { path = "../../crates/glare-gemm-c64" }
-glare-dev = { path = "../../crates/glare-dev" }
+glar-base = { path = "../../crates/glar-base" }
+glar-gemm-f32 = { path = "../../crates/glar-gemm-f32" }
+glar-gemm-f64 = { path = "../../crates/glar-gemm-f64" }
+glar-gemm-f16 = { path = "../../crates/glar-gemm-f16" }
+glar-gemm-s16s16s32 = { path = "../../crates/glar-gemm-s16s16s32" }
+glar-gemm-s8u8s32 = { path = "../../crates/glar-gemm-s8u8s32" }
+glar-gemm-c32 = { path = "../../crates/glar-gemm-c32" }
+glar-gemm-c64 = { path = "../../crates/glar-gemm-c64" }
+glar-dev = { path = "../../crates/glar-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
 num-complex = { version = "0.4.6", features = ["rand"] }
@@ -32,8 +32,8 @@ harness = false
 [features]
 default = []
 mkl_check = []
-mkl = ["glare-dev/mkl"]
-blis = ["glare-dev/blis"]
+mkl = ["glar-dev/mkl"]
+blis = ["glar-dev/blis"]
 blasfeo = []
-glare = []
+glar = []
 rustgemm = ["dep:gemm"]

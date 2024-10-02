@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export GLARE_NUM_THREADS=1
+export GLAR_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
-export GLARE_MKL_PATH=/home/ubuntu/.env/lib
-export GLARE_BLIS_PATH=/home/ubuntu/blis/lib/haswell
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GLARE_MKL_PATH:$GLARE_BLIS_PATH
-# export GLARE_SGEMM_NC=
-# export GLARE_SGEMM_KC=
-# export GLARE_SGEMM_MR=
-# export GLARE_SGEMM_NR=
+export GLAR_MKL_PATH=/home/ubuntu/.env/lib
+export GLAR_BLIS_PATH=/home/ubuntu/blis/lib/haswell
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GLAR_MKL_PATH:$GLAR_BLIS_PATH
+# export GLAR_SGEMM_NC=
+# export GLAR_SGEMM_KC=
+# export GLAR_SGEMM_MR=
+# export GLAR_SGEMM_NR=

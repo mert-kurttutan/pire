@@ -15,12 +15,12 @@ for n_i in "${nc_array[@]}"; do
     # Inner loop
     for k_i in "${kc_array[@]}"; do
         # Set environment variables x and y
-        export GLARE_NC=$n_i
-        export GLARE_KC=$k_i
+        export GLAR_NC=$n_i
+        export GLAR_KC=$k_i
         
         # echo nc and kc to out.txt
-        echo "nc: $GLARE_NC, kc: $GLARE_KC" >> out.txt
-        ./target/release/bench --m $1 --n $1 --k $1 --t-layout nt --bench-type $3 --backend glare >> out.txt
+        echo "nc: $GLAR_NC, kc: $GLAR_KC" >> out.txt
+        ./target/release/bench --m $1 --n $1 --k $1 --t-layout nt --bench-type $3 --backend glar >> out.txt
         ./target/release/bench --m $1 --n $1 --k $1 --t-layout nt --bench-type $3 --backend mkl >> out.txt
         echo "-----------------------------------------" >> out.txt
         sleep 1

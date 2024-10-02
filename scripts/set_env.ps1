@@ -1,8 +1,8 @@
 # Define and set environment variables
-$env:GLARE_MKL_PATH = 
-$env:Path += ";" + $env:GLARE_MKL_PATH
-# $env:GLARE_SGEMM_NC = 
-# $env:GLARE_SGEMM_KC = 
-# $env:GLARE_SGEMM_MR =
-# $env:GLARE_SGEMM_NR =
+$env:GLAR_MKL_PATH = 
+$env:Path += ";" + $env:GLAR_MKL_PATH
+# $env:GLAR_SGEMM_NC = 
+# $env:GLAR_SGEMM_KC = 
+# $env:GLAR_SGEMM_MR =
+# $env:GLAR_SGEMM_NR =
 

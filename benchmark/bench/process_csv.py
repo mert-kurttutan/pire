@@ -1,7 +1,7 @@
 # target_folder
 target_folder = 'target/criterion/bbb'
 
-bench_names = ["f32-corenum-gemm", "f32-mkl-gemm"]
+bench_names = ["f32-glar-gemm", "f32-mkl-gemm"]
 
 # now look at the file names at each target_folder+bench_name and extract them as integer to arrays for only first one
 # since the others must have the same structure of subfolders
@@ -60,14 +60,14 @@ df = pl.DataFrame(result_dict)
 # df = df.with_columns(pl.Series("dim", dim_array))
 df = df.with_columns(pl.Series(name="dim", values=dim_array)) 
 df = df.with_columns(
-    gflops_compute(pl.col("dim"), pl.col("f32-corenum-gemm")).alias("corenum-gflops")
+    gflops_compute(pl.col("dim"), pl.col("f32-glar-gemm")).alias("glar-gflops")
 )
 df = df.with_columns(
     gflops_compute(pl.col("dim"), pl.col("f32-mkl-gemm")).alias("mkl-gflops")
 )
 # plot the graph matplotlib
 df = df.to_pandas()
-graph = df.plot(x="dim", y=["corenum-gflops", "mkl-gflops"])
+graph = df.plot(x="dim", y=["glar-gflops", "mkl-gflops"])
 graph.set_xlabel("Dimension")
 graph.set_ylabel("GFLOPS")
 # save the graph

@@ -3,7 +3,7 @@ use num_traits::identities::{ConstOne, ConstZero};
 use std::time::Duration;
 
 #[cfg(feature = "blis")]
-use glare_dev::BLIS_NO_TRANSPOSE;
+use glar_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{c32, Complex};
 
@@ -60,6 +60,7 @@ pub fn bench_blas_group3<
         &dt,
         |bench_b, _x| {
             bench_b.iter(|| unsafe {
+                let start_time = std::time::Instant::now();
                 dispatch_gemm(
                     GemmBackend::Mkl,
                     m,
@@ -77,16 +78,21 @@ pub fn bench_blas_group3<
                     c_rs,
                     c_cs,
                 );
+
+                let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+                println!("Time taken: {} secs", end_time);
             })
         },
     );
     bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-glare-gemm", type_name), dt),
+        BenchmarkId::new(format!("{}-glar-gemm", type_name), dt),
         &dt,
         |bench_b, _x| {
             bench_b.iter(|| unsafe {
+                // start time
+                let start_time = std::time::Instant::now();
                 dispatch_gemm(
-                    GemmBackend::Glare,
+                    GemmBackend::Glar,
                     m,
                     n,
                     k,
@@ -102,6 +108,10 @@ pub fn bench_blas_group3<
                     c_rs,
                     c_cs,
                 );
+
+                // print in secs
+                let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
+                println!("Time taken: {} secs", end_time);
             })
         },
     );
@@ -180,12 +190,16 @@ use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
     let dim_triple = (DimSize::Big, DimSize::Big, DimSize::Big);
-    let m = 4800;
+    let m = 9600;
     let alpha = TA::ONE;
     let beta = TA::ONE;
-    let a = vec![TA::ONE; m * m];
-    let b_vec = vec![TB::ONE; m * m];
+    let mut a = vec![TA::ONE; m * m];
+    let mut b_vec = vec![TB::ONE; m * m];
     let mut c_vec = vec![TC::ZERO; m * m];
+    use glar_dev::random_matrix_uniform;
+    random_matrix_uniform(m, m, &mut a, m);
+    random_matrix_uniform(m, m, &mut b_vec, m);
+    random_matrix_uniform(m, m, &mut c_vec, m);
     let d0 = 1;
     let mnk_vec = vec![
         // 10, 100,
@@ -194,7 +208,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 320, 640, 960, 2048,
         // 2400, 3200, 4000, 4800,
         // 5600, 6400,
-        4800,
+        9600,
         // 7200, 8000,
     ];
     for dt in mnk_vec {

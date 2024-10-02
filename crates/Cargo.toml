@@ -1,11 +1,11 @@
 [workspace]
 
 members = [ 
-    "glare-base", 
-    "glare-dev", "glare-gemm-f16",
-    "glare-gemm-f32", "glare-gemm-f64",
-    "glare-gemm-c32", "glare-gemm-c64",
-    "glare-gemm-s16s16s32"
-, "glare-gemm-s8u8s32"]
+    "glar-base", 
+    "glar-dev", "glar-gemm-f16",
+    "glar-gemm-f32", "glar-gemm-f64",
+    "glar-gemm-c32", "glar-gemm-c64",
+    "glar-gemm-s16s16s32"
+, "glar-gemm-s8u8s32"]
 
 resolver = "2"
