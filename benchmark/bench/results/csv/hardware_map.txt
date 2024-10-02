@@ -1,0 +1,38 @@
+v0:
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          46 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   2
+  On-line CPU(s) list:    0,1
+Vendor ID:                GenuineIntel
+  Model name:             Intel(R) Xeon(R) CPU @ 2.20GHz
+    CPU family:           6
+    Model:                79
+
+v1:
+
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          46 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   2
+  On-line CPU(s) list:    0,1
+Vendor ID:                GenuineIntel
+  Model name:             Intel(R) Xeon(R) CPU @ 2.80GHz
+    CPU family:           6
+    Model:                85
+
+
+
+v2:
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          48 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   2
+  On-line CPU(s) list:    0,1
+Vendor ID:                AuthenticAMD
+  Model name:             AMD EPYC 7B13
+    CPU family:           25
+    Model:                1
