@@ -16,7 +16,7 @@ pub use half::f16;
 
 use glar_base::{
     ap_size, bp_size, get_cache_params, has_f16_compute, has_f16f32_compute, Array, ArrayMut, GemmCache, GlarPar,
-    RUNTIME_HW_CONFIG,
+    HWModel, RUNTIME_HW_CONFIG,
 };
 
 use reference::RefGemm;
@@ -60,29 +60,16 @@ pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC
 
 #[inline(always)]
 fn get_mcnckc() -> (usize, usize, usize) {
-    if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-        match (*RUNTIME_HW_CONFIG).hw_model {
-            _ => {
-                return (4800, 480, 512);
-            }
-        }
-    }
-    if (*RUNTIME_HW_CONFIG).cpu_ft.avx && (*RUNTIME_HW_CONFIG).cpu_ft.fma {
-        match (*RUNTIME_HW_CONFIG).hw_model {
-            _ => {
-                return (4800, 320, 192);
-            }
-        }
-    }
-    if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
-        match (*RUNTIME_HW_CONFIG).hw_model {
-            _ => {
-                return (4800, 320, 192);
-            }
-        }
-    }
-    // reference cache params
-    get_cache_params()
+    // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+    // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+    // let kc = std::env::var("GLAR_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
+    // return (mc, nc, kc);
+    let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
+        HWModel::Skylake => (4800, 384, 1024),
+        HWModel::Haswell => (4800, 320, 192),
+        _ => get_cache_params(),
+    };
+    (mc, nc, kc)
 }
 
 pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(

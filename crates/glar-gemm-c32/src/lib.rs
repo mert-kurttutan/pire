@@ -64,7 +64,6 @@ fn get_mcnckc() -> (usize, usize, usize) {
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         HWModel::Skylake => (2400, 192, 320),
-        HWModel::Broadwell => (2400, 192, 192),
         HWModel::Haswell => (2400, 192, 192),
         _ => get_cache_params(),
     };

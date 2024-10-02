@@ -69,14 +69,12 @@ pub struct HWConfig {
 pub enum HWModel {
     Reference,
     Haswell,
-    Broadwell,
     Skylake,
 }
 
 const SKYLAKE: [u8; 13] = [78, 85, 94, 126, 140, 141, 167, 151, 154, 183, 186, 143, 207];
 
-const HASWELL: [u8; 6] = [69, 70, 63, 42, 58, 165];
-const BROADWELL: [u8; 4] = [79, 86, 61, 71];
+const HASWELL: [u8; 10] = [69, 70, 63, 42, 58, 165, 79, 86, 61, 71];
 
 impl HWModel {
     pub fn from_hw(family_id: u8, model_id: u8) -> Self {
@@ -87,9 +85,6 @@ impl HWModel {
             if HASWELL.contains(&model_id) {
                 return HWModel::Haswell;
             }
-            if BROADWELL.contains(&model_id) {
-                return HWModel::Broadwell;
-            }
         }
 
         // default to reeference
@@ -99,7 +94,6 @@ impl HWModel {
         match self {
             HWModel::Reference => (false, false, true),
             HWModel::Haswell => (false, false, true),
-            HWModel::Broadwell => (false, false, true),
             HWModel::Skylake => (false, false, true),
         }
     }
@@ -249,8 +243,8 @@ pub struct GlarThreadConfig<'a> {
     pub nc_eff: usize,
     pub kc_eff: usize,
     pub par: GlarPar,
-    pub packa_barrier: &'a[Barrier],
-    pub packb_barrier: &'a[Barrier],
+    pub packa_barrier: &'a [Barrier],
+    pub packb_barrier: &'a [Barrier],
 }
 
 pub fn get_apbp_barrier(par: &GlarPar) -> (Vec<Barrier>, Vec<Barrier>) {
@@ -272,8 +266,8 @@ pub fn get_apbp_barrier(par: &GlarPar) -> (Vec<Barrier>, Vec<Barrier>) {
 impl<'a> GlarThreadConfig<'a> {
     pub fn new(
         par: GlarPar,
-        packa_barrier: &'a[Barrier],
-        packb_barrier: &'a[Barrier],
+        packa_barrier: &'a [Barrier],
+        packb_barrier: &'a [Barrier],
         t_id: usize,
         mc_eff: usize,
         nc_eff: usize,
