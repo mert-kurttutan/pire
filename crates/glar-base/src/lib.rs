@@ -1,4 +1,4 @@
-use std::sync::{Arc, Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard};
+use std::sync::{Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 // Consider Once Cell
 use once_cell::sync::Lazy;
 
@@ -127,19 +127,9 @@ fn detect_hw_config() -> HWConfig {
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
-        // let avx = true;
-        // let fma = true;
-        // let avx2 = true;
-        // let avx512f16 = false;
-        // let avx512bf16 = true;
-        // let avx512f = true;
-        // let f16c = true;
-        // let fma4 = true;
         let cpu_ft = CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bf16, avx512bw, avx512_vnni, fma, fma4, f16c };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
-        // let family_id = 6;
-        // let model_id = 78;
         let hw_model = HWModel::from_hw(family_id, model_id);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
@@ -247,7 +237,7 @@ pub fn extend<'a>(pool_vec: Vec<u8>) {
     pool_guard.push(Mutex::new(pool_vec));
 }
 
-pub struct GlarThreadConfig {
+pub struct GlarThreadConfig<'a> {
     pub ic_id: usize,
     // pc_id: usize,
     pub jc_id: usize,
@@ -259,31 +249,31 @@ pub struct GlarThreadConfig {
     pub nc_eff: usize,
     pub kc_eff: usize,
     pub par: GlarPar,
-    pub packa_barrier: Arc<Vec<Arc<Barrier>>>,
-    pub packb_barrier: Arc<Vec<Arc<Barrier>>>,
+    pub packa_barrier: &'a[Barrier],
+    pub packb_barrier: &'a[Barrier],
 }
 
-pub fn get_apbp_barrier(par: &GlarPar) -> (Arc<Vec<Arc<Barrier>>>, Arc<Vec<Arc<Barrier>>>) {
+pub fn get_apbp_barrier(par: &GlarPar) -> (Vec<Barrier>, Vec<Barrier>) {
     let mut packa_barrier = vec![];
     for _ in 0..par.ic_par {
-        let barrier = Arc::new(Barrier::new(par.jc_par * par.pc_par * par.ir_par * par.jr_par));
+        let barrier = Barrier::new(par.jc_par * par.pc_par * par.ir_par * par.jr_par);
         packa_barrier.push(barrier);
     }
 
     let mut packb_barrier = vec![];
     for _ in 0..par.jc_par {
-        let barrier = Arc::new(Barrier::new(par.ic_par * par.pc_par * par.ir_par * par.jr_par));
+        let barrier = Barrier::new(par.ic_par * par.pc_par * par.ir_par * par.jr_par);
         packb_barrier.push(barrier);
     }
 
-    (Arc::new(packa_barrier), Arc::new(packb_barrier))
+    (packa_barrier, packb_barrier)
 }
 
-impl<'a> GlarThreadConfig {
+impl<'a> GlarThreadConfig<'a> {
     pub fn new(
         par: GlarPar,
-        packa_barrier: Arc<Vec<Arc<Barrier>>>,
-        packb_barrier: Arc<Vec<Arc<Barrier>>>,
+        packa_barrier: &'a[Barrier],
+        packb_barrier: &'a[Barrier],
         t_id: usize,
         mc_eff: usize,
         nc_eff: usize,
@@ -382,6 +372,12 @@ impl GlarPar {
         } else {
             n / 100
         };
+
+        if num_threads <= 12 {
+            let jc_par_max = jc_par_max.min(num_threads);
+            let n_thread = (num_threads / jc_par_max) * jc_par_max;
+            return Self::new(n_thread, num_threads / jc_par_max, 1, jc_par_max, 1, 1);
+        }
         // let mut jr_par_max = if k < 96 { 1 } else if jc_par_max => 4 { 4.min(k / 4) };
         num_threads = num_threads.min(ic_par_max * jc_par_max);
         let mut ic_par = 1;
@@ -436,9 +432,7 @@ impl GlarPar {
     #[inline(always)]
     pub fn default(m: usize, n: usize) -> Self {
         let num_threads = glar_num_threads();
-        // Self::from_num_threads(num_threads, m, n)
-        // Self::new(42, 3, 1, 7, 2, 1, 7, 5)
-        Self { num_threads: 42, ic_par: 7, pc_par: 1, jc_par: 3, ir_par: 2, jr_par: 1 }
+        Self::from_num_threads(num_threads, m, n)
     }
     #[inline]
     fn get_ic_id(&self, t_id: usize) -> usize {
@@ -1260,7 +1254,7 @@ macro_rules! def_glar_gemm {
             std::thread::scope(|s| {
                 for t_id in 1..par.num_threads {
                     let t_cfg = GlarThreadConfig::new(
-                        par.clone(), pa_br_vec_ref.clone(), pb_br_vec_ref.clone(), t_id, mc_eff, nc_eff, kc_eff
+                        par.clone(), &pa_br_vec_ref, &pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff
                     );
                     let ic_id = t_cfg.ic_id;
                     let jc_id = t_cfg.jc_id;
@@ -1288,7 +1282,7 @@ macro_rules! def_glar_gemm {
                     let ap = a.$pack_fn(ap_pool, 0);
                     let bp = b.$pack_fn(bp_pool, 0);
                     let t_id: usize = 0;
-                    let t_cfg = GlarThreadConfig::new(par.clone(), pa_br_vec_ref, pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
+                    let t_cfg = GlarThreadConfig::new(par.clone(), &pa_br_vec_ref, &pb_br_vec_ref, t_id, mc_eff, nc_eff, kc_eff);
                     let alpha = &alpha as *const $t_as;
                     let beta = &beta as *const $t_bs;
                     gemm_fn(hw_config, m, n, k, alpha, ap, bp, beta, c, &t_cfg);
