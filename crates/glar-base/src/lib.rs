@@ -27,7 +27,7 @@ pub struct CpuFeatures {
     pub avx2: bool,
     pub avx512f: bool,
     pub avx512f16: bool,
-    pub avx512bf16: bool,
+    // pub avx512bf16: bool,
     pub avx512bw: bool,
     pub avx512_vnni: bool,
     pub fma: bool,
@@ -114,14 +114,14 @@ fn detect_hw_config() -> HWConfig {
         let fma = feature_info.has_fma();
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
-        let avx512bf16 = extended_feature_info.has_avx512_bf16();
+        // let avx512bf16 = extended_feature_info.has_avx512_bf16();
         let avx512f = extended_feature_info.has_avx512f();
         let avx512bw = extended_feature_info.has_avx512bw();
         let avx512_vnni = extended_feature_info.has_avx512vnni();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
-        let cpu_ft = CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bf16, avx512bw, avx512_vnni, fma, fma4, f16c };
+        let cpu_ft = CpuFeatures { avx, avx2, avx512f, avx512f16, avx512bw, avx512_vnni, fma, fma4, f16c };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
         let hw_model = HWModel::from_hw(family_id, model_id);
