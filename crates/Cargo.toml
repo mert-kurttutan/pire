@@ -1,5 +1,4 @@
 [workspace]
-
 members = [ 
     "glar-base", 
     "glar-dev", "glar-gemm-f16",
@@ -7,5 +6,8 @@ members = [
     "glar-gemm-c32", "glar-gemm-c64",
     "glar-gemm-s16s16s32"
 , "glar-gemm-s8u8s32"]
+
+[workspace.dependencies]
+
 
 resolver = "2"
