@@ -60,7 +60,6 @@ pub fn bench_blas_group3<
         &dt,
         |bench_b, _x| {
             bench_b.iter(|| unsafe {
-                let start_time = std::time::Instant::now();
                 dispatch_gemm(
                     GemmBackend::Mkl,
                     m,
@@ -78,9 +77,6 @@ pub fn bench_blas_group3<
                     c_rs,
                     c_cs,
                 );
-
-                let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
-                println!("Time taken: {} secs", end_time);
             })
         },
     );
@@ -89,8 +85,6 @@ pub fn bench_blas_group3<
         &dt,
         |bench_b, _x| {
             bench_b.iter(|| unsafe {
-                // start time
-                let start_time = std::time::Instant::now();
                 dispatch_gemm(
                     GemmBackend::Glar,
                     m,
@@ -108,10 +102,6 @@ pub fn bench_blas_group3<
                     c_rs,
                     c_cs,
                 );
-
-                // print in secs
-                let end_time = start_time.elapsed().as_nanos() as f64 / 1e9;
-                println!("Time taken: {} secs", end_time);
             })
         },
     );
