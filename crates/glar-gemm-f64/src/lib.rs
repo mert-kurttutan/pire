@@ -29,10 +29,7 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
-use glar_base::{
-    ap_size, bp_size, get_cache_params, has_f64_compute, Array, ArrayMut, GemmCache, GlarPar, HWModel, StridedMatrix,
-    StridedMatrixMut, RUNTIME_HW_CONFIG,
-};
+use glar_base::{ap_size, bp_size, has_f64_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
 
 use reference::RefGemm;
 
@@ -54,20 +51,6 @@ pub(crate) unsafe fn store_buf(c: *mut TC, c_rs: usize, c_cs: usize, c_buf: &[TC
     }
 }
 
-#[inline(always)]
-fn get_mcnckc() -> (usize, usize, usize) {
-    // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
-    // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
-    // let kc = std::env::var("GLAR_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
-    // return (mc, nc, kc);
-    let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Skylake => (4800, 512, 1024),
-        HWModel::Haswell => (2400, 192, 192),
-        _ => get_cache_params(),
-    };
-    (mc, nc, kc)
-}
-
 pub(crate) unsafe fn glar_dgemm_generic<F: MyFn>(
     m: usize,
     n: usize,
@@ -80,14 +63,13 @@ pub(crate) unsafe fn glar_dgemm_generic<F: MyFn>(
     f: F,
 ) {
     let par = GlarPar::default(m, n);
-    let (mc, nc, kc) = get_mcnckc();
     if has_f64_compute() {
-        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
+        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
         x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
         return;
     }
     // if none of the optimized paths are available, use reference implementation
-    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, f);
+    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
     reference::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 pub unsafe fn glar_dgemm(
@@ -112,12 +94,9 @@ pub unsafe fn glar_dgemm(
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
-    let a = StridedMatrix::new(a, a_rs, a_cs);
-    let a = Array::StridedMatrix(a);
-    let b = StridedMatrix::new(b, b_rs, b_cs);
-    let b = Array::StridedMatrix(b);
-    let c = StridedMatrixMut::new(c, c_rs, c_cs);
-    let c = ArrayMut::StridedMatrix(c);
+    let a = Array::strided_matrix(a, a_rs, a_cs);
+    let b = Array::strided_matrix(b, b_rs, b_cs);
+    let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
     let null_fn = NullFn {};
     glar_dgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
@@ -146,41 +125,10 @@ pub unsafe fn glar_dgemm_fused(
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
-    let a = StridedMatrix::new(a, a_rs, a_cs);
-    let a = Array::StridedMatrix(a);
-    let b = StridedMatrix::new(b, b_rs, b_cs);
-    let b = Array::StridedMatrix(b);
-    let c = StridedMatrixMut::new(c, c_rs, c_cs);
-    let c = ArrayMut::StridedMatrix(c);
+    let a = Array::strided_matrix(a, a_rs, a_cs);
+    let b = Array::strided_matrix(b, b_rs, b_cs);
+    let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
     glar_dgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
-}
-
-pub unsafe fn glar_dgemv(
-    m: usize,
-    n: usize,
-    alpha: TA,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    x: *const TB,
-    incx: usize,
-    beta: TC,
-    y: *mut TC,
-    incy: usize,
-) {
-    glar_dgemm(m, 1, n, alpha, a, a_rs, a_cs, x, 1, incx, beta, y, 1, incy)
-}
-pub unsafe fn glar_sdot(
-    n: usize,
-    alpha: TA,
-    x: *const TA,
-    incx: usize,
-    y: *const TB,
-    incy: usize,
-    beta: TC,
-    res: *mut TC,
-) {
-    glar_dgemm(1, 1, n, alpha, x, incx, 1, y, incy, 1, beta, res, 1, 1)
 }
 
 // block idx for packa and packb is s.t.
@@ -190,71 +138,49 @@ pub unsafe fn glar_sdot(
 // in the special case of very large k and small m, n
 pub unsafe fn packa_f64(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let mut ap = ap;
     if m == 1 {
         for j in 0..k {
             *ap.add(j) = *a.add(j * a_cs);
         }
         return Array::strided_matrix(ap, 1, m);
     }
-    let (mc, nc, kc) = get_mcnckc();
-    let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-    // if none of the optimized paths are available, use reference implementation
-    let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-
     #[cfg(target_arch = "x86_64")]
     {
-        let ap0 = ap;
-        let vs = if has_f64_compute() { hw_config.vs } else { hw_config_ref.vs };
-        for p in (0..k).step_by(kc) {
-            let kc_len = if k >= (p + kc) { kc } else { k - p };
-            for i in (0..m).step_by(mc) {
-                let mc_len = if m >= (i + mc) { mc } else { m - i };
-                let mc_len_eff = (mc_len + vs - 1) / vs * vs;
-                let a_cur = a.add(i * a_rs + p * a_cs);
-                if has_f64_compute() {
-                    hw_config.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
-                } else {
-                    hw_config_ref.packa_fn(a_cur, ap, mc_len, kc_len, a_rs, a_cs);
-                }
-                ap = ap.add(mc_len_eff * kc_len);
-            }
+        if has_f64_compute() {
+            return x86_64_arch::packa_full(m, k, a, a_rs, a_cs, ap);
         }
-        return Array::packed_matrix(ap0, m, k);
     }
+
+    #[cfg(target_arch = "x86")]
+    {
+        if has_f32_compute() {
+            return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
+        }
+    }
+    reference::packa_full(m, k, a, a_rs, a_cs, ap)
 }
 
 pub unsafe fn packb_f64(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let mut bp = bp;
     if n == 1 {
         for j in 0..k {
             *bp.add(j) = *b.add(j * b_rs);
         }
         return Array::strided_matrix(bp, 1, k);
     }
-    let (mc, nc, kc) = get_mcnckc();
-    let hw_config_ref = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
-    let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, mc, nc, kc, NullFn {});
     #[cfg(target_arch = "x86_64")]
     {
-        let bp0 = bp;
-        for p in (0..k).step_by(kc) {
-            let kc_len = if k >= (p + kc) { kc } else { k - p };
-            for i in (0..n).step_by(nc) {
-                let nc_len = if n >= (i + nc) { nc } else { n - i };
-                let nc_len_eff = nc_len;
-                let b_cur = b.add(i * b_cs + p * b_rs);
-                if has_f64_compute() {
-                    hw_config.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
-                } else {
-                    hw_config_ref.packb_fn(b_cur, bp, nc_len, kc_len, b_rs, b_cs);
-                }
-                bp = bp.add(nc_len_eff * kc_len);
-            }
+        if has_f64_compute() {
+            return x86_64_arch::packb_full(n, k, b, b_rs, b_cs, bp);
         }
-        return Array::packed_matrix(bp0, n, k);
     }
+    #[cfg(target_arch = "x86")]
+    {
+        if has_f32_compute() {
+            return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
+        }
+    }
+    reference::packb_full(n, k, b, b_rs, b_cs, bp)
 }
 
 pub unsafe fn packa_f64_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
@@ -278,11 +204,21 @@ pub unsafe fn packb_f64_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glar_base::matrix_size;
+    use glar_base::{get_cache_params, matrix_size};
     use glar_dev::{
         check_gemm_f64, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides, random_matrix_uniform,
         ABLayout,
     };
+
+    #[inline(always)]
+    #[allow(unreachable_code)]
+    pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
+        #[cfg(target_arch = "x86_64")]
+        {
+            return x86_64_arch::get_mcnckc();
+        }
+        get_cache_params()
+    }
 
     unsafe fn my_unary(c: *mut TC, m: usize) {
         for i in 0..m {

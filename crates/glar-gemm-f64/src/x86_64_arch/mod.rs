@@ -4,12 +4,64 @@ pub(crate) mod avx_fma;
 pub(crate) mod pack_avx;
 
 use glar_base::{
-    acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
-    get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range, split_range, Array, ArrayMut,
-    GemmPool, GlarPar, GlarThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL,
+    acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
+    get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range,
+    split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWConfig, HWModel, PArray, PoolSize, PtrData,
+    PACK_POOL, RUNTIME_HW_CONFIG,
 };
 
 use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
+
+#[inline(always)]
+pub fn get_mcnckc() -> (usize, usize, usize) {
+    // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
+    // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
+    // let kc = std::env::var("GLAR_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
+    // return (mc, nc, kc);
+    let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
+        HWModel::Skylake => (4800, 512, 1024),
+        HWModel::Haswell => (2400, 192, 192),
+        _ => get_cache_params(),
+    };
+    (mc, nc, kc)
+}
+
+pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
+    let (mc, _, kc) = get_mcnckc();
+    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
+    let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let mut ap_cur = ap;
+    let vs = hw_config.vs;
+    for p in (0..k).step_by(kc) {
+        let kc_len = kc.min(k - p);
+        for i in (0..m).step_by(mc) {
+            let mc_len = mc.min(m - i);
+            let mc_len_eff = (mc_len + vs - 1) / vs * vs;
+            let a_cur = a.add(i * a_rs + p * a_cs);
+            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
+            ap_cur = ap_cur.add(mc_len_eff * kc_len);
+        }
+    }
+    return Array::packed_matrix(ap, m, k);
+}
+
+pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
+    let (_, nc, kc) = get_mcnckc();
+    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
+    let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let mut bp_cur = bp;
+    for p in (0..k).step_by(kc) {
+        let kc_len = kc.min(k - p);
+        for i in (0..n).step_by(nc) {
+            let nc_len = nc.min(n - i);
+            let nc_len_eff = nc_len;
+            let b_cur = b.add(i * b_cs + p * b_rs);
+            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
+            bp_cur = bp_cur.add(nc_len_eff * kc_len);
+        }
+    }
+    return Array::packed_matrix(bp, n, k);
+}
 
 pub(crate) enum RegDim {
     Reg24x8,
@@ -34,7 +86,8 @@ pub(crate) struct X86_64dispatcher<T: MyFn = NullFn> {
 }
 
 impl<F: MyFn> X86_64dispatcher<F> {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, mc: usize, nc: usize, kc: usize, f: F) -> Self {
+    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
+        let (mc, nc, kc) = get_mcnckc();
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr, reg_dim) = if features.avx512f {
