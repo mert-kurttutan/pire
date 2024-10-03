@@ -908,8 +908,8 @@ macro_rules! def_ukernel {
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr);
-                dim_arr[2] = m*2;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
+                dim_arr[2] = $mr*2;
                 cf = c_buf.as_mut_ptr();
             }
             // prefetch for c
@@ -992,9 +992,9 @@ macro_rules! def_ukernel {
             );
             if BUF {
                 for j in 0..$nr {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
             } else {
                 for j in 0..$nr {
                     f.call(cf.add(j*c_cs), m);
@@ -1032,8 +1032,8 @@ macro_rules! def_ukernelxn {
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n);
-                dim_arr[2] = m*2;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
+                dim_arr[2] = $mr*2;
                 cf = c_buf.as_mut_ptr();
             }
             use std::arch::x86_64::_mm_prefetch;
@@ -1123,9 +1123,9 @@ macro_rules! def_ukernelxn {
             };
             if BUF {
                 for j in 0..n {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -1203,7 +1203,7 @@ pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
     let mut c_buf = [f16::ZERO; 48 * 8];
     let c_cs = d_arr[3];
     if BUF {
-        load_buf(c, d_arr[2], c_cs, &mut c_buf, 48, 8);
+        load_buf(c, d_arr[2], c_cs, &mut c_buf, 48, 8, 48);
         dim_arr[2] = 48*2;
         cf = c_buf.as_mut_ptr();
     }
@@ -1302,7 +1302,7 @@ pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
         for j in 0..8 {
             f.call(cf.add(j*48), 48);
         }
-        store_buf(c, d_arr[2], c_cs, &c_buf, 48, 8);
+        store_buf(c, d_arr[2], c_cs, &c_buf, 48, 8, 48);
     } else {
         for j in 0..8 {
             f.call(cf.add(j*c_cs), 48);

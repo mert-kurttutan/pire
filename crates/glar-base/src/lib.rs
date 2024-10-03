@@ -5,19 +5,19 @@ use once_cell::sync::Lazy;
 pub mod range_rwlock;
 
 #[inline(always)]
-pub unsafe fn load_buf<T:Copy>(c: *const T, c_rs: usize, c_cs: usize, c_buf: &mut [T], m: usize, n: usize) {
+pub unsafe fn load_buf<T:Copy>(c: *const T, c_rs: usize, c_cs: usize, c_buf: &mut [T], m: usize, n: usize, mr: usize) {
     for j in 0..n {
         for i in 0..m {
-            c_buf[i + j * m] = *c.add(i * c_rs + j * c_cs);
+            c_buf[i + j * mr] = *c.add(i * c_rs + j * c_cs);
         }
     }
 }
 
 #[inline(always)]
-pub unsafe fn store_buf<T:Copy>(c: *mut T, c_rs: usize, c_cs: usize, c_buf: &[T], m: usize, n: usize) {
+pub unsafe fn store_buf<T:Copy>(c: *mut T, c_rs: usize, c_cs: usize, c_buf: &[T], m: usize, n: usize, mr: usize) {
     for j in 0..n {
         for i in 0..m {
-            *c.add(i * c_rs + j * c_cs) = c_buf[i + j * m];
+            *c.add(i * c_rs + j * c_cs) = c_buf[i + j * mr];
         }
     }
 }

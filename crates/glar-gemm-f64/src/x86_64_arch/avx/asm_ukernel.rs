@@ -570,8 +570,8 @@ macro_rules! def_ukernel {
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr);
-                dim_arr[2] = m*8;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
+                dim_arr[2] = $mr*8;
                 cf = c_buf.as_mut_ptr();
             }
             // prefetch for c
@@ -658,9 +658,9 @@ macro_rules! def_ukernel {
             );
             if BUF {
                 for j in 0..$nr {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
             } else {
                 for j in 0..$nr {
                     f.call(cf.add(j*c_cs), m);
@@ -697,8 +697,8 @@ macro_rules! def_ukernelxn {
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n);
-                dim_arr[2] = m*8;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
+                dim_arr[2] = $mr*8;
                 cf = c_buf.as_mut_ptr();
             }
             use std::arch::x86_64::_mm_prefetch;
@@ -791,9 +791,9 @@ macro_rules! def_ukernelxn {
             };
             if BUF {
                 for j in 0..n {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);

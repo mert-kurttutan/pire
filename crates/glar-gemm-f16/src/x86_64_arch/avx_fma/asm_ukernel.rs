@@ -604,38 +604,6 @@ macro_rules! prefetch_c {
 
 use crate::MyFn;
 
-// #[inline(always)]
-// fn mask_and_offset(m: usize) -> ([u32;16], usize) {
-// 	let mask: [u32; 16] = [
-// 		u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
-// 		0, 0, 0, 0, 0, 0, 0, 0,
-// 	];
-// 	let mask_offset = if m % VS == 0 { 0 } else { VS - (m %VS)};
-
-// 	(mask, mask_offset)
-// }
-
-
-
-// macro_rules! mask_ptr {
-// 	(M, $m:tt, $nm:ident) => {
-// 		let (mask, mask_offset) = mask_and_offset($m);
-// 		let $nm = mask.as_ptr().add(mask_offset);
-// 	};
-// 	(C, $m:tt, $nm:ident) => {
-// 		let mask = [0xFFFF_u32];
-// 		let $nm = mask.as_ptr();
-// 	};
-// }
-
-// macro_rules! load_mask_ptr_asm {
-// 	(M) => {
-// 		"vmovdqu ({maskx}), %ymm1"
-// 	};
-// 	(C) => {
-// 		"/* {maskx} */"
-// 	}
-// }
 
 macro_rules! def_ukernel {
     (
@@ -655,8 +623,6 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            // mask_ptr!($is_partial, m, x);
-            // let mask_ptr = x;
             let k_iter = k / 4;
             let k_left = k % 4;
             let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_iter, k_left];
@@ -664,8 +630,8 @@ macro_rules! def_ukernel {
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr);
-                dim_arr[2] = m*2;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
+                dim_arr[2] = $mr*2;
                 cf = c_buf.as_mut_ptr();
             }
             // prefetch for c
@@ -750,9 +716,9 @@ macro_rules! def_ukernel {
             );
             if BUF {
                 for j in 0..$nr {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
             } else {
                 for j in 0..$nr {
                     f.call(cf.add(j*c_cs), m);
@@ -780,8 +746,6 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            // mask_ptr!($is_partial, m, x);
-            // let mask_ptr = x;
             let k_iter = k / 4;
             let k_left = k % 4;
             let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_iter, k_left];
@@ -789,8 +753,8 @@ macro_rules! def_ukernelxn {
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n);
-                dim_arr[2] = m*2;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
+                dim_arr[2] = $mr*2;
                 cf = c_buf.as_mut_ptr();
             }
             use std::arch::x86_64::_mm_prefetch;
@@ -882,9 +846,9 @@ macro_rules! def_ukernelxn {
             };
             if BUF {
                 for j in 0..n {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
