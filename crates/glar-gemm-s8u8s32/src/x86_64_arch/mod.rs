@@ -99,7 +99,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
         } else {
             (16, 4, RegDim::Reg16x4)
         };
-        let vs = if features.avx512bw { 16 } else { 8 };
+        let vs = if features.avx512bw || features.avx512_vnni { 16 } else { 8 };
         Self {
             mc,
             nc,
