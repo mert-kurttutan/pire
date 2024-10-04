@@ -692,8 +692,8 @@ macro_rules! def_ukernel {
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr);
-                dim_arr[2] = m*16;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
+                dim_arr[2] = $mr*16;
                 cf = c_buf.as_mut_ptr();
             }
             // prefetch for c
@@ -776,9 +776,9 @@ macro_rules! def_ukernel {
             );
             if BUF {
                 for j in 0..$nr {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
             } else {
                 for j in 0..$nr {
                     f.call(cf.add(j*c_cs), m);
@@ -816,8 +816,8 @@ macro_rules! def_ukernelxn {
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n);
-                dim_arr[2] = m*16;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
+                dim_arr[2] = $mr*16;
                 cf = c_buf.as_mut_ptr();
             }
             use std::arch::x86_64::_mm_prefetch;
@@ -909,9 +909,9 @@ macro_rules! def_ukernelxn {
             };
             if BUF {
                 for j in 0..n {
-                    f.call(cf.add(j*m), m);
+                    f.call(cf.add(j*$mr), $mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -964,13 +964,6 @@ def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 2, 3, B, S, M, ukernel_2xn_bs_parti
 
 
 
-
-
-// based on l1 prefetching scheme is from openblas impl for skylax
-// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
-// this is adapted to our ukernel of 6x2
-// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
-// where the same l1 prefetching does not benefit as much)
 pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA,
@@ -979,16 +972,16 @@ pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 2;
-    let k_left = if k_left0 == 0 {2} else {k_left0};
+    let k_left0 = k % 4;
+    let k_left = if k_left0 == 0 {4} else {k_left0};
     let k_iter = (k - k_left) / 4;
     let mut dim_arr = [d_arr[3]*16, k_iter, k_left, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 6 * 2];
     let c_cs = d_arr[3];
     if BUF {
-        load_buf(c, d_arr[2], c_cs, &mut c_buf, 6, 2);
-        dim_arr[2] = 6*8;
+        load_buf(c, d_arr[2], c_cs, &mut c_buf, 6, 2, 6);
+        dim_arr[2] = 6*16;
         cf = c_buf.as_mut_ptr();
     }
     asm!(
@@ -1084,7 +1077,7 @@ pub(crate) unsafe fn ukernel_6x2_bb<F: MyFn, const BUF: bool>(
         for j in 0..2 {
             f.call(cf.add(j*6), 6);
         }
-        store_buf(c, d_arr[2], c_cs, &c_buf, 6, 4);
+        store_buf(c, d_arr[2], c_cs, &c_buf, 6, 2, 6);
     } else {
         for j in 0..2 {
             f.call(cf.add(j*c_cs), 6);
