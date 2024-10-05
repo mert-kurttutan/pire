@@ -30,8 +30,7 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-use glar_base::{store_buf, load_buf};
-
+use glar_base::{load_buf, store_buf};
 
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
@@ -218,8 +217,8 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.0];
     // static BETA_ARR: [f32; 3] = [1.0, 3.0, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.0];
-    static BETA_ARR: [f32; 1] = [1.0];
+    static ALPHA_ARR: [f32; 1] = [2.0];
+    static BETA_ARR: [f32; 1] = [3.0];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();

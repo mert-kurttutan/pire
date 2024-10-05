@@ -7,15 +7,11 @@ description = "high performance cpu kernels"
 license = "MIT"
 keywords = ["high-performance", "math"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-once_cell = "1.18"
+once_cell = { workspace = true }
 # latest version with bf16 is not released yet, fix when released
 raw-cpuid = {version = "11.1.0", git = "https://github.com/gz/rust-cpuid.git" }
 
-[features]
-default = []
-
 [dev-dependencies]
-glar-dev = { path = "../../crates/glar-dev" }
+glar-dev = { version = "0.1.0", path = "../../crates/glar-dev" }

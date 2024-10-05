@@ -1,13 +1,13 @@
 [workspace]
-members = [ 
-    "glar-base", 
-    "glar-dev", "glar-gemm-f16",
-    "glar-gemm-f32", "glar-gemm-f64",
-    "glar-gemm-c32", "glar-gemm-c64",
-    "glar-gemm-s16s16s32"
-, "glar-gemm-s8u8s32"]
+members = [
+    "glar-base", "glar-dev", "glar-gemm-f16", "glar-gemm-f32", "glar-gemm-f64", "glar-gemm-c32", "glar-gemm-c64", "glar-gemm-s16s16s32", "glar-gemm-s8u8s32"
+]
+resolver = "2"
+
 
 [workspace.dependencies]
+seq-macro = "0.3"
+paste = "1.0"
+once_cell = { version = "1.20" }
+half = { version = "2.4", default-features = false }
 
-
-resolver = "2"

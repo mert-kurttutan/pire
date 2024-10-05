@@ -2,13 +2,15 @@
 name = "glar-dev"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["mert-kurttutan"]
+description = "high performance cpu kernels"
+license = "MIT"
+keywords = ["high-performance", "math"]
 
 [dependencies]
 libc = "0.2"
 rand = "0.8.5"
-half = { version = "2.4.1", features = ["rand_distr", "num-traits"] }
+half = { workspace = true, features = ["rand_distr"] }
 num-complex = { version = "0.4.6"}
 
 [features]

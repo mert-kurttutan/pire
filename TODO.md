@@ -11,3 +11,6 @@
 -Add note about scaling parameter for quantized gemm and their precision
 
 - add support for fma4
+
+
+The MSRV is: 1.74.1 as reported by cargo-msrv

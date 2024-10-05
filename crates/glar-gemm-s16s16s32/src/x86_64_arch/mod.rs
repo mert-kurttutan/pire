@@ -2,6 +2,8 @@ pub(crate) mod avx2;
 pub(crate) mod avx512_vnni;
 pub(crate) mod avx512bw;
 pub(crate) mod pack_avx;
+pub(crate) mod pack_sse;
+pub(crate) mod sse;
 
 const AVX2_MR: usize = 16; // register block size
 const AVX2_NR: usize = 4; // register block size
@@ -77,6 +79,7 @@ pub(crate) enum RegDim {
     Reg48x8,
     Reg32x8,
     Reg16x4,
+    Reg8x4,
 }
 
 pub(crate) struct X86_64dispatcher<T: MyFn = NullFn> {
@@ -104,10 +107,18 @@ impl<F: MyFn> X86_64dispatcher<F> {
             (48, 8, RegDim::Reg48x8)
         } else if features.avx512bw {
             (AVX512BW_MR, AVX512BW_NR, RegDim::Reg32x8)
-        } else {
+        } else if features.avx2 {
             (AVX2_MR, AVX2_NR, RegDim::Reg16x4)
+        } else {
+            (8, 4, RegDim::Reg8x4)
         };
-        let vs = if features.avx512bw || features.avx512_vnni { 16 } else { 8 };
+        let vs = if features.avx512bw || features.avx512_vnni {
+            16
+        } else if features.avx2 {
+            8
+        } else {
+            4
+        };
         Self {
             mc,
             nc,
@@ -129,6 +140,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
             RegDim::Reg48x8 => pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs),
             RegDim::Reg32x8 => pack_avx::packa_panel_32(m, k, x, rs, cs, y, self.vs),
             RegDim::Reg16x4 => pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs),
+            RegDim::Reg8x4 => pack_sse::packa_panel_8(m, k, x, rs, cs, y, self.vs),
         }
     }
 
@@ -137,6 +149,7 @@ impl<F: MyFn> X86_64dispatcher<F> {
             RegDim::Reg48x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
             RegDim::Reg32x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
             RegDim::Reg16x4 => pack_avx::packb_panel_4(n, k, x, cs, rs, y),
+            RegDim::Reg8x4 => pack_sse::packb_panel_4(n, k, x, cs, rs, y),
         }
     }
 
@@ -195,6 +208,7 @@ unsafe fn kernel<F: MyFn>(
             RegDim::Reg48x8 => avx512_vnni::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
             RegDim::Reg32x8 => avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
             RegDim::Reg16x4 => avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Reg8x4 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
@@ -202,6 +216,7 @@ unsafe fn kernel<F: MyFn>(
             RegDim::Reg48x8 => avx512_vnni::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
             RegDim::Reg32x8 => avx512bw::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
             RegDim::Reg16x4 => avx2::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Reg8x4 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -254,6 +269,7 @@ unsafe fn kernel_n<F: MyFn>(
                 avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func)
             }
             RegDim::Reg16x4 => avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Reg8x4 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
@@ -263,6 +279,7 @@ unsafe fn kernel_n<F: MyFn>(
             }
             RegDim::Reg32x8 => avx512bw::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
             RegDim::Reg16x4 => avx2::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Reg8x4 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -281,7 +298,12 @@ unsafe fn glar_gemv<F: MyFn>(
     let inc_x = x.rs();
     let y_ptr = y.src();
     let incy = y.rs();
-    avx2::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func);
+    match hw_cfg.reg_dim {
+        RegDim::Reg48x8 | RegDim::Reg32x8 | RegDim::Reg16x4 => {
+            avx2::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
+        }
+        RegDim::Reg8x4 => sse::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
+    }
     return;
 }
 

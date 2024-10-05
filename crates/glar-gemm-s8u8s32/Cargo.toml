@@ -2,14 +2,18 @@
 name = "glar-gemm-s8u8s32"
 version = "0.1.0"
 edition = "2021"
+authors = ["mert-kurttutan"]
+description = "high performance cpu kernels"
+license = "MIT"
+keywords = ["high-performance", "math"]
 
 [dependencies]
-glar-base = { path = "../glar-base" }
-seq-macro = "0.3.5"
-paste = "1.0.14"
+glar-base = { version = "0.1.0", path = "../glar-base" }
+seq-macro = { workspace = true }
+paste = { workspace = true }
 
 [dev-dependencies]
-glar-dev = { path = "../../crates/glar-dev" }
+glar-dev = { version = "0.1.0", path = "../../crates/glar-dev" }
 
 [features]
 default = []
