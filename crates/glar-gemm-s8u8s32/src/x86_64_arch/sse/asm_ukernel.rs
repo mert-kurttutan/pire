@@ -1,12 +1,8 @@
 use seq_macro::seq;
 use std::arch::asm;
-
-
 use crate::MyFn;
-
 use crate::{TA, TB, TC};
-use crate::{load_buf, store_buf};
-use glar_base::c_mem;
+use glar_base::{load_buf, store_buf, c_mem};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
@@ -53,7 +49,6 @@ macro_rules! vbroadcast {
 macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
         concat!(
-
             "movups %xmm", $r2, ", %xmm", $r4, "\n",
             "pmaddubsw %xmm", $r1, ", %xmm", $r4, "\n",
             "pmaddwd ", "%xmm15", ", %xmm", $r4, "\n",

@@ -1,8 +1,16 @@
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod x86_64_arch;
+#[cfg(target_arch = "x86")]
+pub(crate) mod x86_arch;
 
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod armv8;
+
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::X86_64dispatcher;
+
+#[cfg(target_arch = "x86")]
+use x86_arch::X86dispatcher;
 
 pub(crate) mod reference;
 
@@ -29,14 +37,9 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
-
 use reference::RefGemm;
 
 use glar_base::{ap_size, bp_size, has_f32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
-
-use glar_base::{load_buf, store_buf};
 
 pub(crate) unsafe fn glar_sgemm_generic<F: MyFn>(
     m: usize,
@@ -51,9 +54,19 @@ pub(crate) unsafe fn glar_sgemm_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_f32_compute() {
-        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-        x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-        return;
+        #[cfg(target_arch = "x86_64")]
+        {
+            let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "x86")]
+        {
+            let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
     }
     // if none of the optimized paths are available, use reference implementation
     let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);

@@ -32,7 +32,7 @@ pub const LD_DIR: &str = if cfg!(windows) {
 pub const MKL_CORE: &str = "mkl_core";
 pub const MKL_THREAD: &str = if SEQUENTIAL { "mkl_sequential" } else { "mkl_intel_thread" };
 pub const THREADING_LIB: &str = if cfg!(windows) { "libiomp5md" } else { "iomp5" };
-pub const MKL_INTERFACE: &str = if cfg!(target_pointer_width = "32") {
+pub const MKL_INTERFACE: &str = if cfg!(target_pointer_width = "32") && false {
     "mkl_intel_ilp32"
 } else if cfg!(windows) {
     "mkl_rt" // windows uses different lp interface library

@@ -39,6 +39,7 @@ macro_rules! env_or {
     };
 }
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Copy, Clone)]
 pub struct CpuFeatures {
     pub sse: bool,
@@ -57,10 +58,28 @@ pub struct CpuFeatures {
     pub f16c: bool,
 }
 
+#[cfg(target_arch = "x86")]
+#[derive(Copy, Clone)]
+pub struct CpuFeatures {
+    pub sse: bool,
+    pub sse2: bool,
+    pub sse3: bool,
+    pub ssse3: bool,
+}
+
 // padding in bytes
 const CACHELINE_PAD: usize = 1024;
 
 #[cfg(target_arch = "x86_64")]
+pub struct HWConfig {
+    pub cpu_ft: CpuFeatures,
+    pub hw_model: HWModel,
+    is_l1_shared: bool,
+    is_l2_shared: bool,
+    is_l3_shared: bool,
+}
+
+#[cfg(target_arch = "x86")]
 pub struct HWConfig {
     pub cpu_ft: CpuFeatures,
     pub hw_model: HWModel,
@@ -168,6 +187,21 @@ fn detect_hw_config() -> HWConfig {
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
     }
+    #[cfg(target_arch = "x86")]
+    {
+        let cpuid = raw_cpuid::CpuId::new();
+        let feature_info = cpuid.get_feature_info().unwrap();
+        let sse = feature_info.has_sse();
+        let sse2 = feature_info.has_sse2();
+        let sse3 = feature_info.has_sse3();
+        let ssse3 = feature_info.has_ssse3();
+        let cpu_ft = CpuFeatures { sse, sse2, sse3, ssse3 };
+        let family_id = feature_info.family_id();
+        let model_id = feature_info.model_id();
+        let hw_model = HWModel::from_hw(family_id, model_id);
+        let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
+        return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
+    }
     #[cfg(target_arch = "aarch64")]
     {
         return HWConfig { neon: true };
@@ -227,6 +261,52 @@ pub(crate) mod cpu_features {
     pub fn has_i8i32_compute() -> bool {
         (RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx)
             || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2 && RUNTIME_HW_CONFIG.cpu_ft.ssse3)
+    }
+    // TODO: Use actual info from hardware
+    pub fn get_cache_params() -> (usize, usize, usize) {
+        (4800, 256, 128)
+    }
+}
+
+#[cfg(target_arch = "x86")]
+pub(crate) mod cpu_features {
+    use super::HWModel;
+    use super::RUNTIME_HW_CONFIG;
+
+    pub fn hw_model() -> HWModel {
+        RUNTIME_HW_CONFIG.hw_model
+    }
+
+    pub fn has_f32_compute() -> bool {
+        // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
+        // dont use above since some avx512f also rely on avx instructions
+        // (even though avx512f should imply), we are being super conservative here
+        RUNTIME_HW_CONFIG.cpu_ft.sse
+    }
+
+    pub fn has_c32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse3
+    }
+
+    pub fn has_f16f32_compute() -> bool {
+        false
+    }
+    pub fn has_f64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2
+    }
+
+    pub fn has_c64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2 && RUNTIME_HW_CONFIG.cpu_ft.sse3
+    }
+
+    pub fn has_f16_compute() -> bool {
+        false
+    }
+    pub fn has_i16i32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2
+    }
+    pub fn has_i8i32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2 && RUNTIME_HW_CONFIG.cpu_ft.ssse3
     }
     // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {

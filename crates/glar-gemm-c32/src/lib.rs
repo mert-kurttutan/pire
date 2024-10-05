@@ -1,5 +1,13 @@
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod x86_64_arch;
+#[cfg(target_arch = "x86")]
+pub(crate) mod x86_arch;
+
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::X86_64dispatcher;
+
+#[cfg(target_arch = "x86")]
+use x86_arch::X86dispatcher;
 
 pub(crate) mod reference;
 
@@ -28,14 +36,9 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
-
 use reference::RefGemm;
 
 use glar_base::{ap_size, bp_size, has_c32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
-
-use glar_base::{load_buf, store_buf};
 
 pub(crate) unsafe fn glar_cgemm_generic<F: MyFn>(
     m: usize,
@@ -50,9 +53,19 @@ pub(crate) unsafe fn glar_cgemm_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_c32_compute() {
-        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-        x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-        return;
+        #[cfg(target_arch = "x86_64")]
+        {
+            let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "x86")]
+        {
+            let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
     }
     // if none of the optimized paths are available, use reference implementation
     let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
@@ -172,20 +185,22 @@ pub unsafe fn packb_c32(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
 
 pub unsafe fn packa_c32_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
     let pack_size = ap_size::<TA>(m, k);
-    let ap_align_offset = ap.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let ap_ptr = ap.as_mut_ptr() as *mut f32;
+    let ap_align_offset = ap_ptr.align_offset(glar_base::AB_ALIGN);
     // safety check
     assert!(ap.len() >= pack_size);
-    let ap = &mut ap[ap_align_offset..];
-    unsafe { packa_c32(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr()) }
+    let ap_ptr_o = ap_ptr.add(ap_align_offset);
+    unsafe { packa_c32(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_o as *mut TA) }
 }
 
 pub unsafe fn packb_c32_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
     let pack_size = bp_size::<TB>(n, k);
-    let bp_align_offset = bp.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let bp_ptr = bp.as_mut_ptr() as *mut f32;
+    let bp_align_offset = bp_ptr.align_offset(glar_base::AB_ALIGN);
     // safety check
     assert!(bp.len() >= pack_size);
-    let bp = &mut bp[bp_align_offset..];
-    unsafe { packb_c32(n, k, b.as_ptr(), b_rs, b_cs, bp.as_mut_ptr()) }
+    let bp_ptr_o = bp_ptr.add(bp_align_offset);
+    unsafe { packb_c32(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_o as *mut TB) }
 }
 
 #[cfg(test)]
