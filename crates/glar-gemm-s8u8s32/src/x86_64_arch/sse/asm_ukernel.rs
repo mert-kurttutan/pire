@@ -778,11 +778,7 @@ def_ukernelxn!(step_8x4, acc_8x4, store_8x4, 8, 4, B, B, C, ukernel_8xn_bb_parti
 def_ukernelxn!(step_4x4, acc_4x4, store_4x4, 4, 4, B, B, C, ukernel_4xn_bb_partial);
 
 
-// based on l1 prefetching scheme is from openblas impl for skylax
-// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
-// this is adapted to our ukernel of 8x4
-// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
-// where the same l1 prefetching does not benefit as much)
+
 pub(crate) unsafe fn ukernel_8x4_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,

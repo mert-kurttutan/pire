@@ -44,6 +44,7 @@ pub struct CpuFeatures {
     pub sse: bool,
     pub sse2: bool,
     pub sse3: bool,
+    pub ssse3: bool,
     pub avx: bool,
     pub avx2: bool,
     pub avx512f: bool,
@@ -134,6 +135,7 @@ fn detect_hw_config() -> HWConfig {
         let sse = feature_info.has_sse();
         let sse2 = feature_info.has_sse2();
         let sse3 = feature_info.has_sse3();
+        let ssse3 = feature_info.has_ssse3();
         let avx = feature_info.has_avx();
         let fma = feature_info.has_fma();
         let avx2 = extended_feature_info.has_avx2();
@@ -145,8 +147,21 @@ fn detect_hw_config() -> HWConfig {
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
-        let cpu_ft =
-            CpuFeatures { sse, sse2, sse3, avx, avx2, avx512f, avx512f16, avx512bw, avx512_vnni, fma, fma4, f16c };
+        let cpu_ft = CpuFeatures {
+            sse,
+            sse2,
+            sse3,
+            ssse3,
+            avx,
+            avx2,
+            avx512f,
+            avx512f16,
+            avx512bw,
+            avx512_vnni,
+            fma,
+            fma4,
+            f16c,
+        };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
         let hw_model = HWModel::from_hw(family_id, model_id);
@@ -183,19 +198,23 @@ pub(crate) mod cpu_features {
         RUNTIME_HW_CONFIG.cpu_ft.avx || RUNTIME_HW_CONFIG.cpu_ft.sse
     }
 
+    pub fn has_c32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse3)
+    }
+
     pub fn has_f16f32_compute() -> bool {
-        // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
-        // dont use above since some avx512f also rely on avx instructions
-        // (even though avx512f should imply), we are being super conservative here
         RUNTIME_HW_CONFIG.cpu_ft.avx && RUNTIME_HW_CONFIG.cpu_ft.f16c
     }
     pub fn has_f64_compute() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.avx || RUNTIME_HW_CONFIG.cpu_ft.sse2
+        RUNTIME_HW_CONFIG.cpu_ft.avx || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2)
     }
+
+    pub fn has_c64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.avx
+            || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2 && RUNTIME_HW_CONFIG.cpu_ft.sse3)
+    }
+
     pub fn has_f16_compute() -> bool {
-        // since avx512_f16 is not stabilized, we use avx+fma+f16c as f16f32 compute
-        // this should not be a problem since all avx512_f16 has also these features
-        // otherwise it is very obscure cpu / vm for which the support is worth the effort
         RUNTIME_HW_CONFIG.cpu_ft.avx512f16
             && RUNTIME_HW_CONFIG.cpu_ft.avx
             && RUNTIME_HW_CONFIG.cpu_ft.f16c
@@ -207,7 +226,7 @@ pub(crate) mod cpu_features {
     }
     pub fn has_i8i32_compute() -> bool {
         (RUNTIME_HW_CONFIG.cpu_ft.avx2 && RUNTIME_HW_CONFIG.cpu_ft.avx)
-            || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2)
+            || (RUNTIME_HW_CONFIG.cpu_ft.sse && RUNTIME_HW_CONFIG.cpu_ft.sse2 && RUNTIME_HW_CONFIG.cpu_ft.ssse3)
     }
     // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {
