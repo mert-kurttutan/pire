@@ -34,8 +34,7 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-use glar_base::{store_buf, load_buf};
-
+use glar_base::{load_buf, store_buf};
 
 pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
     m: usize,

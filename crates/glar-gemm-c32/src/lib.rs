@@ -35,7 +35,7 @@ use reference::RefGemm;
 
 use glar_base::{ap_size, bp_size, has_f32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
 
-use glar_base::{store_buf, load_buf};
+use glar_base::{load_buf, store_buf};
 
 pub(crate) unsafe fn glar_cgemm_generic<F: MyFn>(
     m: usize,
@@ -221,7 +221,7 @@ mod tests {
     // static BETA_ARR: [TC; 3] =
     //     [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }, Complex { re: 0.0, im: 0.0 }];
 
-    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 0.0 }];
+    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 1.0 }];
     static BETA_ARR: [TC; 1] = [Complex { re: 1.0, im: 0.0 }];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {

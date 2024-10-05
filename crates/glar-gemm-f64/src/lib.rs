@@ -33,7 +33,7 @@ use glar_base::{ap_size, bp_size, has_f64_compute, Array, ArrayMut, GemmCache, G
 
 use reference::RefGemm;
 
-use glar_base::{store_buf, load_buf};
+use glar_base::{load_buf, store_buf};
 
 pub(crate) unsafe fn glar_dgemm_generic<F: MyFn>(
     m: usize,
