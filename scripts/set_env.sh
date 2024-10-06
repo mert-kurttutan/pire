@@ -1,6 +1,6 @@
 #!/bin/bash
 
-env_dir = $1
+env_dir=$1
 export GLAR_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
