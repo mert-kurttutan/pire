@@ -1800,7 +1800,6 @@ macro_rules! def_kernel_bb_pf1_no_beta {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -1869,7 +1868,6 @@ macro_rules! def_kernel_bb_pf1 {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -1940,7 +1938,6 @@ macro_rules! def_kernel_bb_v0 {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -2007,7 +2004,6 @@ macro_rules! def_kernel_bb_v0_no_beta {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -2075,7 +2071,6 @@ macro_rules! def_kernel_sb_pf1 {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
@@ -2149,7 +2144,6 @@ macro_rules! def_kernel_sb_v0 {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
@@ -2221,7 +2215,6 @@ macro_rules! def_kernel_sb_v0_no_beta {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -2292,7 +2285,6 @@ macro_rules! def_kernel_sb_pf1_no_beta {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -2364,7 +2356,6 @@ macro_rules! def_kernel_bs_no_beta {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _bs_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
@@ -2432,7 +2423,6 @@ macro_rules! def_kernel_bs {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            #[target_feature(enable = "avx")]
             pub unsafe fn [<kernel_$MR x $NR _bs_v0>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
