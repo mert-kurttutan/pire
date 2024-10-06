@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Define the location for the virtual environment
-env_path=/home/ubuntu/.env
+# get current_dir as 1st argument
+env_dir=$1
+
+# set env to current dir/.env
+env_path=$env_dir/.env
 
 # Create the virtual environment
 python3 -m venv $env_path
