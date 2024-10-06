@@ -994,6 +994,7 @@ pub(crate) unsafe fn ukernel_24x4_bb<F: MyFn, const BUF: bool>(
         "add {x1}, {x5}",
         "mov ({dim_arrx}),{x1}",
         "2:",
+        prefetch_0!(256, "{bx}", 0),
         step_24x4!(4, B, B, 0),
 
         "movq $64*4, {x4}",
