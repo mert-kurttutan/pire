@@ -1,11 +1,8 @@
 use seq_macro::seq;
 use std::arch::asm;
-
 use crate::MyFn;
-
 use crate::{TA, TB, TC};
-use crate::{load_buf, store_buf};
-use glar_base::c_mem;
+use glar_base::{load_buf, store_buf, c_mem};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {

@@ -1,5 +1,13 @@
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod x86_64_arch;
+#[cfg(target_arch = "x86")]
+pub(crate) mod x86_arch;
+
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::X86_64dispatcher;
+
+#[cfg(target_arch = "x86")]
+use x86_arch::X86dispatcher;
 
 pub(crate) mod reference;
 
@@ -30,11 +38,6 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-use glar_base::{load_buf, store_buf};
-
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
-
 pub(crate) unsafe fn glar_gemm_s16s16s32_generic<F: MyFn>(
     m: usize,
     n: usize,
@@ -48,9 +51,19 @@ pub(crate) unsafe fn glar_gemm_s16s16s32_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_i16i32_compute() {
-        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-        x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-        return;
+        #[cfg(target_arch = "x86_64")]
+        {
+            let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "x86")]
+        {
+            let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
     }
     // if none of the optimized paths are available, use reference implementation
     let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
@@ -138,7 +151,7 @@ pub unsafe fn packa_i16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
 
     #[cfg(target_arch = "x86")]
     {
-        if has_f32_compute() {
+        if has_i16i32_compute() {
             return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
@@ -161,7 +174,7 @@ pub unsafe fn packb_i16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
     }
     #[cfg(target_arch = "x86")]
     {
-        if has_f32_compute() {
+        if has_i16i32_compute() {
             return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }

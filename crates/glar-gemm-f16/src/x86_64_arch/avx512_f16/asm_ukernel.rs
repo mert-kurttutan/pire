@@ -4,8 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
 use half::f16;
-use crate::{load_buf, store_buf};
-use glar_base::c_mem;
+use glar_base::{load_buf, store_buf, c_mem};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {

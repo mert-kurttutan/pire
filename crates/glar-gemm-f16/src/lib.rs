@@ -34,8 +34,6 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-use glar_base::{load_buf, store_buf};
-
 pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
     m: usize,
     n: usize,
@@ -49,14 +47,20 @@ pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_f16_compute() {
-        let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-        x86_64_arch::glar_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-        return;
+        #[cfg(target_arch = "x86_64")]
+        {
+            let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_64_arch::glar_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
     }
     if has_f16f32_compute() {
-        let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-        x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
-        return;
+        #[cfg(target_arch = "x86_64")]
+        {
+            let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
+            return;
+        }
     }
 
     // if none of the optimized paths are available, use reference implementation
@@ -146,12 +150,7 @@ pub unsafe fn packa_f16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
         }
     }
 
-    #[cfg(target_arch = "x86")]
-    {
-        if has_f32_compute() {
-            return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
-        }
-    }
+    // no support for x86 and sse
     reference::packa_full(m, k, a, a_rs, a_cs, ap)
 }
 
@@ -172,12 +171,7 @@ pub unsafe fn packb_f16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
             return x86_64_arch::packb_full_f32(n, k, b, b_rs, b_cs, bp);
         }
     }
-    #[cfg(target_arch = "x86")]
-    {
-        if has_f32_compute() {
-            return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
-        }
-    }
+    // no support for x86 and sse
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
 }
 

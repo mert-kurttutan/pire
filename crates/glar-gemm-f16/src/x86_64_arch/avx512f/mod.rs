@@ -34,4 +34,5 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     } else {
         kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
+    asm!("vzeroupper");
 }
