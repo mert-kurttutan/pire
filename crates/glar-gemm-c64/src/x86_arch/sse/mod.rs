@@ -6,7 +6,6 @@ pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
 use paste::paste;
-use std::arch::asm;
 
 use crate::{TA, TB, TC};
 
@@ -16,7 +15,7 @@ use crate::MyFn;
 
 use core::arch::x86::*;
 
-#[target_feature(enable = "sse,sse3")]
+#[target_feature(enable = "sse,sse2,sse3")]
 pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_rs: usize, c_cs: usize) {
     if *beta == TC::ZERO {
         if c_rs == 1 {
@@ -34,23 +33,23 @@ pub(crate) unsafe fn scale_c(m: usize, n: usize, beta: *const TC, c: *mut TC, c_
         }
     } else if *beta != TC::ONE {
         if c_rs == 1 {
-            let beta_f32 = beta as *const f32;
-            let beta_vr = _mm_set1_ps(*beta_f32);
-            let beta_vi = _mm_set1_ps(*beta_f32.add(1));
+            let beta_f64 = beta as *const f64;
+            let beta_vr = _mm_set1_pd(*beta_f64);
+            let beta_vi = _mm_set1_pd(*beta_f64.add(1));
             // let c_cs = c_cs * 2;
             let c = c;
             for j in 0..n {
                 let mut mi = 0;
                 while mi < m / VS * VS {
-                    let c_v = _mm_loadu_ps(c.add(mi + j * c_cs) as *const f32);
-                    let c_v_1 = _mm_mul_ps(c_v, beta_vr);
-                    let c_v_2 = _mm_mul_ps(c_v, beta_vi);
+                    let c_v = _mm_loadu_pd(c.add(mi + j * c_cs) as *const f64);
+                    let c_v_1 = _mm_mul_pd(c_v, beta_vr);
+                    let c_v_2 = _mm_mul_pd(c_v, beta_vi);
 
-                    let c_v_2 = _mm_shuffle_ps(c_v_2, c_v_2, 0xb1);
+                    let c_v_2 = _mm_shuffle_pd(c_v_2, c_v_2, 0b101);
 
-                    let c_v = _mm_addsub_ps(c_v_1, c_v_2);
+                    let c_v = _mm_addsub_pd(c_v_1, c_v_2);
 
-                    _mm_storeu_ps(c.add(mi + j * c_cs) as *mut f32, c_v);
+                    _mm_storeu_pd(c.add(mi + j * c_cs) as *mut f64, c_v);
                     mi += VS;
                 }
                 while mi < m {

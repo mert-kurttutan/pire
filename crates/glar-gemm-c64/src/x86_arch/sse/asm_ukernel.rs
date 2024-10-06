@@ -116,19 +116,7 @@ macro_rules! permute_complex {
     }
 }
 
-macro_rules! mem {
-    ($m0:tt, $b0:tt) => {
-        concat!($b0, "+", $m0)
-    };
-}
-
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
-        concat!(
-            beta_fmadd!(C, $m0, $r1),
-            beta_fmadd!($layout, mem!($m0, "0x10"), $r2),
-        )
-    };
     ($layout:tt, $m0:expr, $r1:expr) => {
         concat!(
             beta_fmadd!($layout, $m0, $r1),

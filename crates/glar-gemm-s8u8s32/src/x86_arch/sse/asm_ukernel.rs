@@ -87,7 +87,8 @@ macro_rules! asm_alpha_scale_0 {
                 "mov 4({ptr_arrx}), {x1}\n",
                 vbroadcast!(), " ({x1}),%xmm1", "\n",
                 "shufps ", "$0, %xmm1, %xmm1", "\n",
-                "ucomiss ({onex}), %xmm1 \n",
+                "mov ({ptr_arrx}), {x1}", "\n",
+                "ucomiss ({x1}), %xmm1 \n",
                 "je 8f \n",
                 #(
                     "cvtdq2ps %xmm", r, ",%xmm", r, "\n",
@@ -109,19 +110,7 @@ macro_rules! load_beta {
     }
 }
 
-macro_rules! mem {
-    ($m0:tt, $b0:tt) => {
-        concat!($b0, "+", $m0)
-    };
-}
-
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr, $b:tt) => {
-        concat!(
-            beta_fmadd!(C, $m0, $r1, $b),
-            beta_fmadd!($layout, mem!($m0, "0x10"), $r2, $b),
-        )
-    };
     ($layout:tt, $m0:expr, $r1:expr, $b:tt) => {
         concat!(
             beta_fmadd!($layout, $m0, $r1, $b),
@@ -131,12 +120,6 @@ macro_rules! acc_p {
 
 
 macro_rules! loadp {
-    (8, $layout:tt, $m0:expr) => {
-        concat!(
-            loadp_unit!($layout, $m0, 0),
-            loadp_unit!($layout, mem!($m0, "0x10"), 1),
-        )
-    };
     (4, $layout:tt, $m0:expr) => {
         concat!(
             loadp_unit!($layout, $m0, 0),
@@ -145,12 +128,6 @@ macro_rules! loadp {
 }
 
 macro_rules! storep {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
-        concat!(
-            storep_unit!(C, $r1, $m0),
-            storep_unit!($layout, $r2, mem!($m0, "0x10")),
-        )
-    };
     ($layout:tt, $m0:expr, $r1:expr) => {
         concat!(
             storep_unit!($layout, $r1, $m0),
@@ -164,7 +141,7 @@ macro_rules! storep {
 x1 -> cs_a
 x2 -> cs_b
 x3 -> x1 + 3*cs_a
-x4 -> cx + 3*cs_b
+x4 -> bx + 3*cs_b
 
 */
 
@@ -182,7 +159,6 @@ macro_rules! asm_init_ab {
 macro_rules! asm_c_load {
     (4) => {
         concat!(
-            "mov ({ptr_arrx}), {cx}", "\n",
             "mov 8({dim_arrx}),{x0}", "\n",
             "lea ({x0}, {x0}, 2), {x1}", "\n",
             "lea ({cx}, {x1},), {x1}", "\n",
@@ -190,19 +166,16 @@ macro_rules! asm_c_load {
     };
     (3) => {
         concat!(
-            "mov ({ptr_arrx}), {cx}", "\n",
             "mov 8({dim_arrx}),{x0}", "\n",
         )
     };
     (2) => {
         concat!(
-            "mov ({ptr_arrx}), {cx}", "\n",
             "mov 8({dim_arrx}),{x0}", "\n",
         )
     };
     (1) => {
         concat!(
-            "mov ({ptr_arrx}), {cx}", "\n",
             "mov 8({dim_arrx}),{x0}", "\n",
         )
     };
@@ -233,7 +206,7 @@ macro_rules! inc_b_k_unroll {
     };
     (B, $X:tt, $K:tt) => {
         concat!(
-            "add $4*", $K, "*", $X, ", {cx}", "\n",
+            "add $4*", $K, "*", $X, ", {bx}", "\n",
         )
     };
 }
@@ -281,7 +254,7 @@ macro_rules! cum_seq {
 macro_rules! load_b {
     (B, $N:tt, $K:tt, $X:tt, $r:expr) => {
         concat!(
-            vbroadcast!(), "  ", $K, "*", $X, "*4+", $N, "*4({cx}), %xmm", $r, "\n",
+            vbroadcast!(), "  ", $K, "*", $X, "*4+", $N, "*4({bx}), %xmm", $r, "\n",
             "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
         )
     };
@@ -388,17 +361,16 @@ macro_rules! def_ukernel {
             let k_iter = k / 16;
             let k_left = (k % 16) / 4;
             let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
-            let mut ptr_arr = [c as usize, alpha as usize, beta as usize];
+            let one = 1_f32;
+            let ptr_arr = [&one, alpha, beta];
             let mut cf = c;
             let mut c_buf = [0i32;$mr*$nr];
             let c_cs = d_arr[3];
-            let one = 1_f32;
             let one_i16 = [1i16;8];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
-                ptr_arr[0] = cf as usize;
             }
             // prefetch for c
             use std::arch::x86::_mm_prefetch;
@@ -413,7 +385,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "({cx})"),
+                prefetch_0!(128, "({bx})"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
@@ -461,7 +433,8 @@ macro_rules! def_ukernel {
                 "je 6f",
 
                 // check if beta is equal to 1
-                "ucomiss ({onex}), %xmm0",
+                "mov ({ptr_arrx}), {dim_arrx}",
+                "ucomiss ({dim_arrx}), %xmm0",
                 "je 9f",
 
                 cum_seq!($acc_macro,$nr,$is_partial,2),
@@ -477,11 +450,11 @@ macro_rules! def_ukernel {
 
 
                 x1 = inout(reg) a => _,
-                cx = inout(reg) b => _,
+                bx = inout(reg) b => _,
                 ptr_arrx = inout(reg) ptr_arr.as_ptr() => _,
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 x0 = inout(reg) &one_i16 => _,
-                onex = inout(reg) &one => _,
+                cx = inout(reg) cf => _,
                 // x2 = out(reg) _,
                 out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
                 out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
@@ -524,8 +497,8 @@ macro_rules! def_ukernelxn {
             let k_left = (k % 16) / 4;
             let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
             let one = 1_f32;
+            let ptr_arr = [&one, alpha, beta];
             let one_i16 = [1i16;8];
-            let mut ptr_arr = [c as usize, alpha as usize, beta as usize];
             let mut cf = c;
             let mut c_buf = [0i32;$mr*$nr];
             let c_cs = d_arr[3];
@@ -533,7 +506,6 @@ macro_rules! def_ukernelxn {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
-                ptr_arr[0] = cf as usize;
             }
             use std::arch::x86::_mm_prefetch;
             let _ = 'blk: {
@@ -551,7 +523,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "({cx})"),
+                            prefetch_0!(128, "({bx})"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),
@@ -598,7 +570,8 @@ macro_rules! def_ukernelxn {
                             "je 6f",
 
                             // check if beta is equal to 1
-                            "ucomiss ({onex}), %xmm0",
+                            "mov ({ptr_arrx}), {dim_arrx}",
+                            "ucomiss ({dim_arrx}), %xmm0",
                             "je 9f",
 
                             cum_seq!($acc_macro,ni,$is_partial,2),
@@ -615,11 +588,11 @@ macro_rules! def_ukernelxn {
                             // 7 -> DDONE
                             "7:",
                             x1 = inout(reg) a => _,
-                            cx = inout(reg) b => _,
+                            bx = inout(reg) b => _,
                             ptr_arrx = inout(reg) ptr_arr.as_ptr() => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             x0 = inout(reg) &one_i16 => _,
-                            onex = inout(reg) &one => _,
+                            cx = inout(reg) cf => _,
                             out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
                             out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
                             options(att_syntax)

@@ -1857,8 +1857,6 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                         }
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -1930,8 +1928,6 @@ macro_rules! def_kernel_bb_pf1 {
                         }
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -1999,8 +1995,6 @@ macro_rules! def_kernel_bb_v0 {
                         }
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2068,8 +2062,6 @@ macro_rules! def_kernel_bb_v0_no_beta {
                         }
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2144,8 +2136,6 @@ macro_rules! def_kernel_sb_pf1 {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2219,8 +2209,6 @@ macro_rules! def_kernel_sb_v0 {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2292,8 +2280,6 @@ macro_rules! def_kernel_sb_v0_no_beta {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2366,8 +2352,6 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2436,8 +2420,6 @@ macro_rules! def_kernel_bs_no_beta {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };
@@ -2506,8 +2488,6 @@ macro_rules! def_kernel_bs {
                         return;
                     }
                 )*
-
-                asm!("vzeroupper");
             }
         }
     };

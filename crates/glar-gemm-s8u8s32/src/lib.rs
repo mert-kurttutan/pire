@@ -38,9 +38,6 @@ impl MyFn for unsafe fn(*mut TC, m: usize) {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
-
 pub(crate) unsafe fn glar_gemm_s8u8s32_generic<F: MyFn>(
     m: usize,
     n: usize,

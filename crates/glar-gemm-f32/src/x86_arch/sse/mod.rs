@@ -6,7 +6,6 @@ pub(crate) use asm_ukernel::*;
 pub(crate) use axpy_kernel::*;
 
 use paste::paste;
-use std::arch::asm;
 
 use crate::{TA, TB, TC};
 

@@ -104,6 +104,7 @@ pub(crate) unsafe fn kernel_bs<F: MyFn>(
     } else {
         kernel_64x15_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     }
+    asm!("vzeroupper");
 }
 
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
@@ -127,6 +128,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     } else {
         kernel_64x15_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
+    asm!("vzeroupper");
 }
 
 pub(crate) unsafe fn kernel<F: MyFn>(
@@ -147,4 +149,5 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     } else {
         kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
+    asm!("vzeroupper");
 }

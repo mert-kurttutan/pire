@@ -1,12 +1,11 @@
 #[rustfmt::skip]
 pub mod asm_ukernel;
-pub(crate) mod axpy_kernel;
+// pub(crate) mod axpy_kernel;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use axpy_kernel::*;
+// pub(crate) use axpy_kernel::*;
 
 use paste::paste;
-use std::arch::asm;
 
 use crate::{TA, TB, TC};
 

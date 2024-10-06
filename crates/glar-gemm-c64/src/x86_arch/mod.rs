@@ -163,9 +163,9 @@ unsafe fn kernel<F: MyFn>(
     kc_last: bool,
     kc_first: bool,
 ) {
-    // if kc_first {
-    //     scale_c(m, n, beta, c, c_rs, c_cs);
-    // }
+    if kc_first {
+        scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Reg1x2 => sse::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func),
@@ -193,8 +193,11 @@ unsafe fn kernel_m<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     kc_last: bool,
-    _kc_first: bool,
+    kc_first: bool,
 ) {
+    if kc_first {
+        scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Reg1x2 => sse::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
@@ -223,8 +226,11 @@ unsafe fn kernel_n<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     kc_last: bool,
-    _kc_first: bool,
+    kc_first: bool,
 ) {
+    if kc_first {
+        scale_c(m, n, beta, c, c_rs, c_cs);
+    }
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Reg1x2 => sse::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),

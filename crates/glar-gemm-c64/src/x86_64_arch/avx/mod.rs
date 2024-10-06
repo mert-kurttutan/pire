@@ -140,6 +140,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     } else {
         kernel_4x2_sb_v0::<_, true>(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
+    asm!("vzeroupper");
 }
 
 pub(crate) unsafe fn kernel_bs<F: MyFn>(
@@ -161,6 +162,7 @@ pub(crate) unsafe fn kernel_bs<F: MyFn>(
     } else {
         kernel_4x2_bs_v0::<_, true>(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     }
+    asm!("vzeroupper");
 }
 
 // #[target_feature(enable = "avx")]
@@ -181,4 +183,5 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     } else {
         kernel_4x2_bb::<_, true>(m, n, k, alpha, c, c_rs, c_cs, ap, bp, f)
     }
+    asm!("vzeroupper");
 }
