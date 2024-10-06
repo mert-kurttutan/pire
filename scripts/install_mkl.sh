@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# get current_dir as 1st argument
+current_dir=$1
+
+# set env to current dir/.env
+env_path=$current_dir/.env
 # Define the location for the virtual environment
 env_path=/home/ubuntu/.env
 

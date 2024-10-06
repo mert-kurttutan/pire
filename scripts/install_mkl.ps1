@@ -1,14 +1,27 @@
 # Define the location for the virtual environment
-$env_path =  # Replace with your desired environment path
+# set env_path current working directory/.env
+# $current_directory = Get-Location
+
+# get env directory as 1st argument
+$env_dir = $args[0]
+
+$env_path = "$env_dir\.env"
+
+# Replace with your desired environment path
 
 # Create the virtual environment
-python -m venv $env_path
+python.exe -m venv $env_path
 
 # Activate the virtual environment
 & "$env_path\Scripts\Activate.ps1"
 
+$env:PIP_PROXY=''
+
 # Upgrade pip
 pip install --upgrade pip
+
+# print message sying that installation mkl
+Write-Host "Installing MKL..."
 
 # Install MKL
 pip install mkl
