@@ -67,19 +67,17 @@ pub struct CpuFeatures {
     pub ssse3: bool,
 }
 
+#[cfg(target_arch = "aarch64")]
+#[derive(Copy, Clone)]
+pub struct CpuFeatures {
+    pub sve: bool,
+    pub neon: bool,
+    pub fp16: bool,
+}
+
 // padding in bytes
 const CACHELINE_PAD: usize = 1024;
 
-#[cfg(target_arch = "x86_64")]
-pub struct HWConfig {
-    pub cpu_ft: CpuFeatures,
-    pub hw_model: HWModel,
-    is_l1_shared: bool,
-    is_l2_shared: bool,
-    is_l3_shared: bool,
-}
-
-#[cfg(target_arch = "x86")]
 pub struct HWConfig {
     pub cpu_ft: CpuFeatures,
     pub hw_model: HWModel,
@@ -99,11 +97,6 @@ impl HWConfig {
     pub fn cpu_ft(&self) -> CpuFeatures {
         self.cpu_ft
     }
-}
-
-#[cfg(target_arch = "aarch64")]
-pub struct HWConfig {
-    neon: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -204,7 +197,18 @@ fn detect_hw_config() -> HWConfig {
     }
     #[cfg(target_arch = "aarch64")]
     {
-        return HWConfig { neon: true };
+        use std::arch::is_aarch64_feature_detected;
+        let neon = is_aarch64_feature_detected!("neon");
+        let sve = is_aarch64_feature_detected!("sve");
+        let fp16 = is_aarch64_feature_detected!("fp16");
+        // println!("neon: {}, sve: {}, fp16: {}", neon, sve, fp16);
+        // let fcma = is_aarch64_feature_detected!("fcma");
+
+        return HWConfig { 
+            cpu_ft: CpuFeatures { neon, sve, fp16 },
+            hw_model: HWModel::Reference, 
+            is_l1_shared: false, is_l2_shared: false, is_l3_shared: true 
+        };
     }
 }
 
@@ -315,9 +319,47 @@ pub(crate) mod cpu_features {
 }
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod cpu_features {
+    use super::HWModel;
     use super::RUNTIME_HW_CONFIG;
-    pub fn hw_neon() -> bool {
-        RUNTIME_HW_CONFIG.neon
+
+    pub fn hw_model() -> HWModel {
+        RUNTIME_HW_CONFIG.hw_model
+    }
+
+    pub fn has_f32_compute() -> bool {
+        // RUNTIME_HW_CONFIG.cpu_ft.avx512f || RUNTIME_HW_CONFIG.cpu_ft.avx
+        // dont use above since some avx512f also rely on avx instructions
+        // (even though avx512f should imply), we are being super conservative here
+        RUNTIME_HW_CONFIG.cpu_ft.neon
+    }
+
+    pub fn has_c32_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.neon
+    }
+
+    pub fn has_f16f32_compute() -> bool {
+        false
+    }
+    pub fn has_f64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.neon
+    }
+
+    pub fn has_c64_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.neon
+    }
+
+    pub fn has_f16_compute() -> bool {
+        RUNTIME_HW_CONFIG.cpu_ft.fp16
+    }
+    pub fn has_i16i32_compute() -> bool {
+        true
+    }
+    pub fn has_i8i32_compute() -> bool {
+        true
+    }
+    // TODO: Use actual info from hardware
+    pub fn get_cache_params() -> (usize, usize, usize) {
+        (4800, 256, 128)
     }
 }
 pub use cpu_features::*;
@@ -2530,6 +2572,26 @@ macro_rules! c_mem {
         "0({x4}, {x0}, 2)"
     };
 }
+
+#[macro_export]
+macro_rules! c_mem2 {
+    (0) => {
+        "{cx}"
+    };
+    (1) => {
+        "{x1}"
+    };
+    (2) => {
+        "{x2}"
+    };
+    (3) => {
+        "{x3}"
+    };
+    (4) => {
+        "{x4}"
+    };
+}
+
 
 // mod test {
 //     // test split_c_range

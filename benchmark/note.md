@@ -40,3 +40,9 @@ cblas_hgemm on intel sde on the same machine as above gives (exit code: 0xc00000
 MKL_NUM_THREADS=1
 
 but not on windows ec2 saphhier rapid machine from aws
+
+
+
+rust gemm bug, on aarch64 platform
+
+./target/release/bench --m 3600 --n 1000 --k 3600 --bench-type sgemm --backend rustgemm --alpha 3.1 --check
