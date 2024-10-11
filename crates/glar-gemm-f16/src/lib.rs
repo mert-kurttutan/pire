@@ -1,6 +1,9 @@
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod x86_64_arch;
 
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod arm64;
+
 pub(crate) mod reference;
 
 pub(crate) type TA = f16;
@@ -51,6 +54,13 @@ pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
         {
             let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
             x86_64_arch::glar_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            let hw_config = arm64::Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            arm64::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
@@ -150,6 +160,13 @@ pub unsafe fn packa_f16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_f16_compute() {
+            return arm64::packa_full(m, k, a, a_rs, a_cs, ap);
+        }
+    }
+
     // no support for x86 and sse
     reference::packa_full(m, k, a, a_rs, a_cs, ap)
 }
@@ -169,6 +186,13 @@ pub unsafe fn packb_f16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
         }
         if has_f16f32_compute() {
             return x86_64_arch::packb_full_f32(n, k, b, b_rs, b_cs, bp);
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_f16_compute() {
+            return arm64::packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }
     // no support for x86 and sse
@@ -224,8 +248,8 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.0];
-    static BETA_ARR: [f32; 1] = [1.0];
+    static ALPHA_ARR: [f32; 1] = [1.79];
+    static BETA_ARR: [f32; 1] = [1.17];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();

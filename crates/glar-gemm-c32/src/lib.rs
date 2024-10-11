@@ -3,11 +3,17 @@ pub(crate) mod x86_64_arch;
 #[cfg(target_arch = "x86")]
 pub(crate) mod x86_arch;
 
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod arm64;
+
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
 #[cfg(target_arch = "x86")]
 use x86_arch::X86dispatcher;
+
+#[cfg(target_arch = "aarch64")]
+use arm64::Arm64dispatcher;
 
 pub(crate) mod reference;
 
@@ -64,6 +70,13 @@ pub(crate) unsafe fn glar_cgemm_generic<F: MyFn>(
         {
             let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
             x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            let hw_config = Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            arm64::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
@@ -157,6 +170,13 @@ pub unsafe fn packa_c32(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
             return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_c32_compute() {
+            return arm64::packa_full(m, k, a, a_rs, a_cs, ap);
+        }
+    }
     reference::packa_full(m, k, a, a_rs, a_cs, ap)
 }
 
@@ -178,6 +198,12 @@ pub unsafe fn packb_c32(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
     {
         if has_c32_compute() {
             return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
+        }
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_c32_compute() {
+            return arm64::packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
@@ -236,8 +262,8 @@ mod tests {
     // static BETA_ARR: [TC; 3] =
     //     [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }, Complex { re: 0.0, im: 0.0 }];
 
-    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 1.7 }];
-    static BETA_ARR: [TC; 1] = [Complex { re: 1.0, im: 1.7 }];
+    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 0.79 }];
+    static BETA_ARR: [TC; 1] = [Complex { re: 1.0, im: 1.0 }];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();

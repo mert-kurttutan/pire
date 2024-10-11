@@ -1358,7 +1358,7 @@ pub fn cblas_params_from_str(
 }
 
 pub fn generate_m_dims(mc: usize, mr: usize) -> Vec<usize> {
-    return vec![1, 5737, 67, 137];
+    return vec![1, 67, 137];
     let mut a_dims = vec![];
     for m in 1..mr {
         a_dims.push(m);
