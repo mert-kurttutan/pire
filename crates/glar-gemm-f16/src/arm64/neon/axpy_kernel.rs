@@ -37,7 +37,7 @@ unsafe fn zero_v() -> float16x8_t {
 unsafe fn scale(mut v: float16x8_t, alpha: TC) -> float16x8_t {
     asm!(
         "ldr {x2:h}, [{alphax}]",
-        "fmul {x1:v}.8h, {x1:v}.8h, {x2}.8h",
+        "fmul {x1:v}.8h, {x1:v}.8h, {x2}.h[0]",
         alphax = in(reg) &alpha,
         x1 = inout(vreg) v,
         x2 = out(vreg) _,

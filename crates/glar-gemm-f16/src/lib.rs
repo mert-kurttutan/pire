@@ -248,8 +248,8 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.17];
-    static BETA_ARR: [f32; 1] = [1.79];
+    static ALPHA_ARR: [f32; 1] = [1.79];
+    static BETA_ARR: [f32; 1] = [1.17];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();
