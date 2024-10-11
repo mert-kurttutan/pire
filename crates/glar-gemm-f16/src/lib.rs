@@ -4,7 +4,6 @@ pub(crate) mod x86_64_arch;
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod arm64;
 
-
 pub(crate) mod reference;
 
 pub(crate) type TA = f16;
@@ -249,14 +248,13 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.0];
-    static BETA_ARR: [f32; 1] = [1.0];
+    static ALPHA_ARR: [f32; 1] = [1.17];
+    static BETA_ARR: [f32; 1] = [1.79];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (48, 8, 8);
         let m_dims = generate_m_dims(mc, mr);
-        let m_dims = [13, 97, 4913];
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
         let unary_fn: unsafe fn(*mut TC, usize) = my_unary;

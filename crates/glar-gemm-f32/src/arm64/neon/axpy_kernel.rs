@@ -1,10 +1,9 @@
-use std::arch::aarch64::*;
 use seq_macro::seq;
+use std::arch::aarch64::*;
 
 use crate::{TA, TB, TC};
 
 const VS: usize = 4;
-
 
 #[inline(always)]
 unsafe fn store_v(dst: *mut TC, src: float32x4_t) {
@@ -26,7 +25,6 @@ unsafe fn scale(v: float32x4_t, alpha: TC) -> float32x4_t {
     vmulq_n_f32(v, alpha)
 }
 
-
 pub(crate) struct AxpyKernel {
     pub(crate) acc: [float32x4_t; 2],
 }
@@ -34,9 +32,7 @@ pub(crate) struct AxpyKernel {
 impl AxpyKernel {
     #[inline(always)]
     pub(crate) unsafe fn new() -> Self {
-        AxpyKernel {
-            acc: [zero_v(); 2],
-        }
+        AxpyKernel { acc: [zero_v(); 2] }
     }
 
     #[inline(always)]
@@ -134,9 +130,13 @@ impl AxpyKernel {
     pub(crate) unsafe fn kernel_scalar(
         &self,
         k: usize,
-        mi: usize, m: usize, lda: usize, 
-        alpha_t: TC, beta_t: TC,
-        a_cur: *const TC, x_v_ptr: *const TC,
+        mi: usize,
+        m: usize,
+        lda: usize,
+        alpha_t: TC,
+        beta_t: TC,
+        a_cur: *const TC,
+        x_v_ptr: *const TC,
         y: *mut TC,
     ) {
         let mut mi = mi;
@@ -146,7 +146,7 @@ impl AxpyKernel {
             let mut acc = 0.0;
 
             for j in 0..k {
-                acc += *a_cur.add(j*lda) * *x_v_ptr.add(j);
+                acc += *a_cur.add(j * lda) * *x_v_ptr.add(j);
             }
 
             acc *= alpha_t;
@@ -163,7 +163,6 @@ impl AxpyKernel {
         }
     }
 }
-
 
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn axpy_v(
@@ -234,9 +233,7 @@ pub(crate) unsafe fn axpy_v(
             mi += VS;
         }
 
-        axpy_ker.kernel_scalar(
-            K_UNROLL, mi, m, lda, alpha_t, beta_t, a_cur, x_v.as_ptr(), y
-        );
+        axpy_ker.kernel_scalar(K_UNROLL, mi, m, lda, alpha_t, beta_t, a_cur, x_v.as_ptr(), y);
 
         beta_t = 1.0;
         ni += K_UNROLL;
@@ -287,9 +284,7 @@ pub(crate) unsafe fn axpy_v(
         }
 
         // scalar impl
-        axpy_ker.kernel_scalar(
-            1, mi, m, lda, alpha_t, beta_t, a_cur, x_cur, y
-        );
+        axpy_ker.kernel_scalar(1, mi, m, lda, alpha_t, beta_t, a_cur, x_cur, y);
 
         beta_t = 1.0;
         ni += 1;
@@ -314,7 +309,7 @@ pub(crate) unsafe fn axpy_d(
     const M_UNROLL: usize = 2;
     let m_unroll = m / M_UNROLL * M_UNROLL;
     let n_vec = n / VS * VS;
-    
+
     // accumulate the vectorized part to scalar f32
     let mut acc_arr = [0.0; VS];
     let mut i = 0;
@@ -323,7 +318,7 @@ pub(crate) unsafe fn axpy_d(
         let a_cur = a.add(i * lda);
         let mut acc_s = [0.0; M_UNROLL];
 
-        let mut acc_v = [zero_v(); M_UNROLL*K_UNROLL];
+        let mut acc_v = [zero_v(); M_UNROLL * K_UNROLL];
 
         let mut j = 0;
         while j < n_vec {
@@ -372,11 +367,10 @@ pub(crate) unsafe fn axpy_d(
         i += M_UNROLL;
     }
 
-
     while i < m {
         let y_cur = y.add(i * incy);
         let a_cur = a.add(i * lda);
-        let mut acc_v = [zero_v(); 1*K_UNROLL];
+        let mut acc_v = [zero_v(); 1 * K_UNROLL];
 
         let mut j = 0;
         while j < n_vec {
@@ -413,7 +407,3 @@ pub(crate) unsafe fn axpy_d(
         i += 1;
     }
 }
-
-
-
-

@@ -1,5 +1,5 @@
-pub(crate) mod pack_neon;
 pub(crate) mod neon;
+pub(crate) mod pack_neon;
 
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
@@ -239,7 +239,9 @@ unsafe fn glar_gemv<F: MyFn>(
     let y_ptr = y.src();
     let incy = y.rs();
     match hw_cfg.reg_dim {
-        RegDim::Reg6x2 => neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
+        RegDim::Reg6x2 => {
+            neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
+        }
     }
 }
 

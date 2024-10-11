@@ -167,7 +167,7 @@ pub unsafe fn packa_f64(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
             return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
-    
+
     #[cfg(target_arch = "aarch64")]
     {
         if has_f64_compute() {
@@ -256,7 +256,7 @@ mod tests {
 
     // static ALPHA_ARR: [f64; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f64; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f64; 1] = [1.0];
+    static ALPHA_ARR: [f64; 1] = [1.79];
     static BETA_ARR: [f64; 1] = [3.0];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {

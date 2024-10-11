@@ -204,10 +204,12 @@ fn detect_hw_config() -> HWConfig {
         // println!("neon: {}, sve: {}, fp16: {}", neon, sve, fp16);
         // let fcma = is_aarch64_feature_detected!("fcma");
 
-        return HWConfig { 
+        return HWConfig {
             cpu_ft: CpuFeatures { neon, sve, fp16 },
-            hw_model: HWModel::Reference, 
-            is_l1_shared: false, is_l2_shared: false, is_l3_shared: true 
+            hw_model: HWModel::Reference,
+            is_l1_shared: false,
+            is_l2_shared: false,
+            is_l3_shared: true,
         };
     }
 }
@@ -2591,7 +2593,6 @@ macro_rules! c_mem2 {
         "{x4}"
     };
 }
-
 
 // mod test {
 //     // test split_c_range

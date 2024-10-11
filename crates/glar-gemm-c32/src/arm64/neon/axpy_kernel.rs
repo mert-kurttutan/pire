@@ -1,10 +1,9 @@
-use std::arch::aarch64::*;
 use seq_macro::seq;
+use std::arch::aarch64::*;
 
 use crate::{TA, TB, TC};
 
 const VS: usize = 2;
-
 
 #[inline(always)]
 unsafe fn store_v(dst: *mut TC, src: float32x4_t) {
@@ -42,10 +41,7 @@ impl AxpyKernel {
     pub(crate) unsafe fn new() -> Self {
         let alt = [-1.0, 1.0, -1.0, 1.0];
         let alt_v = vld1q_f32(alt.as_ptr());
-        AxpyKernel {
-            acc: [zero_v(); 4],
-            alt_v,
-        }
+        AxpyKernel { acc: [zero_v(); 4], alt_v }
     }
 
     #[inline(always)]
@@ -366,17 +362,17 @@ pub(crate) unsafe fn axpy_d(
 
     let alt = [1.0, -1.0, 1.0, -1.0];
     let alt_v = vld1q_f32(alt.as_ptr());
-    
+
     // accumulate the vectorized part to scalar f32
-    let mut acc_arr_0 = [0.0; VS*2];
-    let mut acc_arr_1 = [0.0; VS*2];
+    let mut acc_arr_0 = [0.0; VS * 2];
+    let mut acc_arr_1 = [0.0; VS * 2];
     let mut i = 0;
     while i < m_unroll {
         let y_cur = y.add(i * incy);
         let a_cur = a.add(i * lda);
         let mut acc_s = [TC::ZERO; M_UNROLL];
 
-        let mut acc_v = [zero_v(); M_UNROLL*K_UNROLL*2];
+        let mut acc_v = [zero_v(); M_UNROLL * K_UNROLL * 2];
 
         let mut j = 0;
         while j < n_vec {
@@ -440,7 +436,7 @@ pub(crate) unsafe fn axpy_d(
         let a_cur = a.add(i * lda);
         let mut acc_s = [TC::ZERO; 1];
 
-        let mut acc_v = [zero_v(); 1*K_UNROLL*2];
+        let mut acc_v = [zero_v(); 1 * K_UNROLL * 2];
 
         let mut j = 0;
         while j < n_vec {
@@ -496,5 +492,4 @@ pub(crate) unsafe fn axpy_d(
 
         i += 1;
     }
-
 }

@@ -35,7 +35,7 @@ pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(k: usize, a: *co
 pub(crate) unsafe fn copy_packed<const M: usize>(a: *const TA, b: *mut TA) {
     let a = a as *const f64;
     let b = b as *mut f64;
-    copy_nonoverlapping(a, b, M*2);
+    copy_nonoverlapping(a, b, M * 2);
 }
 
 #[target_feature(enable = "neon")]

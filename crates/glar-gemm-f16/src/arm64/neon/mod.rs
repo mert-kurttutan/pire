@@ -59,7 +59,6 @@ pub unsafe fn axpy<F: MyFn>(
 use glar_base::def_kernel_bb_v0;
 def_kernel_bb_v0!(f16, f16, f16, f16, f16, 48, 4, 48, 32, 16);
 
-
 use super::pack_neon::packa_panel_48;
 
 use glar_base::def_kernel_sb_v0;
