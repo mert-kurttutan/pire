@@ -201,7 +201,6 @@ fn detect_hw_config() -> HWConfig {
         let neon = is_aarch64_feature_detected!("neon");
         let sve = is_aarch64_feature_detected!("sve");
         let fp16 = is_aarch64_feature_detected!("fp16");
-        // println!("neon: {}, sve: {}, fp16: {}", neon, sve, fp16);
         // let fcma = is_aarch64_feature_detected!("fcma");
 
         return HWConfig {
@@ -2591,6 +2590,15 @@ macro_rules! c_mem2 {
     };
     (4) => {
         "{x4}"
+    };
+    (5) => {
+        "{x5}"
+    };
+    (6) => {
+        "{x6}"
+    };
+    (7) => {
+        "{x7}"
     };
 }
 

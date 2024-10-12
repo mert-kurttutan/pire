@@ -180,7 +180,7 @@ use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
     let dim_triple = (DimSize::Big, DimSize::Big, DimSize::Big);
-    let m = 9600;
+    let m = 4800;
     let alpha = TA::ONE;
     let beta = TA::ONE;
     let mut a = vec![TA::ONE; m * m];
@@ -198,7 +198,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 320, 640, 960, 2048,
         // 2400, 3200, 4000, 4800,
         // 5600, 6400,
-        9600,
+        4800,
         // 7200, 8000,
     ];
     for dt in mnk_vec {

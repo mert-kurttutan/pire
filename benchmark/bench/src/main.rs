@@ -262,6 +262,7 @@ fn test_sgemm(
     let mut c = vec![0.0; m * n];
     random_matrix_uniform(m, k, &mut a, m);
     random_matrix_uniform(k, n, &mut b, k);
+    random_matrix_uniform(m, n, &mut c, m);
     let mut c_ref = vec![0.0; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -306,6 +307,10 @@ fn test_sgemm(
                 1e-3,
             )
         };
+        // println!("a: {:?}", a);
+        // println!("b: {:?}", b);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }
 
