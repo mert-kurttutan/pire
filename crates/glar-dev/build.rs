@@ -41,12 +41,14 @@ pub const MKL_INTERFACE: &str = if cfg!(target_pointer_width = "32") {
 };
 
 pub const BLIS: &str = "blis";
+pub const OPENBLAS: &str = "openblas";
 pub const BLASFEO: &str = "blasfeo";
 
 #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 pub const UNSUPPORTED_OS_ERROR: _ = "Target OS is not supported. Please contact me";
 
-pub const LINK_DIRS: &[&str] = &[env_or!("GLAR_MKL_PATH"), env_or!("GLAR_BLIS_PATH"), env_or!("GLAR_BLASFEO_PATH")];
+pub const LINK_DIRS: &[&str] =
+    &[env_or!("GLAR_MKL_PATH"), env_or!("GLAR_BLIS_PATH"), env_or!("GLAR_BLASFEO_PATH"), env_or!("GLAR_OPENBLAS_PATH")];
 
 pub const LIB_DIRS: &[&str] = LINK_DIRS;
 
@@ -78,6 +80,11 @@ fn main() -> Result<(), BuildError> {
     #[cfg(feature = "blis")]
     {
         println!("cargo:rustc-link-lib={link_type}={BLIS}{lib_postfix}");
+    }
+
+    #[cfg(feature = "openblas")]
+    {
+        println!("cargo:rustc-link-lib={link_type}={OPENBLAS}{lib_postfix}");
     }
 
     #[cfg(feature = "mkl")]

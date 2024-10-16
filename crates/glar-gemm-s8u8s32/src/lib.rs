@@ -3,11 +3,17 @@ pub(crate) mod x86_64_arch;
 #[cfg(target_arch = "x86")]
 pub(crate) mod x86_arch;
 
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod arm64;
+
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::X86_64dispatcher;
 
 #[cfg(target_arch = "x86")]
 use x86_arch::X86dispatcher;
+
+#[cfg(target_arch = "aarch64")]
+use arm64::Arm64dispatcher;
 
 pub(crate) mod reference;
 
@@ -15,7 +21,7 @@ pub(crate) type TA = i8;
 pub(crate) type TB = u8;
 pub(crate) type TC = i32;
 
-use glar_base::{ap_size_int, bp_size_int, has_i8i32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
+use glar_base::{has_i8i32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
 
 use reference::RefGemm;
 
@@ -62,6 +68,13 @@ pub(crate) unsafe fn glar_gemm_s8u8s32_generic<F: MyFn>(
         {
             let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
             x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            return;
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            let hw_config = Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            arm64::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
@@ -129,6 +142,60 @@ pub unsafe fn glar_gemm_s8u8s32_fused(
     glar_gemm_s8u8s32_generic(m, n, k, alpha, a, b, beta, c, unary);
 }
 
+pub fn ap_size(m: usize, k: usize) -> usize {
+    let mv: usize;
+    let kv: usize;
+    #[cfg(target_arch = "x86_64")]
+    {
+        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        mv = hw_config.mv();
+        kv = hw_config.kv();
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        mv = hw_config.mv();
+        kv = hw_config.kv();
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        let hw_config = Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        mv = hw_config.mv();
+        kv = hw_config.kv();
+    }
+
+    let m_rounded = (m + mv - 1) / mv * mv;
+    let k_rounded = (k + kv - 1) / kv * kv;
+    m_rounded * k_rounded + glar_base::AB_ALIGN / std::mem::size_of::<TA>()
+}
+
+pub fn bp_size(n: usize, k: usize) -> usize {
+    let nv: usize;
+    let kv: usize;
+    #[cfg(target_arch = "x86_64")]
+    {
+        let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        nv = hw_config.nv();
+        kv = hw_config.kv();
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        nv = hw_config.nv();
+        kv = hw_config.kv();
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        let hw_config = Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+        nv = hw_config.nv();
+        kv = hw_config.kv();
+    }
+
+    let n_rounded = (n + nv - 1) / nv * nv;
+    let k_rounded = (k + kv - 1) / kv * kv;
+    n_rounded * k_rounded + glar_base::AB_ALIGN / std::mem::size_of::<TB>()
+}
+
 // block idx for packa and packb is s.t.
 // m dim for block idx is contiguous and n dim is contiguous
 // this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
@@ -155,6 +222,13 @@ pub unsafe fn packa_i8(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usiz
             return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_i8i32_compute() {
+            return arm64::packa_full(m, k, a, a_rs, a_cs, ap);
+        }
+    }
     reference::packa_full(m, k, a, a_rs, a_cs, ap)
 }
 
@@ -178,11 +252,18 @@ pub unsafe fn packb_u8(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usiz
             return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if has_i8i32_compute() {
+            return arm64::packb_full(n, k, b, b_rs, b_cs, bp);
+        }
+    }
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
 }
 
 pub unsafe fn packa_i8_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
-    let pack_size = ap_size_int::<TA, TC>(m, k);
+    let pack_size = ap_size(m, k);
     let ap_align_offset = ap.as_ptr().align_offset(glar_base::AB_ALIGN);
     // safety check
     assert!(ap.len() >= pack_size);
@@ -191,7 +272,7 @@ pub unsafe fn packa_i8_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs:
 }
 
 pub unsafe fn packb_u8_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
-    let pack_size = bp_size_int::<TB, TC>(n, k);
+    let pack_size = bp_size(n, k);
     let bp_align_offset = bp.as_ptr().align_offset(glar_base::AB_ALIGN);
     // safety check
     assert!(bp.len() >= pack_size);
@@ -255,15 +336,15 @@ mod tests {
                     let mut b = vec![0u8; k * n];
                     random_matrix_uniform(m, k, &mut a, m);
                     random_matrix_uniform(k, n, &mut b, k);
-                    let ap_size = if is_a_packed { ap_size_int::<TA, TC>(m, k) } else { 0 };
-                    let mut ap = vec![0i8; ap_size];
+                    let ap_size_val = if is_a_packed { ap_size(m, k) } else { 0 };
+                    let mut ap = vec![0i8; ap_size_val];
                     let a_matrix = if is_a_packed {
                         unsafe { packa_i8_with_ref(m, k, &a, a_rs, a_cs, &mut ap) }
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
-                    let bp_size = if is_b_packed { bp_size_int::<TB, TC>(n, k) } else { 0 };
-                    let mut bp = vec![0u8; bp_size];
+                    let bp_size_val = if is_b_packed { bp_size(n, k) } else { 0 };
+                    let mut bp = vec![0u8; bp_size_val];
                     let b_matrix = if is_b_packed {
                         unsafe { packb_u8_with_ref(n, k, &b, b_rs, b_cs, &mut bp) }
                     } else {

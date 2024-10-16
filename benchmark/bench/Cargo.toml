@@ -33,6 +33,7 @@ harness = false
 default = []
 mkl_check = []
 mkl = ["glar-dev/mkl"]
+openblas = ["glar-dev/openblas"]
 blis = ["glar-dev/blis"]
 blasfeo = []
 glar = []

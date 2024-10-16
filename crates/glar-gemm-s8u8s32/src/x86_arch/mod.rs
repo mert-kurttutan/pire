@@ -121,6 +121,18 @@ impl<F: MyFn> X86dispatcher<F> {
     pub(crate) fn round_up(&self, k: usize) -> usize {
         (k + 3) / 4 * 4
     }
+
+    pub(crate) fn mv(&self) -> usize {
+        self.vs
+    }
+
+    pub(crate) fn nv(&self) -> usize {
+        1
+    }
+
+    pub(crate) fn kv(&self) -> usize {
+        4
+    }
 }
 
 impl<T: MyFn> GemmCache for X86dispatcher<T> {
