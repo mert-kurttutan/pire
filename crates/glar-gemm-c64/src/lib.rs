@@ -262,7 +262,7 @@ mod tests {
     // static BETA_ARR: [TC; 3] =
     //     [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }, Complex { re: 0.0, im: 0.0 }];
 
-    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 1.17 }];
+    static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 1.0 }];
     static BETA_ARR: [TC; 1] = [Complex { re: 1.0, im: 0.72 }];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {

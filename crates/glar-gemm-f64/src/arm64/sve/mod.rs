@@ -9,7 +9,7 @@ pub(crate) use axpy_kernel::*;
 
 use crate::{TA, TB, TC};
 
-// const VS: usize = 16;
+// const VS: usize = 8;
 
 use crate::MyFn;
 
@@ -78,13 +78,13 @@ pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
         while n_i < n_rounded {
             let bp_cur = bp.add(n_i * k);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24x8_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, f);
+            ukernel_12x8_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, f);
             n_i += nr;
         }
         if n_left != 0 {
             let bp_cur = bp.add(n_i * k);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24xn_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, n_left, f);
+            ukernel_12xn_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, n_left, f);
         }
         m_i += mr;
     }
@@ -96,13 +96,13 @@ pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
         while n_i < n_rounded {
             let bp_cur = bp.add(n_i * k);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24x8_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+            ukernel_12x8_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
             n_i += nr;
         }
         if n_left != 0 {
             let bp_cur = bp.add(n_i * k);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24xn_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+            ukernel_12xn_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
         }
     }
 }
@@ -136,13 +136,13 @@ pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
         while n_i < n_rounded {
             let bp_cur = bp.add(n_i * k_eff);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24x8_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, f);
+            ukernel_12x8_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, f);
             n_i += nr;
         }
         if n_left != 0 {
             let bp_cur = bp.add(n_i * k_eff);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24xn_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, n_left, f);
+            ukernel_12xn_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, n_left, f);
         }
         m_i += mr;
     }
@@ -155,13 +155,13 @@ pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
         while n_i < n_rounded {
             let bp_cur = bp.add(n_i * k_eff);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24x8_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
+            ukernel_12x8_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
             n_i += nr;
         }
         if n_left != 0 {
             let bp_cur = bp.add(n_i * k_eff);
             let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_24xn_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, n_left, f);
+            ukernel_12xn_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, n_left, f);
         }
     }
 }

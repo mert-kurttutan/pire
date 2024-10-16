@@ -223,6 +223,206 @@ extern "C" {
 
 }
 
+
+
+#[cfg(feature = "openblas")]
+#[allow(dead_code)]
+extern "C" {
+    pub fn cblas_sgemv(
+        layout: CBLAS_LAYOUT,
+        trans: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        alpha: c_float,
+        a: *const c_float,
+        lda: c_int,
+        x: *const c_float,
+        incx: c_int,
+        beta: c_float,
+        y: *mut c_float,
+        incy: c_int,
+    );
+
+    pub fn cblas_dgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_double,
+        a: *const c_double,
+        lda: c_int,
+        b: *const c_double,
+        ldb: c_int,
+        beta: c_double,
+        c: *mut c_double,
+        ldc: c_int,
+    );
+
+    pub fn cblas_dgemv(
+        layout: CBLAS_LAYOUT,
+        trans: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        alpha: c_double,
+        a: *const c_double,
+        lda: c_int,
+        x: *const c_double,
+        incx: c_int,
+        beta: c_double,
+        y: *mut c_double,
+        incy: c_int,
+    );
+
+    pub fn cblas_sgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_float,
+        a: *const c_float,
+        lda: c_int,
+        b: *const c_float,
+        ldb: c_int,
+        beta: c_float,
+        c: *mut c_float,
+        ldc: c_int,
+    );
+
+
+    pub fn cblas_cgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: *const c_void,
+        a: *const c_void,
+        lda: c_int,
+        b: *const c_void,
+        ldb: c_int,
+        beta: *const c_void,
+        c: *mut c_void,
+        ldc: c_int,
+    );
+
+    pub fn cblas_zgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: *const c_void,
+        a: *const c_void,
+        lda: c_int,
+        b: *const c_void,
+        ldb: c_int,
+        beta: *const c_void,
+        c: *mut c_void,
+        ldc: c_int,
+    );
+}
+
+#[cfg(feature = "openblas")]
+pub mod openblas{
+    use libc::{c_double, c_float, c_int, c_schar, c_short, c_ushort, c_void};
+    use super::{
+        CBLAS_LAYOUT, CBLAS_TRANSPOSE, CBLAS_OFFSET,
+    };
+    #[allow(clippy::too_many_arguments)]
+    pub fn cblas_gemm_s8u8s32(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        offsetc: CBLAS_OFFSET,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_float,
+        a: *const c_void,
+        lda: c_int,
+        oa: c_schar,
+        b: *const c_void,
+        ldb: c_int,
+        ob: c_schar,
+        beta: c_float,
+        c: *mut c_int,
+        ldc: c_int,
+        oc: *const c_int,
+    ){
+        panic!("openblas does not support s8u8s32");
+    }
+    pub fn cblas_hgemm(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_ushort,
+        a: *const c_ushort,
+        lda: c_int,
+        b: *const c_ushort,
+        ldb: c_int,
+        beta: c_ushort,
+        c: *mut c_ushort,
+        ldc: c_int,
+    ){
+        panic!("openblas does not support hgemm");
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn cblas_gemm_s16s16s32(
+        layout: CBLAS_LAYOUT,
+        transa: CBLAS_TRANSPOSE,
+        transb: CBLAS_TRANSPOSE,
+        offsetc: CBLAS_OFFSET,
+        m: c_int,
+        n: c_int,
+        k: c_int,
+        alpha: c_float,
+        a: *const c_short,
+        lda: c_int,
+        oa: c_short,
+        b: *const c_short,
+        ldb: c_int,
+        ob: c_short,
+        beta: c_float,
+        c: *mut c_int,
+        ldc: c_int,
+        oc: *const c_int,
+    ){
+        panic!("openblas does not support s16s16s32");
+    }
+    pub fn cblas_sgemm_batch(
+        layout: CBLAS_LAYOUT,
+        transa: *const CBLAS_TRANSPOSE,
+        transb: *const CBLAS_TRANSPOSE,
+        m: *const c_int,
+        n: *const c_int,
+        k: *const c_int,
+        alpha: *const c_float,
+        a: *const *const c_float,
+        lda: *const c_int,
+        b: *const *const c_float,
+        ldb: *const c_int,
+        beta: *const c_float,
+        c: *const *mut c_float,
+        ldc: *const c_int,
+        group_count: c_int,
+        group_size: *const c_int,
+    ){
+        panic!("openblas does not support sgemm_batch");
+    }
+}
+
+#[cfg(feature = "openblas")]
+pub use openblas::*;
+
 const BLIS_TRANS_SHIFT: usize = 3;
 const BLIS_CONJ_SHIFT: usize = 4;
 const BLIS_UPLO_SHIFT: usize = 5;

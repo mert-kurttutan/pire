@@ -386,6 +386,10 @@ fn test_cgemm(
                 1e-3,
             )
         };
+        // println!("a: {:?}", a);
+        // println!("b: {:?}", b);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
         // println!("c: {:?}", &c[..10]);
         // println!("c_ref: {:?}", &c_ref[..10]);
@@ -463,8 +467,10 @@ fn test_zgemm(
                 1e-3,
             )
         };
-        // println!("c    : {:?}", &c[..8]);
-        // println!("c_ref: {:?}", &c_ref[..8]);
+        // println!("a: {:?}", a);
+        // println!("b: {:?}", b);
+        // println!("c: {:?}", c);
+        // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);
     }
 
@@ -771,6 +777,8 @@ fn test_gemm_s8u8s32(
                 1e-3,
             )
         };
+        // println!("a: {:?}", a);
+        // println!("b: {:?}", b);
         // println!("c: {:?}", c);
         // println!("c_ref: {:?}", c_ref);
         println!("diff: {}", diff);

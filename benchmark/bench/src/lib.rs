@@ -3,12 +3,14 @@ use num_complex::Complex;
 
 type C32 = Complex<f32>;
 
-#[cfg(feature = "mkl")]
+// #[cfg(feature = "mkl")]
+#[cfg(any(feature = "mkl", feature = "openblas"))]
 use glar_dev::{stride_to_cblas, CBLAS_OFFSET::*};
 
 #[cfg(feature = "blis")]
 use glar_dev::BLIS_NO_TRANSPOSE;
-#[cfg(feature = "mkl")]
+// #[cfg(feature = "mkl")]
+#[cfg(any(feature = "mkl", feature = "openblas"))]
 use libc::{c_int, c_ushort, c_void};
 
 use num_complex::{Complex32, Complex64};
@@ -30,6 +32,7 @@ pub enum GemmBackend {
     Mkl,
     RustGemm,
     Glar,
+    OpenBlas,
 }
 
 pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
@@ -44,6 +47,9 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     }
     if backend_str == "glar" {
         return GemmBackend::Glar;
+    }
+    if backend_str == "openblas" {
+        return GemmBackend::OpenBlas;
     }
     panic!("Unsupported backend str");
 }
@@ -149,6 +155,26 @@ pub unsafe fn dispatch_dgemm(
                 c_cs as usize,
             );
         }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_dgemm(
+                    layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
+                    ldb as i32, beta, c, ldc as i32,
+                );
+            }
+        }
     }
 }
 
@@ -252,6 +278,26 @@ pub unsafe fn dispatch_sgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
+        }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_sgemm(
+                    layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
+                    ldb as i32, beta, c, ldc as i32,
+                );
+            }
         }
     }
 }
@@ -369,6 +415,31 @@ pub unsafe fn dispatch_cgemm(
                 c_cs as usize,
             );
         }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let a = a as *const c_void;
+                let b = b as *const c_void;
+                let c = c as *mut c_void;
+                let alpha_ptr = &alpha as *const Complex32 as *const c_void;
+                let beta_ptr = &beta as *const Complex32 as *const c_void;
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_cgemm(
+                    layout, transa, transb, m as i32, n as i32, k as i32, alpha_ptr, a, lda as i32,
+                    b, ldb as i32, beta_ptr, c, ldc as i32,
+                );
+            }
+        }
     }
 }
 
@@ -484,6 +555,31 @@ pub unsafe fn dispatch_zgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
+        }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let a = a as *const c_void;
+                let b = b as *const c_void;
+                let c = c as *mut c_void;
+                let alpha_ptr = &alpha as *const Complex64 as *const c_void;
+                let beta_ptr = &beta as *const Complex64 as *const c_void;
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_zgemm(
+                    layout, transa, transb, m as i32, n as i32, k as i32, alpha_ptr, a, lda as i32,
+                    b, ldb as i32, beta_ptr, c, ldc as i32,
+                );
+            }
         }
     }
 }
@@ -638,6 +734,61 @@ pub unsafe fn dispatch_gemm_batch_f32(
                 );
             }
         }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                let transa_vec = vec![transa; batch_size];
+                let transb_vec = vec![transb; batch_size];
+                let m_vec = vec![m as i32; batch_size];
+                let n_vec = vec![n as i32; batch_size];
+                let k_vec = vec![k as i32; batch_size];
+                let alpha_vec = vec![alpha; batch_size];
+                let lda_vec = vec![lda; batch_size];
+                let ldb_vec = vec![ldb; batch_size];
+                let beta_vec = vec![beta; batch_size];
+                let ldc_vec = vec![ldc; batch_size];
+                let a_vec = (0..batch_size)
+                    .map(|i| a.offset(i as isize * stridea))
+                    .collect::<Vec<*const f32>>();
+                let b_vec = (0..batch_size)
+                    .map(|i| b.offset(i as isize * strideb))
+                    .collect::<Vec<*const f32>>();
+                let c_vec = (0..batch_size)
+                    .map(|i| c.offset(i as isize * stridec))
+                    .collect::<Vec<*mut f32>>();
+                let stride_size_vec = [batch_size as i32; 1];
+    
+                glar_dev::cblas_sgemm_batch(
+                    layout,
+                    transa_vec.as_ptr(),
+                    transb_vec.as_ptr(),
+                    m_vec.as_ptr(),
+                    n_vec.as_ptr(),
+                    k_vec.as_ptr(),
+                    alpha_vec.as_ptr(),
+                    a_vec.as_ptr(),
+                    lda_vec.as_ptr(),
+                    b_vec.as_ptr(),
+                    ldb_vec.as_ptr(),
+                    beta_vec.as_ptr(),
+                    c_vec.as_ptr(),
+                    ldc_vec.as_ptr(),
+                    1,
+                    stride_size_vec.as_ptr(),
+                );
+            }
+        }
     }
 }
 
@@ -730,6 +881,31 @@ pub unsafe fn dispatch_hgemm(
                 c_cs as usize,
             );
         }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                let a = a as *const c_ushort;
+                let b = b as *const c_ushort;
+                let c = c as *mut c_ushort;
+                let alpha = alpha.to_bits();
+                let beta = beta.to_bits();
+                glar_dev::cblas_hgemm(
+                    layout, transa, transb, m as i32, n as i32, k as i32, alpha, a, lda as i32, b,
+                    ldb as i32, beta, c, ldc as i32,
+                );
+            }
+        }
     }
 }
 
@@ -815,6 +991,44 @@ pub unsafe fn dispatch_gemm_s16s16s32(
                 c_rs as usize,
                 c_cs as usize,
             );
+        }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let oc_val = 0;
+                let oc = &oc_val as *const c_int;
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_gemm_s16s16s32(
+                    layout,
+                    transa,
+                    transb,
+                    CblasFixOffset,
+                    m as i32,
+                    n as i32,
+                    k as i32,
+                    alpha,
+                    a,
+                    lda as i32,
+                    0,
+                    b,
+                    ldb as i32,
+                    0,
+                    beta,
+                    c,
+                    ldc as i32,
+                    oc,
+                );
+            }
         }
     }
 }
@@ -903,6 +1117,46 @@ pub unsafe fn dispatch_gemm_s8u8s32(
                 c_rs as usize,
                 c_cs as usize,
             );
+        }
+        GemmBackend::OpenBlas => {
+            #[cfg(feature = "openblas")]
+            {
+                let oc_val = 0;
+                let oc = &oc_val as *const c_int;
+                let a = a as *const c_void;
+                let b = b as *const c_void;
+                let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+                    m,
+                    n,
+                    k,
+                    a_rs as usize,
+                    a_cs as usize,
+                    b_rs as usize,
+                    b_cs as usize,
+                    c_rs as usize,
+                    c_cs as usize,
+                );
+                glar_dev::cblas_gemm_s8u8s32(
+                    layout,
+                    transa,
+                    transb,
+                    CblasFixOffset,
+                    m as i32,
+                    n as i32,
+                    k as i32,
+                    alpha,
+                    a,
+                    lda as i32,
+                    0,
+                    b,
+                    ldb as i32,
+                    0,
+                    beta,
+                    c,
+                    ldc as i32,
+                    oc,
+                );
+            }
         }
     }
 }

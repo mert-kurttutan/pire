@@ -73,6 +73,9 @@ pub struct CpuFeatures {
     pub sve: bool,
     pub neon: bool,
     pub fp16: bool,
+    pub f32mm: bool,
+    pub fcma: bool,
+    pub i8mm: bool,
 }
 
 // padding in bytes
@@ -201,10 +204,14 @@ fn detect_hw_config() -> HWConfig {
         let neon = is_aarch64_feature_detected!("neon");
         let sve = is_aarch64_feature_detected!("sve");
         let fp16 = is_aarch64_feature_detected!("fp16");
+        let f32mm = is_aarch64_feature_detected!("f32mm");
+        let fcma = is_aarch64_feature_detected!("fcma");
+        let i8mm = is_aarch64_feature_detected!("i8mm");
+        // println!("neon: {}, sve: {}, fp16: {}, f32mm: {}, fcma: {}", neon, sve, fp16, f32mm, fcma);
         // let fcma = is_aarch64_feature_detected!("fcma");
 
         return HWConfig {
-            cpu_ft: CpuFeatures { neon, sve, fp16 },
+            cpu_ft: CpuFeatures { neon, sve, fp16, f32mm, fcma, i8mm },
             hw_model: HWModel::Reference,
             is_l1_shared: false,
             is_l2_shared: false,
@@ -320,6 +327,12 @@ pub(crate) mod cpu_features {
 }
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod cpu_features {
+
+    // neon is required for all the compute since
+    // it is used for packing and unpacking and 
+    // available for all arch for which other extension are available
+    // unless something weird happends with the vendor
+    // For those (marginal) cases, we probably dont want to bother supporting
     use super::HWModel;
     use super::RUNTIME_HW_CONFIG;
 
@@ -350,13 +363,14 @@ pub(crate) mod cpu_features {
     }
 
     pub fn has_f16_compute() -> bool {
-        RUNTIME_HW_CONFIG.cpu_ft.fp16
+        RUNTIME_HW_CONFIG.cpu_ft.fp16 && RUNTIME_HW_CONFIG.cpu_ft.neon
     }
     pub fn has_i16i32_compute() -> bool {
-        true
+        false
     }
     pub fn has_i8i32_compute() -> bool {
-        true
+        // at the the moment only sve is implemented
+        RUNTIME_HW_CONFIG.cpu_ft.i8mm && RUNTIME_HW_CONFIG.cpu_ft.sve && RUNTIME_HW_CONFIG.cpu_ft.neon
     }
     // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {
@@ -858,7 +872,7 @@ pub enum GemmPool {
 }
 
 pub fn ap_size<T>(m: usize, k: usize) -> usize {
-    let vs = 64 / std::mem::size_of::<T>();
+    let vs = 256 / std::mem::size_of::<T>();
     let m_max = (m + vs - 1) / vs * vs;
     m_max * k + AB_ALIGN / std::mem::size_of::<T>()
 }
@@ -869,14 +883,14 @@ pub fn bp_size<T>(n: usize, k: usize) -> usize {
 
 pub fn ap_size_int<T, P>(m: usize, k: usize) -> usize {
     let vs = 64 / std::mem::size_of::<T>();
-    let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
+    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>())*2;
     let k_r = (k + c_r - 1) / c_r * c_r;
     let m_max = (m + vs - 1) / vs * vs;
     m_max * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }
 
 pub fn bp_size_int<T, P>(n: usize, k: usize) -> usize {
-    let c_r = std::mem::size_of::<P>() / std::mem::size_of::<T>();
+    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>())*2;
     let k_r = (k + c_r - 1) / c_r * c_r;
     n * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }
@@ -2599,6 +2613,27 @@ macro_rules! c_mem2 {
     };
     (7) => {
         "{x7}"
+    };
+    (8) => {
+        "{x8}"
+    };
+    (9) => {
+        "{x9}"
+    };
+    (10) => {
+        "{x10}"
+    };
+    (11) => {
+        "{x11}"
+    };
+    (12) => {
+        "{x12}"
+    };
+    (13) => {
+        "{x13}"
+    };
+    (14) => {
+        "{x14}"
     };
 }
 
