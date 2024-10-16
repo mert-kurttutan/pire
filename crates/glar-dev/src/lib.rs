@@ -223,8 +223,6 @@ extern "C" {
 
 }
 
-
-
 #[cfg(feature = "openblas")]
 #[allow(dead_code)]
 extern "C" {
@@ -292,7 +290,6 @@ extern "C" {
         ldc: c_int,
     );
 
-
     pub fn cblas_cgemm(
         layout: CBLAS_LAYOUT,
         transa: CBLAS_TRANSPOSE,
@@ -329,11 +326,9 @@ extern "C" {
 }
 
 #[cfg(feature = "openblas")]
-pub mod openblas{
+pub mod openblas {
+    use super::{CBLAS_LAYOUT, CBLAS_OFFSET, CBLAS_TRANSPOSE};
     use libc::{c_double, c_float, c_int, c_schar, c_short, c_ushort, c_void};
-    use super::{
-        CBLAS_LAYOUT, CBLAS_TRANSPOSE, CBLAS_OFFSET,
-    };
     #[allow(clippy::too_many_arguments)]
     pub fn cblas_gemm_s8u8s32(
         layout: CBLAS_LAYOUT,
@@ -354,7 +349,7 @@ pub mod openblas{
         c: *mut c_int,
         ldc: c_int,
         oc: *const c_int,
-    ){
+    ) {
         panic!("openblas does not support s8u8s32");
     }
     pub fn cblas_hgemm(
@@ -372,7 +367,7 @@ pub mod openblas{
         beta: c_ushort,
         c: *mut c_ushort,
         ldc: c_int,
-    ){
+    ) {
         panic!("openblas does not support hgemm");
     }
     #[allow(clippy::too_many_arguments)]
@@ -395,7 +390,7 @@ pub mod openblas{
         c: *mut c_int,
         ldc: c_int,
         oc: *const c_int,
-    ){
+    ) {
         panic!("openblas does not support s16s16s32");
     }
     pub fn cblas_sgemm_batch(
@@ -415,7 +410,7 @@ pub mod openblas{
         ldc: *const c_int,
         group_count: c_int,
         group_size: *const c_int,
-    ){
+    ) {
         panic!("openblas does not support sgemm_batch");
     }
 }

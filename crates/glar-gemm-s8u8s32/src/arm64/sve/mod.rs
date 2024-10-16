@@ -54,7 +54,6 @@ pub unsafe fn axpy<F: MyFn>(
     }
 }
 
-
 #[target_feature(enable = "neon")]
 pub unsafe fn axpy2<F: MyFn>(
     m: usize,
@@ -97,12 +96,18 @@ pub unsafe fn axpy2<F: MyFn>(
 }
 
 pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
-    m: usize, n: usize, k: usize,
+    m: usize,
+    n: usize,
+    k: usize,
     alpha: *const f32,
     beta: *const f32,
-    c: *mut TC, c_rs: usize, c_cs: usize,
-    ap: *const TA, bp: *const TB,
-    mr: usize, nr: usize,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
+    ap: *const TA,
+    bp: *const TB,
+    mr: usize,
+    nr: usize,
     f: F,
 ) {
     let m_rounded = m / mr * mr;
@@ -152,16 +157,24 @@ pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
 use super::pack_sve::packa_panel;
 
 pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
-    m: usize, n: usize, k: usize,
-    alpha: *const f32, beta: *const f32,
-    a: *const TA, a_rs: usize, a_cs: usize,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    a: *const TA,
+    a_rs: usize,
+    a_cs: usize,
     bp: *const TB,
-    c: *mut TC, c_rs: usize, c_cs: usize,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
     ap: *mut TA,
-    mr: usize, nr: usize,
+    mr: usize,
+    nr: usize,
     f: F,
 ) {
-    let k_eff = (k+7) / 8 * 8;
+    let k_eff = (k + 7) / 8 * 8;
     let m_rounded = m / mr * mr;
     let n_rounded = n / nr * nr;
     let m_left = m % mr;
@@ -223,7 +236,8 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     ap_buf: *mut TA,
-    mr: usize, nr: usize,
+    mr: usize,
+    nr: usize,
     f: F,
 ) {
     if c_rs == 1 {
@@ -244,10 +258,11 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     bp: *const TB,
-    mr: usize, nr: usize,
+    mr: usize,
+    nr: usize,
     f: F,
 ) {
-    let k_eff = (k+7) / 8 * 8;
+    let k_eff = (k + 7) / 8 * 8;
     if c_rs == 1 {
         kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, f)
     } else {

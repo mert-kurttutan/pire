@@ -185,4 +185,3 @@ macro_rules! def_packa {
 }
 
 def_packa!(24);
-

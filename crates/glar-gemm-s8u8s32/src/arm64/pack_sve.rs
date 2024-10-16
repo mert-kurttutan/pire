@@ -483,7 +483,6 @@ def_packb!(12);
 // def_packb!(16);
 // def_packb!(32);
 
-
 macro_rules! def_packa {
     ($mr:tt) => {
         paste! {

@@ -1,7 +1,7 @@
 pub(crate) mod neon;
 pub(crate) mod pack_neon;
-pub(crate) mod sve;
 pub(crate) mod pack_sve;
+pub(crate) mod sve;
 
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
@@ -86,11 +86,7 @@ impl<F: MyFn> Arm64dispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) = if features.sve {
-            (12, 8, RegDim::RegMrx8)
-        } else {
-            (12, 4, RegDim::Reg12x4)
-        };
+        let (mr, nr, reg_dim) = if features.sve { (12, 8, RegDim::RegMrx8) } else { (12, 4, RegDim::Reg12x4) };
         let vs = if features.sve { 12 } else { 4 };
         Self {
             mc,
@@ -111,7 +107,8 @@ impl<F: MyFn> Arm64dispatcher<F> {
     pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
         match self.reg_dim {
             RegDim::Reg12x4 => pack_neon::packa_panel_12(m, k, x, rs, cs, y, self.vs),
-            RegDim::RegMrx8 => pack_sve::packa_panel(m, k, x, rs, cs, y, self.vs, self.mr),        }
+            RegDim::RegMrx8 => pack_sve::packa_panel(m, k, x, rs, cs, y, self.vs, self.mr),
+        }
     }
 
     pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
@@ -230,12 +227,18 @@ unsafe fn kernel_n<F: MyFn>(
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Reg12x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func),        }
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
+            }
+        }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
             RegDim::Reg12x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),        }
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn)
+            }
+        }
     }
 }
 

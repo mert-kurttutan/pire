@@ -329,7 +329,7 @@ pub(crate) mod cpu_features {
 pub(crate) mod cpu_features {
 
     // neon is required for all the compute since
-    // it is used for packing and unpacking and 
+    // it is used for packing and unpacking and
     // available for all arch for which other extension are available
     // unless something weird happends with the vendor
     // For those (marginal) cases, we probably dont want to bother supporting
@@ -883,14 +883,14 @@ pub fn bp_size<T>(n: usize, k: usize) -> usize {
 
 pub fn ap_size_int<T, P>(m: usize, k: usize) -> usize {
     let vs = 64 / std::mem::size_of::<T>();
-    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>())*2;
+    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>()) * 2;
     let k_r = (k + c_r - 1) / c_r * c_r;
     let m_max = (m + vs - 1) / vs * vs;
     m_max * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }
 
 pub fn bp_size_int<T, P>(n: usize, k: usize) -> usize {
-    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>())*2;
+    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>()) * 2;
     let k_r = (k + c_r - 1) / c_r * c_r;
     n * k_r + AB_ALIGN / std::mem::size_of::<T>()
 }

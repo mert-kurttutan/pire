@@ -246,13 +246,17 @@ unsafe fn kernel_n<F: MyFn>(
     if kc_last {
         match hw_cfg.reg_dim {
             // RegDim::Reg24x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func),
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
+            }
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
             // RegDim::Reg24x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn)
+            }
         }
     }
 }
@@ -275,7 +279,6 @@ unsafe fn glar_gemv<F: MyFn>(
         // RegDim::Reg24x4 => {
         //     neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
         // }
-
         RegDim::RegMrx8 => {
             sve::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
         }
@@ -300,13 +303,11 @@ unsafe fn glar_gemv2<F: MyFn>(
         // RegDim::Reg24x4 => {
         //     neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
         // }
-
         RegDim::RegMrx8 => {
             sve::axpy2(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
         }
     }
 }
-
 
 def_glar_gemm!(
     Arm64dispatcher,

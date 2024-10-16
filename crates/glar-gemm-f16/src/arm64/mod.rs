@@ -1,8 +1,7 @@
 pub(crate) mod neon;
 pub(crate) mod pack_neon;
-pub(crate) mod sve;
 pub(crate) mod pack_sve;
-
+pub(crate) mod sve;
 
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
@@ -89,11 +88,7 @@ impl<F: MyFn> Arm64dispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) = if features.sve {
-            (48, 8, RegDim::RegMrx8)
-        } else {
-            (48, 4, RegDim::Reg48x4)
-        };
+        let (mr, nr, reg_dim) = if features.sve { (48, 8, RegDim::RegMrx8) } else { (48, 4, RegDim::Reg48x4) };
 
         let vs = if features.sve { 48 } else { 16 };
 
@@ -238,13 +233,17 @@ unsafe fn kernel_n<F: MyFn>(
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Reg48x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func),
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
+            }
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
             RegDim::Reg48x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::RegMrx8 => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),
+            RegDim::RegMrx8 => {
+                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn)
+            }
         }
     }
 }
