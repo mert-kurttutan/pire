@@ -14,7 +14,7 @@ use half::f16;
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(f32, f32, f16, f32, f32, 48, 8, 96, 8, 48, 32, 16);
+def_kernel_bb_pf1!(f32, f32, f16, f32, f32, 3, 8, 96, 8, 3, 2, 1);
 
 pub(crate) unsafe fn kernel<F: MyFn>(
     m: usize,

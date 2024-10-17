@@ -98,11 +98,11 @@ pub unsafe fn axpy2<F: MyFn>(
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, f32, 4, 4, 4);
+def_kernel_bb_v0!(i8, u8, i32, f32, f32, 1, 4, 1);
 
 use super::pack_sse::packa_panel_4;
 use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, u8, i32, f32, f32, 4, 4, 4, 4);
+def_kernel_sb_v0!(i8, u8, i32, f32, f32, packa_panel_4, 4, 1, 4, 1);
 
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize,
@@ -121,9 +121,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_4x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_4x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
@@ -142,8 +142,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
 ) {
     let k_eff = (k + 3) / 4 * 4;
     if c_rs == 1 {
-        kernel_4x4_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_4x4_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

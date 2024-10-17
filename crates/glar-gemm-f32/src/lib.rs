@@ -215,8 +215,8 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.0];
-    static BETA_ARR: [f32; 1] = [1.0];
+    static ALPHA_ARR: [f32; 1] = [2.0];
+    static BETA_ARR: [f32; 1] = [3.1415];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let (mc, nc, kc) = get_mcnckc();
@@ -227,7 +227,7 @@ mod tests {
         let unary_fn: unsafe fn(*mut TC, usize) = my_unary;
         for m in m_dims.iter() {
             let m = *m;
-            let (c_rs, c_cs) = (1, m);
+            let (c_rs, c_cs) = (2, m * 2);
             for n in n_dims.iter() {
                 let n = *n;
                 let c_size = matrix_size(c_rs, c_cs, m, n);
@@ -236,6 +236,8 @@ mod tests {
                 for k in k_dims.iter() {
                     let k = *k;
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
+                    let c_rs = 2;
+                    let c_cs = 2 * c_cs;
                     let mut a = vec![0.0; m * k];
                     let mut b = vec![0.0; k * n];
                     random_matrix_uniform(m, k, &mut a, m);

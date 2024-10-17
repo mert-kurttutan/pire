@@ -14,17 +14,17 @@ use crate::MyFn;
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(f32, f32, f32, f32, f32, 48, 8, 96, 8, 48, 32, 16);
+def_kernel_bb_pf1!(f32, f32, f32, f32, f32, 3, 8, 96, 8, 3, 2, 1);
 
 use glar_base::def_kernel_bs;
 
-def_kernel_bs!(f32, f32, f32, f32, f32, 48, 8, 48, 32, 16);
+def_kernel_bs!(f32, f32, f32, f32, f32, 3, 8, 3, 2, 1);
 
 use super::pack_avx::packa_panel_48;
 
 use glar_base::def_kernel_sb_pf1;
 
-def_kernel_sb_pf1!(f32, f32, f32, f32, f32, 1, 48, 8, 96, 8, 48, 32, 16);
+def_kernel_sb_pf1!(f32, f32, f32, f32, f32, packa_panel_48, 1, 3, 8, 96, 8, 3, 2, 1);
 
 pub(crate) unsafe fn kernel_bs<F: MyFn>(
     m: usize,
@@ -42,9 +42,9 @@ pub(crate) unsafe fn kernel_bs<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_48x8_bs_v0::<_, false>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
+        kernel_bs_v0::<_, false>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     } else {
-        kernel_48x8_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
+        kernel_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     }
     asm!("vzeroupper");
 }
@@ -66,9 +66,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_48x8_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_48x8_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
     asm!("vzeroupper");
 }

@@ -302,7 +302,7 @@ macro_rules! asm_alpha_scale {
     };
 }
 
-macro_rules! c_reg_48x8 {
+macro_rules! c_reg_3x8 {
     (0,0) => { 8 };
     (1,0) => { 9 };
     (2,0) => { 10 };
@@ -336,18 +336,18 @@ macro_rules! c_reg_48x8 {
     (2,7) => { 31 };
 }
 
-macro_rules! acc_48x8 {
+macro_rules! acc_3x8 {
     ($ni:tt, $layout:tt) => {
         acc_p!(
-            $layout, c_mem2!($ni), c_reg_48x8!(0,$ni), c_reg_48x8!(1,$ni), c_reg_48x8!(2,$ni)
+            $layout, c_mem2!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
         )
     };
 }
 
-macro_rules! store_48x8 {
+macro_rules! store_3x8 {
     ($ni:tt, $layout:tt) => {
         storep!(
-            $layout, c_mem2!($ni), c_reg_48x8!(0,$ni), c_reg_48x8!(1,$ni), c_reg_48x8!(2,$ni)
+            $layout, c_mem2!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
         )
     };
 }
@@ -540,7 +540,7 @@ macro_rules! fmadd_3v2 {
 }
 
 
-macro_rules! step_48x8 {
+macro_rules! step_3x8 {
     ($nr:tt, $a_layout:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
@@ -928,17 +928,17 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_48x8, acc_48x8, store_48x8, 48, 8, B, B, M, ukernel_48x8_bb_partial);
+def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3x8_bb_partial);
 
 
-def_ukernelxn!(step_48x8, acc_48x8, store_48x8, 48, 8, B, B, C, ukernel_48xn_bb);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_3xn_bb);
 
-def_ukernelxn!(step_48x8, acc_48x8, store_48x8, 48, 8, B, B, M, ukernel_48xn_bb_partial);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3xn_bb_partial);
 
 
 
 #[target_feature(enable="neon,sve")]
-pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,
@@ -973,10 +973,10 @@ pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
         // 2 -> KITER
         "2:",
         prefetch_0!(128, "{bx}", 0),
-        step_48x8!(8, B, B),
-        step_48x8!(8, B, B),
-        step_48x8!(8, B, B),
-        step_48x8!(8, B, B),
+        step_3x8!(8, B, B),
+        step_3x8!(8, B, B),
+        step_3x8!(8, B, B),
+        step_3x8!(8, B, B),
 
         "sub {x0}, {x0}, #1",
         // 2 -> KITER
@@ -993,7 +993,7 @@ pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
         "BEQ 5f",
         // 4 -> KLEFT
         "4:",
-        step_48x8!(8, B, B),
+        step_3x8!(8, B, B),
 
         "sub {x0}, {x0}, #1",
 
@@ -1011,11 +1011,11 @@ pub(crate) unsafe fn ukernel_48x8_bb<F: MyFn, const BUF: bool>(
 
         // 6 -> BETAZERO
         "BEQ 6f",
-        cum_seq!(acc_48x8,8,C),
+        cum_seq!(acc_3x8,8,C),
 
         // 6 -> BETAZERO
         "6:",
-        cum_seq!(store_48x8,8,C),
+        cum_seq!(store_3x8,8,C),
         
         // 7 -> DDONE
         "7:",
