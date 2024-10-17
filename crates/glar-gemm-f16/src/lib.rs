@@ -4,7 +4,10 @@ pub(crate) mod arm64;
 pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "x86_64")]
-use x86_64_arch::{glar_gemm, glar_gemm_f32, packa_full, packb_full, KernelDispatcher, KernelDispatcherF32};
+use x86_64_arch::{
+    glar_gemm, glar_gemm_f32, packa_full, packa_full_f32, packb_full, packb_full_f32, KernelDispatcher,
+    KernelDispatcherF32,
+};
 
 #[cfg(target_arch = "aarch64")]
 use arm64::{glar_gemm, packa_full, packb_full, KernelDispatcher};
@@ -66,7 +69,7 @@ pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
         #[cfg(target_arch = "x86_64")]
         {
             let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            glar_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
+            glar_gemm_f32(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
             return;
         }
     }

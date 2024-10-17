@@ -104,14 +104,7 @@ pub(crate) unsafe fn packb_full_f32(
     }
     return Array::packed_matrix(bp, n, k);
 }
-pub(crate) unsafe fn packa_full_f16(
-    m: usize,
-    k: usize,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    ap: *mut f16,
-) -> Array<TB> {
+pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut f16) -> Array<TB> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
     let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
@@ -130,14 +123,7 @@ pub(crate) unsafe fn packa_full_f16(
     return Array::packed_matrix(ap, m, k);
 }
 
-pub(crate) unsafe fn packb_full_f16(
-    n: usize,
-    k: usize,
-    b: *const TB,
-    b_rs: usize,
-    b_cs: usize,
-    bp: *mut TB,
-) -> Array<TB> {
+pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
     let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
@@ -474,7 +460,7 @@ def_glar_gemm!(
     PackArrTypeAM,
     PackArrTypeBM,
     1_f32,
-    glar_gemm,
+    glar_gemm_f32,
     gemm_mt,
     gemm_goto_serial,
     kernel,
@@ -484,8 +470,8 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa_f32,
+    packb_f32,
     false,
     false,
     into_pack_array2,
@@ -602,7 +588,7 @@ def_glar_gemm!(
     PackArrTypeA,
     PackArrTypeB,
     f16::ONE,
-    glar_gemm_native,
+    glar_gemm,
     gemm_mt_native,
     gemm_goto_serial_native,
     kernel_native,
@@ -612,8 +598,8 @@ def_glar_gemm!(
     kernel_n_native,
     glar_gemv_native,
     glar_gemv_native,
-    packa_native,
-    packb_native,
+    packa,
+    packb,
     true,
     true,
     into_pack_array,
