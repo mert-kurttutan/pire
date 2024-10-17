@@ -1,8 +1,16 @@
+#[cfg(target_arch = "aarch64")]
+pub(crate) mod arm64;
 #[cfg(target_arch = "x86_64")]
 pub(crate) mod x86_64_arch;
 
+#[cfg(target_arch = "x86_64")]
+use x86_64_arch::{
+    glar_gemm, glar_gemm_f32, packa_full, packa_full_f32, packb_full, packb_full_f32, KernelDispatcher,
+    KernelDispatcherF32,
+};
+
 #[cfg(target_arch = "aarch64")]
-pub(crate) mod arm64;
+use arm64::{glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 pub(crate) mod reference;
 
@@ -50,25 +58,18 @@ pub(crate) unsafe fn glar_hgemm_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_f16_compute() {
-        #[cfg(target_arch = "x86_64")]
+        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         {
-            let hw_config = x86_64_arch::F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            x86_64_arch::glar_gemm_native(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-            return;
-        }
-
-        #[cfg(target_arch = "aarch64")]
-        {
-            let hw_config = arm64::Arm64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            arm64::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
     if has_f16f32_compute() {
         #[cfg(target_arch = "x86_64")]
         {
-            let hw_config = x86_64_arch::F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
+            let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            glar_gemm_f32(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
             return;
         }
     }
@@ -150,20 +151,16 @@ pub unsafe fn packa_f16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
         }
         return Array::strided_matrix(ap, 1, m);
     }
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     {
         if has_f16_compute() {
-            return x86_64_arch::packa_full_f16(m, k, a, a_rs, a_cs, ap);
-        }
-        if has_f16f32_compute() {
-            return x86_64_arch::packa_full_f32(m, k, a, a_rs, a_cs, ap);
+            return packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
-
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_arch = "x86_64")]
     {
-        if has_f16_compute() {
-            return arm64::packa_full(m, k, a, a_rs, a_cs, ap);
+        if has_f16f32_compute() {
+            return packa_full_f32(m, k, a, a_rs, a_cs, ap);
         }
     }
 
@@ -179,20 +176,16 @@ pub unsafe fn packb_f16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
         }
         return Array::strided_matrix(bp, 1, k);
     }
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     {
         if has_f16_compute() {
-            return x86_64_arch::packb_full_f16(n, k, b, b_rs, b_cs, bp);
-        }
-        if has_f16f32_compute() {
-            return x86_64_arch::packb_full_f32(n, k, b, b_rs, b_cs, bp);
+            return packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }
-
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_arch = "x86_64")]
     {
-        if has_f16_compute() {
-            return arm64::packb_full(n, k, b, b_rs, b_cs, bp);
+        if has_f16f32_compute() {
+            return packb_full_f32(n, k, b, b_rs, b_cs, bp);
         }
     }
     // no support for x86 and sse

@@ -64,7 +64,7 @@ pub(crate) unsafe fn packa_full_f32(
 ) -> Array<TA> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -90,7 +90,7 @@ pub(crate) unsafe fn packb_full_f32(
 ) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = F32Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -104,17 +104,10 @@ pub(crate) unsafe fn packb_full_f32(
     }
     return Array::packed_matrix(bp, n, k);
 }
-pub(crate) unsafe fn packa_full_f16(
-    m: usize,
-    k: usize,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    ap: *mut f16,
-) -> Array<TB> {
+pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut f16) -> Array<TB> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -130,17 +123,10 @@ pub(crate) unsafe fn packa_full_f16(
     return Array::packed_matrix(ap, m, k);
 }
 
-pub(crate) unsafe fn packb_full_f16(
-    n: usize,
-    k: usize,
-    b: *const TB,
-    b_rs: usize,
-    b_cs: usize,
-    bp: *mut TB,
-) -> Array<TB> {
+pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = F16Dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -160,7 +146,7 @@ pub(crate) enum RegDim {
     Reg16x4,
 }
 
-pub(crate) struct F32Dispatcher<T: MyFn = NullFn> {
+pub(crate) struct KernelDispatcherF32<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -176,7 +162,7 @@ pub(crate) struct F32Dispatcher<T: MyFn = NullFn> {
     func: T,
 }
 
-impl<F: MyFn> F32Dispatcher<F> {
+impl<F: MyFn> KernelDispatcherF32<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
         let (mc, nc, kc) = get_mcnckc();
         let features = hw_config.cpu_ft();
@@ -262,7 +248,7 @@ impl<F: MyFn> F32Dispatcher<F> {
     }
 }
 
-pub(crate) struct F16Dispatcher<T: MyFn = NullFn> {
+pub(crate) struct KernelDispatcher<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -275,7 +261,7 @@ pub(crate) struct F16Dispatcher<T: MyFn = NullFn> {
     func: T,
 }
 
-impl<F: MyFn> F16Dispatcher<F> {
+impl<F: MyFn> KernelDispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
         let (mc, nc, kc) = get_mcnckc_f16();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -313,7 +299,7 @@ impl<F: MyFn> F16Dispatcher<F> {
     }
 }
 
-impl<T: MyFn> GemmCache for F32Dispatcher<T> {
+impl<T: MyFn> GemmCache for KernelDispatcherF32<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -339,7 +325,7 @@ impl<T: MyFn> GemmCache for F32Dispatcher<T> {
     }
 }
 
-impl<T: MyFn> GemmCache for F16Dispatcher<T> {
+impl<T: MyFn> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -366,7 +352,7 @@ impl<T: MyFn> GemmCache for F16Dispatcher<T> {
 }
 
 unsafe fn kernel<F: MyFn>(
-    hw_cfg: &F32Dispatcher<F>,
+    hw_cfg: &KernelDispatcherF32<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -398,7 +384,7 @@ unsafe fn kernel<F: MyFn>(
 
 #[allow(unused)]
 unsafe fn kernel_m<F: MyFn>(
-    hw_cfg: &F32Dispatcher<F>,
+    hw_cfg: &KernelDispatcherF32<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -418,7 +404,7 @@ unsafe fn kernel_m<F: MyFn>(
 
 #[allow(unused)]
 unsafe fn kernel_n<F: MyFn>(
-    hw_cfg: &F32Dispatcher<F>,
+    hw_cfg: &KernelDispatcherF32<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -438,7 +424,7 @@ unsafe fn kernel_n<F: MyFn>(
 }
 
 unsafe fn glar_gemv<F: MyFn>(
-    hw_cfg: &F32Dispatcher<F>,
+    hw_cfg: &KernelDispatcherF32<F>,
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -463,7 +449,7 @@ unsafe fn glar_gemv<F: MyFn>(
 }
 
 def_glar_gemm!(
-    F32Dispatcher,
+    KernelDispatcherF32,
     f16,
     f32,
     f16,
@@ -474,7 +460,7 @@ def_glar_gemm!(
     PackArrTypeAM,
     PackArrTypeBM,
     1_f32,
-    glar_gemm,
+    glar_gemm_f32,
     gemm_mt,
     gemm_goto_serial,
     kernel,
@@ -484,8 +470,8 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa_f32,
+    packb_f32,
     false,
     false,
     into_pack_array2,
@@ -493,7 +479,7 @@ def_glar_gemm!(
 );
 
 unsafe fn kernel_native<F: MyFn>(
-    hw_cfg: &F16Dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -516,7 +502,7 @@ unsafe fn kernel_native<F: MyFn>(
 }
 
 unsafe fn kernel_m_native<F: MyFn>(
-    hw_cfg: &F16Dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -541,7 +527,7 @@ unsafe fn kernel_m_native<F: MyFn>(
 }
 
 unsafe fn kernel_n_native<F: MyFn>(
-    hw_cfg: &F16Dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -567,7 +553,7 @@ unsafe fn kernel_n_native<F: MyFn>(
 }
 
 unsafe fn glar_gemv_native<F: MyFn>(
-    hw_cfg: &F16Dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     alpha: *const f16,
@@ -591,7 +577,7 @@ unsafe fn glar_gemv_native<F: MyFn>(
 }
 
 def_glar_gemm!(
-    F16Dispatcher,
+    KernelDispatcher,
     f16,
     f16,
     f16,
@@ -602,7 +588,7 @@ def_glar_gemm!(
     PackArrTypeA,
     PackArrTypeB,
     f16::ONE,
-    glar_gemm_native,
+    glar_gemm,
     gemm_mt_native,
     gemm_goto_serial_native,
     kernel_native,
@@ -612,8 +598,8 @@ def_glar_gemm!(
     kernel_n_native,
     glar_gemv_native,
     glar_gemv_native,
-    packa_native,
-    packb_native,
+    packa,
+    packb,
     true,
     true,
     into_pack_array,
