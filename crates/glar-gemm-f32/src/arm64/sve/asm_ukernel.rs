@@ -1055,7 +1055,7 @@ pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
     );
     if BUF {
         let mr = sve_vs() * 3;
-        for j in 0..4 {
+        for j in 0..8 {
             f.call(cf.add(j*mr), mr);
         }
         store_buf(c, d_arr[2], c_cs, &c_buf, m, 8, mr);
