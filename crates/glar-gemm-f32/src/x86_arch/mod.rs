@@ -24,7 +24,7 @@ pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -43,7 +43,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -62,7 +62,7 @@ pub(crate) enum RegDim {
     Reg8x2,
 }
 
-pub(crate) struct X86dispatcher<T: MyFn = NullFn> {
+pub(crate) struct KernelDispatcher<T: MyFn = NullFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -77,7 +77,7 @@ pub(crate) struct X86dispatcher<T: MyFn = NullFn> {
     func: T,
 }
 
-impl<F: MyFn> X86dispatcher<F> {
+impl<F: MyFn> KernelDispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
         let (mc, nc, kc) = get_mcnckc();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -121,7 +121,7 @@ impl<F: MyFn> X86dispatcher<F> {
     }
 }
 
-impl<T: MyFn> GemmCache for X86dispatcher<T> {
+impl<T: MyFn> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -148,7 +148,7 @@ impl<T: MyFn> GemmCache for X86dispatcher<T> {
 }
 
 unsafe fn kernel<F: MyFn>(
-    hw_cfg: &X86dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -175,7 +175,7 @@ unsafe fn kernel<F: MyFn>(
 }
 
 unsafe fn kernel_m<F: MyFn>(
-    hw_cfg: &X86dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -204,7 +204,7 @@ unsafe fn kernel_m<F: MyFn>(
 }
 
 unsafe fn kernel_n<F: MyFn>(
-    hw_cfg: &X86dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     k: usize,
@@ -234,7 +234,7 @@ unsafe fn kernel_n<F: MyFn>(
 }
 
 unsafe fn glar_gemv<F: MyFn>(
-    hw_cfg: &X86dispatcher<F>,
+    hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -253,7 +253,7 @@ unsafe fn glar_gemv<F: MyFn>(
 }
 
 def_glar_gemm!(
-    X86dispatcher,
+    KernelDispatcher,
     f32,
     f32,
     f32,

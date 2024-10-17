@@ -4,10 +4,10 @@ pub(crate) mod x86_64_arch;
 pub(crate) mod x86_arch;
 
 #[cfg(target_arch = "x86_64")]
-use x86_64_arch::X86_64dispatcher;
+use x86_64_arch::{glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 #[cfg(target_arch = "x86")]
-use x86_arch::X86dispatcher;
+use x86_arch::{glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 pub(crate) mod reference;
 
@@ -51,17 +51,10 @@ pub(crate) unsafe fn glar_gemm_s16s16s32_generic<F: MyFn>(
 ) {
     let par = GlarPar::default(m, n);
     if has_i16i32_compute() {
-        #[cfg(target_arch = "x86_64")]
+        #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
         {
-            let hw_config = X86_64dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            x86_64_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
-            return;
-        }
-
-        #[cfg(target_arch = "x86")]
-        {
-            let hw_config = X86dispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
-            x86_arch::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
+            let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
@@ -142,17 +135,10 @@ pub unsafe fn packa_i16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
         }
         return Array::strided_matrix(ap, 1, m);
     }
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     {
         if has_i16i32_compute() {
-            return x86_64_arch::packa_full(m, k, a, a_rs, a_cs, ap);
-        }
-    }
-
-    #[cfg(target_arch = "x86")]
-    {
-        if has_i16i32_compute() {
-            return x86_arch::packa_full(m, k, a, a_rs, a_cs, ap);
+            return packa_full(m, k, a, a_rs, a_cs, ap);
         }
     }
     reference::packa_full(m, k, a, a_rs, a_cs, ap)
@@ -166,16 +152,10 @@ pub unsafe fn packb_i16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
         }
         return Array::strided_matrix(bp, 1, k);
     }
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     {
         if has_i16i32_compute() {
-            return x86_64_arch::packb_full(n, k, b, b_rs, b_cs, bp);
-        }
-    }
-    #[cfg(target_arch = "x86")]
-    {
-        if has_i16i32_compute() {
-            return x86_arch::packb_full(n, k, b, b_rs, b_cs, bp);
+            return packb_full(n, k, b, b_rs, b_cs, bp);
         }
     }
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
