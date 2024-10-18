@@ -241,40 +241,54 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f32; 1] = [1.00];
-    static BETA_ARR: [f32; 1] = [1.00];
+    static ALPHA_ARR: [f16; 1] = [f16::from_f32_const(1.0)];
+    static BETA_ARR: [f16; 1] = [f16::from_f32_const(1.0)];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
+        let a_stride_scale = 1;
+        let b_stride_scale = 1;
+        let c_stride_scale = 2;
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (48, 8, 8);
         let m_dims = generate_m_dims(mc, mr);
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
         let unary_fn: unsafe fn(*mut TC, usize) = my_unary;
-        for m in m_dims.iter() {
-            let m = *m;
-            let (c_rs, c_cs) = (1, m);
-            for n in n_dims.iter() {
-                let n = *n;
-                let c_size = matrix_size(c_rs, c_cs, m, n);
-                let mut c = vec![f16::ZERO; c_size];
-                let mut c_ref = vec![f16::ZERO; c_size];
-                for k in k_dims.iter() {
-                    let k = *k;
+        let m_max = *m_dims.iter().max().unwrap();
+        let n_max = *n_dims.iter().max().unwrap();
+        let k_max = *k_dims.iter().max().unwrap();
+        let a_size = matrix_size(m_max, k_max) * a_stride_scale;
+        let b_size = matrix_size(k_max, n_max) * b_stride_scale;
+        let c_size = matrix_size(m_max, n_max) * c_stride_scale;
+        let mut a = vec![TA::ZERO; a_size];
+        let mut b = vec![TB::ZERO; b_size];
+        random_matrix_uniform(&mut a);
+        random_matrix_uniform(&mut b);
+        let mut c = vec![TC::ZERO; c_size];
+        let mut c_ref = vec![TC::ZERO; c_size];
+
+        let ap_size = if is_a_packed { ap_size::<TA>(m_max, k_max) } else { 0 };
+        let mut ap = vec![TA::ZERO; ap_size];
+
+        let bp_size = if is_b_packed { bp_size::<TB>(n_max, k_max) } else { 0 };
+        let mut bp = vec![TB::ZERO; bp_size];
+        for &m in &m_dims {
+            for &n in &n_dims {
+                for &k in &k_dims {
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
-                    let mut a = vec![f16::ZERO; m * k];
-                    let mut b = vec![f16::ZERO; k * n];
-                    random_matrix_uniform(m, k, &mut a, m);
-                    random_matrix_uniform(k, n, &mut b, k);
-                    let ap_size = if is_a_packed { ap_size::<TA>(m, k) } else { 0 };
-                    let mut ap = vec![TA::ZERO; ap_size];
+                    let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = (
+                        a_rs * a_stride_scale,
+                        a_cs * a_stride_scale,
+                        b_rs * b_stride_scale,
+                        b_cs * b_stride_scale,
+                        c_rs * c_stride_scale,
+                        c_cs * c_stride_scale,
+                    );
                     let a_matrix = if is_a_packed {
                         unsafe { packa_f16_with_ref(m, k, &a, a_rs, a_cs, &mut ap) }
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
-                    let bp_size = if is_b_packed { bp_size::<TB>(n, k) } else { 0 };
-                    let mut bp = vec![TB::ZERO; bp_size];
                     let b_matrix = if is_b_packed {
                         unsafe { packb_f16_with_ref(n, k, &b, b_rs, b_cs, &mut bp) }
                     } else {
@@ -282,9 +296,7 @@ mod tests {
                     };
                     for alpha in ALPHA_ARR {
                         for beta in BETA_ARR {
-                            let alpha = f16::from_f32(alpha);
-                            let beta = f16::from_f32(beta);
-                            random_matrix_uniform(m, n, &mut c, m);
+                            random_matrix_uniform(&mut c);
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                             unsafe {

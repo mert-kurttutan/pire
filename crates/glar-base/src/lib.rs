@@ -22,8 +22,8 @@ pub unsafe fn store_buf<T: Copy>(c: *mut T, c_rs: usize, c_cs: usize, c_buf: &[T
     }
 }
 
-pub fn matrix_size(rs: usize, cs: usize, m: usize, n: usize) -> usize {
-    m * rs + n * cs - (rs + cs) + 1
+pub fn matrix_size(m: usize, n: usize) -> usize {
+    n * m
 }
 
 use range_rwlock::{RangeLock, RangeLockReadGuard, RangeLockWriteGuard};
