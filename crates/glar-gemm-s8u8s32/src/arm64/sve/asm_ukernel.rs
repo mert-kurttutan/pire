@@ -137,7 +137,7 @@ macro_rules! asm_alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                "cmp {is_alpha_one:w}, #0", "\n",
+                "cmp {alpha_st:w}, #0", "\n",
                 "BEQ 13f", "\n",
 
                 "ld1rqw {{ z1.s }}, p0/z, [{alphax}]", "\n",
@@ -686,12 +686,12 @@ macro_rules! def_ukernel {
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
-            let is_alpha_one = if *alpha == 1f32 {
+            let alpha_st = if *alpha == 1f32 {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == 0f32 {
+            let beta_st = if *beta == 0f32 {
                 0i32
             } else if *beta == 1f32 {
                 1i32
@@ -758,10 +758,10 @@ macro_rules! def_ukernel {
 
                 unzip_c!(),
 
-                "cmp {is_beta:w}, #0", "\n",
+                "cmp {beta_st:w}, #0", "\n",
                 "BEQ 6f",
         
-                "cmp {is_beta:w}, #1", "\n",
+                "cmp {beta_st:w}, #1", "\n",
                 "BEQ 9f",
 
                 // 6 -> BETAZERO
@@ -786,8 +786,8 @@ macro_rules! def_ukernel {
                 alphax = inout(reg) alpha => _,
                 betax = inout(reg) beta => _,
                 incax = in(reg) inc_a as u64,
-                is_alpha_one = in(reg) is_alpha_one,
-                is_beta = in(reg) is_beta,
+                alpha_st = in(reg) alpha_st,
+                beta_st = in(reg) beta_st,
                 m_s = in(reg) 0 as u64,
                 m_e0 = in(reg) (m) as u64,
                 m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -849,12 +849,12 @@ macro_rules! def_ukernelxn {
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
-            let is_alpha_one = if *alpha == 1f32 {
+            let alpha_st = if *alpha == 1f32 {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == 0f32 {
+            let beta_st = if *beta == 0f32 {
                 0i32
             } else if *beta == 1f32 {
                 1i32
@@ -922,10 +922,10 @@ macro_rules! def_ukernelxn {
 
                             unzip_c!(),
 
-                            "cmp {is_beta:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0", "\n",
                             "BEQ 6f",
                     
-                            "cmp {is_beta:w}, #1", "\n",
+                            "cmp {beta_st:w}, #1", "\n",
                             "BEQ 9f",
 
                             // 6 -> BETAZERO
@@ -950,8 +950,8 @@ macro_rules! def_ukernelxn {
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
                             incax = in(reg) inc_a as u64,
-                            is_alpha_one = in(reg) is_alpha_one,
-                            is_beta = in(reg) is_beta,
+                            alpha_st = in(reg) alpha_st,
+                            beta_st = in(reg) beta_st,
                             m_s = in(reg) 0 as u64,
                             m_e0 = in(reg) (m) as u64,
                             m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -1015,12 +1015,12 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let mut cf = c;
     let mut c_buf = [0i32; MAX_VS * 2 * 6];
     let c_cs = d_arr[3];
-    let is_alpha_one = if *alpha == 1f32 {
+    let alpha_st = if *alpha == 1f32 {
         0i32
     } else {
         1i32
     };
-    let is_beta = if *beta == 0f32 {
+    let beta_st = if *beta == 0f32 {
         0i32
     } else if *beta == 1f32 {
         1i32
@@ -1086,10 +1086,10 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
 
         unzip_c!(),
 
-        "cmp {is_beta:w}, #0", "\n",
+        "cmp {beta_st:w}, #0", "\n",
         "BEQ 6f",
 
-        "cmp {is_beta:w}, #1", "\n",
+        "cmp {beta_st:w}, #1", "\n",
         "BEQ 9f",
 
         // 6 -> BETAZERO
@@ -1114,8 +1114,8 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         alphax = inout(reg) alpha => _,
         betax = inout(reg) beta => _,
         incax = in(reg) inc_a as u64,
-        is_alpha_one = in(reg) is_alpha_one,
-        is_beta = in(reg) is_beta,
+        alpha_st = in(reg) alpha_st,
+        beta_st = in(reg) beta_st,
         x0 = out(reg) _,
         x1 = out(reg) _,
         x2 = out(reg) _,

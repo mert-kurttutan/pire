@@ -97,7 +97,7 @@ macro_rules! asm_alpha_scale_0 {
     ($mr:tt,$nr:tt) => {
         concat!(
             // check if s1 is 0 bit
-            "cmp {is_alpha_one:w}, #0", "\n",
+            "cmp {alpha_st:w}, #0", "\n",
 
             "BEQ 13f", "\n",
             
@@ -674,12 +674,12 @@ macro_rules! def_ukernel {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
-            let is_alpha_one = if *alpha == TA::ONE {
+            let alpha_st = if *alpha == TA::ONE {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == TB::ZERO {
+            let beta_st = if *beta == TB::ZERO {
                 0i32
             } else {
                 1i32
@@ -742,7 +742,7 @@ macro_rules! def_ukernel {
                 // scale by alpha
                 asm_alpha_scale!($mr, $nr),
 
-                "cmp {is_beta:w}, #0", "\n",
+                "cmp {beta_st:w}, #0", "\n",
                 "BEQ 6f",
 
                 load_beta!(),
@@ -762,8 +762,8 @@ macro_rules! def_ukernel {
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
                 betax = inout(reg) beta => _,
-                is_alpha_one = in(reg) is_alpha_one,
-                is_beta = in(reg) is_beta,
+                alpha_st = in(reg) alpha_st,
+                beta_st = in(reg) beta_st,
                 m_s = in(reg) 0 as u64,
                 m_e0 = in(reg) (m) as u64,
                 m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -820,12 +820,12 @@ macro_rules! def_ukernelxn {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
-            let is_alpha_one = if *alpha == TA::ONE {
+            let alpha_st = if *alpha == TA::ONE {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == TB::ZERO {
+            let beta_st = if *beta == TB::ZERO {
                 0i32
             } else {
                 1i32
@@ -889,7 +889,7 @@ macro_rules! def_ukernelxn {
                             // scale by alpha
                             asm_alpha_scale!($mr, ni),
 
-                            "cmp {is_beta:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0", "\n",
                             "BEQ 6f",
 
                             load_beta!(),
@@ -909,8 +909,8 @@ macro_rules! def_ukernelxn {
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
-                            is_alpha_one = in(reg) is_alpha_one,
-                            is_beta = in(reg) is_beta,
+                            alpha_st = in(reg) alpha_st,
+                            beta_st = in(reg) beta_st,
                             m_s = in(reg) 0 as u64,
                             m_e0 = in(reg) (m) as u64,
                             m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -969,12 +969,12 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 2048 * 3 * 4];
     let c_cs = d_arr[3];
-    let is_alpha_one = if *alpha == TA::ONE {
+    let alpha_st = if *alpha == TA::ONE {
         0i32
     } else {
         1i32
     };
-    let is_beta = if *beta == TB::ZERO {
+    let beta_st = if *beta == TB::ZERO {
         0i32
     } else {
         1i32
@@ -1034,7 +1034,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         // scale by alpha
         asm_alpha_scale!(24,8),
 
-        "cmp {is_beta:w}, #0", "\n",
+        "cmp {beta_st:w}, #0", "\n",
         "BEQ 6f",
 
         load_beta!(),
@@ -1054,8 +1054,8 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         dim_arrx = inout(reg) dim_arr.as_ptr() => _,
         alphax = inout(reg) alpha => _,
         betax = inout(reg) beta => _,
-        is_alpha_one = in(reg) is_alpha_one,
-        is_beta = in(reg) is_beta,
+        alpha_st = in(reg) alpha_st,
+        beta_st = in(reg) beta_st,
         x0 = out(reg) _,
         x1 = out(reg) _,
         x2 = out(reg) _,

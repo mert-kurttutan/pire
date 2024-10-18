@@ -86,7 +86,7 @@ macro_rules! asm_alpha_scale_0 {
     ($mr:tt,$nr:tt) => {
         concat!(
             // check if s1 is 0 bit
-            "cmp {is_alpha_one:w}, #0", "\n",
+            "cmp {alpha_st:w}, #0", "\n",
 
             "BEQ 13f", "\n",
 
@@ -737,16 +737,17 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
+            let c_cs = d_arr[3];
             let (k_i, k_l) = (k / 4, k % 4);
             let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
-            let is_alpha_one = if *alpha == TA::ONE {
+            let alpha_st = if *alpha == TA::ONE {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == TB::ZERO {
+            let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {
                 1i32
@@ -754,7 +755,6 @@ macro_rules! def_ukernel {
                 2i32
             };
             let alt = [-1.0f32, 1.0f32, -1.0f32, 1.0f32];
-            let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*8;
@@ -814,10 +814,10 @@ macro_rules! def_ukernel {
                 // scale by alpha
                 asm_alpha_scale!($mr, $nr),
 
-                "cmp {is_beta:w}, #0", "\n",
+                "cmp {beta_st:w}, #0", "\n",
                 "BEQ 6f",
 
-                "cmp {is_beta:w}, #1", "\n",
+                "cmp {beta_st:w}, #1", "\n",
                 "BEQ 15f",
 
                 load_beta!(),
@@ -838,9 +838,8 @@ macro_rules! def_ukernel {
                 cx = inout(reg) cf => _,
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
-                // onex = inout(reg) &one => _,
-                is_alpha_one = in(reg) is_alpha_one,
-                is_beta = in(reg) is_beta,
+                alpha_st = in(reg) alpha_st,
+                beta_st = in(reg) beta_st,
                 betax = inout(reg) beta => _,
                 x0 = out(reg) _,
                 x1 = out(reg) _,
@@ -891,12 +890,12 @@ macro_rules! def_ukernelxn {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
-            let is_alpha_one = if *alpha == TA::ONE {
+            let alpha_st = if *alpha == TA::ONE {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == TB::ZERO {
+            let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {
                 1i32
@@ -962,10 +961,10 @@ macro_rules! def_ukernelxn {
                             // scale by alpha
                             asm_alpha_scale!($mr, ni),
 
-                            "cmp {is_beta:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0", "\n",
                             "BEQ 6f",
 
-                            "cmp {is_beta:w}, #1", "\n",
+                            "cmp {beta_st:w}, #1", "\n",
                             "BEQ 15f",
                             
                             load_beta!(),
@@ -987,9 +986,8 @@ macro_rules! def_ukernelxn {
                             cx = inout(reg) cf => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
-                            is_alpha_one = in(reg) is_alpha_one,
-                            is_beta = in(reg) is_beta,
-                            // onex = inout(reg) &one => _,
+                            alpha_st = in(reg) alpha_st,
+                            beta_st = in(reg) beta_st,
                             betax = inout(reg) beta => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
