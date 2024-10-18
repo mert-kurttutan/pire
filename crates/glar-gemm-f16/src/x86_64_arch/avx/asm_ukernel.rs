@@ -3,6 +3,7 @@ use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use half::f16;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
+use crate::{MyFn, TC, TC_SIZE};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -509,9 +510,6 @@ macro_rules! prefetch_c {
     }
 }
 
-use crate::MyFn;
-
-
 macro_rules! def_ukernel {
     (
         $step_macro:tt,
@@ -523,7 +521,7 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -531,13 +529,13 @@ macro_rules! def_ukernel {
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             prefetch_c!($mr,$nr,c,c_cs);
@@ -643,7 +641,7 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -651,13 +649,13 @@ macro_rules! def_ukernelxn {
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {

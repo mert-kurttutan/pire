@@ -19,6 +19,7 @@ pub(crate) mod reference;
 pub(crate) type TA = i8;
 pub(crate) type TB = u8;
 pub(crate) type TC = i32;
+const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 use glar_base::{has_i8i32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
 

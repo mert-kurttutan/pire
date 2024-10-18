@@ -1,6 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC};
+use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 
@@ -682,7 +682,7 @@ macro_rules! def_ukernel {
             let vs = sve_vs();
             let inc_a = vs * $mr * 4 * 2;
             let (k_i, k_l) = (k / 32, (k % 32) / 8);
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
@@ -701,7 +701,7 @@ macro_rules! def_ukernel {
             if BUF {
                 let mr = vs * $mr;
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, mr);
-                dim_arr[2] = mr*4;
+                dim_arr[2] = mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             asm!(
@@ -845,7 +845,7 @@ macro_rules! def_ukernelxn {
             let vs = sve_vs();
             let inc_a = vs * $mr * 4 * 2;
             let (k_i, k_l) = (k / 32, (k % 32) / 8);
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
@@ -864,7 +864,7 @@ macro_rules! def_ukernelxn {
             if BUF {
                 let mr = vs * $mr;
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, mr);
-                dim_arr[2] = mr*4;
+                dim_arr[2] = mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -1011,7 +1011,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let vs = sve_vs();
     let inc_a = vs * 2 * 4 * 2;
     let (k_i, k_l) = (k / 32, (k % 32) / 8);
-    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
+    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
     let mut cf = c;
     let mut c_buf = [0i32; MAX_VS * 2 * 6];
     let c_cs = d_arr[3];
@@ -1030,7 +1030,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     if BUF {
         let mr = vs * 2;
         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 12, mr);
-        dim_arr[2] = mr*4;
+        dim_arr[2] = mr*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(

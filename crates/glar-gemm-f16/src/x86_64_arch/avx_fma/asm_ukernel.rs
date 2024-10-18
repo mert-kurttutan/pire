@@ -3,6 +3,7 @@ use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use half::f16;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
+use crate::{MyFn, TC, TC_SIZE};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -594,9 +595,6 @@ macro_rules! prefetch_c {
     }
 }
 
-use crate::MyFn;
-
-
 macro_rules! def_ukernel {
     (
         $step_macro:tt,
@@ -608,7 +606,7 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -616,13 +614,13 @@ macro_rules! def_ukernel {
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             prefetch_c!($mr,$nr,c,c_cs);
@@ -728,7 +726,7 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -736,13 +734,13 @@ macro_rules! def_ukernelxn {
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -855,29 +853,10 @@ def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, C, ukernel_3x4_bb);
 def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 4, B, B, C, ukernel_2x4_bb);
 def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, C, ukernel_1x4_bb);
 
-// def_ukernel!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, B, f32, M, 4, ukernel_3x4_bb_partial);
-// def_ukernel!(VER2, step_2x6, acc_2x6, store_2x6, 16, 4, B, B, f32, M, 4, ukernel_2x4_bb_partial);
-// def_ukernel!(VER1, step_1x6, acc_1x6, store_1x6, 8, 4, B, B, f32, M, 4, ukernel_1x4_bb_partial);
-
-// def_ukernel!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, S, f16, C, 4, ukernel_3x4_bs);
-
-// def_ukernel!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, S, f16, M, 4, ukernel_3x4_bs_partial);
-// def_ukernel!(VER2, step_2x6, acc_2x6, store_2x6, 16, 4, B, S, f16, M, 4, ukernel_2x4_bs_partial);
-// def_ukernel!(VER1, step_1x6, acc_1x6, store_1x6, 8, 4, B, S, f16, M, 4, ukernel_1x4_bs_partial);
-
 
 def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, C, ukernel_3xn_bb);
 def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 16, 4, B, B, C, ukernel_2xn_bb);
 def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, C, ukernel_1xn_bb);
 
-// def_ukernelxn!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, B, f32, M, 4, ukernel_3xn_bb_partial);
-// def_ukernelxn!(VER2, step_2x6, acc_2x6, store_2x6, 16, 4, B, B, f32, M, 4, ukernel_2xn_bb_partial);
-// def_ukernelxn!(VER1, step_1x6, acc_1x6, store_1x6, 8, 4, B, B, f32, M, 4, ukernel_1xn_bb_partial);
-
-// def_ukernelxn!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, S, f16, C, 4, ukernel_3xn_bs);
-
-// def_ukernelxn!(VER3, step_3x4, acc_3x4, store_3x4, 24, 4, B, S, f16, M, 4, ukernel_3xn_bs_partial);
-// def_ukernelxn!(VER2, step_2x6, acc_2x6, store_2x6, 16, 4, B, S, f16, M, 4, ukernel_2xn_bs_partial);
-// def_ukernelxn!(VER1, step_1x6, acc_1x6, store_1x6, 8, 4, B, S, f16, M, 4, ukernel_1xn_bs_partial);
 
 

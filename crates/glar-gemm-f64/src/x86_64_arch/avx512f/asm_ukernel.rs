@@ -2,7 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use super::VS;
-use crate::{TA, TB, TC};
+use crate::{TA, TB, TC, TC_SIZE};
 use crate::MyFn;
 use glar_base::{load_buf, store_buf, c_mem};
 
@@ -816,13 +816,13 @@ macro_rules! def_ukernel {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*8;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             prefetch_c!($mr,$nr,c,c_cs);
@@ -937,13 +937,13 @@ macro_rules! def_ukernelxn {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*8;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -1084,13 +1084,13 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let k_l0 = k % 8;
     let k_l = if k_l0 == 0 {8} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let mut dim_arr = [d_arr[3]*8, k_i, k_l, a_pft1_offset];
+    let mut dim_arr = [d_arr[3]*TC_SIZE, k_i, k_l, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [0f64; 24 * 8];
     let c_cs = d_arr[3];
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 24, 8, 24);
-        dim_arr[0] = 24*8;
+        dim_arr[0] = 24*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(

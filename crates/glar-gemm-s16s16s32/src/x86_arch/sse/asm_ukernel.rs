@@ -2,7 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use std::arch::x86::_mm_prefetch;
 use crate::MyFn;
-use crate::{TA, TB, TC};
+use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
@@ -405,7 +405,7 @@ macro_rules! def_ukernel {
             f: F,
         ) {
             let (k_i, k_l) = (k / 8, (k % 8) / 2);
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let one = 1_f32;
             let ptr_arr = [&one, alpha, beta];
             let mut cf = c;
@@ -413,7 +413,7 @@ macro_rules! def_ukernel {
             let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*4;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             prefetch_c!($mr,$nr,c,c_cs);
@@ -531,7 +531,7 @@ macro_rules! def_ukernelxn {
             f: F,
         ) {
             let (k_i, k_l) = (k / 8, (k % 8) / 2);
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let one = 1_f32;
             let ptr_arr = [&one, alpha, beta];
             let mut cf = c;
@@ -539,7 +539,7 @@ macro_rules! def_ukernelxn {
             let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*4;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {

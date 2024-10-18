@@ -17,6 +17,8 @@ pub(crate) mod reference;
 pub(crate) type TA = f16;
 pub(crate) type TB = f16;
 pub(crate) type TC = f16;
+#[allow(unused)]
+const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 pub use half::f16;
 

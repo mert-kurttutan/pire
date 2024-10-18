@@ -2,7 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use half::f16;
-use crate::MyFn;
+use crate::{MyFn, TC, TC_SIZE};
 use super::VS;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
@@ -882,7 +882,7 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -892,13 +892,13 @@ macro_rules! def_ukernel {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u16;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             prefetch_c!($mr,$nr,c,c_cs);
@@ -1003,7 +1003,7 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
@@ -1013,13 +1013,13 @@ macro_rules! def_ukernelxn {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u16;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -1133,13 +1133,8 @@ def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2xn_bb_p
 def_ukernelxn!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1xn_bb_partial);
 
 
-// based on l1 prefetching scheme is from openblas impl for skylax
-// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
-// this is adapted to our ukernel of 3x8
-// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
-// where the same l1 prefetching does not benefit as much)
 pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
-    a: *const f32, b: *const f32, c: *mut f16,
+    a: *const f32, b: *const f32, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,
     d_arr: [usize; 4],
@@ -1149,13 +1144,13 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let k_l0 = k % 8;
     let k_l = if k_l0 == 0 {8} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let mut dim_arr = [d_arr[3]*2, k_i, k_l, a_pft1_offset];
+    let mut dim_arr = [d_arr[3]*TC_SIZE, k_i, k_l, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [f16::ZERO; 48 * 8];
     let c_cs = d_arr[3];
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 48, 8, 48);
-        dim_arr[0] = 48*2;
+        dim_arr[0] = 48*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(
@@ -1163,7 +1158,6 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         "mov 8({dim_arrx}),{x0}",
         "test {x0},{x0}",
         "je 3f",
-        // "je 3f",
         "mov {cx}, {x2}",
         "mov {ax}, {x5}",
         "mov 24({dim_arrx}),{x1}",

@@ -19,6 +19,7 @@ pub(crate) mod reference;
 pub(crate) type TA = f64;
 pub(crate) type TB = f64;
 pub(crate) type TC = f64;
+const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 #[derive(Copy, Clone)]
 pub(crate) struct NullFn;

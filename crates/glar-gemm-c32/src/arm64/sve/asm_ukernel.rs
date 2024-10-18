@@ -1,6 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC};
+use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
@@ -670,7 +670,7 @@ macro_rules! def_ukernel {
         ) {
             let vs = sve_vs();
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -686,7 +686,7 @@ macro_rules! def_ukernel {
             };
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*8;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             asm!(
@@ -816,7 +816,7 @@ macro_rules! def_ukernelxn {
         ) {
             let vs = sve_vs();
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -832,7 +832,7 @@ macro_rules! def_ukernelxn {
             };
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*8;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -965,7 +965,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     f: F,
 ) {
     let (k_i, k_l) = (k / 4, k % 4);
-    let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
+    let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 2048 * 3 * 4];
     let c_cs = d_arr[3];
@@ -982,7 +982,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     if BUF {
         let mr = sve_vs() * 3;
         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 8, mr);
-        dim_arr[2] = mr*8;
+        dim_arr[2] = mr*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(

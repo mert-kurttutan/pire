@@ -21,6 +21,7 @@ use num_complex::Complex;
 pub(crate) type TA = Complex<f64>;
 pub(crate) type TB = Complex<f64>;
 pub(crate) type TC = Complex<f64>;
+const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 #[derive(Copy, Clone)]
 pub(crate) struct NullFn;
