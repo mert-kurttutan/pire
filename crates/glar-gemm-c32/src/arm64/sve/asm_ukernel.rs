@@ -959,17 +959,17 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, M, ukernel_3x8_bb_partial);
+def_ukernel!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, M, ukernel_bb_partial);
 
 
-def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, C, ukernel_3xn_bb);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, C, ukernel_n_bb);
 
-def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, M, ukernel_3xn_bb_partial);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 12, 8, B, B, M, ukernel_n_bb_partial);
 
 
 
 #[target_feature(enable="neon,sve")]
-pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,

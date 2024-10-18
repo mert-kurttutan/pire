@@ -1184,21 +1184,12 @@ macro_rules! def_ukernelxn {
     };
 }
 
-// def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, C, ukernel_2x12_bb);
-// def_ukernel!(step_1x12, acc_1x12, store_1x12, 8, 4, B, B, C, 4, ukernel_1x12_bb);
-
-// def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2x12_bb_partial);
-// def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1x12_bb_partial);
-
-def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3x8_bb_partial);
-def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2x8_bb_partial);
-def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1x8_bb_partial);
+def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3_bb_partial);
+def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2_bb_partial);
+def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1_bb_partial);
 
 
-def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_3xn_bb);
-// def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, C, ukernel_2xn_bb);
-// def_ukernelxn!(32, step_2x12, acc_2x12, store_2x12, 16, 4, B, B, C, 4, ukernel_1xn_bb);
-// def_ukernelxn!(16, step_1x12, acc_1x12, store_1x12, 8, 4, B, B, C, 4, ukernel_1xn_bb);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_n_bb);
 
 def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3xn_bb_partial);
 def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2xn_bb_partial);
@@ -1206,7 +1197,7 @@ def_ukernelxn!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1xn_bb_p
 
 
 
-pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

@@ -701,11 +701,9 @@ where
     let t1 = T::max_value();
     let mut x = StdRng::seed_from_u64(43);
     let un_dist = Uniform::new(t0, t1);
-    for j in 0..n {
-        for i in 0..m {
-            // arr[j * ld + i] = un_dist.sample(&mut x);
-            arr[j * ld + i] = T::my_sample(&un_dist, &mut x);
-        }
+
+    for p in arr.iter_mut() {
+        *p = T::my_sample(&un_dist, &mut x);
     }
 }
 
@@ -798,8 +796,6 @@ where
         let b = bp[i];
         let cur_diff: f64 = a.diff(&b);
         if cur_diff > diff {
-            // println!("diff: {:?} {:?}", a, b);
-            // println!("idx: {:?}", i);
             diff_idx = i;
             diff = cur_diff;
         }

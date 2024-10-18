@@ -1132,22 +1132,12 @@ macro_rules! def_ukernelxn {
     };
 }
 
-// def_ukernel!(48, step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, 4, ukernel_3x8_bb);
-// def_ukernel!(32, step_2x12, acc_2x12, store_2x12, 32, 8, B, B, C, 4, ukernel_2x8_bb);
-// def_ukernel!(16, step_1x12, acc_1x12, store_1x12, 16, 8, B, B, C, 4, ukernel_1x8_bb);
-
-def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3x8_bb_partial);
-def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2x8_bb_partial);
-def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1x8_bb_partial);
-
-// def_ukernel!(48, step_3x8, acc_3x8, store_3x8, 48, 8, B, S, C, 4, ukernel_3x8_bs);
-
-// def_ukernel!(48, step_3x8, acc_3x8, store_3x8, 48, 8, B, S, M, 4, ukernel_3x8_bs_partial);
-// def_ukernel!(32, step_2x12, acc_2x12, store_2x12, 32, 8, B, S, M, 4, ukernel_2x8_bs_partial);
-// def_ukernel!(16, step_1x12, acc_1x12, store_1x12, 16, 8, B, S, M, 4, ukernel_1x8_bs_partial);
+def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3_bb_partial);
+def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2_bb_partial);
+def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1_bb_partial);
 
 
-def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_3xn_bb);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_n_bb);
 // def_ukernelxn!(32, step_2x12, acc_2x12, store_2x12, 32, 7, B, B, C, 4, ukernel_2xn_bb);
 // def_ukernelxn!(16, step_1x12, acc_1x12, store_1x12, 16, 7, B, B, C, 4, ukernel_1xn_bb);
 
@@ -1155,36 +1145,13 @@ def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3xn_bb_part
 def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2xn_bb_partial);
 def_ukernelxn!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1xn_bb_partial);
 
-// def_ukernelxn!(48, step_3x8, acc_3x8, store_3x8, 48, 8, B, S, C, 4, ukernel_3xn_bs);
-
-// def_ukernelxn!(48, step_3x8, acc_3x8, store_3x8, 48, 8, B, S, M, 4, ukernel_3xn_bs_partial);
-// def_ukernelxn!(32, step_2x12, acc_2x12, store_2x12, 32, 8, B, S, M, 4, ukernel_2xn_bs_partial);
-// def_ukernelxn!(16, step_1x12, acc_1x12, store_1x12, 16, 8, B, S, M, 4, ukernel_1xn_bs_partial);
-
-
-// group_def_ukernel!(48, 1, 7, B, B, C, bb, step_3x8, acc_3x8, store_3x8, 48);
-// group_def_ukernel!(48, 1, 1, B, S, C, bs, step_3x8, acc_3x8, store_3x8, 48);
-// group_def_ukernel!(48, 1, 8, B, B, M, bb_partial, step_3x8, acc_3x8, store_3x8, 48);
-// group_def_ukernel!(48, 1, 8, B, S, M, bs_partial, step_3x8, acc_3x8, store_3x8, 48);
-
-// // group_def_ukernel!(32, 1, 8, B, B, bb, def_ukernel, step_2x12, acc_2x12, store_2x12, 32);
-// // group_def_ukernel!(32, 1, 8, B, S, bs, def_ukernel, step_2x12, acc_2x12, store_2x12, 32);
-// group_def_ukernel!(32, 1, 8, B, B, M, bb_partial, step_2x12, acc_2x12, store_2x12, 32);
-// group_def_ukernel!(32, 1, 8, B, S, M, bs_partial, step_2x12, acc_2x12, store_2x12, 32);
-
-
-// // group_def_ukernel!(16, 1, 8, B, B, bb, def_ukernel, step_1x12, acc_1x12, store_1x12, 16);
-// // group_def_ukernel!(16, 1, 8, B, S, bs, def_ukernel, step_1x12, acc_1x12, store_1x12, 16);
-// group_def_ukernel!(16, 1, 8, B, B, M, bb_partial, step_1x12, acc_1x12, store_1x12, 16);
-// group_def_ukernel!(16, 1, 8, B, S, M, bs_partial, step_1x12, acc_1x12, store_1x12, 16);
-
 
 // based on l1 prefetching scheme is from openblas impl for skylax
 // see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
 // this is adapted to our ukernel of 3x8
 // seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
 // where the same l1 prefetching does not benefit as much)
-pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const f32, b: *const f32, c: *mut f16,
     alpha: *const f32, beta: *const f32,
     k: usize,

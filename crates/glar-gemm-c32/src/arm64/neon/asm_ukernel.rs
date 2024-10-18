@@ -1031,28 +1031,14 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_3x2_bb);
-// def_ukernel!(step_2x3, acc_2x3, store_2x3, 16, 4, B, B, C, ukernel_16x8_bb);
+def_ukernel!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_bb);
 
-def_ukernel!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_3x2_bb_partial);
-def_ukernel!(step_2x3, acc_2x3, store_2x3, 8, 2, B, B, C, ukernel_2x2_bb_partial);
-def_ukernel!(step_1x3, acc_1x3, store_1x3, 4, 2, B, B, C, ukernel_1x2_bb_partial);
+def_ukernel!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_3_bb_partial);
+def_ukernel!(step_2x3, acc_2x3, store_2x3, 8, 2, B, B, C, ukernel_2_bb_partial);
+def_ukernel!(step_1x3, acc_1x3, store_1x3, 4, 2, B, B, C, ukernel_1_bb_partial);
 
-// def_ukernel!(step_3x2, acc_3x2, store_3x2, 24, 2, B, S, C, ukernel_3x2_bs);
-
-// def_ukernel!(step_3x2, acc_3x2, store_3x2, 24, 2, B, S, C, ukernel_3x2_bs_partial);
-// def_ukernel!(step_2x3, acc_2x3, store_2x3, 16, 4, B, S, C, ukernel_2x4_bs_partial);
-
-
-def_ukernelxn!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_3xn_bb);
-// def_ukernelxn!(asm_2x3_step, asm_2x3_acc, asm_2x3_store, 24, 2, B, B, C, ukernel_2xn_bb);
-// def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 16, 4, B, B, C, ukernel_2xn_bb);
+def_ukernelxn!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_n_bb);
 
 def_ukernelxn!(step_3x2, acc_3x2, store_3x2, 12, 2, B, B, C, ukernel_3xn_bb_partial);
 def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 8, 2, B, B, C, ukernel_2xn_bb_partial);
 def_ukernelxn!(step_1x3, acc_1x3, store_1x3, 4, 2, B, B, C, ukernel_1xn_bb_partial);
-
-// def_ukernelxn!(step_3x2, acc_3x2, store_3x2, 24, 2, B, S, C, ukernel_3xn_bs);
-
-// def_ukernelxn!(step_3x2, acc_3x2, store_3x2, 24, 2, B, S, C, ukernel_3xn_bs_partial);
-// def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 16, 4, B, S, C, ukernel_2xn_bs_partial);

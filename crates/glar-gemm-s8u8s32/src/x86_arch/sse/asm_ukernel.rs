@@ -615,14 +615,12 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_1x4_bb);
+def_ukernel!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_bb);
 // def_ukernel!(step_1x4, acc_1x4, store_1x4, 4, 2, B, B, C, 4, ukernel_16x8_bb);
 
-def_ukernel!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_1x4_bb_partial);
+def_ukernel!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_1_bb_partial);
 
 
-def_ukernelxn!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_1xn_bb);
-// def_ukernelxn!(step_1x4, acc_1x4, store_1x4, 8, 2, B, B, C, 4, ukernel_16xn_bb);
-// def_ukernelxn!(step_1x4, acc_1x4, store_1x4, 4, 2, B, B, C, 4, ukernel_16xn_bb);
+def_ukernelxn!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_n_bb);
 
 def_ukernelxn!(step_1x4, acc_1x4, store_1x4, 4, 4, B, B, C, ukernel_1xn_bb_partial);

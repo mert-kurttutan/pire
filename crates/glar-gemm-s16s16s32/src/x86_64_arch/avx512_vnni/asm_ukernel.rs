@@ -1184,172 +1184,18 @@ macro_rules! def_ukernelxn {
     };
 }
 
-// def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, C, ukernel_2x12_bb);
-// def_ukernel!(step_1x12, acc_1x12, store_1x12, 8, 4, B, B, C, 4, ukernel_1x12_bb);
+def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3_bb_partial);
+def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2_bb_partial);
+def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1_bb_partial);
 
-// def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2x12_bb_partial);
-// def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1x12_bb_partial);
-
-def_ukernel!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3x8_bb_partial);
-def_ukernel!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2x8_bb_partial);
-def_ukernel!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1x8_bb_partial);
-
-
-def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_3xn_bb);
-// def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, C, ukernel_2xn_bb);
-// def_ukernelxn!(32, step_2x12, acc_2x12, store_2x12, 16, 4, B, B, C, 4, ukernel_1xn_bb);
-// def_ukernelxn!(16, step_1x12, acc_1x12, store_1x12, 8, 4, B, B, C, 4, ukernel_1xn_bb);
+def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, C, ukernel_n_bb);
 
 def_ukernelxn!(step_3x8, acc_3x8, store_3x8, 48, 8, B, B, M, ukernel_3xn_bb_partial);
 def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2xn_bb_partial);
 def_ukernelxn!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1xn_bb_partial);
 
 
-
-// pub(crate) unsafe fn ukernel_2x12_bb<F: MyFn, const BUF: bool>(
-//     a: *const TA, b: *const TB, c: *mut TC,
-//     alpha: *const f32, beta: *const f32,
-//     k: usize,
-//     d_arr: [usize; 4],
-//     a_pft1_offset: usize,
-//     f: F,
-// ) {
-//     let k_left0 = k % 16;
-//     let k_left = if k_left0 == 0 {8} else {k_left0 / 2};
-//     let k_iter = (k - k_left*2) / 8;
-
-//     // let k = (k+1) / 2 *2;
-//     // let k_iter = k / 8;
-//     // let k_left = (k % 8) / 2;
-//     let one = 1_f32;
-//     let mut dim_arr = [d_arr[3]*4, k_iter, k_left, a_pft1_offset];
-//     let mut cf = c;
-//     let mut c_buf = [0i32; 48 * 8];
-//     let c_cs = d_arr[3];
-//     if BUF {
-//         load_buf(c, d_arr[2], c_cs, &mut c_buf, 32, 8);
-//         dim_arr[2] = 32*4;
-//         cf = c_buf.as_mut_ptr();
-//     }
-//     asm!(
-//         asm_vzeroall!(32,8),
-//         "mov 8({dim_arrx}),{x0}",
-//         "test {x0},{x0}",
-//         "je 3f",
-//         // "je 3f",
-//         "mov {cx}, {x2}",
-//         "mov {ax}, {x5}",
-//         "mov 24({dim_arrx}),{x1}",
-//         "add {x1}, {x5}",
-//         "mov ({dim_arrx}),{x1}",
-//         "2:",
-//         step_2x12!(8, B, B),
-
-//         "movq $64*4, {x4}",
-//         // divisiblity by 4
-//         "testq $3, {x0}",
-//         "cmovz {x1},{x4}",
-
-//         step_2x12!(8, B, B),
-
-//         "prefetcht1 ({x2})",
-
-//         "subq $64*3, {x2}",
-//         "addq {x4}, {x2}",
-
-//         step_2x12!(8, B, B),
-
-//         "prefetcht1 ({x5})",
-//         "addq $32, {x5}",
-
-//         "testq $63, {x0}",
-//         "cmovz {cx},{x2}",
-
-//         step_2x12!(8, B, B),
-
-//         "dec {x0}",
-//         "jne 2b",
-//         "3:",
-//         "mov 16({dim_arrx}),{x0}",
-//         "test {x0},{x0}",
-
-//         // 5 -> POSTACCUM
-//         "je 5f",
-//         "mov {cx}, {x2}",
-//         "mov ({dim_arrx}),{x1}",
-//         "4:",
-//         "prefetcht0 ({x2})",
-//         "prefetcht0 64({x2})",
-//         step_2x12!(8, B, B),
-
-//         "add {x1}, {x2}",
-//         "dec {x0}",
-//         "jne 4b",
-        
-//         "5:",
-//         "mov ({dim_arrx}),{x0}",
-//         "lea ({x0}, {x0}, 2), {x4}",
-//         "lea ({cx}, {x4},), {x1}",
-//         "lea ({x1}, {x4},), {x2}",
-//         asm_alpha_scale!(32, 8),
-//         "8:",
-
-//         load_beta!(),
-
-//         // 6 -> BETAZERO
-//         "je 6f",
-
-//         // check if beta is equal to 1
-//         "vucomiss ({onex}), %xmm0",
-//         "je 9f",
-
-//         cum_seq!(acc_2x12,8,C,2),
-//         "jmp 6f",
-
-//         "9:",
-//         // 9 -> BETA ONE
-//         cum_seq!(acc_2x12,8,C,1),
-
-//         // 6 -> BETAZERO
-//         "6:",
-//         cum_seq!(store_2x12,8,C),
-
-//         "7:",
-//         ax = inout(reg) a => _, 
-//         bx = inout(reg) b => _, 
-//         cx = inout(reg) cf => _,
-//         dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
-//         alphax = inout(reg) alpha => _, 
-//         betax = inout(reg) beta => _, 
-//         onex = inout(reg) &one => _,
-//         x0 = out(reg) _, 
-//         x1 = out(reg)_, 
-//         x2 = out(reg) _, 
-//         // x3 = out(reg) _, 
-//         x4 = out(reg) _,
-//         x5 = out(reg) _, 
-//         out("xmm0") _, out("xmm1") _,
-//         out("xmm2") _, out("xmm3") _, out("xmm4") _, out("xmm5") _, out("xmm6") _,
-//         out("xmm7") _, out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
-//         out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
-//         options(att_syntax)
-//     );
-//     if BUF {
-//         for j in 0..8 {
-//             f.call(cf.add(j*32), 32);
-//         }
-//         store_buf(c, d_arr[2], c_cs, &c_buf, 32, 8);
-//     } else {
-//         for j in 0..8 {
-//             f.call(cf.add(j*c_cs), 32);
-//         }
-//     }
-// }
-
-
-
-
-pub(crate) unsafe fn ukernel_3x8_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

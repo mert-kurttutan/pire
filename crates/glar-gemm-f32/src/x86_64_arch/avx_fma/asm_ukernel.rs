@@ -915,38 +915,25 @@ macro_rules! def_ukernelxn {
     };
 }
 
-// def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, C, ukernel_3x4_bb);
-// def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 6, B, B, C, ukernel_2x6_bb);
-// def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, C, 4, ukernel_2x8_bb);
-
-def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, M, ukernel_3x4_bb_partial);
-def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 4, B, B, M, ukernel_2x4_bb_partial);
-def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, M, ukernel_1x4_bb_partial);
-
-// def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 6, B, B, M, ukernel_2x6_bb_partial);
-// def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 6, B, B, M, ukernel_1x6_bb_partial);
-
-def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, C, ukernel_3x4_bs);
-// def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 6, B, S, C, ukernel_2x6_bs);
-
-def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, M, ukernel_3x4_bs_partial);
-def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 4, B, S, M, ukernel_2x4_bs_partial);
-def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, S, M, ukernel_1x4_bs_partial);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, M, ukernel_3_bb_partial);
+def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 4, B, B, M, ukernel_2_bb_partial);
+def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, M, ukernel_1_bb_partial);
 
 
-// def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 6, B, S, M, ukernel_2x6_bs_partial);
-// def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 6, B, S, M, ukernel_1x6_bs_partial);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, C, ukernel_bs);
 
-def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, C, ukernel_3xn_bb);
-// def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 16, 6, B, B, C, ukernel_2xn_bb);
-// def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, C, 4, ukernel_2xn_bb);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, M, ukernel_3_bs_partial);
+def_ukernel!(step_2x6, acc_2x6, store_2x6, 16, 4, B, S, M, ukernel_2_bs_partial);
+def_ukernel!(step_1x6, acc_1x6, store_1x6, 8, 4, B, S, M, ukernel_1_bs_partial);
+
+
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, C, ukernel_n_bb);
 
 def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, B, M, ukernel_3xn_bb_partial);
 def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 16, 4, B, B, M, ukernel_2xn_bb_partial);
 def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 8, 4, B, B, M, ukernel_1xn_bb_partial);
 
-def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, C, ukernel_3xn_bs);
-// def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 16, 6, B, S, C, ukernel_2xn_bs);
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, C, ukernel_n_bs);
 
 def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 24, 4, B, S, M, ukernel_3xn_bs_partial);
 def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 16, 4, B, S, M, ukernel_2xn_bs_partial);
@@ -962,7 +949,7 @@ def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 8, 4, B, S, M, ukernel_1xn_bs_parti
 // this is adapted to our ukernel of 3x4
 // seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
 // where the same l1 prefetching does not benefit as much)
-pub(crate) unsafe fn ukernel_3x4_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,
