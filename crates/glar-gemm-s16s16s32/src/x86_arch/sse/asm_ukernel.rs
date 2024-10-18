@@ -1,8 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86::_mm_prefetch;
 use crate::MyFn;
 use crate::{TA, TB, TC};
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
@@ -370,14 +371,6 @@ macro_rules! step_1x2 {
     };
 }
 
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt) => {
-        concat!(
-            "prefetcht0 ", $dist, $reg, "\n"
-        )
-    };
-}
-
 macro_rules! prefetch_c {
     (8, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
@@ -411,10 +404,8 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k = (k+1) / 2 *2;
-            let k_iter = k / 8;
-            let k_left = (k % 8) / 2;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 8, (k % 8) / 2);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let one = 1_f32;
             let ptr_arr = [&one, alpha, beta];
             let mut cf = c;
@@ -425,8 +416,6 @@ macro_rules! def_ukernel {
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -541,10 +530,8 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k = (k+1) / 2 *2;
-            let k_iter = k / 8;
-            let k_left = (k % 8) / 2;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 8, (k % 8) / 2);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let one = 1_f32;
             let ptr_arr = [&one, alpha, beta];
             let mut cf = c;
@@ -555,11 +542,9 @@ macro_rules! def_ukernelxn {
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),

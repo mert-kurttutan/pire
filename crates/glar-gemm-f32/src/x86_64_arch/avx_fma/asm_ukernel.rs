@@ -1,9 +1,10 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86_64::_mm_prefetch;
 use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -595,14 +596,6 @@ macro_rules! step_1x6 {
     };
 }
 
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
-        )
-    };
-}
-
 macro_rules! prefetch_c {
     (24, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
@@ -677,9 +670,8 @@ macro_rules! def_ukernel {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = x;
-            let k_iter = (k-0) / 4;
-            let k_left = k % 4+0;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f32;$mr*$nr];
             let c_cs = d_arr[3];
@@ -688,8 +680,6 @@ macro_rules! def_ukernel {
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86_64::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -701,7 +691,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
@@ -802,9 +792,8 @@ macro_rules! def_ukernelxn {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = x;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f32;$mr*$nr];
             let c_cs = d_arr[3];
@@ -813,11 +802,9 @@ macro_rules! def_ukernelxn {
                 dim_arr[2] = $mr*4;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -829,7 +816,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),
@@ -957,10 +944,10 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 4;
-    let k_left = if k_left0 == 0 {4} else {k_left0};
-    let k_iter = (k - k_left) / 4;
-    let mut dim_arr = [d_arr[3]*4, k_iter, k_left, a_pft1_offset];
+    let k_l0 = k % 4;
+    let k_l = if k_l0 == 0 {4} else {k_l0};
+    let k_i = (k - k_l) / 4;
+    let mut dim_arr = [d_arr[3]*4, k_i, k_l, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [0f32; 24 * 4];
     let c_cs = d_arr[3];
@@ -981,7 +968,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         "add {x1}, {x5}",
         "mov ({dim_arrx}),{x1}",
         "2:",
-        prefetch_0!(256, "{bx}", 0),
+        prefetch_0!(256, "{bx}"),
         step_3x4!(4, B, B, 0),
 
         "movq $64*4, {x4}",

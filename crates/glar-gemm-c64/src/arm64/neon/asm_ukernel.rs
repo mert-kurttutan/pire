@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC};
-use glar_base::{load_buf, store_buf, c_mem2};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr,1) => {
@@ -405,7 +405,7 @@ macro_rules! c_reg_1x3 {
 macro_rules! acc_3x2 {
     ($ni:tt, $layout:tt, $q:tt) => {
         acc_p!(
-            $layout, c_mem2!($ni), $q, c_reg_3x2!(0,$ni), c_reg_3x2!(1,$ni), c_reg_3x2!(2,$ni), c_reg_3x2!(3,$ni), c_reg_3x2!(4,$ni), c_reg_3x2!(5,$ni)
+            $layout, c_mem!($ni), $q, c_reg_3x2!(0,$ni), c_reg_3x2!(1,$ni), c_reg_3x2!(2,$ni), c_reg_3x2!(3,$ni), c_reg_3x2!(4,$ni), c_reg_3x2!(5,$ni)
         )
     };
 }
@@ -413,32 +413,32 @@ macro_rules! acc_3x2 {
 macro_rules! store_3x2 {
     ($ni:tt, $layout:tt) => {
         storep!(
-            $layout, c_mem2!($ni), c_reg_3x2!(0,$ni), c_reg_3x2!(1,$ni), c_reg_3x2!(2,$ni), c_reg_3x2!(3,$ni), c_reg_3x2!(4,$ni), c_reg_3x2!(5,$ni)
+            $layout, c_mem!($ni), c_reg_3x2!(0,$ni), c_reg_3x2!(1,$ni), c_reg_3x2!(2,$ni), c_reg_3x2!(3,$ni), c_reg_3x2!(4,$ni), c_reg_3x2!(5,$ni)
         )
     };
 }
 
 macro_rules! acc_2x3 {
     ($ni:tt, $layout:tt,$q:tt) => {
-        acc_p!($layout, c_mem2!($ni), $q, c_reg_2x3!(0,$ni), c_reg_2x3!(1,$ni), c_reg_2x3!(2,$ni), c_reg_2x3!(3,$ni))
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2x3!(0,$ni), c_reg_2x3!(1,$ni), c_reg_2x3!(2,$ni), c_reg_2x3!(3,$ni))
     };
 }
 
 macro_rules! store_2x3 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem2!($ni), c_reg_2x3!(0,$ni), c_reg_2x3!(1,$ni), c_reg_2x3!(2,$ni), c_reg_2x3!(3,$ni))
+        storep!($layout, c_mem!($ni), c_reg_2x3!(0,$ni), c_reg_2x3!(1,$ni), c_reg_2x3!(2,$ni), c_reg_2x3!(3,$ni))
     };
 }
 
 macro_rules! acc_1x3 {
     ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p!($layout, c_mem2!($ni), $q, c_reg_1x3!(0,$ni), c_reg_1x3!(1,$ni))
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x3!(0,$ni), c_reg_1x3!(1,$ni))
     };
 }
 
 macro_rules! store_1x3 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem2!($ni), c_reg_1x3!(0,$ni), c_reg_1x3!(1,$ni))
+        storep!($layout, c_mem!($ni), c_reg_1x3!(0,$ni), c_reg_1x3!(1,$ni))
     };
 }
 
@@ -666,14 +666,6 @@ macro_rules! step_1x3 {
     };
 }
 
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prfm pldl1keep, [", $reg, ", #", $k_i, "*64+", $dist, "] \n",
-        )
-    };
-}
-
 use crate::MyFn;
 
 macro_rules! prefetch_c {
@@ -740,9 +732,8 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let alt = [-1.0f64, 1.0f64];
@@ -776,10 +767,10 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(192, "{bx}", 0),
+                prefetch_0!(192, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
-                prefetch_0!(256, "{bx}", 0),
+                prefetch_0!(256, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
                 $step_macro!($nr, $a_layout, $b_layout, 3),
 
@@ -890,9 +881,8 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let is_alpha_one = if *alpha == TA::ONE {
@@ -927,7 +917,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{cx}", 0),
+                            prefetch_0!(128, "{cx}"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),

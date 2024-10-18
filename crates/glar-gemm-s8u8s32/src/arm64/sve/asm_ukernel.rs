@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC};
-use glar_base::{load_buf, store_buf, c_mem2};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 
 macro_rules! unzip_tuple {
@@ -453,7 +453,7 @@ macro_rules! c_reg_2x12 {
 macro_rules! acc_2x12 {
     ($ni:tt, $layout:tt, $idx:tt) => {
         acc_p!(
-            $layout, c_mem2!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni), $idx
+            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni), $idx
         )
     };
 }
@@ -461,7 +461,7 @@ macro_rules! acc_2x12 {
 macro_rules! store_2x12 {
     ($ni:tt, $layout:tt) => {
         storep!(
-            $layout, c_mem2!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni)
+            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni)
         )
     };
 }
@@ -602,15 +602,6 @@ macro_rules! step_2x12 {
     };
 }
 
-
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prfm pldl1keep, [", $reg, ", #", $k_i, "*64+", $dist, "] \n",
-        )
-    };
-}
-
 use crate::MyFn;
 
 macro_rules! prefetch_c {
@@ -688,12 +679,10 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k = (k+7) / 8 * 8;
             let vs = sve_vs();
             let inc_a = vs * $mr * 4 * 2;
-            let k_iter = k / 32;
-            let k_left = k % 32 / 8;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 32, (k % 32) / 8);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
@@ -731,7 +720,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
@@ -853,12 +842,10 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k = (k+7) / 8 * 8;
             let vs = sve_vs();
             let inc_a = vs * $mr * 4 * 2;
-            let k_iter = k / 32;
-            let k_left = k % 32 / 8;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let (k_i, k_l) = (k / 32, (k % 32) / 8);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
             let mut c_buf = [0i32; MAX_VS * $mr * $nr];
@@ -898,7 +885,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
@@ -1023,10 +1010,8 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
 ) {
     let vs = sve_vs();
     let inc_a = vs * 2 * 4 * 2;
-    let k = (k+7) / 8 * 8;
-    let k_iter = k / 32;
-    let k_left = k % 32 / 8;
-    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+    let (k_i, k_l) = (k / 32, (k % 32) / 8);
+    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_i, k_l];
     let mut cf = c;
     let mut c_buf = [0i32; MAX_VS * 2 * 6];
     let c_cs = d_arr[3];
@@ -1062,10 +1047,10 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         
         // 2 -> KITER
         "2:",
-        prefetch_0!(256, "{bx}", 0),
+        prefetch_0!(256, "{bx}"),
         step_2x12!(12, B, B),
         step_2x12!(12, B, B),
-        prefetch_0!(256, "{bx}", 0),
+        prefetch_0!(256, "{bx}"),
         step_2x12!(12, B, B),
         step_2x12!(12, B, B),
 

@@ -1,5 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86_64::_mm_prefetch;
 use super::VS;
 use crate::{TA, TB, TC};
 use crate::MyFn;
@@ -814,9 +815,8 @@ macro_rules! def_ukernel {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
@@ -825,8 +825,6 @@ macro_rules! def_ukernel {
                 dim_arr[2] = $mr*8;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86_64::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -938,9 +936,8 @@ macro_rules! def_ukernelxn {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
             let c_cs = d_arr[3];
@@ -949,11 +946,9 @@ macro_rules! def_ukernelxn {
                 dim_arr[2] = $mr*8;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -1086,10 +1081,10 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 8;
-    let k_left = if k_left0 == 0 {8} else {k_left0};
-    let k_iter = (k - k_left) / 4;
-    let mut dim_arr = [d_arr[3]*8, k_iter, k_left, a_pft1_offset];
+    let k_l0 = k % 8;
+    let k_l = if k_l0 == 0 {8} else {k_l0};
+    let k_i = (k - k_l) / 4;
+    let mut dim_arr = [d_arr[3]*8, k_i, k_l, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [0f64; 24 * 8];
     let c_cs = d_arr[3];

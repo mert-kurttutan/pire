@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC};
-use glar_base::{load_buf, store_buf, c_mem2};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -386,7 +386,7 @@ macro_rules! c_reg_3x8 {
 macro_rules! acc_3x8 {
     ($ni:tt, $layout:tt) => {
         acc_p!(
-            $layout, c_mem2!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
+            $layout, c_mem!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
         )
     };
 }
@@ -394,7 +394,7 @@ macro_rules! acc_3x8 {
 macro_rules! store_3x8 {
     ($ni:tt, $layout:tt) => {
         storep!(
-            $layout, c_mem2!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
+            $layout, c_mem!($ni), c_reg_3x8!(0,$ni), c_reg_3x8!(1,$ni), c_reg_3x8!(2,$ni)
         )
     };
 }
@@ -570,15 +570,6 @@ macro_rules! step_3x8 {
     };
 }
 
-
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prfm pldl1keep, [", $reg, ", #", $k_i, "*64+", $dist, "] \n",
-        )
-    };
-}
-
 use crate::MyFn;
 
 macro_rules! prefetch_c {
@@ -678,11 +669,8 @@ macro_rules! def_ukernel {
             f: F,
         ) {
             let vs = sve_vs();
-            // let m_l = m % vs;
-            // let m_l = if m_l == 0 { vs } else { m_l };
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -719,7 +707,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
@@ -827,9 +815,8 @@ macro_rules! def_ukernelxn {
             f: F,
         ) {
             let vs = sve_vs();
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -868,7 +855,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
@@ -977,9 +964,8 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     m: usize,
     f: F,
 ) {
-    let k_iter = k / 4;
-    let k_left = k % 4;
-    let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_iter, k_left];
+    let (k_i, k_l) = (k / 4, k % 4);
+    let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*8, k_i, k_l];
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 2048 * 3 * 4];
     let c_cs = d_arr[3];
@@ -1013,7 +999,7 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         
         // 2 -> KITER
         "2:",
-        prefetch_0!(128, "{bx}", 0),
+        prefetch_0!(128, "{bx}"),
         step_3x8!(8, B, B),
         step_3x8!(8, B, B),
         step_3x8!(8, B, B),

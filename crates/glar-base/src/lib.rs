@@ -2543,6 +2543,8 @@ macro_rules! def_kernel_bs {
         }
     };
 }
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]
 macro_rules! c_mem {
     (0) => {
@@ -2592,8 +2594,9 @@ macro_rules! c_mem {
     };
 }
 
+#[cfg(target_arch = "aarch64")]
 #[macro_export]
-macro_rules! c_mem2 {
+macro_rules! c_mem {
     (0) => {
         "{cx}"
     };
@@ -2638,6 +2641,22 @@ macro_rules! c_mem2 {
     };
     (14) => {
         "{x14}"
+    };
+}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[macro_export]
+macro_rules! prefetch_0 {
+    ($dist:tt, $reg:tt) => {
+        concat!("prefetcht0 ", $dist, "(", $reg, ")\n",)
+    };
+}
+
+#[cfg(target_arch = "aarch64")]
+#[macro_export]
+macro_rules! prefetch_0 {
+    ($dist:tt, $reg:tt) => {
+        concat!("prfm pldl1keep, [", $reg, ", #", $dist, "] \n",)
     };
 }
 

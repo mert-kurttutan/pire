@@ -1,8 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86::_mm_prefetch;
 use crate::{TA, TB, TC};
 use crate::MyFn;
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -352,14 +353,6 @@ macro_rules! step_1x2 {
     };
 }
 
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
-        )
-    };
-}
-
 macro_rules! prefetch_c {
     (1, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
@@ -387,9 +380,8 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k_iter = (k-0) / 4;
-            let k_left = k % 4+0;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_i, k_l];
             let mut ptr_arr = [c, alpha];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
@@ -400,8 +392,6 @@ macro_rules! def_ukernel {
                 cf = c_buf.as_mut_ptr();
                 ptr_arr[0] = cf;
             }
-            // prefetch for c
-            use std::arch::x86::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -413,7 +403,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{cx}", 0),
+                prefetch_0!(128, "{cx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
@@ -500,9 +490,8 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_i, k_l];
             let mut ptr_arr = [c, alpha];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
@@ -513,11 +502,9 @@ macro_rules! def_ukernelxn {
                 cf = c_buf.as_mut_ptr();
                 ptr_arr[0] = cf;
             }
-            use std::arch::x86::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -529,7 +516,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{cx}", 0),
+                            prefetch_0!(128, "{cx}"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),
