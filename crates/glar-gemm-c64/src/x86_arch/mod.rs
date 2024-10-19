@@ -6,7 +6,6 @@ use glar_base::{
     get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range, split_range, Array, ArrayMut,
     GemmPool, GlarPar, GlarThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
 };
-use sse::scale_c;
 
 use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
 
@@ -161,19 +160,15 @@ unsafe fn kernel<F: MyFn>(
     ap: *const TA,
     bp: *const TB,
     kc_last: bool,
-    kc_first: bool,
 ) {
-    if kc_first {
-        scale_c(m, n, beta, c, c_rs, c_cs);
-    }
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Reg1x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel(m, n, k, alpha, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Reg1x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -193,19 +188,15 @@ unsafe fn kernel_m<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     kc_last: bool,
-    kc_first: bool,
 ) {
-    if kc_first {
-        scale_c(m, n, beta, c, c_rs, c_cs);
-    }
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Reg1x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel_bs(m, n, k, alpha, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Reg1x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -226,19 +217,15 @@ unsafe fn kernel_n<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     kc_last: bool,
-    kc_first: bool,
 ) {
-    if kc_first {
-        scale_c(m, n, beta, c, c_rs, c_cs);
-    }
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Reg1x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = NullFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg1x2 => sse::kernel_sb(m, n, k, alpha, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Reg1x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }

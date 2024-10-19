@@ -174,7 +174,6 @@ unsafe fn kernel<F: MyFn>(
     ap: *const TA,
     bp: *const TB,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
@@ -204,7 +203,6 @@ unsafe fn kernel_m<F: MyFn>(
     c_cs: usize,
     ap: *const TA,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     panic!("Not implemented");
 }
@@ -225,7 +223,6 @@ unsafe fn kernel_n<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         match hw_cfg.reg_dim {

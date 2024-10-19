@@ -7,15 +7,30 @@ use crate::MyFn;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
+    (C, $m0:expr, $r1:expr,1) => {
         concat!(
             "vaddpd ", $m0, ",%ymm", $r1, ",%ymm", $r1, "\n",
         ) 
     };
-    (M, $m0:expr, $r1:expr) => {
+    (M, $m0:expr, $r1:expr,1) => {
         concat!(
-            "vmaskmovpd ", $m0, ", %ymm1", ", %ymm2",  "\n",
-            "vaddpd %ymm2, %ymm", $r1, ", %ymm", $r1, "\n",
+            "vmaskmovpd ", $m0, ", %ymm2", ", %ymm5",  "\n",
+            "vaddpd %ymm5, %ymm", $r1, ", %ymm", $r1, "\n",
+        ) 
+    };
+
+    (C, $m0:expr, $r1:expr,2) => {
+        concat!(
+            "vmovupd ", $m0, ", %ymm5", "\n",
+            complex_mul!(5, 7),
+            "vaddpd %ymm5, %ymm", $r1, ", %ymm", $r1, "\n",
+        ) 
+    };
+    (M, $m0:expr, $r1:expr,2) => {
+        concat!(
+            "vmaskmovpd ", $m0, ", %ymm2", ", %ymm5",  "\n",
+            complex_mul!(5, 7),
+            "vaddpd %ymm5, %ymm", $r1, ", %ymm", $r1, "\n",
         ) 
     };
 }
@@ -75,7 +90,7 @@ macro_rules! storep_unit {
     };
     (M, $r1:expr, $m0:expr) => {
         concat!(
-            "vmaskmovpd %ymm", $r1, ", %ymm1, ", $m0,  "\n",
+            "vmaskmovpd %ymm", $r1, ", %ymm2, ", $m0,  "\n",
         )
     };
 }
@@ -133,15 +148,15 @@ macro_rules! mem {
 }
 
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr) => {
         concat!(
-            beta_fmadd!(C, $m0, $r1),
-            beta_fmadd!($layout, mem!($m0, "0x20"), $r2),
+            beta_fmadd!(C, $m0, $r1, $q),
+            beta_fmadd!($layout, mem!($m0, "0x20"), $r2, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr) => {
         concat!(
-            beta_fmadd!($layout, $m0, $r1),
+            beta_fmadd!($layout, $m0, $r1, $q),
         )
     };
 }
@@ -174,6 +189,15 @@ macro_rules! storep {
             storep_unit!($layout, $r1, $m0),
         )
     };
+}
+
+macro_rules! load_beta {
+    () => {
+        concat!(
+            "vbroadcastsd ({betax}), %ymm0\n",
+            "vbroadcastsd 8({betax}), %ymm1\n",
+        )
+    }
 }
 
 
@@ -306,8 +330,8 @@ macro_rules! c_reg_1x2 {
 }
 
 macro_rules! acc_2x2 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
     };
 }
 
@@ -318,8 +342,8 @@ macro_rules! store_2x2 {
 }
 
 macro_rules! acc_1x2 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x2!(0,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x2!(0,$ni))
     };
 }
 
@@ -333,6 +357,12 @@ macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt) => {
         seq!(n in 0..$nr {
             concat!(#($step_macro!(n, $layout),)*)
+        })
+    };
+
+    ($step_macro:tt, $nr:tt, $layout:tt, $q:tt) => {
+        seq!(n in 0..$nr {
+            concat!(#($step_macro!(n, $layout, $q),)*)
         })
     };
 }
@@ -470,7 +500,7 @@ macro_rules! mask_ptr {
 
 macro_rules! load_mask_ptr_asm {
     (M) => {
-        "vmovdqu ({maskx}), %ymm1"
+        "vmovdqu ({maskx}), %ymm2"
     };
     (C) => {
         "/* {maskx} */"
@@ -490,7 +520,7 @@ macro_rules! def_ukernel {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize,
@@ -503,6 +533,13 @@ macro_rules! def_ukernel {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -561,18 +598,32 @@ macro_rules! def_ukernel {
 
                 load_mask_ptr_asm!($is_partial),				
 
-                cum_seq!($acc_macro,$nr,$is_partial),
+                "cmpw $0, ({beta_st})",
+                "je 6f",
+        
+                "cmpw $1, ({beta_st})",
+                "je 15f",
 
+
+                load_beta!(),
+                cum_seq!($acc_macro,$nr,$is_partial,2),
+                "jmp 6f",
+
+                "15:",
+                cum_seq!($acc_macro,$nr,$is_partial,1),
+
+                "6:",
                 cum_seq!($store_macro,$nr,$is_partial),
                 
                 // 7 -> DDONE
                 "7:",
-                // "vzeroupper",
                 ax = inout(reg) a => _,
                 bx = inout(reg) b => _,
                 cx = inout(reg) cf => _,
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
+                betax = inout(reg) beta => _,
+                beta_st = in(reg) &beta_st,
                 maskx = inout(reg) mask_ptr => _,
                 x0 = out(reg) _,
                 x1 = out(reg) _,
@@ -611,7 +662,7 @@ macro_rules! def_ukernelxn {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize, n: usize,
@@ -624,6 +675,13 @@ macro_rules! def_ukernelxn {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -684,21 +742,32 @@ macro_rules! def_ukernelxn {
                             asm_alpha_scale!($mr, ni),
 
 
-                            load_mask_ptr_asm!($is_partial),				
+                            load_mask_ptr_asm!($is_partial),
 
-                            cum_seq!($acc_macro,ni,$is_partial),
+                            "cmpw $0, ({beta_st})",
+                            "je 6f",
+                    
+                            "cmpw $1, ({beta_st})",
+                            "je 15f",
 
+                            load_beta!(),
+                            cum_seq!($acc_macro,ni,$is_partial,2),	
+                            "jmp 6f",	
+
+                            "15:",
+                            cum_seq!($acc_macro,ni,$is_partial,1),
+
+                            "6:",
                             cum_seq!($store_macro,ni,$is_partial),
                             
-                            // 7 -> DDONE
-                            "7:",
-                            // "vzeroupper",
+                            // 7 -
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
                             cx = inout(reg) cf => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
-                            // betax = inout(reg) beta => _,
+                            betax = inout(reg) beta => _,
+                            beta_st = in(reg) &beta_st,
                             maskx = inout(reg) mask_ptr => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,

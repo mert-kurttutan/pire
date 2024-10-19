@@ -459,7 +459,7 @@ macro_rules! cum_seq {
 
     ($step_macro:tt, $nr:tt, $layout:tt, $q:tt) => {
         seq!(n in 0..$nr {
-            concat!(#($step_macro!(n, $layout,$q),)*)
+            concat!(#($step_macro!(n, $layout, $q),)*)
         })
     };
 }
