@@ -806,14 +806,12 @@ macro_rules! def_ukernelxn {
                             
                             // 7 -> DDONE
                             "7:",
-                            // "vzeroupper",
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
                             cx = inout(reg) cf => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
-                            // maskx = inout(reg) mask_ptr => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,

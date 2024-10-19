@@ -870,7 +870,6 @@ macro_rules! def_ukernelxn {
                             
                             // 7 -> DDONE
                             "7:",
-                            // "vzeroupper",
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
                             cx = inout(reg) cf => _,
@@ -929,11 +928,7 @@ def_ukernelxn!(step_2x3, acc_2x3, store_2x3, 8, 3, B, S, M, ukernel_2xn_bs_parti
 def_ukernelxn!(step_1x3, acc_1x3, store_1x3, 4, 3, B, S, M, ukernel_1xn_bs_partial);
 
 
-// based on l1 prefetching scheme is from openblas impl for skylax
-// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
-// this is adapted to our ukernel of 3x2
-// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
-// where the same l1 prefetching does not benefit as much)
+
 pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA,
