@@ -1,8 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC};
+use std::arch::x86_64::_mm_prefetch;
+use crate::{TA, TB, TC, TC_SIZE};
 use crate::MyFn;
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -429,14 +430,6 @@ macro_rules! step_1x2 {
     };
 }
 
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
-        )
-    };
-}
-
 macro_rules! prefetch_c {
     (2, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
@@ -469,19 +462,16 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k_iter = (k-0) / 4;
-            let k_left = k % 4+0;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*16;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86_64::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -493,7 +483,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
@@ -585,22 +575,19 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*16;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -612,7 +599,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),
@@ -690,26 +677,26 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_2x2_bb);
+def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_bb);
 // def_ukernel!(step_1x2, acc_1x2, store_1x2, 8, 4, B, B, C, 4, ukernel_16x8_bb);
 
 
-def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_2x2_bb_partial);
-def_ukernel!(step_1x2, acc_1x2, store_1x2, 1, 2, B, B, C, ukernel_1x2_bb_partial);
+def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_2_bb_partial);
+def_ukernel!(step_1x2, acc_1x2, store_1x2, 1, 2, B, B, C, ukernel_1_bb_partial);
 
-def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_2x2_bs);
+def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_bs);
 
 
-def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_2x2_bs_partial);
-def_ukernel!(step_1x2, acc_1x2, store_1x2, 1, 2, B, S, C, ukernel_1x2_bs_partial);
+def_ukernel!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_2_bs_partial);
+def_ukernel!(step_1x2, acc_1x2, store_1x2, 1, 2, B, S, C, ukernel_1_bs_partial);
 
-def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_2xn_bb);
+def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_n_bb);
 // def_ukernelxn!(step_1x2, acc_1x2, store_1x2, 8, 4, B, B, C, 4, ukernel_4xn_bb);
 
 def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, B, C, ukernel_2xn_bb_partial);
 def_ukernelxn!(step_1x2, acc_1x2, store_1x2, 1, 2, B, B, C, ukernel_1xn_bb_partial);
 
-def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_2xn_bs);
+def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_n_bs);
 
 def_ukernelxn!(step_2x2, acc_2x2, store_2x2, 2, 2, B, S, C, ukernel_2xn_bs_partial);
 def_ukernelxn!(step_1x2, acc_1x2, store_1x2, 1, 2, B, S, C, ukernel_1xn_bs_partial);

@@ -680,19 +680,15 @@ impl Bound for Complex<f64> {
     }
 }
 
-pub fn random_matrix_std<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+pub fn random_matrix_std<T>(arr: &mut [T])
 where
     rand::distributions::Standard: rand::prelude::Distribution<T>,
 {
     let mut x = StdRng::seed_from_u64(43);
-    for j in 0..n {
-        for i in 0..m {
-            arr[j * ld + i] = x.gen::<T>();
-        }
-    }
+    arr.iter_mut().for_each(|p| *p = x.gen::<T>());
 }
 
-pub fn random_matrix_uniform<T>(m: usize, n: usize, arr: &mut [T], ld: usize)
+pub fn random_matrix_uniform<T>(arr: &mut [T])
 where
     T: Bound,
     T::X: rand::distributions::uniform::SampleUniform,
@@ -701,12 +697,7 @@ where
     let t1 = T::max_value();
     let mut x = StdRng::seed_from_u64(43);
     let un_dist = Uniform::new(t0, t1);
-    for j in 0..n {
-        for i in 0..m {
-            // arr[j * ld + i] = un_dist.sample(&mut x);
-            arr[j * ld + i] = T::my_sample(&un_dist, &mut x);
-        }
-    }
+    arr.iter_mut().for_each(|p| *p = T::my_sample(&un_dist, &mut x));
 }
 
 pub trait Diff {
@@ -798,8 +789,6 @@ where
         let b = bp[i];
         let cur_diff: f64 = a.diff(&b);
         if cur_diff > diff {
-            // println!("diff: {:?} {:?}", a, b);
-            // println!("idx: {:?}", i);
             diff_idx = i;
             diff = cur_diff;
         }

@@ -62,7 +62,7 @@ macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_bb>]<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
                 beta: *const f32,
@@ -70,7 +70,7 @@ macro_rules! def_kernel_bb {
                 ap: *const f32, bp: *const f32,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -100,7 +100,7 @@ macro_rules! def_kernel_bb {
 
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
@@ -124,7 +124,7 @@ macro_rules! def_kernel_bb {
     };
 }
 
-def_kernel_bb!(24, 4, 24, 16, 8);
+def_kernel_bb!(3, 4, 3, 2, 1);
 
 // #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn kernel<F: MyFn>(
@@ -141,8 +141,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_24x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_24x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

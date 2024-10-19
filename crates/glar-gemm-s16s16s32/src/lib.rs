@@ -14,6 +14,7 @@ pub(crate) mod reference;
 pub(crate) type TA = i16;
 pub(crate) type TB = i16;
 pub(crate) type TC = i32;
+const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 use glar_base::{ap_size_int, bp_size_int, has_i16i32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
 
@@ -214,36 +215,50 @@ mod tests {
     static BETA_ARR: [f32; 1] = [3.0];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
+        let a_stride_scale = 1;
+        let b_stride_scale = 1;
+        let c_stride_scale = 2;
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (48, 8, 8);
         let m_dims = generate_m_dims(mc, mr);
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
         let unary_fn: unsafe fn(*mut TC, usize) = my_unary;
-        for m in m_dims.iter() {
-            let m = *m;
-            let (c_rs, c_cs) = (1, m);
-            for n in n_dims.iter() {
-                let n = *n;
-                let c_size = matrix_size(c_rs, c_cs, m, n);
-                let mut c = vec![0i32; c_size];
-                let mut c_ref = vec![0i32; c_size];
-                for k in k_dims.iter() {
-                    let k = *k;
+        let m_max = *m_dims.iter().max().unwrap();
+        let n_max = *n_dims.iter().max().unwrap();
+        let k_max = *k_dims.iter().max().unwrap();
+        let a_size = matrix_size(m_max, k_max) * a_stride_scale;
+        let b_size = matrix_size(k_max, n_max) * b_stride_scale;
+        let c_size = matrix_size(m_max, n_max) * c_stride_scale;
+        let mut a = vec![0i16; a_size];
+        let mut b = vec![0i16; b_size];
+        random_matrix_uniform(&mut a);
+        random_matrix_uniform(&mut b);
+        let mut c = vec![0i32; c_size];
+        let mut c_ref = vec![0i32; c_size];
+
+        let ap_size = if is_a_packed { ap_size_int::<TA, TC>(m_max, k_max) } else { 0 };
+        let mut ap = vec![0i16; ap_size];
+
+        let bp_size = if is_b_packed { bp_size_int::<TB, TC>(n_max, k_max) } else { 0 };
+        let mut bp = vec![0i16; bp_size];
+        for &m in &m_dims {
+            for &n in &n_dims {
+                for &k in &k_dims {
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
-                    let mut a = vec![0i16; m * k];
-                    let mut b = vec![0i16; k * n];
-                    random_matrix_uniform(m, k, &mut a, m);
-                    random_matrix_uniform(k, n, &mut b, k);
-                    let ap_size = if is_a_packed { ap_size_int::<TA, TC>(m, k) } else { 0 };
-                    let mut ap = vec![0i16; ap_size];
+                    let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = (
+                        a_rs * a_stride_scale,
+                        a_cs * a_stride_scale,
+                        b_rs * b_stride_scale,
+                        b_cs * b_stride_scale,
+                        c_rs * c_stride_scale,
+                        c_cs * c_stride_scale,
+                    );
                     let a_matrix = if is_a_packed {
                         unsafe { packa_i16_with_ref(m, k, &a, a_rs, a_cs, &mut ap) }
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
-                    let bp_size = if is_b_packed { bp_size_int::<TB, TC>(n, k) } else { 0 };
-                    let mut bp = vec![0i16; bp_size];
                     let b_matrix = if is_b_packed {
                         unsafe { packb_i16_with_ref(n, k, &b, b_rs, b_cs, &mut bp) }
                     } else {
@@ -251,7 +266,7 @@ mod tests {
                     };
                     for alpha in ALPHA_ARR {
                         for beta in BETA_ARR {
-                            random_matrix_uniform(m, n, &mut c, m);
+                            random_matrix_uniform(&mut c);
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                             unsafe {
@@ -264,14 +279,14 @@ mod tests {
                                     m,
                                     n,
                                     k,
-                                    alpha as f32,
+                                    alpha,
                                     a.as_ptr(),
                                     a_rs,
                                     a_cs,
                                     b.as_ptr(),
                                     b_rs,
                                     b_cs,
-                                    beta as f32,
+                                    beta,
                                     &mut c,
                                     c_rs,
                                     c_cs,
@@ -302,7 +317,6 @@ mod tests {
             }
         }
     }
-
     #[test]
     fn test_nn_col() {
         test_gemm(&ABLayout::NN, false, false);

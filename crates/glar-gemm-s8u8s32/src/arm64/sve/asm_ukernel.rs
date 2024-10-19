@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC};
-use glar_base::{load_buf, store_buf, c_mem2};
+use crate::{TA, TB, TC, TC_SIZE};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 
 macro_rules! unzip_tuple {
@@ -41,19 +41,6 @@ macro_rules! unzip_c {
 }
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
-        concat!(
-            "ld1w {{ z1.s }}, p0/z, ", $m0, "\n",
-            "add z", $r1, ".s, p0/m, z", $r1, ".s, z1.s\n",
-        ) 
-    };
-    (M, $m0:expr, $r1:expr) => {
-        concat!(
-            "ld1w {{ z1.s }}, p1/z, ", $m0, "\n",
-            "add z", $r1, ".s, p1/m, z", $r1, ".s, z1.s\n",
-        ) 
-    };
-
     (C, $m0:expr, $r1:expr,1) => {
         concat!(
             "ld1w {{ z1.s }}, p0/z, ", $m0, "\n",
@@ -150,7 +137,7 @@ macro_rules! asm_alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                "cmp {is_alpha_one:w}, #0", "\n",
+                "cmp {alpha_st:w}, #0", "\n",
                 "BEQ 13f", "\n",
 
                 "ld1rqw {{ z1.s }}, p0/z, [{alphax}]", "\n",
@@ -198,7 +185,7 @@ macro_rules! acc_p {
 
 
 macro_rules! loadp {
-    (16, $layout:tt, $m0:expr) => {
+    (2, $layout:tt, $m0:expr) => {
         concat!(
             loadp_unit!($layout, mem!($m0), 0),
             loadp_unit!($layout, mem!($m0, "#1", "MUL VL"), 1),
@@ -422,19 +409,9 @@ macro_rules! asm_alpha_scale {
     ($mr:tt, $nr:tt) => {
         asm_alpha_scale_0!(8,31)
     };
-    (8, 1) => {
-        asm_alpha_scale_0!(4,5)
-    };
-
-    (4, 2) => {
-        asm_alpha_scale_0!(4,5)
-    };
-    (4, 1) => {
-        asm_alpha_scale_0!(4,4)
-    };
 }
 
-macro_rules! c_reg_16x6 {
+macro_rules! c_reg_2x12 {
     (0,0) => { 8 };
     (0,1) => { 9 };
 
@@ -473,18 +450,18 @@ macro_rules! c_reg_16x6 {
 }
 
 
-macro_rules! acc_16x6 {
+macro_rules! acc_2x12 {
     ($ni:tt, $layout:tt, $idx:tt) => {
         acc_p!(
-            $layout, c_mem2!($ni), c_reg_16x6!(0,$ni), c_reg_16x6!(1,$ni), $idx
+            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni), $idx
         )
     };
 }
 
-macro_rules! store_16x6 {
+macro_rules! store_2x12 {
     ($ni:tt, $layout:tt) => {
         storep!(
-            $layout, c_mem2!($ni), c_reg_16x6!(0,$ni), c_reg_16x6!(1,$ni)
+            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni)
         )
     };
 }
@@ -608,12 +585,12 @@ macro_rules! fmadd_3v2 {
     ($nr:tt) => {""};
 }
 
-macro_rules! step_16x6 {
+macro_rules! step_2x12 {
     ($nr:tt, $a_layout:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(16, $a_layout),
-                "add {ax}, {ax}, #128 \n",
+                load_a!(2, $a_layout),
+                "add {ax}, {ax}, {incax} \n",
                 #(
                     load_b!($b_layout, n),
                     fmadd_3v2!(n),
@@ -625,39 +602,10 @@ macro_rules! step_16x6 {
     };
 }
 
-
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prfm pldl1keep, [", $reg, ", #", $k_i, "*64+", $dist, "] \n",
-        )
-    };
-}
-
 use crate::MyFn;
 
 macro_rules! prefetch_c {
-    (48, 4) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0}\n ",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "prfm pldl1keep, [{cx}] \n",
-            "prfm pldl1keep, [{cx},#64]\n",
-            "prfm pldl1keep, [{cx},#128]\n",
-            "prfm pldl1keep, [{x1}] \n",
-            "prfm pldl1keep, [{x1},#64]\n",
-            "prfm pldl1keep, [{x1},#128]\n",
-            "prfm pldl1keep, [{x2}] \n",
-            "prfm pldl1keep, [{x2},#64]\n",
-            "prfm pldl1keep, [{x2},#128]\n",
-            "prfm pldl1keep, [{x3}] \n",
-            "prfm pldl1keep, [{x3},#64]\n",
-            "prfm pldl1keep, [{x3},#128]\n",
-        )
-    };
-    (24, $nr:tt) => {
+    (2, $nr:tt) => {
         concat!(
             "ldr {x0}, [{dim_arrx}, #16]\n",
             "add {x1}, {cx}, {x0}\n ",
@@ -697,25 +645,20 @@ macro_rules! prefetch_c {
             "prfm pldl1keep, [{x11},#64]\n",
         )
     };
-    (16, $nr:tt) => {
-            ""
-        // seq!(j in 0..$nr {
-        //     _mm_prefetch($c.add(16+j*$ldc) as *const i8, 3);
-        // });
-    };
-    (8, $nr:tt) => {
-            ""
-        // seq!(j in 0..$nr {
-        //     _mm_prefetch($c.add(8+j*$ldc) as *const i8, 3);
-        // });
-    }
 }
 
 #[inline(always)]
 unsafe fn sve_vs() -> usize {
-    8
+    // use cntw instruction to get the number of vector length
+    let sve_vs: u64;
+    asm!(
+        "cntw {x0}, all",
+        x0 = out(reg) sve_vs,
+    );
+    sve_vs as usize
 }
 
+const MAX_VS: usize = 64;
 
 macro_rules! def_ukernel {
     (
@@ -736,20 +679,19 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            let k = (k+7) / 8 * 8;
             let vs = sve_vs();
-            let k_iter = k / 32;
-            let k_left = k % 32 / 8;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let inc_a = vs * $mr * 4 * 2;
+            let (k_i, k_l) = (k / 32, (k % 32) / 8);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
-            let mut c_buf = [0i32;$mr*$nr];
-            let is_alpha_one = if *alpha == 1f32 {
+            let mut c_buf = [0i32; MAX_VS * $mr * $nr];
+            let alpha_st = if *alpha == 1f32 {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == 0f32 {
+            let beta_st = if *beta == 0f32 {
                 0i32
             } else if *beta == 1f32 {
                 1i32
@@ -757,8 +699,9 @@ macro_rules! def_ukernel {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*4;
+                let mr = vs * $mr;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, mr);
+                dim_arr[2] = mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             asm!(
@@ -768,7 +711,7 @@ macro_rules! def_ukernel {
                 "/* {m_e1} */", "\n",
                 asm_vzeroall!($mr,$nr),
 
-                prefetch_c!(24,4),
+                prefetch_c!(2,12),
         
                 asm_init_ab!($mr,$a_layout,$b_layout),
                 
@@ -777,7 +720,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
                 $step_macro!($nr, $a_layout, $b_layout),
@@ -815,10 +758,10 @@ macro_rules! def_ukernel {
 
                 unzip_c!(),
 
-                "cmp {is_beta:w}, #0", "\n",
+                "cmp {beta_st:w}, #0", "\n",
                 "BEQ 6f",
         
-                "cmp {is_beta:w}, #1", "\n",
+                "cmp {beta_st:w}, #1", "\n",
                 "BEQ 9f",
 
                 // 6 -> BETAZERO
@@ -842,8 +785,9 @@ macro_rules! def_ukernel {
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
                 betax = inout(reg) beta => _,
-                is_alpha_one = in(reg) is_alpha_one,
-                is_beta = in(reg) is_beta,
+                incax = in(reg) inc_a as u64,
+                alpha_st = in(reg) alpha_st,
+                beta_st = in(reg) beta_st,
                 m_s = in(reg) 0 as u64,
                 m_e0 = in(reg) (m) as u64,
                 m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -865,10 +809,11 @@ macro_rules! def_ukernel {
                 out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
             );
             if BUF {
+                let mr = vs * $mr;
                 for j in 0..$nr {
-                    f.call(cf.add(j*$mr), $mr);
+                    f.call(cf.add(j*mr), mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, mr);
             } else {
                 for j in 0..$nr {
                     f.call(cf.add(j*c_cs), m);
@@ -897,20 +842,19 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            let k = (k+7) / 8 * 8;
             let vs = sve_vs();
-            let k_iter = k / 32;
-            let k_left = k % 32 / 8;
-            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+            let inc_a = vs * $mr * 4 * 2;
+            let (k_i, k_l) = (k / 32, (k % 32) / 8);
+            let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let c_cs = d_arr[3];
-            let mut c_buf = [0i32;$mr*$nr];
-            let is_alpha_one = if *alpha == 1f32 {
+            let mut c_buf = [0i32; MAX_VS * $mr * $nr];
+            let alpha_st = if *alpha == 1f32 {
                 0i32
             } else {
                 1i32
             };
-            let is_beta = if *beta == 0f32 {
+            let beta_st = if *beta == 0f32 {
                 0i32
             } else if *beta == 1f32 {
                 1i32
@@ -918,8 +862,9 @@ macro_rules! def_ukernelxn {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*4;
+                let mr = vs * $mr;
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, mr);
+                dim_arr[2] = mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
@@ -930,7 +875,7 @@ macro_rules! def_ukernelxn {
                             "/* {m_s} */", "\n",
                             "/* {m_e0} */", "\n",
                             "/* {m_e1} */", "\n",
-                            prefetch_c!(24,4),
+                            prefetch_c!(2,12),
                             asm_vzeroall!($mr,ni),
                 
                             asm_init_ab!($mr,$a_layout,$b_layout),
@@ -940,7 +885,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
                             $step_macro!(ni, $a_layout, $b_layout),
@@ -977,10 +922,10 @@ macro_rules! def_ukernelxn {
 
                             unzip_c!(),
 
-                            "cmp {is_beta:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0", "\n",
                             "BEQ 6f",
                     
-                            "cmp {is_beta:w}, #1", "\n",
+                            "cmp {beta_st:w}, #1", "\n",
                             "BEQ 9f",
 
                             // 6 -> BETAZERO
@@ -1004,8 +949,9 @@ macro_rules! def_ukernelxn {
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
-                            is_alpha_one = in(reg) is_alpha_one,
-                            is_beta = in(reg) is_beta,
+                            incax = in(reg) inc_a as u64,
+                            alpha_st = in(reg) alpha_st,
+                            beta_st = in(reg) beta_st,
                             m_s = in(reg) 0 as u64,
                             m_e0 = in(reg) (m) as u64,
                             m_e1 = in(reg) (m - vs.min(m)) as u64,
@@ -1031,10 +977,11 @@ macro_rules! def_ukernelxn {
                 });
             };
             if BUF {
+                let mr = vs * $mr;
                 for j in 0..n {
-                    f.call(cf.add(j*$mr), $mr);
+                    f.call(cf.add(j*mr), mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -1044,19 +991,16 @@ macro_rules! def_ukernelxn {
     };
 }
 
-def_ukernel!(step_16x6, acc_16x6, store_16x6, 16, 12, B, B, M, ukernel_16x6_bb_partial);
+def_ukernel!(step_2x12, acc_2x12, store_2x12, 2, 12, B, B, M, ukernel_bb_partial);
 
 
-def_ukernelxn!(step_16x6, acc_16x6, store_16x6, 16, 12, B, B, C, ukernel_16xn_bb);
+def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 2, 12, B, B, C, ukernel_n_bb);
 
-def_ukernelxn!(step_16x6, acc_16x6, store_16x6, 16, 12, B, B, M, ukernel_16xn_bb_partial);
-
-
-
+def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 2, 12, B, B, M, ukernel_n_bb_partial);
 
 
 #[target_feature(enable="neon,sve,i8mm")]
-pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,
@@ -1064,19 +1008,19 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
     m: usize,
     f: F,
 ) {
-    let k = (k+7) / 8 * 8;
-    let k_iter = k / 32;
-    let k_left = k % 32 / 8;
-    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*4, k_iter, k_left];
+    let vs = sve_vs();
+    let inc_a = vs * 2 * 4 * 2;
+    let (k_i, k_l) = (k / 32, (k % 32) / 8);
+    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, d_arr[3]*TC_SIZE, k_i, k_l];
     let mut cf = c;
-    let mut c_buf = [0i32; 2048 * 3 * 4];
+    let mut c_buf = [0i32; MAX_VS * 2 * 6];
     let c_cs = d_arr[3];
-    let is_alpha_one = if *alpha == 1f32 {
+    let alpha_st = if *alpha == 1f32 {
         0i32
     } else {
         1i32
     };
-    let is_beta = if *beta == 0f32 {
+    let beta_st = if *beta == 0f32 {
         0i32
     } else if *beta == 1f32 {
         1i32
@@ -1084,31 +1028,31 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
         2i32
     };
     if BUF {
-        let mr = sve_vs() * 3;
+        let mr = vs * 2;
         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 12, mr);
-        dim_arr[2] = mr*4;
+        dim_arr[2] = mr*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(
         "ptrue p0.s",
         "ptrue p1.s",
-        asm_vzeroall!(24,8),
+        asm_vzeroall!(2,12),
 
-        prefetch_c!(24,8),
+        prefetch_c!(2,12),
 
-        asm_init_ab!(24,B,B),
+        asm_init_ab!(12,B,B),
         
         // 3 -> CONSIDKLEFT
         "BEQ 3f",
         
         // 2 -> KITER
         "2:",
-        prefetch_0!(256, "{bx}", 0),
-        step_16x6!(12, B, B),
-        step_16x6!(12, B, B),
-        prefetch_0!(256, "{bx}", 0),
-        step_16x6!(12, B, B),
-        step_16x6!(12, B, B),
+        prefetch_0!(256, "{bx}"),
+        step_2x12!(12, B, B),
+        step_2x12!(12, B, B),
+        prefetch_0!(256, "{bx}"),
+        step_2x12!(12, B, B),
+        step_2x12!(12, B, B),
 
         "sub {x0}, {x0}, #1",
         // 2 -> KITER
@@ -1125,7 +1069,7 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
         "BEQ 5f",
         // 4 -> KLEFT
         "4:",
-        step_16x6!(12, B, B),
+        step_2x12!(12, B, B),
 
         "sub {x0}, {x0}, #1",
 
@@ -1138,28 +1082,28 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
         asm_c_load!(12),
         // scale by alpha
         "/* {alphax} */",
-        asm_alpha_scale!(24,8),
+        asm_alpha_scale!(2,12),
 
         unzip_c!(),
 
-        "cmp {is_beta:w}, #0", "\n",
+        "cmp {beta_st:w}, #0", "\n",
         "BEQ 6f",
 
-        "cmp {is_beta:w}, #1", "\n",
+        "cmp {beta_st:w}, #1", "\n",
         "BEQ 9f",
 
         // 6 -> BETAZERO
         load_beta!(),
-        cum_seq!(acc_16x6,12,C,2),
+        cum_seq!(acc_2x12,12,C,2),
         "B 6f",
 
         "9:",
         // 9 -> BETAONE
-        cum_seq!(acc_16x6,12,C,1),
+        cum_seq!(acc_2x12,12,C,1),
 
         // 6 -> BETAZERO
         "6:",
-        cum_seq!(store_16x6,12,C),
+        cum_seq!(store_2x12,12,C),
         
         // 7 -> DDONE
         "7:",
@@ -1169,8 +1113,9 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
         dim_arrx = inout(reg) dim_arr.as_ptr() => _,
         alphax = inout(reg) alpha => _,
         betax = inout(reg) beta => _,
-        is_alpha_one = in(reg) is_alpha_one,
-        is_beta = in(reg) is_beta,
+        incax = in(reg) inc_a as u64,
+        alpha_st = in(reg) alpha_st,
+        beta_st = in(reg) beta_st,
         x0 = out(reg) _,
         x1 = out(reg) _,
         x2 = out(reg) _,
@@ -1189,7 +1134,7 @@ pub(crate) unsafe fn ukernel_16x6_bb<F: MyFn, const BUF: bool>(
         out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
     );
     if BUF {
-        let mr = sve_vs() * 3;
+        let mr = vs * 2;
         for j in 0..12 {
             f.call(cf.add(j*mr), mr);
         }

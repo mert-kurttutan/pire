@@ -100,12 +100,12 @@ pub unsafe fn axpy2<F: MyFn>(
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 8, 4, 96, 4, 8, 4);
+def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 2, 4, 96, 4, 2, 1);
 
 use super::pack_sse::packa_panel_8;
 
 use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, u8, i32, f32, f32, 4, 8, 4, 8, 4);
+def_kernel_sb_v0!(i8, u8, i32, f32, f32, packa_panel_8, 4, 2, 4, 2, 1);
 
 // #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
@@ -125,9 +125,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_8x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_8x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 

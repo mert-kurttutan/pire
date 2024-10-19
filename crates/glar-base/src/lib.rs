@@ -22,8 +22,8 @@ pub unsafe fn store_buf<T: Copy>(c: *mut T, c_rs: usize, c_cs: usize, c_buf: &[T
     }
 }
 
-pub fn matrix_size(rs: usize, cs: usize, m: usize, n: usize) -> usize {
-    m * rs + n * cs - (rs + cs) + 1
+pub fn matrix_size(m: usize, n: usize) -> usize {
+    n * m
 }
 
 use range_rwlock::{RangeLock, RangeLockReadGuard, RangeLockWriteGuard};
@@ -1864,7 +1864,7 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                 ap: *const $ta, bp: *const $tb,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -1882,7 +1882,7 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, a_pft1_offset, f);
                         n_i += NR;
                         a_pft1_offset += $pf_step * k;
                     }
@@ -1890,20 +1890,20 @@ macro_rules! def_kernel_bb_pf1_no_beta {
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
@@ -1933,7 +1933,7 @@ macro_rules! def_kernel_bb_pf1 {
                 ap: *const $ta, bp: *const $tb,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -1951,7 +1951,7 @@ macro_rules! def_kernel_bb_pf1 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
                         n_i += NR;
                         a_pft1_offset += $pf_step * k;
                     }
@@ -1959,21 +1959,21 @@ macro_rules! def_kernel_bb_pf1 {
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
@@ -1995,7 +1995,7 @@ macro_rules! def_kernel_bb_v0 {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 beta: *const $t_bs,
@@ -2003,7 +2003,7 @@ macro_rules! def_kernel_bb_v0 {
                 ap: *const $ta, bp: *const $tb,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2020,26 +2020,26 @@ macro_rules! def_kernel_bb_v0 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
@@ -2061,14 +2061,14 @@ macro_rules! def_kernel_bb_v0_no_beta {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 c: *mut $tc, c_rs: usize, c_cs: usize,
                 ap: *const $ta, bp: *const $tb,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2085,27 +2085,27 @@ macro_rules! def_kernel_bb_v0_no_beta {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
@@ -2124,11 +2124,12 @@ macro_rules! def_kernel_bb_v0_no_beta {
 macro_rules! def_kernel_sb_pf1 {
     (
         $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
+        $pack_fn:tt,
         $RS:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2138,7 +2139,7 @@ macro_rules! def_kernel_sb_pf1 {
                 f: F,
             ) {
                 let k_eff = (k+$RS-1) / $RS * $RS;
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2152,32 +2153,32 @@ macro_rules! def_kernel_sb_pf1 {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
                     let a_pft1_offset = $pf1_0 * k;
-                    [<packa_panel_$MR>](MR, k, a_cur, a_rs, a_cs, ap, VS);
+                    $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
                     let mut n_i = 0;
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, a_pft1_offset, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS *VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let a_cur = a.add(m_i * a_rs);
-                        [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap, VS);
+                        $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2197,11 +2198,12 @@ macro_rules! def_kernel_sb_pf1 {
 macro_rules! def_kernel_sb_v0 {
     (
         $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
+        $pack_fn:tt,
         $RS:tt,
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2211,7 +2213,7 @@ macro_rules! def_kernel_sb_v0 {
                 f: F,
             ) {
                 let k_eff = (k+$RS-1) / $RS * $RS;
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2224,32 +2226,32 @@ macro_rules! def_kernel_sb_v0 {
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
-                    [<packa_panel_$MR>](MR, k, a_cur, a_rs, a_cs, ap, VS);
+                    $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
                     let mut n_i = 0;
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS *VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let a_cur = a.add(m_i * a_rs);
-                        [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap, VS);
+                        $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2269,10 +2271,11 @@ macro_rules! def_kernel_sb_v0 {
 macro_rules! def_kernel_sb_v0_no_beta {
     (
         $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
+        $pack_fn:tt,
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2281,7 +2284,7 @@ macro_rules! def_kernel_sb_v0_no_beta {
                 ap: *mut $ta,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2294,32 +2297,32 @@ macro_rules! def_kernel_sb_v0_no_beta {
                 while m_i < m_rounded {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
-                    [<packa_panel_$MR>](MR, k, a_cur, a_rs, a_cs, ap, VS);
+                    $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
                     let mut n_i = 0;
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS *VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let a_cur = a.add(m_i * a_rs);
-                        [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap, VS);
+                        $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2339,10 +2342,11 @@ macro_rules! def_kernel_sb_v0_no_beta {
 macro_rules! def_kernel_sb_pf1_no_beta {
     (
         $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
+        $pack_fn:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _sb_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2351,7 +2355,7 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                 ap: *mut $ta,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2365,32 +2369,32 @@ macro_rules! def_kernel_sb_pf1_no_beta {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
                     let a_pft1_offset = $pf1_0 * k;
-                    [<packa_panel_$MR>](MR, k, a_cur, a_rs, a_cs, ap, VS);
+                    $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
                     let mut n_i = 0;
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, a_pft1_offset, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS *VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let a_cur = a.add(m_i * a_rs);
-                        [<packa_panel_ $MR>](m_left, k, a_cur, a_rs, a_cs, ap, VS);
+                        $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2413,7 +2417,7 @@ macro_rules! def_kernel_bs_no_beta {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _bs_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 b: *const $tb, b_rs: usize, b_cs: usize,
@@ -2421,7 +2425,7 @@ macro_rules! def_kernel_bs_no_beta {
                 ap: *const $ta,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2438,26 +2442,26 @@ macro_rules! def_kernel_bs_no_beta {
                     while n_i < n_rounded {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, f);
+                        ukernel_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let b_cur = b.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR xn_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
+                        ukernel_n_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let b_cur = b.add(n_i * b_cs);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2480,7 +2484,7 @@ macro_rules! def_kernel_bs {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn [<kernel_$MR x $NR _bs_v0>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 b: *const $tb, b_rs: usize, b_cs: usize,
@@ -2488,7 +2492,7 @@ macro_rules! def_kernel_bs {
                 ap: *const $ta,
                 f: F,
             ) {
-                const MR: usize = $MR;
+                const MR: usize = $MR * VS;
                 const NR: usize = $NR;
                 let m_rounded = m / MR * MR;
                 let n_rounded = n / NR * NR;
@@ -2505,26 +2509,26 @@ macro_rules! def_kernel_bs {
                     while n_i < n_rounded {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
+                        ukernel_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR xn_bs>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
                     }
                     m_i += MR;
                 }
 
                 $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
+                    if (m_left+VS-1) / VS == $mr_left {
                         let c_cur0 = c.add(m_i * c_rs);
                         let ap_cur = ap.add(m_i * k);
                         let mut n_i = 0;
                         while n_i < n_rounded {
                             let b_cur = b.add(n_i * b_cs);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
@@ -2539,6 +2543,8 @@ macro_rules! def_kernel_bs {
         }
     };
 }
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]
 macro_rules! c_mem {
     (0) => {
@@ -2588,8 +2594,9 @@ macro_rules! c_mem {
     };
 }
 
+#[cfg(target_arch = "aarch64")]
 #[macro_export]
-macro_rules! c_mem2 {
+macro_rules! c_mem {
     (0) => {
         "{cx}"
     };
@@ -2634,6 +2641,22 @@ macro_rules! c_mem2 {
     };
     (14) => {
         "{x14}"
+    };
+}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[macro_export]
+macro_rules! prefetch_0 {
+    ($dist:tt, $reg:tt) => {
+        concat!("prefetcht0 ", $dist, "(", $reg, ")\n",)
+    };
+}
+
+#[cfg(target_arch = "aarch64")]
+#[macro_export]
+macro_rules! prefetch_0 {
+    ($dist:tt, $reg:tt) => {
+        concat!("prfm pldl1keep, [", $reg, ", #", $dist, "] \n",)
     };
 }
 

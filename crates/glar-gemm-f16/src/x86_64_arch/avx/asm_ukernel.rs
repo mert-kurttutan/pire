@@ -1,7 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86_64::_mm_prefetch;
 use half::f16;
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
+use crate::{MyFn, TC, TC_SIZE};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -489,15 +491,6 @@ macro_rules! step_8x4 {
     };
 }
 
-
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt, $k_i:tt) => {
-        concat!(
-            "prefetcht0 ", $dist, "+", $k_i, "*64(", $reg, ")", "\n"
-        )
-    };
-}
-
 macro_rules! prefetch_c {
     (24, $nr:tt, $c:tt, $ldc:tt) => {
         seq!(j in 0..$nr {
@@ -517,9 +510,6 @@ macro_rules! prefetch_c {
     }
 }
 
-use crate::MyFn;
-
-
 macro_rules! def_ukernel {
     (
         $step_macro:tt,
@@ -531,28 +521,23 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
             m: usize,
             f: F,
         ) {
-            // mask_ptr!($is_partial, m, x);
-            // let mask_ptr = x;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86_64::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -564,7 +549,7 @@ macro_rules! def_ukernel {
                 
                 // 2 -> KITER
                 "2:",
-                prefetch_0!(128, "{bx}", 0),
+                prefetch_0!(128, "{bx}"),
                 $step_macro!($nr, $a_layout, $b_layout, 0),
                 $step_macro!($nr, $a_layout, $b_layout, 1),
                 $step_macro!($nr, $a_layout, $b_layout, 2),
@@ -656,31 +641,26 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
-            a: *const f32, b: *const f32, c: *mut f16,
+            a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
             d_arr: [usize; 4],
             m: usize, n: usize,
             f: F,
         ) {
-            // mask_ptr!($is_partial, m, x);
-            // let mask_ptr = x;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*2, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*2;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -692,7 +672,7 @@ macro_rules! def_ukernelxn {
                         
                             // 2 -> KITER
                             "2:",
-                            prefetch_0!(128, "{bx}", 0),
+                            prefetch_0!(128, "{bx}"),
                             $step_macro!(ni, $a_layout, $b_layout, 0),
                             $step_macro!(ni, $a_layout, $b_layout, 1),
                             $step_macro!(ni, $a_layout, $b_layout, 2),

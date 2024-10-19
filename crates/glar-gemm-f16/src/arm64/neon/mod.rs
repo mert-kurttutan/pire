@@ -57,13 +57,13 @@ pub unsafe fn axpy<F: MyFn>(
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(f16, f16, f16, f16, f16, 48, 4, 48, 32, 16);
+def_kernel_bb_v0!(f16, f16, f16, f16, f16, 3, 4, 3, 2, 1);
 
 use super::pack_neon::packa_panel_48;
 
 use glar_base::def_kernel_sb_v0;
 
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, 1, 48, 4, 48, 32, 16);
+def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_48, 1, 3, 4, 3, 2, 1);
 
 // #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
@@ -83,9 +83,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_48x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_48x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
@@ -103,8 +103,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_48x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_48x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

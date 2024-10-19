@@ -1,7 +1,8 @@
 use seq_macro::seq;
 use std::arch::asm;
+use std::arch::x86_64::_mm_prefetch;
 use super::VS;
-use crate::{TA, TB, TC};
+use crate::{TA, TB, TC, TC_SIZE};
 use crate::MyFn;
 use glar_base::{load_buf, store_buf, c_mem};
 
@@ -465,7 +466,7 @@ macro_rules! inc_b {
         )
     };
 }
-macro_rules! c_reg_12x4 {
+macro_rules! c_reg_3x4 {
     (0,0) => { 8 };
     (1,0) => { 10 };
     (2,0) => { 12 };
@@ -480,7 +481,7 @@ macro_rules! c_reg_12x4 {
     (2,3) => { 30 };
 }
 
-macro_rules! c_reg_8x6 {
+macro_rules! c_reg_2x6 {
     (0,0) => { 8 };
     (1,0) => { 10 };
     (0,1) => { 12 };
@@ -495,7 +496,7 @@ macro_rules! c_reg_8x6 {
     (1,5) => { 30 };
 }
 
-macro_rules! c_reg_4x6 {
+macro_rules! c_reg_1x6 {
     (0,0) => { 20 };
     (0,1) => { 22 };
     (0,2) => { 24 };
@@ -505,39 +506,39 @@ macro_rules! c_reg_4x6 {
 }
 
 
-macro_rules! acc_12x4 {
+macro_rules! acc_3x4 {
     ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_12x4!(0,$ni), c_reg_12x4!(1,$ni), c_reg_12x4!(2,$ni))
+        acc_p!($layout, c_mem!($ni), c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni))
     };
 }
 
-macro_rules! store_12x4 {
+macro_rules! store_3x4 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_12x4!(0,$ni), c_reg_12x4!(1,$ni), c_reg_12x4!(2,$ni))
+        storep!($layout, c_mem!($ni), c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni))
     };
 }
 
-macro_rules! acc_8x6 {
+macro_rules! acc_2x6 {
     ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_8x6!(0,$ni), c_reg_8x6!(1,$ni))
+        acc_p!($layout, c_mem!($ni), c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni))
     };
 }
 
-macro_rules! store_8x6 {
+macro_rules! store_2x6 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_8x6!(0,$ni), c_reg_8x6!(1,$ni))
+        storep!($layout, c_mem!($ni), c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni))
     };
 }
 
-macro_rules! acc_4x6 {
+macro_rules! acc_1x6 {
     ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_4x6!(0,$ni))
+        acc_p!($layout, c_mem!($ni), c_reg_1x6!(0,$ni))
     };
 }
 
-macro_rules! store_4x6 {
+macro_rules! store_1x6 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_4x6!(0,$ni))
+        storep!($layout, c_mem!($ni), c_reg_1x6!(0,$ni))
     };
 }
 
@@ -708,14 +709,14 @@ macro_rules! fmadd_1v {
     };
 }
 
-macro_rules! b_num_12x4 {
+macro_rules! b_num_3x4 {
     (0,0) => {3}; (0,1) => {4};
     (1,0) => {5}; (1,1) => {6};
     (2,0) => {7}; (2,1) => {3};
     (3,0) => {4}; (3,1) => {5};
 }
 
-macro_rules! b_num_8x6 {
+macro_rules! b_num_2x6 {
     (0,0) => {2}; (0,1) => {3};
     (1,0) => {4}; (1,1) => {5};
     (2,0) => {6}; (2,1) => {7};
@@ -724,7 +725,7 @@ macro_rules! b_num_8x6 {
     (5,0) => {6}; (5,1) => {7};
 }
 
-macro_rules! b_num_4x6 {
+macro_rules! b_num_1x6 {
     (0,0) => {1}; (0,1) => {2};
     (1,0) => {3}; (1,1) => {4};
     (2,0) => {5}; (2,1) => {6};
@@ -733,8 +734,8 @@ macro_rules! b_num_4x6 {
     (5,0) => {11}; (5,1) => {12};
 }
 
-// ***************************** 12x4 ******************************* //
-macro_rules! step_12x4 {
+// ***************************** 3x4 ******************************* //
+macro_rules! step_3x4 {
     (4, B, B) => {
         concat!(
             load_a!(12, B),
@@ -760,7 +761,7 @@ macro_rules! step_12x4 {
                 inc_a!($a_layout,12),
                 "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, b_num_12x4!(n,0), b_num_12x4!(n,1)),
+                    load_b!($b_layout, n, b_num_3x4!(n,0), b_num_3x4!(n,1)),
                     fmadd_3v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
@@ -769,8 +770,8 @@ macro_rules! step_12x4 {
     };
 }
 
-// ***************************** 8x6 ******************************* //
-macro_rules! step_8x6 {
+// ***************************** 2x6 ******************************* //
+macro_rules! step_2x6 {
     (6, B, B) => {
         concat!(
             load_a!(8, B),
@@ -800,7 +801,7 @@ macro_rules! step_8x6 {
                 inc_a!($a_layout,8),
                 "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, b_num_8x6!(n,0), b_num_8x6!(n,1)),
+                    load_b!($b_layout, n, b_num_2x6!(n,0), b_num_2x6!(n,1)),
                     fmadd_2v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
@@ -809,8 +810,8 @@ macro_rules! step_8x6 {
     };
 }
 
-// ***************************** 4x6 ******************************* //
-macro_rules! step_4x6 {
+// ***************************** 1x6 ******************************* //
+macro_rules! step_1x6 {
     ($nr:tt, $a_layout:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
@@ -818,7 +819,7 @@ macro_rules! step_4x6 {
                 inc_a!($a_layout,4),
                 "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, b_num_4x6!(n,0), b_num_4x6!(n,1)),
+                    load_b!($b_layout, n, b_num_1x6!(n,0), b_num_1x6!(n,1)),
                     fmadd_1v!(n),
                 )*
                 inc_b!($b_layout,$nr), 
@@ -887,9 +888,8 @@ macro_rules! def_ukernel {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -897,11 +897,9 @@ macro_rules! def_ukernel {
             let alt_buf = alt_arr.as_ptr();
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*16;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            // prefetch for c
-            use std::arch::x86_64::_mm_prefetch;
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
                 asm_vzeroall!($mr,$nr),
@@ -1010,9 +1008,8 @@ macro_rules! def_ukernelxn {
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
-            let k_iter = k / 4;
-            let k_left = k % 4;
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*16, k_iter, k_left];
+            let (k_i, k_l) = (k / 4, k % 4);
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let alt_arr = [-1.0f64, 1.0f64, -1.0f64, 1.0f64, -1.0f64, 1.0f64, -1.0f64, 1.0f64];
@@ -1020,14 +1017,12 @@ macro_rules! def_ukernelxn {
             let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*16;
+                dim_arr[2] = $mr*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            use std::arch::x86_64::_mm_prefetch;
             let _ = 'blk: {
                 seq!(ni in 1..$nr {
                     if ni == n {
-                        // prefetch for c
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             asm_vzeroall!($mr,ni),
@@ -1120,46 +1115,31 @@ macro_rules! def_ukernelxn {
     };
 }
 
-// def_ukernel!(step_12x4, acc_12x4, store_12x4, 24, 4, B, B, C, 4, ukernel_12x4_bb);
-// def_ukernel!(step_8x6, acc_8x6, store_8x6, 16, 4, B, B, C, 4, ukernel_16x4_bb);
-// def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, B, C, 4, ukernel_8x4_bb);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, M, ukernel_3_bb_partial);
+def_ukernel!(step_2x6, acc_2x6, store_2x6, 8, 4, B, B, M, ukernel_2_bb_partial);
+def_ukernel!(step_1x6, acc_1x6, store_1x6, 4, 4, B, B, M, ukernel_1_bb_partial);
 
-def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, M, ukernel_12x4_bb_partial);
-def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, B, M, ukernel_8x4_bb_partial);
-def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, B, M, ukernel_4x4_bb_partial);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 12, 4, B, S, C, ukernel_bs);
 
-def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, C, ukernel_12x4_bs);
-
-def_ukernel!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, M, ukernel_12x4_bs_partial);
-def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 4, B, S, M, ukernel_8x4_bs_partial);
-def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 4, B, S, M, ukernel_4x4_bs_partial);
+def_ukernel!(step_3x4, acc_3x4, store_3x4, 12, 4, B, S, M, ukernel_3_bs_partial);
+def_ukernel!(step_2x6, acc_2x6, store_2x6, 8, 4, B, S, M, ukernel_2_bs_partial);
+def_ukernel!(step_1x6, acc_1x6, store_1x6, 4, 4, B, S, M, ukernel_1_bs_partial);
 
 
-def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, C, ukernel_12xn_bb);
-// def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, C, ukernel_8xn_bb);
-// def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, C, 4, ukernel_8xn_bb);
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, C, ukernel_n_bb);
 
-def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, B, M, ukernel_12xn_bb_partial);
-def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, M, ukernel_8xn_bb_partial);
-def_ukernelxn!(step_4x6, acc_4x6, store_4x6, 4, 6, B, B, M, ukernel_4xn_bb_partial);
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, M, ukernel_3xn_bb_partial);
+def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 8, 6, B, B, M, ukernel_2xn_bb_partial);
+def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 4, 6, B, B, M, ukernel_1xn_bb_partial);
 
-def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, C, ukernel_12xn_bs);
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, S, C, ukernel_n_bs);
 
-def_ukernelxn!(step_12x4, acc_12x4, store_12x4, 12, 4, B, S, M, ukernel_12xn_bs_partial);
-def_ukernelxn!(step_8x6, acc_8x6, store_8x6, 8, 4, B, S, M, ukernel_8xn_bs_partial);
-def_ukernelxn!(step_4x6, acc_4x6, store_4x6, 4, 4, B, S, M, ukernel_4xn_bs_partial);
+def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, S, M, ukernel_3xn_bs_partial);
+def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 8, 4, B, S, M, ukernel_2xn_bs_partial);
+def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 4, 4, B, S, M, ukernel_1xn_bs_partial);
 
 
-// def_ukernel!(step_8x6, acc_8x6, store_8x6, 8, 6, B, B, M, ukernel_8x6_bb_partial);
-// def_ukernel!(step_4x6, acc_4x6, store_4x6, 4, 6, B, B, M, ukernel_4x6_bb_partial);
-
-
-// based on l1 prefetching scheme is from openblas impl for skylax
-// see: https://github.com/OpenMathLib/OpenBLAS/pull/2300
-// this is adapted to our ukernel of 12x4
-// seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
-// where the same l1 prefetching does not benefit as much)
-pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA,
     k: usize,
@@ -1167,10 +1147,10 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
     a_pft1_offset: usize,
     f: F,
 ) {
-    let k_left0 = k % 4;
-    let k_left = if k_left0 == 0 {4} else {k_left0};
-    let k_iter = (k - k_left) / 4;
-    let mut dim_arr = [d_arr[3]*16, k_iter, k_left, a_pft1_offset];
+    let k_l0 = k % 4;
+    let k_l = if k_l0 == 0 {4} else {k_l0};
+    let k_i = (k - k_l) / 4;
+    let mut dim_arr = [d_arr[3]*TC_SIZE, k_i, k_l, a_pft1_offset];
     let alt_arr = [-1.0f64, 1.0f64, -1.0f64, 1.0f64, -1.0f64, 1.0f64, -1.0f64, 1.0f64];
     let alt_buf = alt_arr.as_ptr();
     let mut cf = c;
@@ -1178,7 +1158,7 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
     let c_cs = d_arr[3];
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 12, 4, 12);
-        dim_arr[2] = 12*16;
+        dim_arr[0] = 12*TC_SIZE;
         cf = c_buf.as_mut_ptr();
     }
     asm!(
@@ -1193,21 +1173,21 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "add {x1}, {x5}",
         "mov ({dim_arrx}),{x1}",
         "2:",
-        step_12x4!(4, B, B),
+        step_3x4!(4, B, B),
 
         "movq $64*4, {x4}",
         // divisiblity by 4
         "testq $3, {x0}",
         "cmovz {x1},{x4}",
 
-        step_12x4!(4, B, B),
+        step_3x4!(4, B, B),
 
         "prefetcht1 ({x2})",
 
         "subq $64*3, {x2}",
         "addq {x4}, {x2}",
 
-        step_12x4!(4, B, B),
+        step_3x4!(4, B, B),
 
         "prefetcht1 ({x5})",
         "addq $32, {x5}",
@@ -1215,7 +1195,7 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "testq $63, {x0}",
         "cmovz {cx},{x2}",
 
-        step_12x4!(4, B, B),
+        step_3x4!(4, B, B),
 
         "dec {x0}",
         "jne 2b",
@@ -1231,7 +1211,7 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         "prefetcht0 ({x2})",
         "prefetcht0 64({x2})",
         "prefetcht0 128({x2})",
-        step_12x4!(4, B, B),
+        step_3x4!(4, B, B),
 
         "add {x1}, {x2}",
         "dec {x0}",
@@ -1246,10 +1226,10 @@ pub(crate) unsafe fn ukernel_12x4_bb<F: MyFn, const BUF: bool>(
         asm_alpha_scale!(12, 4),
 
         // 6 -> BETAZERO
-        cum_seq!(acc_12x4,4,C),
+        cum_seq!(acc_3x4,4,C),
 
         // 6 -> BETAZERO
-        cum_seq!(store_12x4,4,C),
+        cum_seq!(store_3x4,4,C),
 
         "7:",
         ax = inout(reg) a => _, 

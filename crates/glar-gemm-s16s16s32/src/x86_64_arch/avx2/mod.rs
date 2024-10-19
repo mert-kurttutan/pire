@@ -57,11 +57,11 @@ pub unsafe fn axpy<F: MyFn>(
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i16, i16, i32, f32, f32, 16, 4, 16, 8);
+def_kernel_bb_v0!(i16, i16, i32, f32, f32, 2, 4, 2, 1);
 
 use super::pack_avx::packa_panel_16;
 use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i16, i16, i32, f32, f32, 2, 16, 4, 16, 8);
+def_kernel_sb_v0!(i16, i16, i32, f32, f32, packa_panel_16, 2, 2, 4, 2, 1);
 
 // #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
@@ -81,9 +81,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_16x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_16x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
     asm!("vzeroupper");
 }
@@ -104,9 +104,9 @@ pub(crate) unsafe fn kernel<F: MyFn>(
 ) {
     let k_eff = (k + 1) / 2 * 2;
     if c_rs == 1 {
-        kernel_16x4_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_16x4_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
     asm!("vzeroupper");
 }
