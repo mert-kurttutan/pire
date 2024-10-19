@@ -495,10 +495,10 @@ impl<'a> GlarThreadConfig<'a> {
     }
 }
 
-pub fn check_mem_size(mem_size: usize, rs: usize, cs: usize, m: usize, n: usize) {
-    assert!(mem_size >= rs * cs * m * n);
-    assert!(rs >= 1 && cs >= 1 && m >= 0 && n >= 0);
-}
+// pub fn check_mem_size(mem_size: usize, rs: usize, cs: usize, m: usize, n: usize) {
+//     assert!(mem_size >= rs * cs * m * n);
+//     assert!(rs >= 1 && cs >= 1 && m >= 0 && n >= 0);
+// }
 
 // once this is read, this cannot be changed for the time being.
 #[inline(always)]

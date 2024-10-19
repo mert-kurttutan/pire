@@ -456,7 +456,7 @@ macro_rules! def_ukernel {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize,
@@ -569,7 +569,7 @@ macro_rules! def_ukernelxn {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize, n: usize,
