@@ -6,12 +6,18 @@ use crate::MyFn;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
+    (C, $m0:expr, $r1:expr,1) => {
         concat!(
-            // dont use addps, since it requires memory alignment (sse)
-            // "addps ", $m0, ",%xmm", $r1, "\n",
-            "movups ", $m0, ",%xmm0", "\n",
-            "addps ", "%xmm0", ",%xmm", $r1, "\n",
+            "movups ", $m0, ",%xmm2", "\n",
+            "addps ", "%xmm2", ",%xmm", $r1, "\n",
+        ) 
+    };
+
+    (C, $m0:expr, $r1:expr,2) => {
+        concat!(
+            "movups ", $m0, ", %xmm5", "\n",
+            complex_mul!(5, 7),
+            "addps %xmm5, %xmm", $r1, "\n",
         ) 
     };
 }
@@ -118,9 +124,9 @@ macro_rules! permute_complex {
 }
 
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr) => {
         concat!(
-            beta_fmadd!($layout, $m0, $r1),
+            beta_fmadd!($layout, $m0, $r1, $q),
         )
     };
 }
@@ -149,6 +155,17 @@ macro_rules! storep {
     };
 }
 
+macro_rules! load_beta {
+    () => {
+        concat!(
+            "mov 8({ptr_arrx}), {x1}\n",
+            "movss ({x1}), %xmm0 \n",
+            "shufps ", "$0, %xmm0, %xmm0", "\n",
+            "movss 4({x1}), %xmm1 \n",
+            "shufps ", "$0, %xmm1, %xmm1", "\n",
+        )
+    }
+}
 
 // only non contigous along m and n direction which is not changed frequently during iteration along k direction
 /*
@@ -253,8 +270,8 @@ macro_rules! c_reg_1x2 {
 }
 
 macro_rules! acc_1x2 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x2!(0,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x2!(0,$ni))
     };
 }
 
@@ -268,6 +285,12 @@ macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt) => {
         seq!(n in 0..$nr {
             concat!(#($step_macro!(n, $layout),)*)
+        })
+    };
+
+    ($step_macro:tt, $nr:tt, $layout:tt, $q:tt) => {
+        seq!(n in 0..$nr {
+            concat!(#($step_macro!(n, $layout, $q),)*)
         })
     };
 }
@@ -374,15 +397,22 @@ macro_rules! def_ukernel {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
-            let mut ptr_arr = [c, alpha];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l, beta_st as usize];
+            let mut ptr_arr = [c, alpha, beta];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -441,8 +471,20 @@ macro_rules! def_ukernel {
                 // scale by alpha
                 asm_alpha_scale!($mr, $nr),
 
-                cum_seq!($acc_macro,$nr,$is_partial),
+                "cmpw $0, 20({dim_arrx})",
+                "je 6f",
+        
+                "cmpw $1, 20({dim_arrx})",
+                "je 15f",
 
+                load_beta!(),
+                cum_seq!($acc_macro,$nr,$is_partial,2),
+                "jmp 6f",
+
+                "15:",
+                cum_seq!($acc_macro,$nr,$is_partial,1),
+
+                "6:",
                 cum_seq!($store_macro,$nr,$is_partial),
                 
                 // 7 -> DDONE
@@ -484,15 +526,22 @@ macro_rules! def_ukernelxn {
         pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, 
-            // beta: *const TB,
+            beta: *const TB,
             k: usize,
             d_arr: [usize; 4],
             m: usize, n: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
-            let mut ptr_arr = [c, alpha];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l, beta_st as usize];
+            let mut ptr_arr = [c, alpha, beta];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
@@ -554,8 +603,20 @@ macro_rules! def_ukernelxn {
                             // scale by alpha
                             asm_alpha_scale!($mr, ni),			
 
-                            cum_seq!($acc_macro,ni,$is_partial),
+                            "cmpw $0, 20({dim_arrx})",
+                            "je 6f",
+                    
+                            "cmpw $1, 20({dim_arrx})",
+                            "je 15f",
 
+                            load_beta!(),
+                            cum_seq!($acc_macro,ni,$is_partial,2),	
+                            "jmp 6f",	
+
+                            "15:",
+                            cum_seq!($acc_macro,ni,$is_partial,1),
+
+                            "6:",
                             cum_seq!($store_macro,ni,$is_partial),
                             
                             // 7 -> DDONE

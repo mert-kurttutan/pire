@@ -13,8 +13,6 @@ const VS: usize = 2;
 
 use crate::MyFn;
 
-use core::arch::x86_64::*;
-
 #[target_feature(enable = "sse")]
 pub unsafe fn axpy<F: MyFn>(
     m: usize,
@@ -56,16 +54,16 @@ pub unsafe fn axpy<F: MyFn>(
     }
 }
 
-use glar_base::def_kernel_bb_v0_no_beta;
+use glar_base::def_kernel_bb_v0;
 def_kernel_bb_v0!(TA, TB, TC, TA, TC, 2, 2, 2, 1);
 
-use glar_base::def_kernel_bs_no_beta;
+use glar_base::def_kernel_bs;
 
 def_kernel_bs!(TA, TB, TC, TA, TC, 2, 2, 2, 1);
 
 use super::pack_sse::packa_panel_4;
 
-use glar_base::def_kernel_sb_v0_no_beta;
+use glar_base::def_kernel_sb_v0;
 
 def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_4, 2, 2, 2, 1);
 

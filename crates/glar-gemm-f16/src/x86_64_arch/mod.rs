@@ -364,7 +364,6 @@ unsafe fn kernel<F: MyFn>(
     ap: *const f32,
     bp: *const f32,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
@@ -398,7 +397,6 @@ unsafe fn kernel_m<F: MyFn>(
     c_cs: usize,
     ap: *const f32,
     kc_last: bool,
-    kc_first: bool,
 ) {
 }
 
@@ -419,7 +417,6 @@ unsafe fn kernel_n<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     kc_last: bool,
-    kc_first: bool,
 ) {
 }
 
@@ -491,7 +488,6 @@ unsafe fn kernel_native<F: MyFn>(
     ap: *const f16,
     bp: *const f16,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         avx512_f16::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func);
@@ -516,7 +512,6 @@ unsafe fn kernel_m_native<F: MyFn>(
     c_cs: usize,
     ap: *const f16,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         avx512_f16::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func);
@@ -542,7 +537,6 @@ unsafe fn kernel_n_native<F: MyFn>(
     c_rs: usize,
     c_cs: usize,
     kc_last: bool,
-    _kc_first: bool,
 ) {
     if kc_last {
         avx512_f16::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func);

@@ -8,20 +8,30 @@ use glar_base::{load_buf, store_buf, c_mem};
 
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
+    (C, $m0:expr, $r1:expr,1) => {
         concat!(
             "vaddps ", $m0, ",%zmm", $r1, ",%zmm", $r1, "\n",
         ) 
     };
-    (M, $m0:expr, $r1:expr) => {
+    (M, $m0:expr, $r1:expr,1) => {
         concat!(
-            "vmovupd ", $m0, ", %zmm1 {{%k1}}", "\n",
-            "vaddps %zmm1, %zmm", $r1, ",%zmm", $r1, "\n",
-        )
+            "vmovupd ", $m0, ", %zmm2 {{%k1}}", "\n",
+            "vaddps %zmm2, %zmm", $r1, ", %zmm", $r1, "\n",
+        ) 
     };
-    (C, $m0:expr) => {
+
+    (C, $m0:expr, $r1:expr,2) => {
         concat!(
-            "vfmadd231ps ", $m0, ",%zmm0,%zmm", 0, "\n",
+            "vmovupd ", $m0, ", %zmm3", "\n",
+            complex_mul!(3, 4, 0),
+            "vaddps %zmm3, %zmm", $r1, ", %zmm", $r1, "\n",
+        ) 
+    };
+    (M, $m0:expr, $r1:expr,2) => {
+        concat!(
+            "vmovupd ", $m0, ", %zmm3 {{%k1}}", "\n",
+            complex_mul!(3, 4, 0),
+            "vaddps %zmm3, %zmm", $r1, ", %zmm", $r1, "\n",
         ) 
     };
 }
@@ -52,8 +62,8 @@ macro_rules! vbroadcast {
 macro_rules! vfmadd {
     ($r1:expr, $b1:expr, $b2:expr, $r3:expr, $r4:expr) => {
         concat!(
-            "vfmadd231ps ", "%zmm",$b1, ", %zmm", $r1,", %zmm", $r3, "\n",
-            "vfmadd231ps ", "%zmm",$b2, ", %zmm", $r1,", %zmm", $r4, "\n",
+            "vfmadd231ps ", "%zmm", $b1, ", %zmm", $r1,", %zmm", $r3, "\n",
+            "vfmadd231ps ", "%zmm", $b2, ", %zmm", $r1,", %zmm", $r4, "\n",
         ) 
     };
 }
@@ -89,8 +99,8 @@ macro_rules! complex_mul {
     ($r0:tt, $rt:tt, $rs:tt) => {
         concat!(
             "vpermilps $0xb1, %zmm", $r0, ", %zmm", $rt, "\n",
-            "vmulps %zmm0, %zmm", $r0, ", %zmm", $r0, "\n",
-            "vmulps %zmm1, %zmm", $rt, ", %zmm", $rt, "\n",
+            "vmulps %zmm1, %zmm", $r0, ", %zmm", $r0, "\n",
+            "vmulps %zmm2, %zmm", $rt, ", %zmm", $rt, "\n",
             "vfmadd231ps %zmm", $rt, ", %zmm", $rs, ", %zmm", $r0, "\n",
         )
     };
@@ -99,62 +109,62 @@ macro_rules! complex_mul {
 macro_rules! asm_alpha_scale_0 {
     (24, 4) => {
         concat!(
-            vbroadcast!(), " ({alphax}), %zmm0 \n",
-            vbroadcast!(), " 4({alphax}), %zmm1 \n",
-            "vbroadcastsd ({alternate}), %zmm3 \n",
+            vbroadcast!(), " ({alphax}), %zmm1 \n",
+            vbroadcast!(), " 4({alphax}), %zmm2 \n",
+            "vbroadcastsd ({alternate}), %zmm0 \n",
 
-            complex_mul!(8,9,3),
-            complex_mul!(10,11,3),
-            complex_mul!(12,13,3),
-            complex_mul!(14,15,3),
-            complex_mul!(16,17,3),
-            complex_mul!(18,19,3),
-            complex_mul!(20,21,3),
-            complex_mul!(22,23,3),
-            complex_mul!(24,25,3),
-            complex_mul!(26,27,3),
-            complex_mul!(28,29,3),
-            complex_mul!(30,31,3),
+            complex_mul!(8,9,0),
+            complex_mul!(10,11,0),
+            complex_mul!(12,13,0),
+            complex_mul!(14,15,0),
+            complex_mul!(16,17,0),
+            complex_mul!(18,19,0),
+            complex_mul!(20,21,0),
+            complex_mul!(22,23,0),
+            complex_mul!(24,25,0),
+            complex_mul!(26,27,0),
+            complex_mul!(28,29,0),
+            complex_mul!(30,31,0),
         )
     };
     (16, 6) => {
         concat!(
-            vbroadcast!(), " ({alphax}), %zmm0 \n",
-            vbroadcast!(), " 4({alphax}), %zmm1 \n",
-            "vbroadcastsd ({alternate}), %zmm3 \n",
+            vbroadcast!(), " ({alphax}), %zmm1 \n",
+            vbroadcast!(), " 4({alphax}), %zmm2 \n",
+            "vbroadcastsd ({alternate}), %zmm0 \n",
 
-            complex_mul!(8,9,3),
-            complex_mul!(10,11,3),
-            complex_mul!(12,13,3),
-            complex_mul!(14,15,3),
-            complex_mul!(16,17,3),
-            complex_mul!(18,19,3),
-            complex_mul!(20,21,3),
-            complex_mul!(22,23,3),
-            complex_mul!(24,25,3),
-            complex_mul!(26,27,3),
-            complex_mul!(28,29,3),
-            complex_mul!(30,31,3),
+            complex_mul!(8,9,0),
+            complex_mul!(10,11,0),
+            complex_mul!(12,13,0),
+            complex_mul!(14,15,0),
+            complex_mul!(16,17,0),
+            complex_mul!(18,19,0),
+            complex_mul!(20,21,0),
+            complex_mul!(22,23,0),
+            complex_mul!(24,25,0),
+            complex_mul!(26,27,0),
+            complex_mul!(28,29,0),
+            complex_mul!(30,31,0),
         )
     };
     ($r0:tt, $r1:tt) => {
         concat!(
-            vbroadcast!(), " ({alphax}), %zmm0 \n",
-            vbroadcast!(), " 4({alphax}), %zmm1 \n",
-            "vbroadcastsd ({alternate}), %zmm3 \n",
+            vbroadcast!(), " ({alphax}), %zmm1 \n",
+            vbroadcast!(), " 4({alphax}), %zmm2 \n",
+            "vbroadcastsd ({alternate}), %zmm0 \n",
 
-            complex_mul!(8,9,3),
-            complex_mul!(10,11,3),
-            complex_mul!(12,13,3),
-            complex_mul!(14,15,3),
-            complex_mul!(16,17,3),
-            complex_mul!(18,19,3),
-            complex_mul!(20,21,3),
-            complex_mul!(22,23,3),
-            complex_mul!(24,25,3),
-            complex_mul!(26,27,3),
-            complex_mul!(28,29,3),
-            complex_mul!(30,31,3),
+            complex_mul!(8,9,0),
+            complex_mul!(10,11,0),
+            complex_mul!(12,13,0),
+            complex_mul!(14,15,0),
+            complex_mul!(16,17,0),
+            complex_mul!(18,19,0),
+            complex_mul!(20,21,0),
+            complex_mul!(22,23,0),
+            complex_mul!(24,25,0),
+            complex_mul!(26,27,0),
+            complex_mul!(28,29,0),
+            complex_mul!(30,31,0),
         )
     }
 }
@@ -171,7 +181,6 @@ macro_rules! v_to_c {
 macro_rules! permute_complex {
     (24, 4) => {
         concat!(
-            // "vmulps %zmm1, %zmm31, %zmm31 \n",
             // permute even and odd elements
             "vbroadcastsd ({alternate}), %zmm0 \n",
 
@@ -191,7 +200,6 @@ macro_rules! permute_complex {
     };
     (16, 6) => {
         concat!(
-            // "vmulps %zmm1, %zmm31, %zmm31 \n",
             // permute even and odd elements
             "vbroadcastsd ({alternate}), %zmm0 \n",
             v_to_c!(8, 9, 0),
@@ -210,7 +218,6 @@ macro_rules! permute_complex {
     };
     ($mr:tt, $nr:tt) => {
         concat!(
-            // "vmulps %zmm1, %zmm31, %zmm31 \n",
             // permute even and odd elements
             "vbroadcastsd ({alternate}), %zmm0 \n",
 
@@ -238,22 +245,22 @@ macro_rules! mem {
 }
 
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            beta_fmadd!(C, $m0, $r1),
-            beta_fmadd!(C, mem!($m0, "0x40"), $r2),
-            beta_fmadd!($layout, mem!($m0, "0x80"), $r3),
+            beta_fmadd!(C, $m0, $r1, $q),
+            beta_fmadd!(C, mem!($m0, "0x40"), $r2, $q),
+            beta_fmadd!($layout, mem!($m0, "0x80"), $r3, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr) => {
         concat!(
-            beta_fmadd!(C, $m0, $r1),
-            beta_fmadd!($layout, mem!($m0, "0x40"), $r2),
+            beta_fmadd!(C, $m0, $r1, $q),
+            beta_fmadd!($layout, mem!($m0, "0x40"), $r2, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr) => {
         concat!(
-            beta_fmadd!($layout, $m0, $r1),
+            beta_fmadd!($layout, $m0, $r1, $q),
         )
     };
 }
@@ -301,6 +308,14 @@ macro_rules! storep {
     };
 }
 
+macro_rules! load_beta {
+    () => {
+        concat!(
+            "vbroadcastss ({betax}), %zmm1\n",
+            "vbroadcastss 4({betax}), %zmm2\n",
+        )
+    }
+}
 
 // only non contigous along m and n direction which is not changed frequently during iteration along k direction
 /*
@@ -512,8 +527,8 @@ macro_rules! c_reg_1x6 {
 }
 
 macro_rules! acc_3x4 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni))
     };
 }
 
@@ -524,8 +539,8 @@ macro_rules! store_3x4 {
 }
 
 macro_rules! acc_2x6 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni))
     };
 }
 
@@ -536,8 +551,8 @@ macro_rules! store_2x6 {
 }
 
 macro_rules! acc_1x6 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x6!(0,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x6!(0,$ni))
     };
 }
 
@@ -551,6 +566,12 @@ macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt) => {
         seq!(n in 0..$nr {
             concat!(#($step_macro!(n, $layout),)*)
+        })
+    };
+
+    ($step_macro:tt, $nr:tt, $layout:tt, $q:tt) => {
+        seq!(n in 0..$nr {
+            concat!(#($step_macro!(n, $layout, $q),)*)
         })
     };
 }
@@ -899,6 +920,13 @@ macro_rules! def_ukernel {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             let alt_arr = [-1.0f32, 1.0f32];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
@@ -948,21 +976,33 @@ macro_rules! def_ukernel {
                 // scale by alpha
                 asm_alpha_scale!($mr, $nr),
 
-                load_mask_ptr_asm!($is_partial),				
-                // 6 -> BETAZERO
-                cum_seq!($acc_macro,$nr,$is_partial),
+                load_mask_ptr_asm!($is_partial),
 
-                // 6 -> BETAZERO
+                "cmpw $0, ({beta_st})",
+                "je 6f",
+        
+                "cmpw $1, ({beta_st})",
+                "je 15f",
+
+                load_beta!(),
+                cum_seq!($acc_macro,$nr,$is_partial,2),
+                "jmp 6f",
+
+                "15:",
+                cum_seq!($acc_macro,$nr,$is_partial,1),
+
+                "6:",
                 cum_seq!($store_macro,$nr,$is_partial),
                 
                 // 7 -> DDONE
                 "7:",
-                // "vzeroupper",
                 ax = inout(reg) a => _,
                 bx = inout(reg) b => _,
                 cx = inout(reg) cf => _,
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
+                betax = inout(reg) beta => _,
+                beta_st = in(reg) &beta_st,
                 maskx = inout(reg) mask_ptr => _,
                 alternate = inout(reg) &alt_arr => _,
                 x0 = out(reg) _,
@@ -1021,6 +1061,13 @@ macro_rules! def_ukernelxn {
             let alt_arr = [-1.0f32, 1.0f32];
             let alt_buf = alt_arr.as_ptr();
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -1072,22 +1119,33 @@ macro_rules! def_ukernelxn {
                             // scale by alpha
                             asm_alpha_scale!($mr, ni),
 
+                            load_mask_ptr_asm!($is_partial),
 
-                            load_mask_ptr_asm!($is_partial),				
-                            // 6 -> BETAZERO
-                            cum_seq!($acc_macro,ni,$is_partial),
+                            "cmpw $0, ({beta_st})",
+                            "je 6f",
+                    
+                            "cmpw $1, ({beta_st})",
+                            "je 15f",
 
-                            // 6 -> BETAZERO
+                            load_beta!(),
+                            cum_seq!($acc_macro,ni,$is_partial,2),	
+                            "jmp 6f",	
+
+                            "15:",
+                            cum_seq!($acc_macro,ni,$is_partial,1),
+
+                            "6:",
                             cum_seq!($store_macro,ni,$is_partial),
                             
                             // 7 -> DDONE
                             "7:",
-                            // "vzeroupper",
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
                             cx = inout(reg) cf => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
+                            betax = inout(reg) beta => _,
+                            beta_st = in(reg) &beta_st,
                             maskx = inout(reg) mask_ptr => _,
                             alternate = inout(reg) alt_buf => _,
                             x0 = out(reg) _,
@@ -1164,6 +1222,13 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 24 * 4];
     let c_cs = d_arr[3];
+    let beta_st = if *beta == TB::ZERO {
+        0i32
+    } else if *beta == TB::ONE {
+        1i32
+    } else {
+        2i32
+    };
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 24, 4, 24);
         dim_arr[0] = 24*TC_SIZE;
@@ -1233,10 +1298,21 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         // scale by alpha
         asm_alpha_scale!(24, 4),
 
-        // 6 -> BETAZERO
-        cum_seq!(acc_3x4,4,C),
+        "cmpw $0, ({beta_st})",
+        "je 6f",
+
+        "cmpw $1, ({beta_st})",
+        "je 15f",
+
+        load_beta!(),
+        cum_seq!(acc_3x4,4,C,2),
+        "jmp 6f",
+
+        "15:",
+        cum_seq!(acc_3x4,4,C,1),
 
         // 6 -> BETAZERO
+        "6:",
         cum_seq!(store_3x4,4,C),
 
         "7:",
@@ -1244,7 +1320,9 @@ pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
         bx = inout(reg) b => _, 
         cx = inout(reg) cf => _,
         dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
-        alphax = inout(reg) alpha => _, 
+        alphax = inout(reg) alpha => _,
+        betax = inout(reg) beta => _,
+        beta_st = in(reg) &beta_st,
         alternate = inout(reg) alt_buf => _,
         x0 = out(reg) _, 
         x1 = out(reg)_, 

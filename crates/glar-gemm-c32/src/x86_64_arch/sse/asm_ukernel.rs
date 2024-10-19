@@ -6,12 +6,17 @@ use crate::MyFn;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
+    (C, $m0:expr, $r1:expr,1) => {
         concat!(
-            // dont use addps, since it requires memory alignment (sse)
-            // "addps ", $m0, ",%xmm", $r1, "\n",
-            "movups ", $m0, ",%xmm0", "\n",
-            "addps ", "%xmm0", ",%xmm", $r1, "\n",
+            "addps ", $m0, ",%xmm", $r1, "\n",
+        ) 
+    };
+
+    (C, $m0:expr, $r1:expr,2) => {
+        concat!(
+            "movups ", $m0, ", %xmm5", "\n",
+            complex_mul!(5, 7),
+            "addps %xmm5, %xmm", $r1, "\n",
         ) 
     };
 }
@@ -130,15 +135,15 @@ macro_rules! mem {
 }
 
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr) => {
         concat!(
-            beta_fmadd!(C, $m0, $r1),
-            beta_fmadd!($layout, mem!($m0, "0x10"), $r2),
+            beta_fmadd!(C, $m0, $r1, $q),
+            beta_fmadd!($layout, mem!($m0, "0x10"), $r2, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr) => {
         concat!(
-            beta_fmadd!($layout, $m0, $r1),
+            beta_fmadd!($layout, $m0, $r1, $q),
         )
     };
 }
@@ -173,6 +178,17 @@ macro_rules! storep {
     };
 }
 
+
+macro_rules! load_beta {
+    () => {
+        concat!(
+            "movss ({betax}), %xmm0 \n",
+            "shufps ", "$0, %xmm0, %xmm0", "\n",
+            "movss 4({betax}), %xmm1 \n",
+            "shufps ", "$0, %xmm1, %xmm1", "\n",
+        )
+    }
+}
 
 // only non contigous along m and n direction which is not changed frequently during iteration along k direction
 /*
@@ -303,8 +319,8 @@ macro_rules! c_reg_1x2 {
 }
 
 macro_rules! acc_2x2 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
     };
 }
 
@@ -315,8 +331,8 @@ macro_rules! store_2x2 {
 }
 
 macro_rules! acc_1x2 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x2!(0,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x2!(0,$ni))
     };
 }
 
@@ -330,6 +346,12 @@ macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt) => {
         seq!(n in 0..$nr {
             concat!(#($step_macro!(n, $layout),)*)
+        })
+    };
+
+    ($step_macro:tt, $nr:tt, $layout:tt, $q:tt) => {
+        seq!(n in 0..$nr {
+            concat!(#($step_macro!(n, $layout, $q),)*)
         })
     };
 }
@@ -467,6 +489,13 @@ macro_rules! def_ukernel {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -521,8 +550,21 @@ macro_rules! def_ukernel {
                 // scale by alpha
                 asm_alpha_scale!($mr, $nr),
 
-                cum_seq!($acc_macro,$nr,$is_partial),
+                "cmpw $0, ({beta_st})",
+                "je 6f",
+        
+                "cmpw $1, ({beta_st})",
+                "je 15f",
 
+
+                load_beta!(),
+                cum_seq!($acc_macro,$nr,$is_partial,2),
+                "jmp 6f",
+
+                "15:",
+                cum_seq!($acc_macro,$nr,$is_partial,1),
+
+                "6:",
                 cum_seq!($store_macro,$nr,$is_partial),
                 
                 // 7 -> DDONE
@@ -532,6 +574,8 @@ macro_rules! def_ukernel {
                 cx = inout(reg) cf => _,
                 dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                 alphax = inout(reg) alpha => _,
+                betax = inout(reg) beta => _,
+                beta_st = in(reg) &beta_st,
                 x0 = out(reg) _,
                 x1 = out(reg) _,
                 x2 = out(reg) _,
@@ -580,6 +624,13 @@ macro_rules! def_ukernelxn {
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let c_cs = d_arr[3];
+            let beta_st = if *beta == TB::ZERO {
+                0i32
+            } else if *beta == TB::ONE {
+                1i32
+            } else {
+                2i32
+            };
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -636,9 +687,20 @@ macro_rules! def_ukernelxn {
                             asm_c_load!(ni),
                             // scale by alpha
                             asm_alpha_scale!($mr, ni),			
+                            "cmpw $0, ({beta_st})",
+                            "je 6f",
+                    
+                            "cmpw $1, ({beta_st})",
+                            "je 15f",
 
-                            cum_seq!($acc_macro,ni,$is_partial),
+                            load_beta!(),
+                            cum_seq!($acc_macro,ni,$is_partial,2),	
+                            "jmp 6f",	
 
+                            "15:",
+                            cum_seq!($acc_macro,ni,$is_partial,1),
+
+                            "6:",
                             cum_seq!($store_macro,ni,$is_partial),
                             
                             // 7 -> DDONE
@@ -648,7 +710,8 @@ macro_rules! def_ukernelxn {
                             cx = inout(reg) cf => _,
                             dim_arrx = inout(reg) dim_arr.as_ptr() => _,
                             alphax = inout(reg) alpha => _,
-                            // betax = inout(reg) beta => _,
+                            betax = inout(reg) beta => _,
+                            beta_st = in(reg) &beta_st,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,

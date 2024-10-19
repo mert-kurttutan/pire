@@ -55,20 +55,17 @@ pub unsafe fn axpy<F: MyFn>(
     }
 }
 
-// use glar_base::def_kernel_bb_v0_no_beta;
-// def_kernel_bb_v0_no_beta!(TA, TB, TC, TA, TC, 12, 2, 12, 8, 4);
-
-use glar_base::def_kernel_bb_pf1_no_beta;
+use glar_base::def_kernel_bb_pf1;
 
 def_kernel_bb_pf1!(TA, TB, TC, TA, TC, 3, 2, 96, 4, 3, 2, 1);
 
-use glar_base::def_kernel_bs_no_beta;
+use glar_base::def_kernel_bs;
 
 def_kernel_bs!(TA, TB, TC, TA, TC, 3, 2, 3, 2, 1);
 
 use super::pack_avx::packa_panel_12;
 
-use glar_base::def_kernel_sb_v0_no_beta;
+use glar_base::def_kernel_sb_v0;
 
 def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_12, 3, 2, 3, 2, 1);
 
