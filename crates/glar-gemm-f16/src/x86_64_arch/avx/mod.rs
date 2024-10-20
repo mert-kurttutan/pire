@@ -11,12 +11,12 @@ use std::arch::asm;
 
 const VS: usize = 8;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 use half::f16;
 
 #[target_feature(enable = "avx,fma")]
-pub unsafe fn axpy<F: MyFn>(
+pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -62,7 +62,7 @@ macro_rules! def_kernel_bb {
     ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
         paste! {
             #[target_feature(enable = "avx")]
-            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const f32,
                 beta: *const f32,
@@ -127,7 +127,7 @@ macro_rules! def_kernel_bb {
 def_kernel_bb!(16, 4, 16, 8);
 
 // #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

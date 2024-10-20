@@ -2,7 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use half::f16;
-use crate::{MyFn, TC, TC_SIZE};
+use crate::{UnaryFnC, TC, TC_SIZE};
 use super::VS;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
 
@@ -881,7 +881,7 @@ macro_rules! def_ukernel {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
@@ -1002,7 +1002,7 @@ macro_rules! def_ukernelxn {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
@@ -1133,7 +1133,7 @@ def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 32, 8, B, B, M, ukernel_2xn_bb_p
 def_ukernelxn!(step_1x12, acc_1x12, store_1x12, 16, 8, B, B, M, ukernel_1xn_bb_partial);
 
 
-pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
     a: *const f32, b: *const f32, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

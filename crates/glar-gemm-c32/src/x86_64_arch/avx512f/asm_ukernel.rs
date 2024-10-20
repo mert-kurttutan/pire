@@ -3,7 +3,7 @@ use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use super::VS;
 use crate::{TA, TB, TC, TC_SIZE};
-use crate::MyFn;
+use crate::UnaryFnC;
 use glar_base::{load_buf, store_buf, c_mem};
 
 
@@ -904,7 +904,7 @@ macro_rules! def_ukernel {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA,
             beta: *const TA,
@@ -1043,7 +1043,7 @@ macro_rules! def_ukernelxn {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA,
             beta: *const TA,
@@ -1204,7 +1204,7 @@ def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 8, 4, B, S, M, ukernel_1xn_bs_parti
 
 
 
-pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA,
     beta: *const TA,

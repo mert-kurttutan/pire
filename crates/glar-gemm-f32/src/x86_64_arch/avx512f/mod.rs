@@ -10,7 +10,7 @@ use crate::{TA, TB, TC};
 
 const VS: usize = 16;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 use glar_base::def_kernel_bb_pf1;
 
@@ -26,7 +26,7 @@ use glar_base::def_kernel_sb_pf1;
 
 def_kernel_sb_pf1!(f32, f32, f32, f32, f32, packa_panel_48, 1, 3, 8, 96, 8, 3, 2, 1);
 
-pub(crate) unsafe fn kernel_bs<F: MyFn>(
+pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -49,7 +49,7 @@ pub(crate) unsafe fn kernel_bs<F: MyFn>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -73,7 +73,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

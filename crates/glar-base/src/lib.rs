@@ -4,6 +4,25 @@ use once_cell::sync::Lazy;
 
 pub mod range_rwlock;
 
+#[derive(Copy, Clone)]
+pub struct IdentityFn;
+
+pub trait UnaryFn<T>: Copy + std::marker::Sync {
+    unsafe fn call(self, c: *mut T, m: usize);
+}
+
+impl<T> UnaryFn<T> for IdentityFn {
+    #[inline(always)]
+    unsafe fn call(self, _c: *mut T, _m: usize) {}
+}
+
+impl<T> UnaryFn<T> for unsafe fn(*mut T, m: usize) {
+    #[inline(always)]
+    unsafe fn call(self, c: *mut T, m: usize) {
+        self(c, m);
+    }
+}
+
 #[inline(always)]
 pub unsafe fn load_buf<T: Copy>(c: *const T, c_rs: usize, c_cs: usize, c_buf: &mut [T], m: usize, n: usize, mr: usize) {
     for j in 0..n {
@@ -1323,7 +1342,7 @@ macro_rules! def_glar_gemm {
     ) => {
         def_pa!($packa_ty,$include_flag,$ta,$tap);
         def_pa!($packb_ty,$include_flag,$tb,$tbp);
-        pub unsafe fn $name <F:MyFn>(
+        pub unsafe fn $name <F:UnaryFnC>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
@@ -1398,7 +1417,7 @@ macro_rules! def_glar_gemm {
             extend(pool_vec);
         }
 
-        pub unsafe fn $name_mt<F:MyFn>(
+        pub unsafe fn $name_mt<F:UnaryFnC>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
@@ -1468,7 +1487,7 @@ macro_rules! def_glar_gemm {
             });
         }
 
-        unsafe fn $goto_name<F:MyFn>(
+        unsafe fn $goto_name<F:UnaryFnC>(
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
@@ -1558,7 +1577,7 @@ macro_rules! def_glar_gemm {
                 }
             }
         }
-        unsafe fn $small_m_name<F:MyFn>(
+        unsafe fn $small_m_name<F:UnaryFnC>(
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
@@ -1637,7 +1656,7 @@ macro_rules! def_glar_gemm {
                 }
             }
         }
-        unsafe fn $small_n_name<F:MyFn>(
+        unsafe fn $small_n_name<F:UnaryFnC>(
             hw_cfg: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: *const $t_as,
@@ -1735,7 +1754,7 @@ macro_rules! def_glar_gemm {
         // this is subject to change if we parallelize over kc, but this is not in the plan
         // sync right before write and right before read
         // NOTE: dont return before the second packa as it ensures sync between threads
-        pub(crate) unsafe fn $packa_name<'a,'b,F:MyFn>(hw_cfg: &$t_dispatcher <F>, x: &'b $packa_ty<'a>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlarThreadConfig) -> PtrData<'a,$tap> {
+        pub(crate) unsafe fn $packa_name<'a,'b,F:UnaryFnC>(hw_cfg: &$t_dispatcher <F>, x: &'b $packa_ty<'a>, mc_i: usize, kc_i: usize, mc_len: usize, kc_len: usize, t_cfg: &GlarThreadConfig) -> PtrData<'a,$tap> {
             t_cfg.wait_packa();
             let xp_ptr = match x {
                 $packa_ty::StridedMatrix(x_i) => {
@@ -1792,7 +1811,7 @@ macro_rules! def_glar_gemm {
             xp_ptr
         }
         // NOTE: dont return before the second packa as it ensures sync between threads
-        pub(crate) unsafe fn $packb_name<'a,'b,F:MyFn>(hw_cfg: & $t_dispatcher <F>, x: &'b$packb_ty<'a>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlarThreadConfig) -> PtrData<'a,$tbp> {
+        pub(crate) unsafe fn $packb_name<'a,'b,F:UnaryFnC>(hw_cfg: & $t_dispatcher <F>, x: &'b$packb_ty<'a>, nc_i: usize, kc_i: usize, nc_len: usize, kc_len: usize, t_cfg: &GlarThreadConfig) -> PtrData<'a,$tbp> {
             t_cfg.wait_packb();
             let xp_ptr = match x {
                 $packb_ty::StridedMatrix(x_i) => {
@@ -1855,7 +1874,7 @@ macro_rules! def_kernel_bb_pf1 {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 beta: *const $t_bs,
@@ -1925,7 +1944,7 @@ macro_rules! def_kernel_bb_v0 {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as,
                 beta: *const $t_bs,
@@ -1993,7 +2012,7 @@ macro_rules! def_kernel_sb_pf1 {
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2067,7 +2086,7 @@ macro_rules! def_kernel_sb_v0 {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 a: *const $ta, a_rs: usize, a_cs: usize,
@@ -2138,7 +2157,7 @@ macro_rules! def_kernel_bs {
         $MR:tt, $NR:tt, $($mr_left:tt),*
     ) => {
         paste! {
-            pub unsafe fn kernel_bs_v0<F: MyFn, const STRIDED: bool>(
+            pub unsafe fn kernel_bs_v0<F: UnaryFnC, const STRIDED: bool>(
                 m: usize, n: usize, k: usize,
                 alpha: *const $t_as, beta: *const $t_bs,
                 b: *const $tb, b_rs: usize, b_cs: usize,

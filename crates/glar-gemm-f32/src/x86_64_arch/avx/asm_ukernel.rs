@@ -501,7 +501,7 @@ macro_rules! prefetch_c {
     }
 }
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 #[inline(always)]
 fn mask_and_offset(m: usize) -> ([u32;16], usize) {
@@ -546,7 +546,7 @@ macro_rules! def_ukernel {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
@@ -669,7 +669,7 @@ macro_rules! def_ukernelxn {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
