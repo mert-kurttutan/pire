@@ -602,7 +602,7 @@ macro_rules! step_2x12 {
     };
 }
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 macro_rules! prefetch_c {
     (2, $nr:tt) => {
@@ -671,7 +671,7 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,sve,i8mm")]
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
@@ -834,7 +834,7 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,sve,i8mm")]
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
@@ -1000,7 +1000,7 @@ def_ukernelxn!(step_2x12, acc_2x12, store_2x12, 2, 12, B, B, M, ukernel_n_bb_par
 
 
 #[target_feature(enable="neon,sve,i8mm")]
-pub(crate) unsafe fn ukernel_bb<F: MyFn, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

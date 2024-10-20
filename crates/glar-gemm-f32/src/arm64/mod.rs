@@ -9,7 +9,7 @@ use glar_base::{
     GemmPool, GlarPar, GlarThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
 };
 
-use crate::{GemmCache, MyFn, NullFn, TA, TB, TC};
+use crate::{GemmCache, UnaryFnC, IdentityFn, TA, TB, TC};
 
 #[inline(always)]
 pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
@@ -26,7 +26,7 @@ pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -45,7 +45,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -65,7 +65,7 @@ pub(crate) enum RegDim {
     RegMrx8,
 }
 
-pub(crate) struct KernelDispatcher<T: MyFn = NullFn> {
+pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -80,7 +80,7 @@ pub(crate) struct KernelDispatcher<T: MyFn = NullFn> {
     func: T,
 }
 
-impl<F: MyFn> KernelDispatcher<F> {
+impl<F: UnaryFnC> KernelDispatcher<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
         let (mc, nc, kc) = get_mcnckc();
         let features = hw_config.cpu_ft();
@@ -127,7 +127,7 @@ impl<F: MyFn> KernelDispatcher<F> {
     }
 }
 
-impl<T: MyFn> GemmCache for KernelDispatcher<T> {
+impl<T: UnaryFnC> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -153,7 +153,7 @@ impl<T: MyFn> GemmCache for KernelDispatcher<T> {
     }
 }
 
-unsafe fn kernel<F: MyFn>(
+unsafe fn kernel<F: UnaryFnC>(
     hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
@@ -175,7 +175,7 @@ unsafe fn kernel<F: MyFn>(
             RegDim::RegMrx8 => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, hw_cfg.func),
         }
     } else {
-        let null_fn = NullFn {};
+        let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Reg24x4 => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
             RegDim::RegMrx8 => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, null_fn),
@@ -184,7 +184,7 @@ unsafe fn kernel<F: MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_m<F: MyFn>(
+unsafe fn kernel_m<F: UnaryFnC>(
     hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
@@ -202,7 +202,7 @@ unsafe fn kernel_m<F: MyFn>(
 ) {
 }
 
-unsafe fn kernel_n<F: MyFn>(
+unsafe fn kernel_n<F: UnaryFnC>(
     hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,
@@ -229,7 +229,7 @@ unsafe fn kernel_n<F: MyFn>(
             }
         }
     } else {
-        let null_fn = NullFn {};
+        let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Reg24x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
             RegDim::RegMrx8 => {
@@ -239,7 +239,7 @@ unsafe fn kernel_n<F: MyFn>(
     }
 }
 
-unsafe fn glar_gemv<F: MyFn>(
+unsafe fn glar_gemv<F: UnaryFnC>(
     hw_cfg: &KernelDispatcher<F>,
     m: usize,
     n: usize,

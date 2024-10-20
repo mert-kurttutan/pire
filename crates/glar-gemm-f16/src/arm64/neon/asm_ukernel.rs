@@ -627,7 +627,7 @@ macro_rules! step_1x6 {
     };
 }
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 macro_rules! prefetch_c {
     (24, 4) => {
@@ -686,7 +686,7 @@ macro_rules! def_ukernel {
         $func_name:ident
     ) => {
         #[target_feature(enable = "fp16")]
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
@@ -810,7 +810,7 @@ macro_rules! def_ukernelxn {
         $func_name:ident
     ) => {
         #[target_feature(enable = "fp16")]
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
