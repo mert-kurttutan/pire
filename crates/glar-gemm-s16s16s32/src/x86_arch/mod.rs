@@ -7,7 +7,7 @@ use glar_base::{
     GemmPool, GlarPar, GlarThreadConfig, HWConfig, PArray, PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
 };
 
-use crate::{GemmCache, UnaryFnC, IdentityFn, TA, TB, TC};
+use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
 #[inline(always)]
 pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
