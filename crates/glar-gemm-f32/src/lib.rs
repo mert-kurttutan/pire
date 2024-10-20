@@ -19,7 +19,7 @@ pub(crate) mod reference;
 pub(crate) type TA = f32;
 pub(crate) type TB = f32;
 pub(crate) type TC = f32;
-const TC_SIZE: usize = std::mem::size_of::<TC>();
+const TC_SIZE: usize = core::mem::size_of::<TC>();
 
 use reference::RefGemm;
 

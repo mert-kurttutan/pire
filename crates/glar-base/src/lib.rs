@@ -2,6 +2,8 @@ use std::sync::{Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 // Consider Once Cell
 use once_cell::sync::Lazy;
 
+use core::mem::size_of;
+
 pub mod range_rwlock;
 
 #[derive(Copy, Clone)]
@@ -50,7 +52,7 @@ use range_rwlock::{RangeLock, RangeLockReadGuard, RangeLockWriteGuard};
 #[macro_export]
 macro_rules! env_or {
     ($name:expr, $default:expr) => {
-        if let Some(value) = std::option_env!($name) {
+        if let Some(value) = core::option_env!($name) {
             const_str::parse!(value, usize)
         } else {
             $default
@@ -728,25 +730,25 @@ impl PoolSize {
     // add alignment padding for ab only for total memory pool sizes
     pub fn mem_pool_size_b<TA, TB>(&self) -> usize {
         // be conservative and add 2 * AB_ALIGN padding always
-        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity
-            + self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity
+        self.ap_pool_size * size_of::<TA>() * self.ap_pool_multiplicity
+            + self.bp_pool_size * size_of::<TB>() * self.bp_pool_multiplicity
             + 2 * AB_ALIGN
     }
 
     pub fn ap_size_b<TA>(&self) -> usize {
-        self.ap_pool_size * std::mem::size_of::<TA>()
+        self.ap_pool_size * size_of::<TA>()
     }
 
     pub fn bp_size_b<TB>(&self) -> usize {
-        self.bp_pool_size * std::mem::size_of::<TB>()
+        self.bp_pool_size * size_of::<TB>()
     }
 
     pub fn ap_size_t_b<TA>(&self) -> usize {
-        self.ap_pool_size * std::mem::size_of::<TA>() * self.ap_pool_multiplicity
+        self.ap_pool_size * size_of::<TA>() * self.ap_pool_multiplicity
     }
 
     pub fn bp_size_t_b<TB>(&self) -> usize {
-        self.bp_pool_size * std::mem::size_of::<TB>() * self.bp_pool_multiplicity
+        self.bp_pool_size * size_of::<TB>() * self.bp_pool_multiplicity
     }
 
     pub fn slice_mut_from_pool<TA, TB>(
@@ -763,11 +765,11 @@ impl PoolSize {
         let n_size = pool_size.n;
         let k_size = pool_size.k;
         let ap_pool_size = self.ap_pool_size;
-        let ap_pool_size_b = ap_pool_size * std::mem::size_of::<TA>();
+        let ap_pool_size_b = ap_pool_size * size_of::<TA>();
         let a_alignment = std::mem::align_of::<TA>();
         assert_eq!(ap_pool_size_b % a_alignment, 0);
         let bp_pool_size = self.bp_pool_size;
-        let bp_pool_size_b = bp_pool_size * std::mem::size_of::<TB>();
+        let bp_pool_size_b = bp_pool_size * size_of::<TB>();
         let b_alignment = std::mem::align_of::<TB>();
         assert_eq!(bp_pool_size_b % b_alignment, 0);
         let mut ap = vec![];
@@ -819,14 +821,14 @@ pub fn get_mem_pool_size_goto<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
     let k = hw_config.get_kc_eff();
     let (ap_pool_size, ap_pool_multiplicity) = if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / size_of::<AP>();
         (ap_pool_size, ap_pool_multiplicity)
     } else {
         (0, 1)
     };
     let (bp_pool_size, bp_pool_multiplicity) = if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / size_of::<BP>();
         (bp_pool_size, bp_pool_multiplicity)
     } else {
         (0, 1)
@@ -844,7 +846,7 @@ pub fn get_mem_pool_size_small_m<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
     let k = hw_config.get_kc_eff();
     if a_need_pool {
         let ap_pool_multiplicity = par.ic_par;
-        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / std::mem::size_of::<AP>();
+        let ap_pool_size = hw_config.get_ap_pool_size(par.ic_par) + CACHELINE_PAD / size_of::<AP>();
         PoolSize { m, n, k, ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
     } else {
         PoolSize { m, n, k, ap_pool_size: 0, ap_pool_multiplicity: 1, bp_pool_size: 0, bp_pool_multiplicity: 1 }
@@ -856,14 +858,14 @@ pub fn get_mem_pool_size_small_n<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
     par: &GlarPar,
     b_need_pool: bool,
 ) -> PoolSize {
-    let ap_pool_size = hw_config.get_ap_pool_size2() + CACHELINE_PAD / std::mem::size_of::<AP>();
+    let ap_pool_size = hw_config.get_ap_pool_size2() + CACHELINE_PAD / size_of::<AP>();
     let ap_pool_multiplicity = par.num_threads;
     let m = hw_config.mr();
     let n = hw_config.get_nc_eff(par.jc_par);
     let k = hw_config.get_kc_eff();
     if b_need_pool {
         let bp_pool_multiplicity = par.jc_par;
-        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / std::mem::size_of::<BP>();
+        let bp_pool_size = hw_config.get_bp_pool_size(par.jc_par) + CACHELINE_PAD / size_of::<BP>();
         PoolSize { m, n, k, ap_pool_size, ap_pool_multiplicity, bp_pool_size, bp_pool_multiplicity }
     } else {
         PoolSize { m, n, k, ap_pool_size, ap_pool_multiplicity, bp_pool_size: 0, bp_pool_multiplicity: 1 }
@@ -892,27 +894,27 @@ pub enum GemmPool {
 }
 
 pub fn ap_size<T>(m: usize, k: usize) -> usize {
-    let vs = 256 / std::mem::size_of::<T>();
+    let vs = 256 / size_of::<T>();
     let m_max = (m + vs - 1) / vs * vs;
-    m_max * k + AB_ALIGN / std::mem::size_of::<T>()
+    m_max * k + AB_ALIGN / size_of::<T>()
 }
 
 pub fn bp_size<T>(n: usize, k: usize) -> usize {
-    n * k + AB_ALIGN / std::mem::size_of::<T>()
+    n * k + AB_ALIGN / size_of::<T>()
 }
 
 pub fn ap_size_int<T, P>(m: usize, k: usize) -> usize {
-    let vs = 64 / std::mem::size_of::<T>();
-    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>()) * 2;
+    let vs = 64 / size_of::<T>();
+    let c_r = (size_of::<P>() / size_of::<T>()) * 2;
     let k_r = (k + c_r - 1) / c_r * c_r;
     let m_max = (m + vs - 1) / vs * vs;
-    m_max * k_r + AB_ALIGN / std::mem::size_of::<T>()
+    m_max * k_r + AB_ALIGN / size_of::<T>()
 }
 
 pub fn bp_size_int<T, P>(n: usize, k: usize) -> usize {
-    let c_r = (std::mem::size_of::<P>() / std::mem::size_of::<T>()) * 2;
+    let c_r = (size_of::<P>() / size_of::<T>()) * 2;
     let k_r = (k + c_r - 1) / c_r * c_r;
-    n * k_r + AB_ALIGN / std::mem::size_of::<T>()
+    n * k_r + AB_ALIGN / size_of::<T>()
 }
 
 #[derive(Clone, Copy)]

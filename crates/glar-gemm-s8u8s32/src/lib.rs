@@ -19,7 +19,7 @@ pub(crate) mod reference;
 pub(crate) type TA = i8;
 pub(crate) type TB = u8;
 pub(crate) type TC = i32;
-const TC_SIZE: usize = std::mem::size_of::<TC>();
+const TC_SIZE: usize = core::mem::size_of::<TC>();
 
 use glar_base::{has_i8i32_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn, RUNTIME_HW_CONFIG};
 
@@ -124,7 +124,7 @@ pub fn ap_size(m: usize, k: usize) -> usize {
 
     let m_rounded = (m + mv - 1) / mv * mv;
     let k_rounded = (k + kv - 1) / kv * kv;
-    m_rounded * k_rounded + glar_base::AB_ALIGN / std::mem::size_of::<TA>()
+    m_rounded * k_rounded + glar_base::AB_ALIGN / core::mem::size_of::<TA>()
 }
 
 pub fn bp_size(n: usize, k: usize) -> usize {
@@ -139,7 +139,7 @@ pub fn bp_size(n: usize, k: usize) -> usize {
 
     let n_rounded = (n + nv - 1) / nv * nv;
     let k_rounded = (k + kv - 1) / kv * kv;
-    n_rounded * k_rounded + glar_base::AB_ALIGN / std::mem::size_of::<TB>()
+    n_rounded * k_rounded + glar_base::AB_ALIGN / core::mem::size_of::<TB>()
 }
 
 // block idx for packa and packb is s.t.
