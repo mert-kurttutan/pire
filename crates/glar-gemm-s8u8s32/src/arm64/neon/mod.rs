@@ -1,15 +1,15 @@
 #[rustfmt::skip]
 pub mod asm_ukernel;
-pub(crate) mod axpy_kernel;
+// pub(crate) mod axpy_kernel;
 
 pub(crate) use asm_ukernel::*;
-pub(crate) use axpy_kernel::*;
+// pub(crate) use axpy_kernel::*;
 
 use paste::paste;
 
 use crate::{TA, TB, TC};
 
-const VS: usize = 8;
+const VS: usize = 4;
 
 use crate::MyFn;
 
@@ -17,60 +17,101 @@ use crate::MyFn;
 pub unsafe fn axpy<F: MyFn>(
     m: usize,
     n: usize,
-    alpha: *const TA,
+    alpha: *const f32,
     a: *const TA,
     a_rs: usize,
     a_cs: usize,
     x: *const TB,
     incx: usize,
-    beta: *const TC,
+    beta: *const f32,
     y: *mut TC,
     incy: usize,
     f: F,
 ) {
-    if a_cs == 1 && incx == 1 {
-        axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
-        for i in 0..m {
-            f.call(y.add(i * incy), 1);
-        }
-        return;
-    }
-    if a_rs == 1 && incy == 1 {
-        axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
-        f.call(y, m);
-        return;
-    }
+    // if a_cs == 1 && incx == 1 {
+    //     axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+    //     for i in 0..m {
+    //         f.call(y.add(i * incy), 1);
+    //     }
+    //     return;
+    // }
+    // if a_rs == 1 && incy == 1 {
+    //     axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+    //     f.call(y, m);
+    //     return;
+    // }
 
     for i in 0..m {
         let y_cur = y.add(i * incy);
-        let mut acc = 0.0;
+        let mut acc = 0i32;
         for j in 0..n {
             let a_cur = a.add(i * a_rs + j * a_cs);
             let x_cur = x.add(j * incx);
-            acc += *a_cur * *x_cur;
+            acc += *a_cur as i32 * *x_cur as i32;
         }
-        *y_cur = *beta * *y_cur + *alpha * acc;
+        *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
+        f.call(y_cur, 1);
+    }
+}
+
+#[target_feature(enable = "neon")]
+pub unsafe fn axpy2<F: MyFn>(
+    m: usize,
+    n: usize,
+    alpha: *const f32,
+    a: *const TB,
+    a_rs: usize,
+    a_cs: usize,
+    x: *const TA,
+    incx: usize,
+    beta: *const f32,
+    y: *mut TC,
+    incy: usize,
+    f: F,
+) {
+    // if a_cs == 1 && incx == 1 {
+    //     axpy_d(m, n, alpha, a, a_rs, x, beta, y, incy);
+    //     for i in 0..m {
+    //         f.call(y.add(i * incy), 1);
+    //     }
+    //     return;
+    // }
+    // if a_rs == 1 && incy == 1 {
+    //     axpy_v(m, n, alpha, a, a_cs, x, incx, beta, y);
+    //     f.call(y, m);
+    //     return;
+    // }
+
+    for i in 0..m {
+        let y_cur = y.add(i * incy);
+        let mut acc = 0i32;
+        for j in 0..n {
+            let a_cur = a.add(i * a_rs + j * a_cs);
+            let x_cur = x.add(j * incx);
+            acc += *a_cur as i32 * *x_cur as i32;
+        }
+        *y_cur = (*beta * *y_cur as f32 + *alpha * acc as f32) as i32;
         f.call(y_cur, 1);
     }
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(f32, f32, f32, f32, f32, 24, 4, 24, 16, 8);
+def_kernel_bb_v0!(i8, u8, i32, f32, f32, 2, 12, 2, 1);
 
-use super::pack_neon::packa_panel_24;
+use super::pack_neon::packa_panel_8;
 
 use glar_base::def_kernel_sb_v0;
 
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, 1, 24, 4, 24, 16, 8);
+def_kernel_sb_v0!(i8, u8, i32, f32, f32, packa_panel_8, 8, 2, 12, 2, 1);
 
 // #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb<F: MyFn>(
     m: usize,
     n: usize,
     k: usize,
-    alpha: *const TA,
-    beta: *const TC,
-    a: *const TB,
+    alpha: *const f32,
+    beta: *const f32,
+    a: *const TA,
     a_rs: usize,
     a_cs: usize,
     b: *const TB,
@@ -81,9 +122,9 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_24x4_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_24x4_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
@@ -91,8 +132,8 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     m: usize,
     n: usize,
     k: usize,
-    alpha: *const TA,
-    beta: *const TC,
+    alpha: *const f32,
+    beta: *const f32,
     c: *mut TC,
     c_rs: usize,
     c_cs: usize,
@@ -100,9 +141,10 @@ pub(crate) unsafe fn kernel<F: MyFn>(
     bp: *const TB,
     f: F,
 ) {
+    let k_eff = (k + 7) / 8 * 8;
     if c_rs == 1 {
-        kernel_24x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_24x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

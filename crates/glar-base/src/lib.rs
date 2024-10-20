@@ -202,7 +202,7 @@ fn detect_hw_config() -> HWConfig {
     {
         use std::arch::is_aarch64_feature_detected;
         let neon = is_aarch64_feature_detected!("neon");
-        let sve = is_aarch64_feature_detected!("sve");
+        let sve = is_aarch64_feature_detected!("sve") && false;
         let fp16 = is_aarch64_feature_detected!("fp16");
         let f32mm = is_aarch64_feature_detected!("f32mm");
         let fcma = is_aarch64_feature_detected!("fcma");
@@ -366,11 +366,12 @@ pub(crate) mod cpu_features {
         RUNTIME_HW_CONFIG.cpu_ft.fp16 && RUNTIME_HW_CONFIG.cpu_ft.neon
     }
     pub fn has_i16i32_compute() -> bool {
+        // currenty we do not support this
+        // since the only insturction is smlal, whose throupout is not high enough
         false
     }
     pub fn has_i8i32_compute() -> bool {
-        // at the the moment only sve is implemented
-        RUNTIME_HW_CONFIG.cpu_ft.i8mm && RUNTIME_HW_CONFIG.cpu_ft.sve && RUNTIME_HW_CONFIG.cpu_ft.neon
+        RUNTIME_HW_CONFIG.cpu_ft.i8mm && RUNTIME_HW_CONFIG.cpu_ft.neon
     }
     // TODO: Use actual info from hardware
     pub fn get_cache_params() -> (usize, usize, usize) {
