@@ -11,10 +11,10 @@ use crate::{TA, TB, TC};
 
 // const VS: usize = 16;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 #[target_feature(enable = "neon")]
-pub unsafe fn axpy<F: MyFn>(
+pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -55,7 +55,7 @@ pub unsafe fn axpy<F: MyFn>(
 }
 
 #[target_feature(enable = "neon")]
-pub unsafe fn axpy2<F: MyFn>(
+pub unsafe fn axpy2<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -95,7 +95,7 @@ pub unsafe fn axpy2<F: MyFn>(
     }
 }
 
-pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
+pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
     m: usize,
     n: usize,
     k: usize,
@@ -156,7 +156,7 @@ pub unsafe fn kernel_bb<F: MyFn, const STRIDED: bool>(
 
 use super::pack_sve::packa_panel;
 
-pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
+pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
     m: usize,
     n: usize,
     k: usize,
@@ -222,7 +222,7 @@ pub unsafe fn kernel_sb_v0<F: MyFn, const STRIDED: bool>(
 }
 
 // #[target_feature(enable = "neon")]
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -247,7 +247,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     }
 }
 
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

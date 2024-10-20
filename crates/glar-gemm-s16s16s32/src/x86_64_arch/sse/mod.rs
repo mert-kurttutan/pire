@@ -11,10 +11,10 @@ use crate::{TA, TB, TC};
 
 const VS: usize = 4;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 #[target_feature(enable = "sse,sse2")]
-pub unsafe fn axpy<F: MyFn>(
+pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -62,7 +62,7 @@ use super::pack_sse::packa_panel_8;
 use glar_base::def_kernel_sb_v0;
 def_kernel_sb_v0!(i16, i16, i32, f32, f32, packa_panel_8, 2, 2, 4, 2, 1);
 
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -85,7 +85,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
     }
 }
 
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

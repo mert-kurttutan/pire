@@ -12,10 +12,10 @@ use crate::{TA, TB, TC};
 
 const VS: usize = 8;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 #[target_feature(enable = "avx,fma")]
-pub unsafe fn axpy<F: MyFn>(
+pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const TA,
@@ -71,7 +71,7 @@ use glar_base::def_kernel_sb_v0;
 
 def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_24, 1, 3, 4, 3, 2, 1);
 
-pub(crate) unsafe fn kernel_24x4_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_24x4_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -95,7 +95,7 @@ pub(crate) unsafe fn kernel_24x4_sb<F: MyFn>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel_24x4_bs<F: MyFn>(
+pub(crate) unsafe fn kernel_24x4_bs<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -118,7 +118,7 @@ pub(crate) unsafe fn kernel_24x4_bs<F: MyFn>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel_24x4<F: MyFn>(
+pub(crate) unsafe fn kernel_24x4<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

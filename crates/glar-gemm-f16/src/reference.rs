@@ -7,7 +7,7 @@ use glar_base::{
 
 use half::f16;
 
-use crate::{GemmCache, MyFn, NullFn, TA, TB};
+use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB};
 
 unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
     let mut a_cur = a;
@@ -120,7 +120,7 @@ unsafe fn packb_refsame(b: *const f16, bp: *mut f16, n: usize, k: usize, b_rs: u
 pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     let (mc, _, kc) = get_cache_params();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -139,7 +139,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_cache_params();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, NullFn {});
+    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -154,7 +154,7 @@ pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b
     return Array::packed_matrix(bp, n, k);
 }
 
-pub(crate) struct RefGemm<T: MyFn = NullFn> {
+pub(crate) struct RefGemm<T: UnaryFnC = IdentityFn> {
     mc: usize,
     nc: usize,
     kc: usize,
@@ -168,7 +168,7 @@ pub(crate) struct RefGemm<T: MyFn = NullFn> {
     pub(crate) vs: usize,
 }
 
-impl<F: MyFn> RefGemm<F> {
+impl<F: UnaryFnC> RefGemm<F> {
     pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
         let (mc, nc, kc) = get_cache_params();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -219,7 +219,7 @@ impl<F: MyFn> RefGemm<F> {
     }
 }
 
-impl<T: MyFn> GemmCache for RefGemm<T> {
+impl<T: UnaryFnC> GemmCache for RefGemm<T> {
     fn mr(&self) -> usize {
         self.mr
     }
@@ -245,7 +245,7 @@ impl<T: MyFn> GemmCache for RefGemm<T> {
     }
 }
 
-unsafe fn kernel<F: MyFn>(
+unsafe fn kernel<F: UnaryFnC>(
     hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
@@ -305,7 +305,7 @@ unsafe fn kernel<F: MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_m<F: MyFn>(
+unsafe fn kernel_m<F: UnaryFnC>(
     hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
@@ -324,7 +324,7 @@ unsafe fn kernel_m<F: MyFn>(
 }
 
 #[allow(unused)]
-unsafe fn kernel_n<F: MyFn>(
+unsafe fn kernel_n<F: UnaryFnC>(
     hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,
@@ -343,7 +343,7 @@ unsafe fn kernel_n<F: MyFn>(
 ) {
 }
 
-unsafe fn glar_gemv<F: MyFn>(
+unsafe fn glar_gemv<F: UnaryFnC>(
     hw_cfg: &RefGemm<F>,
     m: usize,
     n: usize,

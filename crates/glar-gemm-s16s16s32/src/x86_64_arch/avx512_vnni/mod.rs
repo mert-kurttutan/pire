@@ -10,7 +10,7 @@ use std::arch::asm;
 
 use crate::{TA, TB, TC};
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 const VS: usize = 16;
 
@@ -25,7 +25,7 @@ use glar_base::def_kernel_sb_pf1;
 def_kernel_sb_pf1!(i16, i16, i32, f32, f32, packa_panel_48, 2, 3, 8, 64, 8, 3, 2, 1);
 
 // #[target_feature(enable = "avx2")]
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -50,7 +50,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
 }
 
 // #[target_feature(enable = "avx2")]
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

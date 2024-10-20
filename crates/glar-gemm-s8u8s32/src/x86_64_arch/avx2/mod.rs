@@ -12,10 +12,10 @@ use crate::{TA, TB, TC};
 
 const VS: usize = 8;
 
-use crate::MyFn;
+use crate::UnaryFnC;
 
 #[target_feature(enable = "avx,avx2")]
-pub unsafe fn axpy<F: MyFn>(
+pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -56,7 +56,7 @@ pub unsafe fn axpy<F: MyFn>(
 }
 
 #[target_feature(enable = "avx,avx2")]
-pub unsafe fn axpy2<F: MyFn>(
+pub unsafe fn axpy2<F: UnaryFnC>(
     m: usize,
     n: usize,
     alpha: *const f32,
@@ -109,7 +109,7 @@ use glar_base::def_kernel_sb_v0;
 def_kernel_sb_v0!(i8, u8, i32, f32, f32, packa_panel_16, 4, 2, 4, 2, 1);
 
 // #[target_feature(enable = "avx2")]
-pub(crate) unsafe fn kernel_sb<F: MyFn>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -134,7 +134,7 @@ pub(crate) unsafe fn kernel_sb<F: MyFn>(
 }
 
 // #[target_feature(enable = "avx2")]
-pub(crate) unsafe fn kernel<F: MyFn>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

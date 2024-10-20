@@ -23,30 +23,16 @@ pub(crate) type TB = Complex<f64>;
 pub(crate) type TC = Complex<f64>;
 const TC_SIZE: usize = std::mem::size_of::<TC>();
 
-#[derive(Copy, Clone)]
-pub(crate) struct NullFn;
-
-pub(crate) trait MyFn: Copy + std::marker::Sync {
-    unsafe fn call(self, c: *mut TC, m: usize);
-}
-
-impl MyFn for NullFn {
-    #[inline(always)]
-    unsafe fn call(self, _c: *mut TC, _m: usize) {}
-}
-
-impl MyFn for unsafe fn(*mut TC, m: usize) {
-    #[inline(always)]
-    unsafe fn call(self, c: *mut TC, m: usize) {
-        self(c, m);
-    }
-}
-
 use reference::RefGemm;
 
-use glar_base::{ap_size, bp_size, has_c64_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};
+use glar_base::{
+    ap_size, bp_size, has_c64_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn, RUNTIME_HW_CONFIG,
+};
 
-pub(crate) unsafe fn glar_zgemm_generic<F: MyFn>(
+pub(crate) trait UnaryFnC: UnaryFn<TC> {}
+impl<F: UnaryFn<TC>> UnaryFnC for F {}
+
+pub(crate) unsafe fn glar_zgemm_generic<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -96,7 +82,7 @@ pub unsafe fn glar_zgemm(
     let a = Array::strided_matrix(a, a_rs, a_cs);
     let b = Array::strided_matrix(b, b_rs, b_cs);
     let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
-    let null_fn = NullFn {};
+    let null_fn = IdentityFn {};
     glar_zgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
 }
 

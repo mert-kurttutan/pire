@@ -3,7 +3,7 @@ use std::arch::asm;
 use std::arch::x86_64::_mm_prefetch;
 use half::f16;
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
-use crate::{MyFn, TC, TC_SIZE};
+use crate::{UnaryFnC, TC, TC_SIZE};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -605,7 +605,7 @@ macro_rules! def_ukernel {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
@@ -725,7 +725,7 @@ macro_rules! def_ukernelxn {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: MyFn, const BUF: bool>(
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
             a: *const f32, b: *const f32, c: *mut TC,
             alpha: *const f32, beta: *const f32,
             k: usize,
