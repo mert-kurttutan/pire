@@ -6,7 +6,6 @@ use glar_dev::{
     check_gemm_f64,
     check_gemm_s16s16s32,
     check_gemm_s8u8s32,
-    random_matrix_std,
     random_matrix_uniform,
     // CBLAS_LAYOUT,
     CBLAS_TRANSPOSE,
@@ -187,8 +186,8 @@ fn test_dgemm(
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
     let mut c = vec![0.0; m * n];
-    random_matrix_uniform(m, k, &mut a, m);
-    random_matrix_uniform(k, n, &mut b, k);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
     let mut c_ref = vec![0.0; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -260,9 +259,9 @@ fn test_sgemm(
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
     let mut c = vec![0.0; m * n];
-    random_matrix_uniform(m, k, &mut a, m);
-    random_matrix_uniform(k, n, &mut b, k);
-    random_matrix_uniform(m, n, &mut c, m);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
+    random_matrix_uniform(&mut c);
     let mut c_ref = vec![0.0; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -339,9 +338,9 @@ fn test_cgemm(
     let mut a = vec![Complex32::ONE; m * k];
     let mut b = vec![Complex32::ONE; k * n];
     let mut c = vec![Complex32::ONE; m * n];
-    random_matrix_std(m, k, &mut a, m);
-    random_matrix_std(k, n, &mut b, k);
-    random_matrix_std(m, n, &mut c, m);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
+    random_matrix_uniform(&mut c);
     let mut c_ref = vec![Complex32::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -420,9 +419,9 @@ fn test_zgemm(
     let mut a = vec![Complex64::ONE; m * k];
     let mut b = vec![Complex64::ONE; k * n];
     let mut c = vec![Complex64::ONE; m * n];
-    random_matrix_std(m, k, &mut a, m);
-    random_matrix_std(k, n, &mut b, k);
-    random_matrix_std(m, n, &mut c, m);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
+    random_matrix_uniform(&mut c);
     let mut c_ref = vec![Complex64::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -501,10 +500,8 @@ fn test_sgemm_batched(
     let stridea = m * k;
     let strideb = k * n;
     let stridec = m * n;
-    for i in 0..batch_size {
-        random_matrix_uniform(m, k, &mut a[i * stridea..], m);
-        random_matrix_uniform(k, n, &mut b[i * strideb..], k);
-    }
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
     let mut c_ref = vec![0.0; m * n * batch_size];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -582,8 +579,8 @@ fn test_hgemm(
     let mut a = vec![f16::ONE; m * k];
     let mut b = vec![f16::ONE; k * n];
     let mut c = vec![f16::ONE; m * n];
-    random_matrix_uniform(m, k, &mut a, m);
-    random_matrix_uniform(k, n, &mut b, k);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
     let mut c_ref = vec![f16::ONE; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -655,9 +652,9 @@ fn test_gemm_s16s16s32(
     let mut a = vec![0_i16; m * k];
     let mut b = vec![0_i16; k * n];
     let mut c = vec![0_i32; m * n];
-    random_matrix_uniform(m, k, &mut a, m);
-    random_matrix_uniform(k, n, &mut b, k);
-    random_matrix_uniform(m, n, &mut c, m);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
+    random_matrix_uniform(&mut c);
     let mut c_ref = vec![0_i32; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();
@@ -731,8 +728,8 @@ fn test_gemm_s8u8s32(
     let mut a = vec![0_i8; m * k];
     let mut b = vec![0_u8; k * n];
     let mut c = vec![0_i32; m * n];
-    random_matrix_uniform(m, k, &mut a, m);
-    random_matrix_uniform(k, n, &mut b, k);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b);
     let mut c_ref = vec![0_i32; m * n];
     c_ref.copy_from_slice(&c);
     let start_time = std::time::Instant::now();

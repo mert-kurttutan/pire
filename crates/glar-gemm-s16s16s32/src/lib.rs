@@ -14,6 +14,7 @@ pub(crate) mod reference;
 pub(crate) type TA = i16;
 pub(crate) type TB = i16;
 pub(crate) type TC = i32;
+#[allow(unused)]
 const TC_SIZE: usize = std::mem::size_of::<TC>();
 
 use glar_base::{ap_size_int, bp_size_int, has_i16i32_compute, Array, ArrayMut, GemmCache, GlarPar, RUNTIME_HW_CONFIG};

@@ -1,8 +1,10 @@
-use crate::{TA, TB};
-use seq_macro::seq;
-use std::ptr::copy_nonoverlapping;
+// use crate::{TA, TB};
+use crate::TA;
+// use seq_macro::seq;
 
 use paste::paste;
+
+// use std::ptr::copy_nonoverlapping;
 
 #[target_feature(enable = "neon")]
 pub(crate) unsafe fn pack_scalar_k(
@@ -15,141 +17,133 @@ pub(crate) unsafe fn pack_scalar_k(
     vs: usize,
 ) {
     let mr = (m_left + vs - 1) / vs * vs;
+    let k4 = k / 8 * 8;
+    let kl = k % 8;
+    let kl_4 = if kl == 0 { 0 } else { 8 };
     for i in 0..m_left {
-        for j in 0..k {
-            *ap.add(j * mr + i) = *a.add(j * a_cs + i * a_rs);
+        let mut j = 0;
+        while j < k4 {
+            *ap.add(j * mr + i * 8) = *a.add(j * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 1) = *a.add((j + 1) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 2) = *a.add((j + 2) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 3) = *a.add((j + 3) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 4) = *a.add((j + 4) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 5) = *a.add((j + 5) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 6) = *a.add((j + 6) * a_cs + i * a_rs);
+            *ap.add(j * mr + i * 8 + 7) = *a.add((j + 7) * a_cs + i * a_rs);
+            j += 8;
+        }
+        let mut jl = 0;
+        while jl < kl {
+            *ap.add(j * mr + i * 8 + jl) = *a.add((j + jl) * a_cs + i * a_rs);
+            jl += 1;
+        }
+        while jl < kl_4 {
+            *ap.add(j * mr + i * 8 + jl) = 0;
+            jl += 1;
         }
     }
 }
 
-#[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_k_v1<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
-    for i in 0..M {
-        for j in 0..k {
-            *ap.add(j * MR + i) = *a.add(j + i * lda);
-        }
-    }
-}
+// macro_rules! def_packb {
+//     ($nr:tt) => {
+//         paste! {
+//         #[target_feature(enable = "neon")]
+//         pub(crate) unsafe fn [<packb_panel_ $nr>](
+//                 n: usize, k: usize,
+//                 b: *const TB, b_rs: usize, b_cs: usize,
+//                 bp: *mut TB,
+//             ) {
+//                 let k_eff = (k+7) / 8 * 8;
+//                 let bp0 = bp as *mut i8;
+//                 let b0 = b as *const i8;
+//                 const NR: usize = $nr;
+//                 let n_rounded = n / NR * NR;
+//                 let mut n_idx = 0;
+//                 if b_rs == 1 {
+//                     let ldb = b_cs;
+//                     while n_idx < n_rounded {
+//                         let b = b0.add(n_idx);
+//                         let bp = bp0.add(n_idx*k_eff);
+//                         // pack_k_v0::<NR,NR>(k, b, ldb, bp);
+//                         pack_scalar_k(
+//                             NR, k,
+//                             b, 1, ldb,
+//                             bp, 1
+//                         );
+//                         n_idx += NR;
+//                     }
+//                     let n_left = n - n_idx;
+//                     if n_left > 0 {
+//                         pack_scalar_k(
+//                             n_left, k,
+//                             b0.add(n_idx), b_rs, b_cs,
+//                             bp0.add(n_idx*k_eff), 1
+//                         );
+//                     }
+//                 } else if b_cs == 1 {
+//                     let ldb = b_rs;
+//                     while n_idx < n_rounded {
+//                         let b = b0.add(n_idx*ldb);
+//                         let bp = bp0.add(n_idx*k_eff);
+//                         // pack_k_v1::<NR,NR>(k, b, ldb, bp);
+//                         pack_scalar_k(
+//                             NR, k,
+//                             b, b_rs, b_cs,
+//                             bp, 1
+//                         );
+//                         n_idx += NR;
+//                     }
+//                     let n_left = n - n_idx;
+//                     if n_left > 0 {
+//                         pack_scalar_k(
+//                             n_left, k,
+//                             b0.add(n_idx*ldb), b_rs, b_cs,
+//                             bp0.add(n_idx*k_eff), 1
+//                         );
+//                     }
+//                 }
+//             }
+//         }
+//     };
+// }
 
-#[target_feature(enable = "neon")]
-pub(crate) unsafe fn copy_packed<const M: usize>(a: *const f32, b: *mut f32) {
-    copy_nonoverlapping(a, b, M);
-}
-
-#[target_feature(enable = "neon")]
-pub(crate) unsafe fn pack_k_v0<const M: usize, const MR: usize>(k: usize, a: *const TA, lda: usize, ap: *mut TA) {
-    let k8 = k / 8 * 8;
-    let mut k_i = 0;
-    let a0 = a;
-    let ap0 = ap;
-    while k_i < k8 {
-        let a = a0.add(k_i * lda);
-        let ap = ap0.add(k_i * MR);
-        copy_packed::<M>(a, ap);
-        copy_packed::<M>(a.add(lda), ap.add(MR));
-        copy_packed::<M>(a.add(lda * 2), ap.add(MR * 2));
-        copy_packed::<M>(a.add(lda * 3), ap.add(MR * 3));
-        copy_packed::<M>(a.add(lda * 4), ap.add(MR * 4));
-        copy_packed::<M>(a.add(lda * 5), ap.add(MR * 5));
-        copy_packed::<M>(a.add(lda * 6), ap.add(MR * 6));
-        copy_packed::<M>(a.add(lda * 7), ap.add(MR * 7));
-        k_i += 8;
-    }
-
-    while k_i < k {
-        let a = a0.add(k_i * lda);
-        let ap = ap0.add(k_i * MR);
-        copy_packed::<M>(a, ap);
-        k_i += 1;
-    }
-}
-
-macro_rules! def_packb {
-    ($nr:tt) => {
-        paste! {
-        // #[target_feature(enable = "neon")]
-        pub(crate) unsafe fn [<packb_panel_ $nr>](
-                n: usize, k: usize,
-                b: *const TB, b_rs: usize, b_cs: usize,
-                bp: *mut TB,
-            ) {
-                let b0 = b;
-                let bp0 = bp;
-                const NR: usize = $nr;
-                let n_rounded = n / NR * NR;
-                let mut n_idx = 0;
-                if b_rs == 1 {
-                    let ldb = b_cs;
-                   while n_idx < n_rounded {
-                       let b = b0.add(n_idx);
-                       let bp = bp0.add(n_idx*k);
-                       pack_k_v0::<NR,NR>(k, b, ldb, bp);
-                       n_idx += NR;
-                   }
-                    let n_left = n - n_idx;
-                   seq!(NL in 1..$nr {
-                       if n_left == NL {
-                           let b = b0.add(n_idx);
-                           let bp = bp0.add(n_idx*k);
-                           pack_k_v0::<NL,NL>(k, b, ldb, bp);
-                           return;
-                       }
-                   });
-                } else if b_cs == 1 {
-                    let ldb = b_rs;
-                   while n_idx < n_rounded {
-                       let b = b0.add(n_idx*ldb);
-                       let bp = bp0.add(n_idx*k);
-                       pack_k_v1::<NR,NR>(k, b, ldb, bp);
-                       n_idx += NR;
-                   }
-                    let n_left = n - n_idx;
-                   seq!(NL in 1..$nr {
-                       if n_left == NL {
-                           let b = b0.add(n_idx*ldb);
-                           let bp = bp0.add(n_idx*k);
-                           pack_k_v1::<NL,NL>(k, b, ldb, bp);
-                           return;
-                       }
-                   });
-                }
-            }
-        }
-    };
-}
-
-def_packb!(4);
-
-// def_packb!(6);
+// def_packb!(12);
 
 macro_rules! def_packa {
     ($mr:tt) => {
         paste! {
-            // #[target_feature(enable = "neon")]
+            #[target_feature(enable = "neon")]
             pub(crate) unsafe fn [<packa_panel_ $mr>](
                 m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA, vs: usize
+                ap: *mut TA, vs: usize,
             ) {
+                let mr = $mr;
+                let k_eff = (k+7) / 8 * 8;
                 let ap0 = ap;
                 let a0 = a;
-                const MR: usize = $mr;
-                let m_rounded = m / MR * MR;
+                let m_rounded = m / mr * mr;
                 let mut m_idx = 0;
                 if a_rs == 1 {
                     let lda = a_cs;
                     while m_idx < m_rounded {
                         let a = a0.add(m_idx);
-                        let ap = ap0.add(m_idx*k);
-                        pack_k_v0::<MR,MR>(k, a, lda, ap);
-                        m_idx += MR;
+                        let ap = ap0.add(m_idx*k_eff);
+                        pack_scalar_k(
+                            mr, k,
+                            a, 1, lda,
+                            ap, vs
+                        );
+                        // pack_k_v0::<$mr,$mr>(k, a, lda, ap);
+                        m_idx += mr;
                     }
                     let m_left = m - m_idx;
                     if m_left > 0 {
                         pack_scalar_k(
                             m_left, k,
                             a0.add(m_idx), a_rs, a_cs,
-                            ap0.add(m_idx*k), vs
+                            ap0.add(m_idx*k_eff), vs
                         );
                     }
 
@@ -157,16 +151,21 @@ macro_rules! def_packa {
                     let lda = a_rs;
                     while m_idx < m_rounded {
                         let a = a0.add(m_idx*lda);
-                        let ap = ap0.add(m_idx*k);
-                        pack_k_v1::<MR,MR>(k, a, lda, ap);
-                        m_idx += MR;
+                        let ap = ap0.add(m_idx*k_eff);
+                        pack_scalar_k(
+                            mr, k,
+                            a, a_rs, a_cs,
+                            ap, vs
+                        );
+                        // pack_k_v1::<$mr,$mr>(k, a, lda, ap);
+                        m_idx += mr;
                     }
                     let m_left = m - m_idx;
                     if m_left > 0 {
                         pack_scalar_k(
                             m_left, k,
                             a0.add(m_idx*lda), a_rs, a_cs,
-                            ap0.add(m_idx*k), vs
+                            ap0.add(m_idx*k_eff), vs
                         );
                     }
                 }
@@ -175,4 +174,4 @@ macro_rules! def_packa {
     };
 }
 
-def_packa!(24);
+def_packa!(8);
