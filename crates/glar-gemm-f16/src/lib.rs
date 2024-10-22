@@ -5,12 +5,14 @@ pub(crate) mod x86_64_arch;
 
 #[cfg(target_arch = "x86_64")]
 use x86_64_arch::{
-    glar_gemm, glar_gemm_f32, packa_full, packa_full_f32, packb_full, packb_full_f32, KernelDispatcher,
-    KernelDispatcherF32,
+    ap_size_0, bp_size_0, glar_gemm, glar_gemm_f32, packa_full, packa_full_f32, packb_full, packb_full_f32,
+    KernelDispatcher, KernelDispatcherF32,
 };
 
+use core::mem::size_of;
+
 #[cfg(target_arch = "aarch64")]
-use arm64::{glar_gemm, packa_full, packb_full, KernelDispatcher};
+use arm64::{ap_size_0, bp_size_0, glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 pub(crate) mod reference;
 
@@ -18,15 +20,14 @@ pub(crate) type TA = f16;
 pub(crate) type TB = f16;
 pub(crate) type TC = f16;
 #[allow(unused)]
-const TC_SIZE: usize = core::mem::size_of::<TC>();
+const TC_SIZE: usize = size_of::<TC>();
 
 pub use half::f16;
 
 use reference::RefGemm;
 
 use glar_base::{
-    ap_size, bp_size, has_f16_compute, has_f16f32_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn,
-    RUNTIME_HW_CONFIG,
+    has_f16_compute, has_f16f32_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn, AB_ALIGN,
 };
 
 pub(crate) trait UnaryFnC: UnaryFn<TC> {}
@@ -47,7 +48,7 @@ pub(crate) unsafe fn glar_hgemm_generic<F: UnaryFnC>(
     if has_f16_compute() {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         {
-            let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            let hw_config = KernelDispatcher::new(f);
             glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
@@ -55,14 +56,14 @@ pub(crate) unsafe fn glar_hgemm_generic<F: UnaryFnC>(
     if has_f16f32_compute() {
         #[cfg(target_arch = "x86_64")]
         {
-            let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            let hw_config = KernelDispatcherF32::new(f);
             glar_gemm_f32(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
             return;
         }
     }
 
     // if none of the optimized paths are available, use reference implementation
-    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+    let hw_config = RefGemm::new(f);
     reference::glar_gemm(&hw_config, m, n, k, alpha.to_f32(), a, b, beta.to_f32(), c, &par);
 }
 
@@ -131,7 +132,7 @@ pub unsafe fn glar_hgemm_fused(
 // this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
 // in the special case of very large k and small m, n
 pub unsafe fn packa_f16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
+    assert_eq!(ap.align_offset(AB_ALIGN), 0);
     if m == 1 {
         for j in 0..k {
             *ap.add(j) = *a.add(j * a_cs);
@@ -156,7 +157,7 @@ pub unsafe fn packa_f16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
 }
 
 pub unsafe fn packb_f16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
+    assert_eq!(bp.align_offset(AB_ALIGN), 0);
     if n == 1 {
         for j in 0..k {
             *bp.add(j) = *b.add(j * b_rs);
@@ -179,9 +180,41 @@ pub unsafe fn packb_f16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
 }
 
+pub fn ap_size(m: usize, k: usize) -> usize {
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        if has_f16_compute() {
+            return ap_size_0(m, k);
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if has_f16f32_compute() {
+            return ap_size_0(m, k);
+        }
+    }
+    m * k + AB_ALIGN / size_of::<TA>()
+}
+
+pub fn bp_size(n: usize, k: usize) -> usize {
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        if has_f16_compute() {
+            return bp_size_0(n, k);
+        }
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if has_f16f32_compute() {
+            return bp_size_0(n, k);
+        }
+    }
+    n * k + AB_ALIGN / size_of::<TB>()
+}
+
 pub unsafe fn packa_f16_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
-    let pack_size = ap_size::<TA>(m, k);
-    let ap_align_offset = ap.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let pack_size = ap_size(m, k);
+    let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
     // safety check
     assert!(ap.len() >= pack_size);
     let ap = &mut ap[ap_align_offset..];
@@ -189,8 +222,8 @@ pub unsafe fn packa_f16_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs
 }
 
 pub unsafe fn packb_f16_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
-    let pack_size = bp_size::<TB>(n, k);
-    let bp_align_offset = bp.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let pack_size = bp_size(n, k);
+    let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
     // safety check
     assert!(bp.len() >= pack_size);
     let bp = &mut bp[bp_align_offset..];
@@ -254,10 +287,10 @@ mod tests {
         let mut c = vec![TC::ZERO; c_size];
         let mut c_ref = vec![TC::ZERO; c_size];
 
-        let ap_size = if is_a_packed { ap_size::<TA>(m_max, k_max) } else { 0 };
+        let ap_size = if is_a_packed { ap_size(m_max, k_max) } else { 0 };
         let mut ap = vec![TA::ZERO; ap_size];
 
-        let bp_size = if is_b_packed { bp_size::<TB>(n_max, k_max) } else { 0 };
+        let bp_size = if is_b_packed { bp_size(n_max, k_max) } else { 0 };
         let mut bp = vec![TB::ZERO; bp_size];
         for &m in &m_dims {
             for &n in &n_dims {

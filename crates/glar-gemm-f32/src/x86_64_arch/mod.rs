@@ -8,7 +8,7 @@ pub(crate) mod sse;
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
     get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range,
-    split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWConfig, HWModel, PArray, PoolSize, PtrData,
+    split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWModel, PArray, PoolSize, PtrData, AB_ALIGN,
     PACK_POOL, RUNTIME_HW_CONFIG,
 };
 
@@ -31,7 +31,7 @@ pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcher::new(IdentityFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -50,7 +50,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcher::new(IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -63,6 +63,19 @@ pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b
         }
     }
     return Array::packed_matrix(bp, n, k);
+}
+
+pub(crate) fn ap_size(m: usize, k: usize) -> usize {
+    let hw_config = KernelDispatcher::new(IdentityFn {});
+    let m_rounded = hw_config.round_m(m);
+    let k_rounded = hw_config.round_k(k);
+    m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+}
+
+pub(crate) fn bp_size(n: usize, k: usize) -> usize {
+    let hw_config = KernelDispatcher::new(IdentityFn {});
+    let k_rounded = hw_config.round_k(k);
+    n * k_rounded + AB_ALIGN / size_of::<TB>()
 }
 
 pub(crate) enum RegDim {
@@ -89,7 +102,8 @@ pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
 }
 
 impl<F: UnaryFnC> KernelDispatcher<F> {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
+    pub(crate) fn new(f: F) -> Self {
+        let hw_config = &*RUNTIME_HW_CONFIG;
         let (mc, nc, kc) = get_mcnckc();
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -147,8 +161,12 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         true
     }
 
-    pub(crate) fn round_up(&self, k: usize) -> usize {
+    pub(crate) fn round_k(&self, k: usize) -> usize {
         k
+    }
+
+    pub(crate) fn round_m(&self, m: usize) -> usize {
+        (m + self.vs - 1) / self.vs * self.vs
     }
 }
 

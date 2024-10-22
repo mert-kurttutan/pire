@@ -4,10 +4,10 @@ pub(crate) mod x86_64_arch;
 pub(crate) mod x86_arch;
 
 #[cfg(target_arch = "x86_64")]
-use x86_64_arch::{glar_gemm, packa_full, packb_full, KernelDispatcher};
+use x86_64_arch::{ap_pool_size_0, bp_pool_size_0, glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 #[cfg(target_arch = "x86")]
-use x86_arch::{glar_gemm, packa_full, packb_full, KernelDispatcher};
+use x86_arch::{ap_pool_size_0, bp_pool_size_0, glar_gemm, packa_full, packb_full, KernelDispatcher};
 
 pub(crate) mod reference;
 
@@ -17,10 +17,7 @@ pub(crate) type TC = i32;
 #[allow(unused)]
 const TC_SIZE: usize = core::mem::size_of::<TC>();
 
-use glar_base::{
-    ap_size_int, bp_size_int, has_i16i32_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn,
-    RUNTIME_HW_CONFIG,
-};
+use glar_base::{has_i16i32_compute, Array, ArrayMut, GemmCache, GlarPar, IdentityFn, UnaryFn, AB_ALIGN};
 
 use reference::RefGemm;
 
@@ -42,13 +39,13 @@ pub(crate) unsafe fn glar_gemm_s16s16s32_generic<F: UnaryFnC>(
     if has_i16i32_compute() {
         #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
         {
-            let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+            let hw_config = KernelDispatcher::new(f);
             glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
             return;
         }
     }
     // if none of the optimized paths are available, use reference implementation
-    let hw_config = RefGemm::from_hw_cfg(&*RUNTIME_HW_CONFIG, f);
+    let hw_config = RefGemm::new(f);
     reference::glar_gemm(&hw_config, m, n, k, alpha, a, b, beta, c, &par);
 }
 
@@ -117,7 +114,7 @@ pub unsafe fn glar_gemm_s16s16s32_fused(
 // this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
 // in the special case of very large k and small m, n
 pub unsafe fn packa_i16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
+    assert_eq!(ap.align_offset(AB_ALIGN), 0);
     if m == 1 {
         for j in 0..k {
             *ap.add(j) = *a.add(j * a_cs);
@@ -134,7 +131,7 @@ pub unsafe fn packa_i16(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usi
 }
 
 pub unsafe fn packb_i16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
+    assert_eq!(bp.align_offset(AB_ALIGN), 0);
     if n == 1 {
         for j in 0..k {
             *bp.add(j) = *b.add(j * b_rs);
@@ -150,9 +147,29 @@ pub unsafe fn packb_i16(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usi
     reference::packb_full(n, k, b, b_rs, b_cs, bp)
 }
 
+pub fn ap_pool_size(m: usize, k: usize) -> usize {
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    {
+        if has_i16i32_compute() {
+            return ap_pool_size_0(m, k);
+        }
+    }
+    m * k + AB_ALIGN / size_of::<TA>()
+}
+
+pub fn bp_pool_size(n: usize, k: usize) -> usize {
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    {
+        if has_i16i32_compute() {
+            return bp_pool_size_0(n, k);
+        }
+    }
+    n * k + AB_ALIGN / size_of::<TB>()
+}
+
 pub unsafe fn packa_i16_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
-    let pack_size = ap_size_int::<TA, TC>(m, k);
-    let ap_align_offset = ap.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let pack_size = ap_pool_size(m, k);
+    let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
     // safety check
     assert!(ap.len() >= pack_size);
     let ap = &mut ap[ap_align_offset..];
@@ -160,8 +177,8 @@ pub unsafe fn packa_i16_with_ref(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs
 }
 
 pub unsafe fn packb_i16_with_ref(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
-    let pack_size = bp_size_int::<TB, TC>(n, k);
-    let bp_align_offset = bp.as_ptr().align_offset(glar_base::AB_ALIGN);
+    let pack_size = bp_pool_size(n, k);
+    let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
     // safety check
     assert!(bp.len() >= pack_size);
     let bp = &mut bp[bp_align_offset..];
@@ -225,10 +242,10 @@ mod tests {
         let mut c = vec![0i32; c_size];
         let mut c_ref = vec![0i32; c_size];
 
-        let ap_size = if is_a_packed { ap_size_int::<TA, TC>(m_max, k_max) } else { 0 };
+        let ap_size = if is_a_packed { ap_pool_size(m_max, k_max) } else { 0 };
         let mut ap = vec![0i16; ap_size];
 
-        let bp_size = if is_b_packed { bp_size_int::<TB, TC>(n_max, k_max) } else { 0 };
+        let bp_size = if is_b_packed { bp_pool_size(n_max, k_max) } else { 0 };
         let mut bp = vec![0i16; bp_size];
         for &m in &m_dims {
             for &n in &n_dims {

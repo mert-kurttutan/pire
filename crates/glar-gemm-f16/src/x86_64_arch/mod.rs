@@ -19,10 +19,12 @@ const AVX512_F16_NR: usize = 15; // register block size
 
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
-    get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range,
-    split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWConfig, HWModel, PArray, PArrayMixed,
-    PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
+    get_mem_pool_size_small_m, get_mem_pool_size_small_n, has_f16_compute, is_mixed, run_small_m, run_small_n,
+    split_c_range, split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWModel, PArray, PArrayMixed,
+    PoolSize, PtrData, AB_ALIGN, PACK_POOL, RUNTIME_HW_CONFIG,
 };
+
+use core::mem::size_of;
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
@@ -64,7 +66,7 @@ pub(crate) unsafe fn packa_full_f32(
 ) -> Array<TA> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcherF32::new(IdentityFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -90,7 +92,7 @@ pub(crate) unsafe fn packb_full_f32(
 ) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcherF32::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcherF32::new(IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -107,7 +109,7 @@ pub(crate) unsafe fn packb_full_f32(
 pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut f16) -> Array<TB> {
     let (mc, _, kc) = get_mcnckc();
     assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcher::new(IdentityFn {});
     let mut ap_cur = ap;
     let vs = hw_config.vs;
     for p in (0..k).step_by(kc) {
@@ -126,7 +128,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::from_hw_cfg(&*RUNTIME_HW_CONFIG, IdentityFn {});
+    let hw_config = KernelDispatcher::new(IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -140,6 +142,33 @@ pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b
     }
     return Array::packed_matrix(bp, n, k);
 }
+
+pub(crate) fn ap_size_0(m: usize, k: usize) -> usize {
+    if has_f16_compute() {
+        let hw_config = KernelDispatcher::new(IdentityFn {});
+        let m_rounded = hw_config.round_m(m);
+        let k_rounded = hw_config.round_k(k);
+        m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+    } else {
+        let hw_config = KernelDispatcherF32::new(IdentityFn {});
+        let m_rounded = hw_config.round_m(m);
+        let k_rounded = hw_config.round_k(k);
+        m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+    }
+}
+
+pub(crate) fn bp_size_0(n: usize, k: usize) -> usize {
+    if has_f16_compute() {
+        let hw_config = KernelDispatcher::new(IdentityFn {});
+        let k_rounded = hw_config.round_k(k);
+        n * k_rounded + AB_ALIGN / size_of::<TB>()
+    } else {
+        let hw_config = KernelDispatcherF32::new(IdentityFn {});
+        let k_rounded = hw_config.round_k(k);
+        n * k_rounded + AB_ALIGN / size_of::<TB>()
+    }
+}
+
 pub(crate) enum RegDim {
     Reg48x8,
     Reg24x4,
@@ -163,7 +192,8 @@ pub(crate) struct KernelDispatcherF32<T: UnaryFnC = IdentityFn> {
 }
 
 impl<F: UnaryFnC> KernelDispatcherF32<F> {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
+    pub(crate) fn new(f: F) -> Self {
+        let hw_config = &*RUNTIME_HW_CONFIG;
         let (mc, nc, kc) = get_mcnckc();
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
@@ -227,7 +257,7 @@ impl<F: UnaryFnC> KernelDispatcherF32<F> {
 
     #[target_feature(enable = "avx,f16c")]
     unsafe fn cvt_mixed(&self, x: *const f16, y: *mut f32, m: usize) {
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let m_iter = m / 8;
         let m_rem = m % 8;
         for i in 0..m_iter {
@@ -243,8 +273,12 @@ impl<F: UnaryFnC> KernelDispatcherF32<F> {
         }
     }
 
-    pub(crate) fn round_up(&self, k: usize) -> usize {
+    pub(crate) fn round_k(&self, k: usize) -> usize {
         k
+    }
+
+    pub(crate) fn round_m(&self, m: usize) -> usize {
+        (m + self.vs - 1) / self.vs * self.vs
     }
 }
 
@@ -262,7 +296,8 @@ pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
 }
 
 impl<F: UnaryFnC> KernelDispatcher<F> {
-    pub(crate) fn from_hw_cfg(hw_config: &HWConfig, f: F) -> Self {
+    pub(crate) fn new(f: F) -> Self {
+        let hw_config = &*RUNTIME_HW_CONFIG;
         let (mc, nc, kc) = get_mcnckc_f16();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let mr = AVX512_F16_MR;
@@ -294,8 +329,12 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
     }
 
-    pub(crate) fn round_up(&self, k: usize) -> usize {
+    pub(crate) fn round_k(&self, k: usize) -> usize {
         k
+    }
+
+    pub(crate) fn round_m(&self, m: usize) -> usize {
+        (m + self.vs - 1) / self.vs * self.vs
     }
 }
 

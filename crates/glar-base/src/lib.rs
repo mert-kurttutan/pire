@@ -893,30 +893,6 @@ pub enum GemmPool {
     SmallN,
 }
 
-pub fn ap_size<T>(m: usize, k: usize) -> usize {
-    let vs = 256 / size_of::<T>();
-    let m_max = (m + vs - 1) / vs * vs;
-    m_max * k + AB_ALIGN / size_of::<T>()
-}
-
-pub fn bp_size<T>(n: usize, k: usize) -> usize {
-    n * k + AB_ALIGN / size_of::<T>()
-}
-
-pub fn ap_size_int<T, P>(m: usize, k: usize) -> usize {
-    let vs = 64 / size_of::<T>();
-    let c_r = (size_of::<P>() / size_of::<T>()) * 2;
-    let k_r = (k + c_r - 1) / c_r * c_r;
-    let m_max = (m + vs - 1) / vs * vs;
-    m_max * k_r + AB_ALIGN / size_of::<T>()
-}
-
-pub fn bp_size_int<T, P>(n: usize, k: usize) -> usize {
-    let c_r = (size_of::<P>() / size_of::<T>()) * 2;
-    let k_r = (k + c_r - 1) / c_r * c_r;
-    n * k_r + AB_ALIGN / size_of::<T>()
-}
-
 #[derive(Clone, Copy)]
 pub struct StridedMatrix<T> {
     pub(crate) src: *const T,
@@ -961,10 +937,10 @@ impl<'a, T, U> StridedMatrixP<'a, T, U> {
     pub fn src(&self) -> *const T {
         self.src
     }
-    pub fn dst_w(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, U> {
+    pub fn dst_write(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, U> {
         self.dst.write(idx, kc).unwrap()
     }
-    pub fn dst_r(&self) -> RangeLockReadGuard<'a, 'a, U> {
+    pub fn dst_read(&self) -> RangeLockReadGuard<'a, 'a, U> {
         self.dst.read().unwrap()
     }
     pub fn get_mc(&self) -> usize {
@@ -983,6 +959,8 @@ pub struct PackedMatrix<T> {
     pub(crate) src: *const T,
     pub(crate) k: usize,
     pub(crate) m: usize,
+    // pub(crate) m0: usize,
+    // pub(crate) k0: usize,
 }
 
 unsafe impl<T> Send for PackedMatrix<T> {}
@@ -997,6 +975,9 @@ impl<T> PackedMatrix<T> {
     pub fn m(&self) -> usize {
         self.m
     }
+    // pub fn at(&self, m: usize, k: usize) -> *const T {
+    //     let m_rounded = (m+m0-1) / m0 * m0;
+    //     self.src.add(m_rounded)
 }
 
 #[derive(Clone)]
@@ -1018,7 +999,7 @@ impl<'a, X, Y> PackedMatrixMixed<'a, X, Y> {
         self.m
     }
 
-    pub fn dst_w(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, Y> {
+    pub fn dst_write(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, Y> {
         self.dst.write(idx, kc).unwrap()
     }
 
@@ -1026,7 +1007,7 @@ impl<'a, X, Y> PackedMatrixMixed<'a, X, Y> {
         self.dst.get_mc()
     }
 
-    pub fn dst_r(&self) -> RangeLockReadGuard<'a, 'a, Y> {
+    pub fn dst_read(&self) -> RangeLockReadGuard<'a, 'a, Y> {
         self.dst.read().unwrap()
     }
 }
@@ -1214,7 +1195,7 @@ impl<'a, X> PArray<'a, X> {
         }
     }
 
-    pub fn dst_w(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, X> {
+    pub fn dst_write(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, X> {
         match self {
             Self::StridedMatrix(x) => x.dst.write(idx, kc).unwrap(),
             _ => {
@@ -1223,7 +1204,7 @@ impl<'a, X> PArray<'a, X> {
         }
     }
 
-    pub fn dst_r(&self) -> RangeLockReadGuard<'a, 'a, X> {
+    pub fn dst_read(&self) -> RangeLockReadGuard<'a, 'a, X> {
         match self {
             Self::StridedMatrix(x) => x.dst.read().unwrap(),
             _ => {
@@ -1272,13 +1253,13 @@ impl<'a, X, Y> PArrayMixed<'a, X, Y> {
         }
     }
 
-    pub fn dst_w(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, Y> {
+    pub fn dst_write(&self, idx: usize, kc: usize) -> RangeLockWriteGuard<'a, 'a, Y> {
         match self {
             Self::StridedMatrix(x) => x.dst.write(idx, kc).unwrap(),
             Self::PackedMatrix(x) => x.dst.write(idx, kc).unwrap(),
         }
     }
-    pub fn dst_r(&self) -> RangeLockReadGuard<'a, 'a, Y> {
+    pub fn dst_read(&self) -> RangeLockReadGuard<'a, 'a, Y> {
         match self {
             Self::StridedMatrix(x) => x.dst.read().unwrap(),
             Self::PackedMatrix(x) => x.dst.read().unwrap(),
@@ -1528,7 +1509,7 @@ macro_rules! def_glar_gemm {
                 let c_i = c_ptr.add((mc_i+mr_start) * c_rs);
                 while kc_i < d1_end {
                     let kc_len = kc.min(d1_end - kc_i);
-                    let kc_len_eff = hw_cfg.round_up(kc_len);
+                    let kc_len_eff = hw_cfg.round_k(kc_len);
                     let mut nc_i = nc_start;
                     let kc_last = kc_i + kc_len == d1_end;
                     let beta_t = if kc_i == kc_start { beta } else { &one as *const $t_bs};
@@ -1621,7 +1602,7 @@ macro_rules! def_glar_gemm {
                 let mut kc_i = kc_start;
                 while kc_i < kc_end {
                     let kc_len = kc.min(kc_end - kc_i);
-                    let kc_len_eff = hw_cfg.round_up(kc_len);
+                    let kc_len_eff = hw_cfg.round_k(kc_len);
                     let beta_t = if kc_i == kc_start { beta } else { &one as *const $t_bs};
                     let kc_last = kc_i + kc_len == kc_end;
                     let mut nc_i = nc_start;
@@ -1692,7 +1673,7 @@ macro_rules! def_glar_gemm {
             let a_rs = a.rs();
             let a_cs = a.cs();
             // make sure this ap is hwole slice
-            let mut a_dst = a.dst_w(0, kc);
+            let a_dst = a.dst_write(0, kc);
             let a_dst_ref = a_dst.get();
             let a_dst_ptr = a_dst_ref.as_mut_ptr();
             let mut mc_i = mc_start;
@@ -1763,41 +1744,39 @@ macro_rules! def_glar_gemm {
                     let mc_par = x_i.get_mc();
                     let mc_offset = mc_par * t_cfg.i_load_p_idx;
                     if mc_len > mc_offset {
-                        let kc_len_ro = hw_cfg.round_up(kc_len);
+                        let kc_len_ro = hw_cfg.round_k(kc_len);
                         let mc_len_x = (mc_len - mc_offset).min(mc_par);
                         let mc_i = mc_i + mc_offset;
-                        let rs = x_i.rs();
-                        let cs = x_i.cs();
+                        let (rs, cs) = (x_i.rs(), x_i.cs());
                         let src_ptr = x_i.src().add(mc_i*rs + kc_i*cs);
-                        let mut dst = x_i.dst_w(t_cfg.i_load_p_idx, kc_len_ro);
+                        let dst = x_i.dst_write(t_cfg.i_load_p_idx, kc_len_ro);
                         let dst_ref = dst.get();
                         let dst_ptr = dst_ref.as_mut_ptr();
                         hw_cfg.packa_fn(src_ptr, dst_ptr, mc_len_x, kc_len, rs, cs);
                     }
                     t_cfg.wait_packa();
-                    PtrData::RefData(x_i.dst_r())
+                    PtrData::RefData(x_i.dst_read())
                 }
                 $packa_ty::PackedMatrix(x_i) => {
-                    let vs = hw_cfg.vs;
-                    let m_ro = (x_i.m() + vs - 1) / vs * vs;
-                    let kc_len_ro = hw_cfg.round_up(kc_len);
+                    let m_ro = hw_cfg.round_m(x_i.m());
+                    let kc_len_ro = hw_cfg.round_k(kc_len);
                     let res = is_mixed!(
                         $include_flag,
                         {
                             let mc_par = x_i.get_mc();
                             let mc_offset = mc_par * t_cfg.i_load_p_idx;
-                            let mc_len_ro = (mc_len + vs - 1) / vs * vs;
-                            if mc_len_ro > mc_offset {
-                                let mc_len_ro_x = (mc_len_ro - mc_offset).min(mc_par);
+                            if mc_len > mc_offset {
+                                let mc_len_x = (mc_len - mc_offset).min(mc_par);
                                 let mc_i = mc_i + mc_offset;
                                 let src_ptr = x_i.src().add(mc_i*kc_len_ro + kc_i*m_ro);
-                                let mut dst = x_i.dst_w(t_cfg.i_load_p_idx, kc_len_ro);
+                                let dst = x_i.dst_write(t_cfg.i_load_p_idx, kc_len_ro);
                                 let dst_ref = dst.get();
                                 let dst_ptr = dst_ref.as_mut_ptr();
-                                hw_cfg.cvt_mixed(src_ptr, dst_ptr, mc_len_ro_x*kc_len_ro);
+                                let mc_len_x_ro = hw_cfg.round_m(mc_len_x);
+                                hw_cfg.cvt_mixed(src_ptr, dst_ptr, mc_len_x_ro*kc_len_ro);
                             }
                             t_cfg.wait_packa();
-                            PtrData::RefData(x_i.dst_r())
+                            PtrData::RefData(x_i.dst_read())
                         },
                         {
                             let src_ptr = x_i.src().add(mc_i*kc_len_ro + kc_i*m_ro);
@@ -1820,22 +1799,22 @@ macro_rules! def_glar_gemm {
                     let nc_par = x_i.get_mc();
                     let nc_offset = nc_par * t_cfg.j_load_p_idx;
                     if nc_len > nc_offset {
-                        let kc_len_ro = hw_cfg.round_up(kc_len);
+                        let kc_len_ro = hw_cfg.round_k(kc_len);
                         let nc_len_x = (nc_len - nc_offset).min(nc_par);
                         let nc_i = nc_i + nc_offset;
                         let rs = x_i.rs();
                         let cs = x_i.cs();
                         let src_ptr = x_i.src().add(kc_i*rs + nc_i*cs);
-                        let mut dst = x_i.dst_w(t_cfg.j_load_p_idx, kc_len_ro);
+                        let dst = x_i.dst_write(t_cfg.j_load_p_idx, kc_len_ro);
                         let dst_ref = dst.get();
                         let dst_ptr = dst_ref.as_mut_ptr();
                         hw_cfg.packb_fn(src_ptr, dst_ptr, nc_len_x, kc_len, rs, cs);
                     }
                     t_cfg.wait_packb();
-                    PtrData::RefData(x_i.dst_r())
+                    PtrData::RefData(x_i.dst_read())
                 }
                 $packb_ty::PackedMatrix(x_i) => {
-                    let kc_len_ro = hw_cfg.round_up(kc_len);
+                    let kc_len_ro = hw_cfg.round_k(kc_len);
                     let n_ro = x_i.m();
                     let res = is_mixed!(
                         $include_flag,
@@ -1846,13 +1825,13 @@ macro_rules! def_glar_gemm {
                                 let nc_len_x = (nc_len - nc_offset).min(nc_par);
                                 let nc_i = nc_i + nc_offset;
                                 let src_ptr = x_i.src().add(nc_i*kc_len_ro + kc_i*n_ro);
-                                let mut dst = x_i.dst_w(t_cfg.j_load_p_idx, kc_len_ro);
+                                let dst = x_i.dst_write(t_cfg.j_load_p_idx, kc_len_ro);
                                 let dst_ref = dst.get();
                                 let dst_ptr = dst_ref.as_mut_ptr();
                                 hw_cfg.cvt_mixed(src_ptr, dst_ptr, nc_len_x*kc_len_ro);
                             }
                             t_cfg.wait_packb();
-                            PtrData::RefData(x_i.dst_r())
+                            PtrData::RefData(x_i.dst_read())
                         },
                         {
                             let src_ptr = x_i.src().add(nc_i*kc_len_ro + kc_i*n_ro);
