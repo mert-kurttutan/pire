@@ -9,9 +9,10 @@ use half::f16;
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB};
 
-unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+unsafe fn packa_fn(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize, a_cs: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
+    let mr = 1;
     let mut i = 0;
     while i < m / mr {
         let mut j = 0;
@@ -36,9 +37,10 @@ unsafe fn packa_ref(a: *const f16, ap: *mut f32, m: usize, k: usize, a_rs: usize
     }
 }
 
-unsafe fn packb_ref(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+unsafe fn packb_fn(b: *const f16, bp: *mut f32, n: usize, k: usize, b_rs: usize, b_cs: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
+    let nr = 1;
     let mut i = 0;
     while i < n / nr {
         let mut j = 0;
@@ -188,13 +190,13 @@ impl<F: UnaryFnC> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
-        packa_ref(x, y, m, k, rs, cs, self.mr);
-    }
+    // pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    //     // packa_ref(x, y, m, k, rs, cs, self.mr);
+    // }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
-        packb_ref(x, y, n, k, rs, cs, self.nr);
-    }
+    // pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    //     // packb_ref(x, y, n, k, rs, cs, self.nr);
+    // }
 
     pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
         packa_refsame(x, y, m, k, rs, cs, self.mr);
@@ -402,8 +404,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa0,
+    packb0,
+    packa_fn,
+    packb_fn,
     false,
     false,
     into_pack_array2,

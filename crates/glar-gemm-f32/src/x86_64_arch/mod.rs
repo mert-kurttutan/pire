@@ -40,7 +40,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
             let mc_len = mc.min(m - i);
             let mc_len_eff = (mc_len + vs - 1) / vs * vs;
             let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
+            packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
             ap_cur = ap_cur.add(mc_len_eff * kc_len);
         }
     }
@@ -50,7 +50,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_mcnckc();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::new(IdentityFn {});
+    // let hw_config = KernelDispatcher::new(IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -58,7 +58,7 @@ pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b
             let nc_len = nc.min(n - i);
             let nc_len_eff = nc_len;
             let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
+            packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
             bp_cur = bp_cur.add(nc_len_eff * kc_len);
         }
     }
@@ -76,6 +76,29 @@ pub(crate) fn bp_size(n: usize, k: usize) -> usize {
     let hw_config = KernelDispatcher::new(IdentityFn {});
     let k_rounded = hw_config.round_k(k);
     n * k_rounded + AB_ALIGN / size_of::<TB>()
+}
+
+pub(crate) unsafe fn packa_fn(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    let hw_config = &*RUNTIME_HW_CONFIG;
+    if hw_config.cpu_ft.avx512f {
+        pack_avx::packa_panel_48(m, k, x, rs, cs, y, 16);
+    } else if hw_config.cpu_ft.avx && hw_config.cpu_ft.fma {
+        pack_avx::packa_panel_24(m, k, x, rs, cs, y, 8);
+    } else if hw_config.cpu_ft.avx {
+        pack_avx::packa_panel_16(m, k, x, rs, cs, y, 8);
+    } else {
+        pack_sse::packa_panel_8(m, k, x, rs, cs, y, 4);
+    }
+}
+
+pub(crate) unsafe fn packb_fn(x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+        pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+    } else if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
+        pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+    } else {
+        pack_sse::packb_panel_4(n, k, x, cs, rs, y);
+    }
 }
 
 pub(crate) enum RegDim {
@@ -140,22 +163,22 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg24x4 => pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg16x4 => pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg8x4 => pack_sse::packa_panel_8(m, k, x, rs, cs, y, self.vs),
-        }
-    }
+    // pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    //     match self.reg_dim {
+    //         RegDim::Reg48x8 => pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs),
+    //         RegDim::Reg24x4 => pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs),
+    //         RegDim::Reg16x4 => pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs),
+    //         RegDim::Reg8x4 => pack_sse::packa_panel_8(m, k, x, rs, cs, y, self.vs),
+    //     }
+    // }
 
-    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
-            RegDim::Reg24x4 | RegDim::Reg16x4 => pack_avx::packb_panel_4(n, k, x, cs, rs, y),
-            RegDim::Reg8x4 => pack_sse::packb_panel_4(n, k, x, cs, rs, y),
-        }
-    }
+    // pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    //     match self.reg_dim {
+    //         RegDim::Reg48x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
+    //         RegDim::Reg24x4 | RegDim::Reg16x4 => pack_avx::packb_panel_4(n, k, x, cs, rs, y),
+    //         RegDim::Reg8x4 => pack_sse::packb_panel_4(n, k, x, cs, rs, y),
+    //     }
+    // }
 
     pub(crate) fn is_compute_native(&self) -> bool {
         true
@@ -352,8 +375,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa0,
+    packb0,
+    packa_fn,
+    packb_fn,
     true,
     true,
     into_pack_array,

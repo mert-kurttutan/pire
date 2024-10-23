@@ -7,10 +7,11 @@ use glar_base::{
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
-unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+unsafe fn packa_fn(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, a_cs: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
     let mut i = 0;
+    let mr = 1;
     while i < m / mr {
         let mut j = 0;
         while j < k {
@@ -34,9 +35,10 @@ unsafe fn packa_ref(a: *const TA, ap: *mut TA, m: usize, k: usize, a_rs: usize, 
     }
 }
 
-unsafe fn packb_ref(b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+unsafe fn packb_fn(b: *const TB, bp: *mut TB, n: usize, k: usize, b_rs: usize, b_cs: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
+    let nr = 1;
     let mut i = 0;
     while i < n / nr {
         let mut j = 0;
@@ -73,7 +75,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
             let mc_len = mc.min(m - i);
             let mc_len_eff = (mc_len + vs - 1) / vs * vs;
             let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
+            packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
             ap_cur = ap_cur.add(mc_len_eff * kc_len);
         }
     }
@@ -83,7 +85,7 @@ pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a
 pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
     let (_, nc, kc) = get_cache_params();
     assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = RefGemm::new(IdentityFn {});
+    // let hw_config = RefGemm::new(IdentityFn {});
     let mut bp_cur = bp;
     for p in (0..k).step_by(kc) {
         let kc_len = kc.min(k - p);
@@ -91,7 +93,7 @@ pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b
             let nc_len = nc.min(n - i);
             let nc_len_eff = nc_len;
             let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
+            packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
             bp_cur = bp_cur.add(nc_len_eff * kc_len);
         }
     }
@@ -132,13 +134,13 @@ impl<F: UnaryFnC> RefGemm<F> {
         }
     }
 
-    pub(crate) unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        packa_ref(x, y, m, k, rs, cs, self.mr);
-    }
+    // pub(crate) unsafe fn packa_fn(self: &Self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
+    //     // packa_ref(x, y, m, k, rs, cs, self.mr);
+    // }
 
-    pub(crate) unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        packb_ref(x, y, n, k, rs, cs, self.nr);
-    }
+    // pub(crate) unsafe fn packb_fn(self: &Self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
+    //     // packb_ref(x, y, n, k, rs, cs, self.nr);
+    // }
 
     pub(crate) fn is_compute_native(&self) -> bool {
         true
@@ -329,8 +331,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa0,
+    packb0,
+    packa_fn,
+    packb_fn,
     false,
     false,
     into_pack_array,
