@@ -11,8 +11,8 @@ use glar_base::{
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
-const NEON_VS: usize = 16;
-const NEON_MR: usize = 48;
+const NEON_VS: usize = 8;
+const NEON_MR: usize = 24;
 const NEON_NR: usize = 4;
 
 const SVE_NR: usize = 8;

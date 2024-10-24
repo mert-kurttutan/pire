@@ -32,7 +32,7 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
     let features = (*RUNTIME_HW_CONFIG).cpu_ft();
     if features.sve && features.fcma {
-        pack_sve::packa_panel(m, k, x, rs, cs, y, 12, 8);
+        pack_sve::packa_panel(m, k, x, rs, cs, y, 12, 12);
     } else {
         pack_neon::packa_panel_12(m, k, x, rs, cs, y, NEON_VS);
     }
