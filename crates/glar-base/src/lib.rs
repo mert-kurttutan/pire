@@ -172,12 +172,12 @@ fn detect_hw_config() -> HWConfig {
         let sse2 = feature_info.has_sse2();
         let sse3 = feature_info.has_sse3();
         let ssse3 = feature_info.has_ssse3();
-        let avx = feature_info.has_avx();
-        let fma = feature_info.has_fma();
-        let avx2 = extended_feature_info.has_avx2();
+        let avx = feature_info.has_avx() && false;
+        let fma = feature_info.has_fma() && false;
+        let avx2 = extended_feature_info.has_avx2() && false;
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         // let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        let avx512f = extended_feature_info.has_avx512f();
+        let avx512f = extended_feature_info.has_avx512f() && false;
         let avx512bw = extended_feature_info.has_avx512bw();
         let avx512_vnni = extended_feature_info.has_avx512vnni();
         let f16c = feature_info.has_f16c();

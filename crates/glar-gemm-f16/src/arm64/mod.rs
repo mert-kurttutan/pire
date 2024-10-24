@@ -6,15 +6,21 @@ pub(crate) mod sve;
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_mem_pool_size_goto, get_mem_pool_size_small_m,
     get_mem_pool_size_small_n, is_mixed, run_small_m, run_small_n, split_c_range, split_range, Array, ArrayMut,
-    GemmPool, GlarPar, GlarThreadConfig, PArray, PoolSize, PtrData, AB_ALIGN, PACK_POOL, RUNTIME_HW_CONFIG,
+    GemmPool, GlarPar, GlarThreadConfig, PArray, PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
 };
 
 use half::f16;
 
+const NEON_VS: usize = 16;
+const NEON_MR: usize = 48;
+const NEON_NR: usize = 4;
+
+const SVE_NR: usize = 8;
+
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
 #[inline(always)]
-pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
+pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
@@ -25,54 +31,31 @@ pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
     (mc, nc, kc)
 }
 
-pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
-    let (mc, _, kc) = get_mcnckc();
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let mut ap_cur = ap;
-    let vs = hw_config.vs;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..m).step_by(mc) {
-            let mc_len = mc.min(m - i);
-            let mc_len_eff = (mc_len + vs - 1) / vs * vs;
-            let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
-            ap_cur = ap_cur.add(mc_len_eff * kc_len);
-        }
+pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    if features.sve {
+        pack_sve::packa_panel(m, k, x, rs, cs, y, 48, 48);
+    } else {
+        pack_neon::packa_panel_48(m, k, x, rs, cs, y, NEON_VS);
     }
-    return Array::packed_matrix(ap, m, k);
 }
-
-pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    let (_, nc, kc) = get_mcnckc();
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let mut bp_cur = bp;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..n).step_by(nc) {
-            let nc_len = nc.min(n - i);
-            let nc_len_eff = nc_len;
-            let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
-            bp_cur = bp_cur.add(nc_len_eff * kc_len);
-        }
+pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    if features.sve {
+        pack_sve::packb_panel_8(n, k, x, cs, rs, y);
+    } else {
+        pack_neon::packb_panel_4(n, k, x, cs, rs, y);
     }
-    return Array::packed_matrix(bp, n, k);
 }
 
-pub(crate) fn ap_size_0(m: usize, k: usize) -> usize {
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let m_rounded = hw_config.round_m(m);
-    let k_rounded = hw_config.round_k(k);
-    m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+pub(crate) fn round_m_simd(m: usize) -> usize {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    let vs = if features.sve { 48 } else { NEON_VS };
+    (m + vs - 1) / vs * vs
 }
 
-pub(crate) fn bp_size_0(n: usize, k: usize) -> usize {
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let k_rounded = hw_config.round_k(k);
-    n * k_rounded + AB_ALIGN / size_of::<TB>()
+pub(crate) fn round_k_simd(k: usize) -> usize {
+    k
 }
 
 pub(crate) enum RegDim {
@@ -98,16 +81,15 @@ pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
 impl<F: UnaryFnC> KernelDispatcher<F> {
     pub(crate) fn new(f: F) -> Self {
         let hw_config = &*RUNTIME_HW_CONFIG;
-        let (mc, nc, kc) = get_mcnckc();
+        let (mc, nc, kc) = get_mcnckc_simd();
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) = if features.sve { (48, 8, RegDim::RegMrx8) } else { (48, 4, RegDim::Reg48x4) };
+        let (mr, nr, reg_dim) =
+            if features.sve { (48, SVE_NR, RegDim::RegMrx8) } else { (NEON_MR, NEON_NR, RegDim::Reg48x4) };
 
-        let vs = if features.sve { 48 } else { 16 };
+        let vs = if features.sve { 48 } else { NEON_VS };
 
-        // let (mr, nr, reg_dim) = (48, 4, RegDim::Reg48x4);
-        // let vs = 16;
         Self {
             mc,
             nc,
@@ -121,20 +103,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
             is_l3_shared,
             // features,
             func: f,
-        }
-    }
-
-    pub(crate) unsafe fn packa_fn(&self, x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x4 => pack_neon::packa_panel_48(m, k, x, rs, cs, y, self.vs),
-            RegDim::RegMrx8 => pack_sve::packa_panel(m, k, x, rs, cs, y, self.vs, self.mr),
-        }
-    }
-
-    pub(crate) unsafe fn packb_fn(&self, x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x4 => pack_neon::packb_panel_4(n, k, x, cs, rs, y),
-            RegDim::RegMrx8 => pack_sve::packb_panel_8(n, k, x, cs, rs, y),
         }
     }
 
@@ -309,8 +277,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa,
-    packb,
+    packa0f16,
+    packb0f16,
+    packa_fn_simd,
+    packb_fn_simd,
     false,
     true,
     into_pack_array,
