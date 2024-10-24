@@ -32,7 +32,7 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
     let hw_config = &*RUNTIME_HW_CONFIG;
     if hw_config.cpu_ft.sve {
-        let vs = 2 * sve_vs();
+        let vs = sve_vs();
         pack_sve::packa_panel(m, k, x, rs, cs, y, vs, vs);
     } else {
         pack_neon::packa_panel_8(m, k, x, rs, cs, y, NEON_VS);
@@ -49,7 +49,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut TB, n: usize, k: usize,
 
 pub(crate) fn round_m_simd(m: usize) -> usize {
     let hw_config = &*RUNTIME_HW_CONFIG;
-    let vs = if hw_config.cpu_ft.sve { 2 * unsafe { sve_vs() } } else { NEON_VS };
+    let vs = if hw_config.cpu_ft.sve { unsafe { sve_vs() } } else { NEON_VS };
     (m + vs - 1) / vs * vs
 }
 
@@ -82,10 +82,10 @@ unsafe fn sve_vs() -> usize {
     // use cntw instruction to get the number of vector length
     let sve_vs: u64;
     core::arch::asm!(
-        "cntw {x0}, all",
+        "cntb {x0}, all",
         x0 = out(reg) sve_vs,
     );
-    sve_vs as usize
+    ((sve_vs / 8) * 4) as usize
 }
 
 impl<F: UnaryFnC> KernelDispatcher<F> {
@@ -96,11 +96,11 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
         let (mr, nr, reg_dim) = if features.sve {
-            (2 * unsafe { sve_vs() }, SVE_NR, RegDim::Reg2x12Sve)
+            (unsafe { sve_vs() }, SVE_NR, RegDim::Reg2x12Sve)
         } else {
             (NEON_MR, NEON_NR, RegDim::Reg2x12)
         };
-        let vs = if features.sve { mr } else { NEON_VS };
+        let vs = if features.sve { unsafe { sve_vs() } } else { NEON_VS };
         Self {
             mc,
             nc,
