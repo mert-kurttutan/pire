@@ -82,10 +82,10 @@ pub(crate) fn round_k_simd(k: usize) -> usize {
 }
 
 pub(crate) enum RegDim {
-    Reg24x4,
-    Reg12x2,
-    Reg8x2,
-    Reg4x2,
+    Avx512f,
+    AvxFma,
+    Avx,
+    Sse,
 }
 
 pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
@@ -111,13 +111,13 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr, reg_dim) = if features.avx512f {
-            (AVX512F_MR, AVX512F_NR, RegDim::Reg24x4)
+            (AVX512F_MR, AVX512F_NR, RegDim::Avx512f)
         } else if features.avx && features.fma {
-            (AVXFMA_MR, AVXFMA_NR, RegDim::Reg12x2)
+            (AVXFMA_MR, AVXFMA_NR, RegDim::AvxFma)
         } else if features.avx {
-            (AVX_MR, AVX_NR, RegDim::Reg8x2)
+            (AVX_MR, AVX_NR, RegDim::Avx)
         } else {
-            (SSE_MR, SSE_NR, RegDim::Reg4x2)
+            (SSE_MR, SSE_NR, RegDim::Sse)
         };
         let vs = if features.avx512f {
             AVX512F_VS
@@ -197,18 +197,18 @@ unsafe fn kernel<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Reg12x2 => avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Reg8x2 => avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Reg4x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Avx512f => avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::AvxFma => avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Avx => avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Sse => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Reg12x2 => avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Reg8x2 => avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Reg4x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Avx512f => avx512f::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::AvxFma => avx_fma::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Avx => avx::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Sse => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -231,18 +231,18 @@ unsafe fn kernel_m<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Reg12x2 => avx_fma::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Reg8x2 => avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Reg4x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Avx512f => avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::AvxFma => avx_fma::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Avx => avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg12x2 => avx_fma::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg8x2 => avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg4x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Avx512f => avx512f::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::AvxFma => avx_fma::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Avx => avx::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -266,22 +266,22 @@ unsafe fn kernel_n<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => {
+            RegDim::Avx512f => {
                 avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func)
             }
-            RegDim::Reg12x2 => {
+            RegDim::AvxFma => {
                 avx_fma::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func)
             }
-            RegDim::Reg8x2 => avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Reg4x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Avx => avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Sse => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg24x4 => avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg12x2 => avx_fma::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg8x2 => avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Reg4x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Avx512f => avx512f::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::AvxFma => avx_fma::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Avx => avx::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Sse => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -302,11 +302,11 @@ unsafe fn glar_gemv<F: UnaryFnC>(
     let incy = y.rs();
 
     match hw_cfg.reg_dim {
-        RegDim::Reg24x4 | RegDim::Reg12x2 => {
+        RegDim::Avx512f | RegDim::AvxFma => {
             avx_fma::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
         }
-        RegDim::Reg8x2 => avx::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
-        RegDim::Reg4x2 => sse::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
+        RegDim::Avx => avx::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
+        RegDim::Sse => sse::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
     }
 }
 

@@ -43,7 +43,7 @@ pub(crate) fn round_k_simd(k: usize) -> usize {
 }
 
 pub(crate) enum RegDim {
-    Reg8x2,
+    Sse,
 }
 
 pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
@@ -67,7 +67,7 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let (mc, nc, kc) = get_mcnckc_simd();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) = (MR, NR, RegDim::Reg8x2);
+        let (mr, nr, reg_dim) = (MR, NR, RegDim::Sse);
         let vs = VS;
         Self {
             mc,
@@ -140,12 +140,12 @@ unsafe fn kernel<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Sse => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Sse => sse::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -168,12 +168,12 @@ unsafe fn kernel_m<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -197,12 +197,12 @@ unsafe fn kernel_n<F: UnaryFnC>(
 ) {
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Sse => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg8x2 => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Sse => sse::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -222,7 +222,7 @@ unsafe fn glar_gemv<F: UnaryFnC>(
     let y_ptr = y.src();
     let incy = y.rs();
     match hw_cfg.reg_dim {
-        RegDim::Reg8x2 => sse::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
+        RegDim::Sse => sse::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
     }
 }
 

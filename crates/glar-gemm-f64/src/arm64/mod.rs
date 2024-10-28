@@ -59,8 +59,8 @@ pub(crate) fn round_k_simd(k: usize) -> usize {
 }
 
 pub(crate) enum RegDim {
-    Reg12x4,
-    RegMrx8,
+    Neon,
+    Sve,
 }
 
 #[target_feature(enable = "neon,sve")]
@@ -96,11 +96,8 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) = if features.sve {
-            (unsafe { sve_vs() }, SVE_NR, RegDim::RegMrx8)
-        } else {
-            (NEON_MR, NEON_NR, RegDim::Reg12x4)
-        };
+        let (mr, nr, reg_dim) =
+            if features.sve { (unsafe { sve_vs() }, SVE_NR, RegDim::Sve) } else { (NEON_MR, NEON_NR, RegDim::Neon) };
         let vs = if features.sve { unsafe { sve_vs() } } else { NEON_VS };
         Self {
             mc,
@@ -175,14 +172,14 @@ unsafe fn kernel<F: UnaryFnC>(
     let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg12x4 => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::RegMrx8 => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, hw_cfg.func),
+            RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg12x4 => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::RegMrx8 => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, null_fn),
+            RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, null_fn),
         }
     }
 }
@@ -227,18 +224,16 @@ unsafe fn kernel_n<F: UnaryFnC>(
     let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
-            RegDim::Reg12x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::RegMrx8 => {
+            RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
+            RegDim::Sve => {
                 sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
             }
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
-            RegDim::Reg12x4 => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::RegMrx8 => {
-                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn)
-            }
+            RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),
         }
     }
 }
@@ -258,13 +253,9 @@ unsafe fn glar_gemv<F: UnaryFnC>(
     let y_ptr = y.src();
     let incy = y.rs();
     match hw_cfg.reg_dim {
-        RegDim::Reg12x4 => {
-            neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
-        }
+        RegDim::Neon => neon::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
 
-        RegDim::RegMrx8 => {
-            sve::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func)
-        }
+        RegDim::Sve => sve::axpy(m, n, alpha, a.src(), a.rs(), a.cs(), x_ptr, inc_x, beta, y_ptr, incy, hw_cfg.func),
     }
 }
 
