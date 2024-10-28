@@ -1020,7 +1020,6 @@ pub const AB_ALIGN: usize = 1024;
 
 pub trait GemmCache {
     fn mr(&self) -> usize;
-    fn nr(&self) -> usize;
     fn get_mc_eff(&self, par: usize) -> usize;
     fn get_kc_eff(&self) -> usize;
     fn get_nc_eff(&self, par: usize) -> usize;
@@ -1320,6 +1319,7 @@ macro_rules! def_glar_gemm {
         $small_n_name:ident, $small_n_kernel:ident,
         $gemv_name:ident, $gemv_name2:ident,
         $packa_name:ident, $packb_name:ident,
+        $packa_name0:ident, $packb_name0:ident,
         $run_small_m:expr, $run_small_n:expr,
         $pack_fn:tt, $include_flag:tt,
     ) => {
@@ -1752,7 +1752,7 @@ macro_rules! def_glar_gemm {
                         let dst = x_i.dst_write(t_cfg.i_load_p_idx, kc_len_ro);
                         let dst_ref = dst.get();
                         let dst_ptr = dst_ref.as_mut_ptr();
-                        hw_cfg.packa_fn(src_ptr, dst_ptr, mc_len_x, kc_len, rs, cs);
+                        $packa_name0(src_ptr, dst_ptr, mc_len_x, kc_len, rs, cs);
                     }
                     t_cfg.wait_packa();
                     PtrData::RefData(x_i.dst_read())
@@ -1808,7 +1808,7 @@ macro_rules! def_glar_gemm {
                         let dst = x_i.dst_write(t_cfg.j_load_p_idx, kc_len_ro);
                         let dst_ref = dst.get();
                         let dst_ptr = dst_ref.as_mut_ptr();
-                        hw_cfg.packb_fn(src_ptr, dst_ptr, nc_len_x, kc_len, rs, cs);
+                        $packb_name0(src_ptr, dst_ptr, nc_len_x, kc_len, rs, cs);
                     }
                     t_cfg.wait_packb();
                     PtrData::RefData(x_i.dst_read())

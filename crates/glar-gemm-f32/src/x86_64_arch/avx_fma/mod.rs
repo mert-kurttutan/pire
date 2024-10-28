@@ -71,7 +71,7 @@ use glar_base::def_kernel_sb_v0;
 
 def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_24, 1, 3, 4, 3, 2, 1);
 
-pub(crate) unsafe fn kernel_24x4_sb<F: UnaryFnC>(
+pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -95,7 +95,7 @@ pub(crate) unsafe fn kernel_24x4_sb<F: UnaryFnC>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel_24x4_bs<F: UnaryFnC>(
+pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -118,7 +118,7 @@ pub(crate) unsafe fn kernel_24x4_bs<F: UnaryFnC>(
     asm!("vzeroupper");
 }
 
-pub(crate) unsafe fn kernel_24x4<F: UnaryFnC>(
+pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,

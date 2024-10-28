@@ -5,11 +5,15 @@ use glar_base::{
     RUNTIME_HW_CONFIG,
 };
 
-use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB};
+use crate::{GemmCache, IdentityFn, UnaryFnC};
 
-unsafe fn packa_ref(a: *const i8, ap: *mut i8, m: usize, k: usize, a_rs: usize, a_cs: usize, mr: usize) {
+const MR: usize = 24;
+const NR: usize = 4;
+
+pub(crate) unsafe fn packa_fn_ref(a: *const i8, ap: *mut i8, m: usize, k: usize, a_rs: usize, a_cs: usize) {
     let mut a_cur = a;
     let mut ap_cur = ap;
+    let mr = MR;
     let mut i = 0;
     while i < m / mr {
         let mut j = 0;
@@ -34,9 +38,10 @@ unsafe fn packa_ref(a: *const i8, ap: *mut i8, m: usize, k: usize, a_rs: usize, 
     }
 }
 
-unsafe fn packb_ref(b: *const u8, bp: *mut u8, n: usize, k: usize, b_rs: usize, b_cs: usize, nr: usize) {
+pub(crate) unsafe fn packb_fn_ref(b: *const u8, bp: *mut u8, n: usize, k: usize, b_rs: usize, b_cs: usize) {
     let mut b_cur = b;
     let mut bp_cur = bp;
+    let nr = NR;
     let mut i = 0;
     while i < n / nr {
         let mut j = 0;
@@ -61,43 +66,12 @@ unsafe fn packb_ref(b: *const u8, bp: *mut u8, n: usize, k: usize, b_rs: usize, 
     }
 }
 
-pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
-    let (mc, _, kc) = get_cache_params();
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = RefGemm::new(IdentityFn {});
-    let mut ap_cur = ap;
-    let vs = hw_config.vs;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        let kc_len_eff = hw_config.round_k(kc_len);
-        for i in (0..m).step_by(mc) {
-            let mc_len = mc.min(m - i);
-            let mc_len_eff = (mc_len + vs - 1) / vs * vs;
-            let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
-            ap_cur = ap_cur.add(mc_len_eff * kc_len_eff);
-        }
-    }
-    return Array::packed_matrix(ap, m, k);
+pub(crate) fn round_m_ref(m: usize) -> usize {
+    m
 }
 
-pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    let (_, nc, kc) = get_cache_params();
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = RefGemm::new(IdentityFn {});
-    let mut bp_cur = bp;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        let kc_len_eff = hw_config.round_k(kc_len);
-        for i in (0..n).step_by(nc) {
-            let nc_len = nc.min(n - i);
-            let nc_len_eff = nc_len;
-            let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
-            bp_cur = bp_cur.add(nc_len_eff * kc_len_eff);
-        }
-    }
-    return Array::packed_matrix(bp, n, k);
+pub(crate) fn round_k_ref(k: usize) -> usize {
+    k
 }
 
 pub(crate) struct RefGemm<T: UnaryFnC = IdentityFn> {
@@ -111,7 +85,6 @@ pub(crate) struct RefGemm<T: UnaryFnC = IdentityFn> {
     is_l2_shared: bool,
     is_l3_shared: bool,
     func: T,
-    pub(crate) vs: usize,
 }
 
 impl<F: UnaryFnC> RefGemm<F> {
@@ -119,7 +92,7 @@ impl<F: UnaryFnC> RefGemm<F> {
         let hw_config = &*RUNTIME_HW_CONFIG;
         let (mc, nc, kc) = get_cache_params();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
-        let (mr, nr) = (24, 4);
+        let (mr, nr) = (MR, NR);
         Self {
             mc,
             nc,
@@ -130,16 +103,7 @@ impl<F: UnaryFnC> RefGemm<F> {
             is_l2_shared,
             is_l3_shared,
             func: f,
-            vs: 1,
         }
-    }
-
-    pub(crate) unsafe fn packa_fn(&self, x: *const i8, y: *mut i8, m: usize, k: usize, rs: usize, cs: usize) {
-        packa_ref(x, y, m, k, rs, cs, self.mr);
-    }
-
-    pub(crate) unsafe fn packb_fn(&self, x: *const u8, y: *mut u8, n: usize, k: usize, rs: usize, cs: usize) {
-        packb_ref(x, y, n, k, rs, cs, self.nr);
     }
 
     pub(crate) fn is_compute_native(&self) -> bool {
@@ -157,9 +121,6 @@ impl<F: UnaryFnC> RefGemm<F> {
 impl<T: UnaryFnC> GemmCache for RefGemm<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc
@@ -364,8 +325,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv2,
-    packa,
-    packb,
+    packa0,
+    packb0,
+    packa_fn_ref,
+    packb_fn_ref,
     false,
     false,
     into_pack_array,

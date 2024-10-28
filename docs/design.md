@@ -67,3 +67,7 @@ neon:
 Embedded broadcasting is import for perf of f16 (broadcastw is not on par in performance)
 
 getting compiler to return right assembly for embedded broadcasting is harder in intrinsics
+
+
+move dispatching of packbe trhough global (once_cell) hardware config object.
+This is beneficial since pack is also used outside main gemm loop (e.g. prepacking)  with no performance cost

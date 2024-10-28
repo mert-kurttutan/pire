@@ -3,33 +3,42 @@ pub(crate) mod avx512_f16;
 pub(crate) mod avx512f;
 pub(crate) mod avx_fma;
 pub(crate) mod pack_avx;
-// pub(crate) mod pack_f16_avx;
 
 use crate::f16;
-// use avx_fma::axpy;
 
-const AVX_FMA_MR: usize = 24; // register block size
-const AVX_FMA_NR: usize = 4; // register block size
+const AVX512_F16_VS: usize = 32;
+const AVX512F_VS: usize = 16;
+const AVX_VS: usize = 8;
 
-const AVX512F_MR: usize = 48; // register block size
-const AVX512F_NR: usize = 8; // register block size
+const AVX512F_MR: usize = 48;
+const AVXFMA_MR: usize = 24;
+const AVX_MR: usize = 16;
+const AVX512_F16_MR: usize = 64;
 
-const AVX512_F16_MR: usize = 64; // register block size
-const AVX512_F16_NR: usize = 15; // register block size
+const AVX512F_NR: usize = 8;
+const AVXFMA_NR: usize = 4;
+const AVX_NR: usize = 4;
+const AVX512_F16_NR: usize = 15;
 
 use glar_base::{
     acquire, def_glar_gemm, def_pa, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
     get_mem_pool_size_small_m, get_mem_pool_size_small_n, has_f16_compute, is_mixed, run_small_m, run_small_n,
     split_c_range, split_range, Array, ArrayMut, GemmPool, GlarPar, GlarThreadConfig, HWModel, PArray, PArrayMixed,
-    PoolSize, PtrData, AB_ALIGN, PACK_POOL, RUNTIME_HW_CONFIG,
+    PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
 };
-
-use core::mem::size_of;
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
 #[inline(always)]
-pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
+pub(crate) fn get_mcnckc_simd_f32() -> (usize, usize, usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    let (mr, nr) = if features.avx512f {
+        (AVX512F_MR, AVX512F_NR)
+    } else if features.avx && features.fma {
+        (AVXFMA_MR, AVXFMA_NR)
+    } else {
+        (AVX_MR, AVX_NR)
+    };
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
@@ -39,11 +48,13 @@ pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
         HWModel::Haswell => (4800, 320, 192),
         _ => get_cache_params(),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
 #[inline(always)]
-pub(crate) fn get_mcnckc_f16() -> (usize, usize, usize) {
+pub(crate) fn get_mcnckc_simd_f16() -> (usize, usize, usize) {
+    let mr = AVX512_F16_MR;
+    let nr = AVX512_F16_NR;
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
@@ -53,120 +64,86 @@ pub(crate) fn get_mcnckc_f16() -> (usize, usize, usize) {
         HWModel::Haswell => (4800, 320, 192),
         _ => get_cache_params(),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
-pub(crate) unsafe fn packa_full_f32(
-    m: usize,
-    k: usize,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    ap: *mut TA,
-) -> Array<TA> {
-    let (mc, _, kc) = get_mcnckc();
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcherF32::new(IdentityFn {});
-    let mut ap_cur = ap;
-    let vs = hw_config.vs;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..m).step_by(mc) {
-            let mc_len = mc.min(m - i);
-            let mc_len_eff = (mc_len + vs - 1) / vs * vs;
-            let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fnsame(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
-            ap_cur = ap_cur.add(mc_len_eff * kc_len);
-        }
-    }
-    return Array::packed_matrix(ap, m, k);
-}
-
-pub(crate) unsafe fn packb_full_f32(
-    n: usize,
-    k: usize,
-    b: *const TB,
-    b_rs: usize,
-    b_cs: usize,
-    bp: *mut TB,
-) -> Array<TB> {
-    let (_, nc, kc) = get_mcnckc();
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcherF32::new(IdentityFn {});
-    let mut bp_cur = bp;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..n).step_by(nc) {
-            let nc_len = nc.min(n - i);
-            let nc_len_eff = nc_len;
-            let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fnsame(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
-            bp_cur = bp_cur.add(nc_len_eff * kc_len);
-        }
-    }
-    return Array::packed_matrix(bp, n, k);
-}
-pub(crate) unsafe fn packa_full(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut f16) -> Array<TB> {
-    let (mc, _, kc) = get_mcnckc();
-    assert_eq!(ap.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let mut ap_cur = ap;
-    let vs = hw_config.vs;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..m).step_by(mc) {
-            let mc_len = mc.min(m - i);
-            let mc_len_eff = (mc_len + vs - 1) / vs * vs;
-            let a_cur = a.add(i * a_rs + p * a_cs);
-            hw_config.packa_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
-            ap_cur = ap_cur.add(mc_len_eff * kc_len);
-        }
-    }
-    return Array::packed_matrix(ap, m, k);
-}
-
-pub(crate) unsafe fn packb_full(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    let (_, nc, kc) = get_mcnckc();
-    assert_eq!(bp.align_offset(glar_base::AB_ALIGN), 0);
-    let hw_config = KernelDispatcher::new(IdentityFn {});
-    let mut bp_cur = bp;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        for i in (0..n).step_by(nc) {
-            let nc_len = nc.min(n - i);
-            let nc_len_eff = nc_len;
-            let b_cur = b.add(i * b_cs + p * b_rs);
-            hw_config.packb_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
-            bp_cur = bp_cur.add(nc_len_eff * kc_len);
-        }
-    }
-    return Array::packed_matrix(bp, n, k);
-}
-
-pub(crate) fn ap_size_0(m: usize, k: usize) -> usize {
+#[inline(always)]
+pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     if has_f16_compute() {
-        let hw_config = KernelDispatcher::new(IdentityFn {});
-        let m_rounded = hw_config.round_m(m);
-        let k_rounded = hw_config.round_k(k);
-        m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+        get_mcnckc_simd_f16()
     } else {
-        let hw_config = KernelDispatcherF32::new(IdentityFn {});
-        let m_rounded = hw_config.round_m(m);
-        let k_rounded = hw_config.round_k(k);
-        m_rounded * k_rounded + AB_ALIGN / size_of::<TA>()
+        get_mcnckc_simd_f32()
     }
 }
 
-pub(crate) fn bp_size_0(n: usize, k: usize) -> usize {
-    if has_f16_compute() {
-        let hw_config = KernelDispatcher::new(IdentityFn {});
-        let k_rounded = hw_config.round_k(k);
-        n * k_rounded + AB_ALIGN / size_of::<TB>()
+pub(crate) unsafe fn packa_fn_simd_f32(x: *const TA, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
+    let hw_config = &*RUNTIME_HW_CONFIG;
+    if hw_config.cpu_ft.avx512f {
+        pack_avx::packa_panel_48(m, k, x, rs, cs, y, AVX512F_VS);
+    } else if hw_config.cpu_ft.avx && hw_config.cpu_ft.fma {
+        pack_avx::packa_panel_24(m, k, x, rs, cs, y, AVX_VS);
     } else {
-        let hw_config = KernelDispatcherF32::new(IdentityFn {});
-        let k_rounded = hw_config.round_k(k);
-        n * k_rounded + AB_ALIGN / size_of::<TB>()
+        pack_avx::packa_panel_16(m, k, x, rs, cs, y, AVX_VS);
     }
+}
+pub(crate) unsafe fn packb_fn_simd_f32(x: *const TB, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
+    if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
+        pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+    } else {
+        pack_avx::packb_panel_4(n, k, x, cs, rs, y);
+    }
+}
+
+pub(crate) unsafe fn packa_fn_simd_f16(x: *const TA, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, AVX512_F16_VS);
+}
+pub(crate) unsafe fn packb_fn_simd_f16(x: *const TB, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
+}
+
+pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
+    if has_f16_compute() {
+        packa_fn_simd_f16(x, y, m, k, rs, cs);
+    } else {
+        let hw_config = &*RUNTIME_HW_CONFIG;
+        if hw_config.cpu_ft.avx512f {
+            pack_avx::packa_panel_48_same(m, k, x, rs, cs, y, AVX512F_VS);
+        } else if hw_config.cpu_ft.avx && hw_config.cpu_ft.fma {
+            pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, AVX_VS);
+        } else {
+            pack_avx::packa_panel_16_same(m, k, x, rs, cs, y, AVX_VS);
+        }
+    }
+}
+pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
+    if has_f16_compute() {
+        pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
+    } else {
+        let hw_config = &*RUNTIME_HW_CONFIG;
+        if hw_config.cpu_ft.avx512f {
+            pack_avx::packb_panel_8_same(n, k, x, cs, rs, y);
+        } else {
+            pack_avx::packb_panel_4_same(n, k, x, cs, rs, y);
+        }
+    }
+}
+
+pub(crate) fn round_m_simd(m: usize) -> usize {
+    let vs = if has_f16_compute() {
+        AVX512_F16_VS
+    } else {
+        let hw_config = &*RUNTIME_HW_CONFIG;
+        if hw_config.cpu_ft.avx512f {
+            AVX512F_VS
+        } else {
+            AVX_VS
+        }
+    };
+    (m + vs - 1) / vs * vs
+}
+
+pub(crate) fn round_k_simd(k: usize) -> usize {
+    k
 }
 
 pub(crate) enum RegDim {
@@ -194,17 +171,17 @@ pub(crate) struct KernelDispatcherF32<T: UnaryFnC = IdentityFn> {
 impl<F: UnaryFnC> KernelDispatcherF32<F> {
     pub(crate) fn new(f: F) -> Self {
         let hw_config = &*RUNTIME_HW_CONFIG;
-        let (mc, nc, kc) = get_mcnckc();
+        let (mc, nc, kc) = get_mcnckc_simd_f32();
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let (mr, nr, reg_dim) = if features.avx512f {
             (AVX512F_MR, AVX512F_NR, RegDim::Reg48x8)
         } else if features.avx && features.fma {
-            (AVX_FMA_MR, AVX_FMA_NR, RegDim::Reg24x4)
+            (AVXFMA_MR, AVXFMA_NR, RegDim::Reg24x4)
         } else {
-            (16, 4, RegDim::Reg16x4)
+            (AVX_MR, AVX_NR, RegDim::Reg16x4)
         };
-        let vs = if features.avx512f { 16 } else { 8 };
+        let vs = if features.avx512f { AVX512F_VS } else { AVX_VS };
         Self {
             mc,
             nc,
@@ -223,36 +200,6 @@ impl<F: UnaryFnC> KernelDispatcherF32<F> {
 
     pub(crate) fn is_compute_native(&self) -> bool {
         false
-    }
-
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f32, m: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packa_panel_48(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg24x4 => pack_avx::packa_panel_24(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg16x4 => pack_avx::packa_panel_16(m, k, x, rs, cs, y, self.vs),
-        }
-    }
-
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f32, n: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packb_panel_8(n, k, x, cs, rs, y),
-            RegDim::Reg24x4 | RegDim::Reg16x4 => pack_avx::packb_panel_4(n, k, x, cs, rs, y),
-        }
-    }
-
-    pub(crate) unsafe fn packa_fnsame(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packa_panel_48_same(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg24x4 => pack_avx::packa_panel_24_same(m, k, x, rs, cs, y, self.vs),
-            RegDim::Reg16x4 => pack_avx::packa_panel_16_same(m, k, x, rs, cs, y, self.vs),
-        }
-    }
-
-    pub(crate) unsafe fn packb_fnsame(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
-        match self.reg_dim {
-            RegDim::Reg48x8 => pack_avx::packb_panel_8_same(n, k, x, cs, rs, y),
-            RegDim::Reg24x4 | RegDim::Reg16x4 => pack_avx::packb_panel_4_same(n, k, x, cs, rs, y),
-        }
     }
 
     #[target_feature(enable = "avx,f16c")]
@@ -298,11 +245,11 @@ pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
 impl<F: UnaryFnC> KernelDispatcher<F> {
     pub(crate) fn new(f: F) -> Self {
         let hw_config = &*RUNTIME_HW_CONFIG;
-        let (mc, nc, kc) = get_mcnckc_f16();
+        let (mc, nc, kc) = get_mcnckc_simd_f16();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
         let mr = AVX512_F16_MR;
         let nr = AVX512_F16_NR;
-        let vs = 32;
+        let vs = AVX512_F16_VS;
         Self {
             mc,
             nc,
@@ -321,14 +268,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         true
     }
 
-    pub(crate) unsafe fn packa_fn(&self, x: *const f16, y: *mut f16, m: usize, k: usize, rs: usize, cs: usize) {
-        pack_avx::packa_panel_64_same(m, k, x, rs, cs, y, self.vs);
-    }
-
-    pub(crate) unsafe fn packb_fn(&self, x: *const f16, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
-        pack_avx::packb_panel_15_same(n, k, x, cs, rs, y);
-    }
-
     pub(crate) fn round_k(&self, k: usize) -> usize {
         k
     }
@@ -341,9 +280,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
 impl<T: UnaryFnC> GemmCache for KernelDispatcherF32<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc
@@ -367,9 +303,6 @@ impl<T: UnaryFnC> GemmCache for KernelDispatcherF32<T> {
 impl<T: UnaryFnC> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc
@@ -506,8 +439,10 @@ def_glar_gemm!(
     kernel_n,
     glar_gemv,
     glar_gemv,
-    packa_f32,
-    packb_f32,
+    packa0,
+    packb0,
+    packa_fn_simd_f32,
+    packb_fn_simd_f32,
     false,
     false,
     into_pack_array2,
@@ -631,8 +566,10 @@ def_glar_gemm!(
     kernel_n_native,
     glar_gemv_native,
     glar_gemv_native,
-    packa,
-    packb,
+    packa0f16,
+    packb0f16,
+    packa_fn_simd_f16,
+    packb_fn_simd_f16,
     true,
     true,
     into_pack_array,

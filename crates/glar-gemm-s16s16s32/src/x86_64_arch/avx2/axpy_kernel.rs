@@ -3,7 +3,7 @@ use std::arch::x86_64::*;
 use crate::{TA, TB, TC};
 use seq_macro::seq;
 
-use super::super::VS;
+const VS: usize = 8;
 
 // TODO: optimize axpy for m=1 case,
 // for each loop we use, less than optimal number of registers, less than 16
