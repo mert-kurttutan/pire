@@ -1020,7 +1020,6 @@ pub const AB_ALIGN: usize = 1024;
 
 pub trait GemmCache {
     fn mr(&self) -> usize;
-    fn nr(&self) -> usize;
     fn get_mc_eff(&self, par: usize) -> usize;
     fn get_kc_eff(&self) -> usize;
     fn get_nc_eff(&self, par: usize) -> usize;

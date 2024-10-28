@@ -31,6 +31,14 @@ use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd_f32() -> (usize, usize, usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    let (mr, nr) = if features.avx512f {
+        (AVX512F_MR, AVX512F_NR)
+    } else if features.avx && features.fma {
+        (AVXFMA_MR, AVXFMA_NR)
+    } else {
+        (AVX_MR, AVX_NR)
+    };
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
@@ -40,11 +48,13 @@ pub(crate) fn get_mcnckc_simd_f32() -> (usize, usize, usize) {
         HWModel::Haswell => (4800, 320, 192),
         _ => get_cache_params(),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd_f16() -> (usize, usize, usize) {
+    let mr = AVX512_F16_MR;
+    let nr = AVX512_F16_NR;
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("768".to_string()).parse::<usize>().unwrap();
@@ -54,7 +64,7 @@ pub(crate) fn get_mcnckc_simd_f16() -> (usize, usize, usize) {
         HWModel::Haswell => (4800, 320, 192),
         _ => get_cache_params(),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
 #[inline(always)]
@@ -271,9 +281,6 @@ impl<T: UnaryFnC> GemmCache for KernelDispatcherF32<T> {
     fn mr(&self) -> usize {
         self.mr
     }
-    fn nr(&self) -> usize {
-        self.nr
-    }
     fn get_kc_eff(&self) -> usize {
         self.kc
     }
@@ -296,9 +303,6 @@ impl<T: UnaryFnC> GemmCache for KernelDispatcherF32<T> {
 impl<T: UnaryFnC> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc

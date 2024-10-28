@@ -122,9 +122,6 @@ impl<T: UnaryFnC> GemmCache for RefGemm<T> {
     fn mr(&self) -> usize {
         self.mr
     }
-    fn nr(&self) -> usize {
-        self.nr
-    }
     fn get_kc_eff(&self) -> usize {
         self.kc
     }

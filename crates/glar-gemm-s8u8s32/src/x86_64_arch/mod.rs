@@ -30,6 +30,16 @@ const SSE_NR: usize = 4;
 
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    let (mr, nr) = if features.avx512_vnni {
+        (AVX512_VNNI_MR, AVX512_VNNI_NR)
+    } else if features.avx512bw {
+        (AVX512BW_MR, AVX512BW_NR)
+    } else if features.avx2 {
+        (AVX2_MR, AVX2_NR)
+    } else {
+        (SSE_MR, SSE_NR)
+    };
     // let mc = std::env::var("GLAR_MC").unwrap_or("5400".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
@@ -39,7 +49,7 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
         HWModel::Haswell => (4800, 320, 768),
         _ => get_cache_params(),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
 pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
@@ -161,9 +171,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
 impl<T: UnaryFnC> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc

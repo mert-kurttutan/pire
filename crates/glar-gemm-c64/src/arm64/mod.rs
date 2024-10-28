@@ -19,6 +19,8 @@ const SVE_NR: usize = 8;
 
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
+    let features = (*RUNTIME_HW_CONFIG).cpu_ft();
+    let (mr, nr) = if features.sve && features.fcma { (unsafe { sve_vs() }, SVE_NR) } else { (NEON_MR, NEON_NR) };
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
@@ -26,7 +28,7 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         _ => (4800, 192, 384),
     };
-    (mc, nc, kc)
+    (mc / mr * mr, nc / nr * nr, kc)
 }
 
 pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
@@ -96,7 +98,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        // let (mr, nr, reg_dim) = (12, 2, RegDim::Reg12x2);
         let (mr, nr, reg_dim) = if features.sve && features.fcma {
             (unsafe { sve_vs() }, SVE_NR, RegDim::Sve)
         } else {
@@ -135,9 +136,6 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
 impl<T: UnaryFnC> GemmCache for KernelDispatcher<T> {
     fn mr(&self) -> usize {
         self.mr
-    }
-    fn nr(&self) -> usize {
-        self.nr
     }
     fn get_kc_eff(&self) -> usize {
         self.kc
