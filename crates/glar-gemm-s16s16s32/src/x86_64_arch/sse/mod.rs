@@ -55,12 +55,12 @@ pub unsafe fn axpy<F: UnaryFnC>(
     }
 }
 
-use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i16, i16, i32, f32, f32, 2, 4, 2, 1);
+use glar_base::def_kernel_bb_v1;
+def_kernel_bb_v1!(i16, i16, i32, f32, f32, 2, 4, 2, 1);
 
 use super::pack_sse::packa_panel_8;
-use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i16, i16, i32, f32, f32, packa_panel_8, 2, 2, 4, 2, 1);
+use glar_base::def_kernel_sb_v1;
+def_kernel_sb_v1!(i16, i16, i32, f32, f32, packa_panel_8, 2, 2, 4, 2, 1);
 
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     m: usize,

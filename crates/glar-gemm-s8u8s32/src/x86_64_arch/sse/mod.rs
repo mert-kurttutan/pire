@@ -95,17 +95,17 @@ pub unsafe fn axpy2<F: UnaryFnC>(
     }
 }
 
-// use glar_base::def_kernel_bb_v0;
-// def_kernel_bb_v0!(i8, u8, i32, f32, f32, 16, 4, 16, 8);
+use glar_base::def_kernel_bb_v1;
+def_kernel_bb_v1!(i8, u8, i32, f32, f32, 2, 4, 2, 1);
 
-use glar_base::def_kernel_bb_pf1;
+// use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 2, 4, 96, 4, 2, 1);
+// def_kernel_bb_pf1!(i8, u8, i32, f32, f32, 2, 4, 96, 4, 2, 1);
 
 use super::pack_sse::packa_panel_8;
 
-use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, u8, i32, f32, f32, packa_panel_8, 4, 2, 4, 2, 1);
+use glar_base::def_kernel_sb_v1;
+def_kernel_sb_v1!(i8, u8, i32, f32, f32, packa_panel_8, 4, 2, 4, 2, 1);
 
 // #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(

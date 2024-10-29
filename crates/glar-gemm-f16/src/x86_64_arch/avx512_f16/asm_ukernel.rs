@@ -5,7 +5,7 @@ use super::VS;
 use crate::{TA, TB, TC, TC_SIZE};
 use crate::UnaryFnC;
 use half::f16;
-use glar_base::{load_buf, store_buf, c_mem};
+use glar_base::{load_buf, store_buf, c_mem, def_ukernel};
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr) => {
@@ -144,7 +144,7 @@ macro_rules! storep_unit {
 }
 
 
-macro_rules! asm_alpha_scale_0 {
+macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
@@ -158,13 +158,28 @@ macro_rules! asm_alpha_scale_0 {
 }
 
 macro_rules! load_beta {
-    () => {
+    (F) => {
         concat!(
             vbroadcast!(), " ({betax}), %zmm0\n",
             "vxorps %ymm1,%ymm1,%ymm1\n",
             "vcomish %xmm1,%xmm0\n",
+            // 6 -> BETAZERO
+            "je 6f",
+
         )
-    }
+    };
+    ($is_partial:tt) => {
+        concat!(
+            vbroadcast!(), " ({betax}), %zmm0\n",
+            "vxorps %ymm1,%ymm1,%ymm1\n",
+            "vcomish %xmm1,%xmm0\n",
+            load_mask_ptr_asm!($is_partial), "\n",
+
+            // 6 -> BETAZERO
+            "je 6f",
+
+        )
+    };
 }
 
 macro_rules! mem {
@@ -249,7 +264,7 @@ x4 -> bx + 3*cs_b
 */
 
 
-macro_rules! asm_init_ab {
+macro_rules! init_ab {
     ($KER:tt,B,B) => {
         concat!(
             "/* {x5} */", "\n",
@@ -259,6 +274,8 @@ macro_rules! asm_init_ab {
             "/* {x1} */", "\n",
             "mov 24({dim_arrx}),{x0}", "\n",
             "test {x0},{x0}", "\n",
+            // 3 -> CONSIDKLEFT
+            "je 3f", "\n",
         )
     };
     ($ker:tt,B,S) => {
@@ -274,13 +291,15 @@ macro_rules! asm_init_ab {
 
                 "mov 24({dim_arrx}),{x0}", "\n",
                 "test {x0},{x0}", "\n",
+                // 3 -> CONSIDKLEFT
+                "je 3f", "\n",
         )
     };
 }
 
 
-macro_rules! asm_c_load {
-    (15) => {
+macro_rules! c_load {
+    () => {
         concat!(
             "mov 16({dim_arrx}),{x0}", "\n",
             "lea ({x0}, {x0}, 2), {x4}", "\n",
@@ -400,7 +419,7 @@ macro_rules! asm_c_load {
 }
 
 
-macro_rules! asm_vzeroall {
+macro_rules! vzero_kernel {
     (96,9) => {vzeroall!(5,31)};
     (96,8) => {vzeroall!(5,28)};
     (96,7) => {vzeroall!(5,25)};
@@ -444,48 +463,48 @@ macro_rules! asm_vzeroall {
     (32,1) => {vzeroall!(17,17)};
 }
 
-macro_rules! asm_alpha_scale {
-    (96,9) => {asm_alpha_scale_0!(5,31)};
-    (96,8) => {asm_alpha_scale_0!(5,28)};
-    (96,7) => {asm_alpha_scale_0!(5,25)};
-    (96,6) => {asm_alpha_scale_0!(5,22)};
-    (96,5) => {asm_alpha_scale_0!(5,19)};
-    (96,4) => {asm_alpha_scale_0!(5,16)};
-    (96,3) => {asm_alpha_scale_0!(5,13)};
-    (96,2) => {asm_alpha_scale_0!(5,10)};
-    (96,1) => {asm_alpha_scale_0!(5,7)};
+macro_rules! alpha_scale {
+    (96,9) => {alpha_scale_0!(5,31)};
+    (96,8) => {alpha_scale_0!(5,28)};
+    (96,7) => {alpha_scale_0!(5,25)};
+    (96,6) => {alpha_scale_0!(5,22)};
+    (96,5) => {alpha_scale_0!(5,19)};
+    (96,4) => {alpha_scale_0!(5,16)};
+    (96,3) => {alpha_scale_0!(5,13)};
+    (96,2) => {alpha_scale_0!(5,10)};
+    (96,1) => {alpha_scale_0!(5,7)};
 
-    (64,15) => {asm_alpha_scale_0!(2,31)};
-    (64,14) => {asm_alpha_scale_0!(2,29)};
-    (64,13) => {asm_alpha_scale_0!(2,27)};
-    (64,12) => {asm_alpha_scale_0!(2,25)};
-    (64,11) => {asm_alpha_scale_0!(2,23)};
-    (64,10) => {asm_alpha_scale_0!(2,21)};
-    (64,9) => {asm_alpha_scale_0!(2,19)};
-    (64,8) => {asm_alpha_scale_0!(2,17)};
-    (64,7) => {asm_alpha_scale_0!(2,15)};
-    (64,6) => {asm_alpha_scale_0!(2,13)};
-    (64,5) => {asm_alpha_scale_0!(2,11)};
-    (64,4) => {asm_alpha_scale_0!(2,9)};
-    (64,3) => {asm_alpha_scale_0!(2,7)};
-    (64,2) => {asm_alpha_scale_0!(2,5)};
-    (64,1) => {asm_alpha_scale_0!(2,3)};
+    (64,15) => {alpha_scale_0!(2,31)};
+    (64,14) => {alpha_scale_0!(2,29)};
+    (64,13) => {alpha_scale_0!(2,27)};
+    (64,12) => {alpha_scale_0!(2,25)};
+    (64,11) => {alpha_scale_0!(2,23)};
+    (64,10) => {alpha_scale_0!(2,21)};
+    (64,9) => {alpha_scale_0!(2,19)};
+    (64,8) => {alpha_scale_0!(2,17)};
+    (64,7) => {alpha_scale_0!(2,15)};
+    (64,6) => {alpha_scale_0!(2,13)};
+    (64,5) => {alpha_scale_0!(2,11)};
+    (64,4) => {alpha_scale_0!(2,9)};
+    (64,3) => {alpha_scale_0!(2,7)};
+    (64,2) => {alpha_scale_0!(2,5)};
+    (64,1) => {alpha_scale_0!(2,3)};
 
-    (32,15) => {asm_alpha_scale_0!(17,31)};
-    (32,14) => {asm_alpha_scale_0!(17,30)};
-    (32,13) => {asm_alpha_scale_0!(17,29)};
-    (32,12) => {asm_alpha_scale_0!(17,28)};
-    (32,11) => {asm_alpha_scale_0!(17,27)};
-    (32,10) => {asm_alpha_scale_0!(17,26)};
-    (32,9) => {asm_alpha_scale_0!(17,25)};
-    (32,8) => {asm_alpha_scale_0!(17,24)};
-    (32,7) => {asm_alpha_scale_0!(17,23)};
-    (32,6) => {asm_alpha_scale_0!(17,22)};
-    (32,5) => {asm_alpha_scale_0!(17,21)};
-    (32,4) => {asm_alpha_scale_0!(17,20)};
-    (32,3) => {asm_alpha_scale_0!(17,19)};
-    (32,2) => {asm_alpha_scale_0!(17,18)};
-    (32,1) => {asm_alpha_scale_0!(17,17)};
+    (32,15) => {alpha_scale_0!(17,31)};
+    (32,14) => {alpha_scale_0!(17,30)};
+    (32,13) => {alpha_scale_0!(17,29)};
+    (32,12) => {alpha_scale_0!(17,28)};
+    (32,11) => {alpha_scale_0!(17,27)};
+    (32,10) => {alpha_scale_0!(17,26)};
+    (32,9) => {alpha_scale_0!(17,25)};
+    (32,8) => {alpha_scale_0!(17,24)};
+    (32,7) => {alpha_scale_0!(17,23)};
+    (32,6) => {alpha_scale_0!(17,22)};
+    (32,5) => {alpha_scale_0!(17,21)};
+    (32,4) => {alpha_scale_0!(17,20)};
+    (32,3) => {alpha_scale_0!(17,19)};
+    (32,2) => {alpha_scale_0!(17,18)};
+    (32,1) => {alpha_scale_0!(17,17)};
 }
 
 macro_rules! inc_b {
@@ -782,11 +801,13 @@ macro_rules! prefetch_c {
 }
 
 macro_rules! mask_ptr {
-    (M, $m:expr, $nm:ident) => {
+    (M, $m:expr, $nm:ident, $mask_ptr:ident) => {
         let $nm = if $m % VS == 0 && $m > 0 { 0xFFFFFFFF } else { (1_u32 << ($m % VS)) - 1 };
+        let $mask_ptr = (&$nm) as *const u32;
     };
-    (C, $m:expr, $nm:ident) => {
+    (C, $m:expr, $nm:ident, $mask_ptr:ident) => {
         let $nm = 0xFFFFFFFF_u32;
+        let $mask_ptr = (&$nm) as *const u32;
     };
 }
 
@@ -799,7 +820,9 @@ macro_rules! load_mask_ptr_asm {
     }
 }
 
-macro_rules! def_ukernel {
+const ZERO: f16 = f16::ZERO;
+
+macro_rules! def_ukernelold {
     (
         $step_macro:tt,
         $acc_macro:tt,
@@ -817,10 +840,8 @@ macro_rules! def_ukernel {
             m: usize,
             f: F,
         ) {
-            mask_ptr!($is_partial, m, x);
-            let mask_ptr = (&x) as *const u32;
-            let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k_i, k_l];
+            mask_ptr!($is_partial, m, x, mask_ptr);
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k / 4, k % 4];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             if BUF {
@@ -830,13 +851,10 @@ macro_rules! def_ukernel {
             }
             prefetch_c!($mr,$nr,c,c_cs);
             asm!(
-                "/* {x6} */",
-                asm_vzeroall!($mr,$nr),
+                load_mask_ptr_asm!($is_partial),
+                vzero_kernel!($mr,$nr),
         
-                asm_init_ab!($mr,$a_layout,$b_layout),
-                
-                // 3 -> CONSIDKLEFT
-                "je 3f",
+                init_ab!($mr,$a_layout,$b_layout),
                 
                 // 2 -> KITER
                 "2:",
@@ -867,23 +885,18 @@ macro_rules! def_ukernel {
         
                 // 5 -> POSTACCUM
                 "5:",
-                asm_c_load!($nr),
+                c_load!($nr),
                 // scale by alpha
-                asm_alpha_scale!($mr, $nr),
+                alpha_scale!($mr, $nr),
 
-                load_mask_ptr_asm!($is_partial),
                 load_beta!(),
-                // 6 -> BETAZERO
-                "je 6f",
+
                 cum_seq!($acc_macro,$nr,$is_partial),
 
                 // 6 -> BETAZERO
                 "6:",
                 cum_seq!($store_macro,$nr,$is_partial),
-                
-                // 7 -> DDONE
-                "7:",
-                // "vzeroupper",
+
                 ax = inout(reg) a => _,
                 bx = inout(reg) b => _,
                 cx = inout(reg) cf => _,
@@ -897,7 +910,6 @@ macro_rules! def_ukernel {
                 x3 = out(reg) _,
                 x4 = out(reg) _,
                 x5 = out(reg) _,
-                x6 = out(reg) _,
                 out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
                 out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
                 out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
@@ -938,10 +950,8 @@ macro_rules! def_ukernelxn {
             m: usize, n: usize,
             f: F,
         ) {
-            mask_ptr!($is_partial, m, x);
-            let mask_ptr = (&x) as *const u32;
-            let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k_i, k_l];
+            mask_ptr!($is_partial, m, x, mask_ptr);
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k / 4, k % 4];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
             if BUF {
@@ -955,9 +965,9 @@ macro_rules! def_ukernelxn {
                         prefetch_c!($mr,ni,c,c_cs);
                         asm!(
                             "/* {x6} */",
-                            asm_vzeroall!($mr,ni),
+                            vzero_kernel!($mr,ni),
                 
-                            asm_init_ab!($mr,$a_layout,$b_layout),
+                            init_ab!($mr,$a_layout,$b_layout),
                         
                             // 3 -> CONSIDKLEFT
                             "je 3f",
@@ -991,15 +1001,12 @@ macro_rules! def_ukernelxn {
                 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
+                            c_load!(ni),
                             // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            alpha_scale!($mr, ni),
 
-                            load_beta!(),
+                            load_beta!($is_partial),
 
-                            load_mask_ptr_asm!($is_partial),				
-                            // 6 -> BETAZERO
-                            "je 6f",
                             cum_seq!($acc_macro,ni,$is_partial),
 
                             // 6 -> BETAZERO
@@ -1091,7 +1098,7 @@ pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
         cf = c_buf.as_mut_ptr();
     }
     asm!(
-        asm_vzeroall!(64,15),
+        vzero_kernel!(64,15),
         "mov 8({dim_arrx}),{x0}",
         "test {x0},{x0}",
         "je 3f",
@@ -1153,12 +1160,9 @@ pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
         "lea ({x2}, {x4},), {x3}",
         "lea ({x3}, {x4},), {x4}",
         // scale by alpha
-        asm_alpha_scale!(64, 15),
-        // "/* {alphax} */",
-        load_beta!(),
+        alpha_scale!(64, 15),
+        load_beta!(F),
 
-        // 6 -> BETAZERO
-        "je 6f",
         cum_seq!(acc_2x15,15,C),
 
         // 6 -> BETAZERO
