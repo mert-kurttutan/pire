@@ -481,15 +481,14 @@ macro_rules! def_ukernel {
             alpha: *const TA, 
             beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
-            let c_cs = d_arr[3];
             let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {
@@ -616,15 +615,14 @@ macro_rules! def_ukernelxn {
             alpha: *const TA, 
             beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize, n: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*16, d_arr[1]*16, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
-            let c_cs = d_arr[3];
             let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {

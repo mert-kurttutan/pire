@@ -77,7 +77,7 @@ macro_rules! def_kernel_bb {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -87,13 +87,13 @@ macro_rules! def_kernel_bb {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
+                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -107,13 +107,13 @@ macro_rules! def_kernel_bb {
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left x $NR _bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x n_bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left x n_bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 )*

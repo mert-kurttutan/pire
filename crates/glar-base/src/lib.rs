@@ -1870,7 +1870,7 @@ macro_rules! def_kernel_bb_pf1 {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -1881,7 +1881,7 @@ macro_rules! def_kernel_bb_pf1 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, a_pft1_offset, f);
                         n_i += NR;
                         a_pft1_offset += $pf_step * k;
                     }
@@ -1889,7 +1889,7 @@ macro_rules! def_kernel_bb_pf1 {
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -1903,13 +1903,13 @@ macro_rules! def_kernel_bb_pf1 {
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 )*
@@ -1940,7 +1940,7 @@ macro_rules! def_kernel_bb_v0 {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -1950,13 +1950,13 @@ macro_rules! def_kernel_bb_v0 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -1969,13 +1969,13 @@ macro_rules! def_kernel_bb_v0 {
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left !=0 {
                             let bp_cur = bp.add(n_i * k);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left x n_bb_partial>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 )*
@@ -2010,7 +2010,7 @@ macro_rules! def_kernel_sb_pf1 {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -2022,13 +2022,13 @@ macro_rules! def_kernel_sb_pf1 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, a_pft1_offset, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, a_pft1_offset, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -2042,13 +2042,13 @@ macro_rules! def_kernel_sb_pf1 {
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                         return;
                     }
@@ -2084,7 +2084,7 @@ macro_rules! def_kernel_sb_v0 {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [0, 0, c_rs, c_cs];
+                let d_arr = [0, 0, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -2095,13 +2095,13 @@ macro_rules! def_kernel_sb_v0 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, f);
+                        ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, n_left, f);
+                        ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, MR, c_cs, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -2115,13 +2115,13 @@ macro_rules! def_kernel_sb_v0 {
                         while n_i < n_rounded {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
                             let bp_cur = bp.add(n_i * k_eff);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left xn_bb_partial>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                         return;
                     }
@@ -2153,7 +2153,7 @@ macro_rules! def_kernel_bs {
                 let m_left = m % MR;
                 let n_left = n % NR;
 
-                let d_arr = [b_rs, b_cs, c_rs, c_cs];
+                let d_arr = [b_rs, b_cs, c_rs];
 
                 let mut m_i = 0;
                 while m_i < m_rounded {
@@ -2163,13 +2163,13 @@ macro_rules! def_kernel_bs {
                     while n_i < n_rounded {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, f);
+                        ukernel_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, f);
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, MR, n_left, f);
+                        ukernel_n_bs::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                     }
                     m_i += MR;
                 }
@@ -2182,13 +2182,13 @@ macro_rules! def_kernel_bs {
                         while n_i < n_rounded {
                             let b_cur = b.add(n_i * b_cs);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
+                            [<ukernel_$mr_left _bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, f);
                             n_i += NR;
                         }
                         if n_left != 0 {
                             let b_cur = b.add(n_i * b_cs);
                             let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left xn_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
+                            [<ukernel_$mr_left xn_bs_partial>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                         return;
                     }
@@ -2197,6 +2197,224 @@ macro_rules! def_kernel_bs {
         }
     };
 }
+
+#[macro_export]
+macro_rules! def_ukernel {
+    (
+        $step_macro:tt,
+        $acc_macro:tt,
+        $store_macro:tt,
+        $mr:tt, $nr:tt,
+        $a_layout:tt, $b_layout:tt,
+        $is_partial:tt,
+        $func_name:ident
+    ) => {
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
+            a: *const TA, b: *const TB, c: *mut TC,
+            alpha: *const TA, beta: *const TB,
+            k: usize,
+            d_arr: [usize; 3], c_cs: usize,
+            m: usize,
+            f: F,
+        ) {
+            use core::mem::size_of;
+            const MR: usize = $mr * VS;
+            let mut c_k = c;
+
+            mask_ptr!($is_partial, m, x, mask_ptr);
+            let mut dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
+            let mut c_buf = [ZERO;MR*$nr];
+            if BUF {
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, MR);
+                dim_arr[2] = MR*TC_SIZE;
+                c_k = c_buf.as_mut_ptr();
+            }
+            prefetch_c!($mr,$nr,c,c_cs);
+            asm!(
+                vzero_kernel!($mr,$nr),
+                init_ab!($mr,$a_layout,$b_layout),
+
+                "2:", // KITER
+                $step_macro!($nr, $a_layout, $b_layout),
+                $step_macro!($nr, $a_layout, $b_layout),
+                $step_macro!($nr, $a_layout, $b_layout),
+                $step_macro!($nr, $a_layout, $b_layout),
+                "dec {x0}", "jne 2b", // KITER
+
+                "3:", // CONSIDKLEFT
+                "mov 32({dim_arrx}), {x0}",
+                "test {x0},{x0}", "je 5f", // POSTACCUM
+
+                "4:", // KLEFT
+                $step_macro!($nr, $a_layout, $b_layout),
+                "dec {x0}", "jne 4b", // KLEFT
+
+                "5:", // POSTACCUM
+                c_load!(),
+
+                alpha_scale!($mr, $nr),
+
+                load_beta!($is_partial),	
+
+                cum_seq!($acc_macro,$nr,$is_partial),
+                
+                "6:", // STORE
+                cum_seq!($store_macro,$nr,$is_partial),
+
+                ax = inout(reg) a => _,
+                bx = inout(reg) b => _,
+                cx = inout(reg) c_k => _,
+                dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                alphax = inout(reg) alpha => _,
+                betax = inout(reg) beta => _,
+                maskx = inout(reg) mask_ptr => _,
+                x0 = out(reg) _,
+                x1 = out(reg) _,
+                x2 = out(reg) _,
+                x3 = out(reg) _,
+                x4 = out(reg) _,
+                x5 = out(reg) _,
+                out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+                out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+                out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+                out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+                out("k1") _,
+                options(att_syntax)
+            );
+            if BUF {
+                for j in 0..$nr {
+                    f.call(c_k.add(j*MR), MR);
+                }
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, MR);
+            } else {
+                for j in 0..$nr {
+                    f.call(c_k.add(j*c_cs), m);
+                }
+            }
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! def_ukernelxn {
+    (
+        $step_macro:tt,
+        $acc_macro:tt,
+        $store_macro:tt,
+        $mr:tt, $nr:tt,
+        $a_layout:tt, $b_layout:tt,
+        $is_partial:tt,
+        $func_name:ident
+    ) => {
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
+            a: *const TA, b: *const TB, c: *mut TC,
+            alpha: *const TA, beta: *const TB,
+            k: usize,
+            d_arr: [usize; 3], c_cs: usize,
+            m: usize, n: usize,
+            f: F,
+        ) {
+            use core::mem::size_of;
+            const MR: usize = $mr * VS;
+            mask_ptr!($is_partial, m, x, mask_ptr);
+            let mut dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
+            let mut c_k = c;
+            let mut c_buf = [ZERO;MR*$nr];
+            if BUF {
+                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
+                dim_arr[2] = MR*TC_SIZE;
+                c_k = c_buf.as_mut_ptr();
+            }
+            let _ = 'blk: {
+                seq!(ni in 1..$nr {
+                    if ni == n {
+                        prefetch_c!($mr,ni,c,c_cs);
+                        asm!(
+                            vzero_kernel!($mr,ni),
+                
+                            init_ab!($mr,$a_layout,$b_layout),
+                        
+                            // 2 -> KITER
+                            "2:",
+                            $step_macro!(ni, $a_layout, $b_layout),
+                            $step_macro!(ni, $a_layout, $b_layout),
+                            $step_macro!(ni, $a_layout, $b_layout),
+                            $step_macro!(ni, $a_layout, $b_layout),
+                
+                            "dec {x0}",
+                            // 2 -> KITER
+                            "jne 2b",
+
+                            // 3 -> CONSIDKLEFT
+                            "3:",
+                            "mov 32({dim_arrx}),{x0}",
+                            "test {x0},{x0}",
+
+                            // 5 -> POSTACCUM
+                            "je 5f",
+                            // 4 -> KLEFT
+                            "4:",
+                            $step_macro!(ni, $a_layout, $b_layout),
+
+                            "dec {x0}",
+                
+                            // 4 -> KLEFT
+                            "jne 4b",
+                
+                            // 5 -> POSTACCUM
+                            "5:",
+                            c_load!(),
+                            // scale by alpha
+                            alpha_scale!($mr, ni),
+
+                            load_beta!($is_partial),
+	
+                            cum_seq!($acc_macro,ni,$is_partial),
+
+                            // 6 -> BETAZERO
+                            "6:",
+                            cum_seq!($store_macro,ni,$is_partial),
+
+                            ax = inout(reg) a => _,
+                            bx = inout(reg) b => _,
+                            cx = inout(reg) c_k => _,
+                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                            alphax = inout(reg) alpha => _,
+                            betax = inout(reg) beta => _,
+                            maskx = inout(reg) mask_ptr => _,
+                            x0 = out(reg) _,
+                            x1 = out(reg) _,
+                            x2 = out(reg) _,
+                            x3 = out(reg) _,
+                            x4 = out(reg) _,
+                            x5 = out(reg) _,
+                            out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+                            out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+                            out("xmm8") _, out("xmm9") _, out("xmm10") _, out("xmm11") _,
+                            out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
+                            out("k1") _,
+                            options(att_syntax)
+                        );
+                        break 'blk;
+                    }
+                });
+            };
+            if BUF {
+                for j in 0..n {
+                    f.call(c_k.add(j*MR), MR);
+                }
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+            } else {
+                for j in 0..n {
+                    f.call(c_k.add(j*c_cs), m);
+                }
+            }
+        }
+    };
+}
+
+
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]

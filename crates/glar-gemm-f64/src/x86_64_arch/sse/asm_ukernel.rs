@@ -514,15 +514,14 @@ macro_rules! def_ukernel {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
-            let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -632,15 +631,14 @@ macro_rules! def_ukernelxn {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize, n: usize,
             f: F,
         ) {
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [0f64;$mr*$nr];
-            let c_cs = d_arr[3];
             if BUF || m != $mr {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*TC_SIZE;

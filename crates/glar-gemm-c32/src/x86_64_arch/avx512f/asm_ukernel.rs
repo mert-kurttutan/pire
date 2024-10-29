@@ -909,17 +909,16 @@ macro_rules! def_ukernel {
             alpha: *const TA,
             beta: *const TA,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize,
             f: F,
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
-            let c_cs = d_arr[3];
             let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {
@@ -1048,19 +1047,18 @@ macro_rules! def_ukernelxn {
             alpha: *const TA,
             beta: *const TA,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize, n: usize,
             f: F,
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u8;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [TC::ZERO;$mr*$nr];
             let alt_arr = [-1.0f32, 1.0f32];
             let alt_buf = alt_arr.as_ptr();
-            let c_cs = d_arr[3];
             let beta_st = if *beta == TB::ZERO {
                 0i32
             } else if *beta == TB::ONE {
@@ -1209,19 +1207,18 @@ pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
     alpha: *const TA,
     beta: *const TA,
     k: usize,
-    d_arr: [usize; 4],
+    d_arr: [usize; 3], c_cs: usize,
     a_pft1_offset: usize,
     f: F,
 ) {
     let k_l0 = k % 4;
     let k_l = if k_l0 == 0 {4} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let mut dim_arr = [d_arr[3]*TC_SIZE, k_i, k_l, a_pft1_offset];
+    let mut dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
     let alt_arr = [-1.0f32, 1.0f32];
     let alt_buf = alt_arr.as_ptr();
     let mut cf = c;
     let mut c_buf = [TC::ZERO; 24 * 4];
-    let c_cs = d_arr[3];
     let beta_st = if *beta == TB::ZERO {
         0i32
     } else if *beta == TB::ONE {

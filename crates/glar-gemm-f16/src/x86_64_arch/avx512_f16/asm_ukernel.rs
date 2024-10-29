@@ -813,17 +813,16 @@ macro_rules! def_ukernel {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize,
             f: F,
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u32;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
-            let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -935,17 +934,16 @@ macro_rules! def_ukernelxn {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
-            d_arr: [usize; 4],
+            d_arr: [usize; 3], c_cs: usize,
             m: usize, n: usize,
             f: F,
         ) {
             mask_ptr!($is_partial, m, x);
             let mask_ptr = (&x) as *const u32;
             let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, d_arr[3]*TC_SIZE, k_i, k_l];
+            let mut dim_arr = [d_arr[0]*2, d_arr[1]*2, c_cs*TC_SIZE, k_i, k_l];
             let mut cf = c;
             let mut c_buf = [f16::ZERO;$mr*$nr];
-            let c_cs = d_arr[3];
             if BUF {
                 load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
                 dim_arr[2] = $mr*TC_SIZE;
@@ -1077,17 +1075,16 @@ pub(crate) unsafe fn ukernel_bb<F: UnaryFnC, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,
-    d_arr: [usize; 4],
+    d_arr: [usize; 3], c_cs: usize,
     a_pft1_offset: usize,
     f: F,
 ) {
     let k_l0 = k % 16;
     let k_l = if k_l0 == 0 {16} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let mut dim_arr = [d_arr[3]*TC_SIZE, k_i, k_l, a_pft1_offset];
+    let mut dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
     let mut cf = c;
     let mut c_buf = [f16::ZERO; 64 * 15];
-    let c_cs = d_arr[3];
     if BUF {
         load_buf(c, d_arr[2], c_cs, &mut c_buf, 64, 15, 64);
         dim_arr[0] = 64*TC_SIZE;
