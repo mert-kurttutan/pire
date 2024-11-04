@@ -6,6 +6,7 @@ pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 use std::arch::asm;
 
 use crate::{TA, TB, TC};
@@ -14,15 +15,19 @@ use crate::UnaryFnC;
 
 const VS: usize = 16;
 
+// const fn simd_vector_length() -> usize {
+//     VS
+// }
+
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(i16, i16, i32, f32, f32, 2, 8, 64, 8, 2, 1);
+def_kernel_bb_pf1!(i16, i16, i32, f32, f32, F, 2, 8, 64, 8);
 
 use super::pack_avx::packa_panel_32;
 
 use glar_base::def_kernel_sb_pf1;
 
-def_kernel_sb_pf1!(i16, i16, i32, f32, f32, packa_panel_32, 2, 2, 8, 64, 8, 2, 1);
+def_kernel_sb_pf1!(i16, i16, i32, f32, f32, packa_panel_32, 2, 2, 8, 64, 8);
 
 // #[target_feature(enable = "avx2")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(

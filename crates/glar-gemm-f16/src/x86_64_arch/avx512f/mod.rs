@@ -4,9 +4,14 @@ pub mod asm_ukernel;
 pub(crate) use asm_ukernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 use std::arch::asm;
 
 const VS: usize = 16;
+
+// const fn simd_vector_length() -> usize {
+//     VS
+// }
 
 use crate::UnaryFnC;
 
@@ -14,7 +19,7 @@ use half::f16;
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(f32, f32, f16, f32, f32, 3, 8, 96, 8, 3, 2, 1);
+def_kernel_bb_pf1!(f32, f32, f16, f32, f32, F, 3, 8, 96, 8);
 
 pub(crate) unsafe fn kernel<F: UnaryFnC>(
     m: usize,

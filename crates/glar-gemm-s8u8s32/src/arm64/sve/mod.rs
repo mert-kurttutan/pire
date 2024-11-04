@@ -5,11 +5,15 @@ pub mod asm_ukernel;
 pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
-// use paste::paste;
+use paste::paste;
+use seq_macro::seq;
 
 use crate::{TA, TB, TC};
 
 // const VS: usize = 16;
+fn simd_vector_length() -> usize {
+    8
+}
 
 use crate::UnaryFnC;
 
@@ -94,132 +98,14 @@ pub unsafe fn axpy2<F: UnaryFnC>(
         f.call(y_cur, 1);
     }
 }
-
-pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const f32,
-    beta: *const f32,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    ap: *const TA,
-    bp: *const TB,
-    mr: usize,
-    nr: usize,
-    f: F,
-) {
-    let m_rounded = m / mr * mr;
-    let n_rounded = n / nr * nr;
-    let m_left = m % mr;
-    let n_left = n % nr;
-
-    let d_arr = [0, 0, c_rs, c_cs];
-
-    let mut m_i = 0;
-    while m_i < m_rounded {
-        let c_cur0 = c.add(m_i * c_rs);
-        let ap_cur = ap.add(m_i * k);
-        let mut n_i = 0;
-        while n_i < n_rounded {
-            let bp_cur = bp.add(n_i * k);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, f);
-            n_i += nr;
-        }
-        if n_left != 0 {
-            let bp_cur = bp.add(n_i * k);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_n_bb::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, mr, n_left, f);
-        }
-        m_i += mr;
-    }
-
-    if m_left != 0 {
-        let c_cur0 = c.add(m_i * c_rs);
-        let ap_cur = ap.add(m_i * k);
-        let mut n_i = 0;
-        while n_i < n_rounded {
-            let bp_cur = bp.add(n_i * k);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, f);
-            n_i += nr;
-        }
-        if n_left != 0 {
-            let bp_cur = bp.add(n_i * k);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_n_bb_partial::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, m_left, n_left, f);
-        }
-    }
-}
+use glar_base::def_kernel_bb_v0;
+def_kernel_bb_v0!(i8, u8, i32, f32, f32, T, 2, 12);
 
 use super::pack_sve::packa_panel;
 
-pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const f32,
-    beta: *const f32,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    bp: *const TB,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    ap: *mut TA,
-    mr: usize,
-    nr: usize,
-    f: F,
-) {
-    let k_eff = (k + 7) / 8 * 8;
-    let m_rounded = m / mr * mr;
-    let n_rounded = n / nr * nr;
-    let m_left = m % mr;
-    let n_left = n % nr;
+use glar_base::def_kernel_sb_v0;
 
-    let d_arr = [0, 0, c_rs, c_cs];
-
-    let mut m_i = 0;
-    while m_i < m_rounded {
-        let c_cur0 = c.add(m_i * c_rs);
-        let a_cur = a.add(m_i * a_rs);
-        packa_panel(mr, k, a_cur, a_rs, a_cs, ap, mr, mr);
-        let mut n_i = 0;
-        while n_i < n_rounded {
-            let bp_cur = bp.add(n_i * k_eff);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, f);
-            n_i += nr;
-        }
-        if n_left != 0 {
-            let bp_cur = bp.add(n_i * k_eff);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_n_bb::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, mr, n_left, f);
-        }
-        m_i += mr;
-    }
-
-    if m_left != 0 {
-        let c_cur0 = c.add(m_i * c_rs);
-        let a_cur = a.add(m_i * a_rs);
-        packa_panel(m_left, k, a_cur, a_rs, a_cs, ap, mr, mr);
-        let mut n_i = 0;
-        while n_i < n_rounded {
-            let bp_cur = bp.add(n_i * k_eff);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, f);
-            n_i += nr;
-        }
-        if n_left != 0 {
-            let bp_cur = bp.add(n_i * k_eff);
-            let c_cur1 = c_cur0.add(n_i * c_cs);
-            ukernel_n_bb_partial::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, m_left, n_left, f);
-        }
-    }
-}
+def_kernel_sb_v0!(i8, u8, i32, f32, f32, T, packa_panel, 1, 2, 12);
 
 // #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
@@ -236,14 +122,12 @@ pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
     c_rs: usize,
     c_cs: usize,
     ap_buf: *mut TA,
-    mr: usize,
-    nr: usize,
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, mr, nr, f);
+        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
-        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, mr, nr, f);
+        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     }
 }
 
@@ -258,14 +142,12 @@ pub(crate) unsafe fn kernel<F: UnaryFnC>(
     c_cs: usize,
     ap: *const TA,
     bp: *const TB,
-    mr: usize,
-    nr: usize,
     f: F,
 ) {
     let k_eff = (k + 7) / 8 * 8;
     if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, f)
+        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, f)
+        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
 }

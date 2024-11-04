@@ -6,10 +6,15 @@ pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 
 use crate::{TA, TB, TC};
 
 const VS: usize = 1;
+
+const fn simd_vector_length() -> usize {
+    VS
+}
 
 use crate::UnaryFnC;
 
@@ -55,17 +60,13 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TA, TB, TC, TA, TC, 1, 2, 1);
-
-use glar_base::def_kernel_bs;
-
-def_kernel_bs!(TA, TB, TC, TA, TC, 1, 2, 1);
+def_kernel_bb_v0!(TA, TB, TC, TA, TC, T, 1, 2);
 
 use super::pack_sse::packa_panel_1;
 
 use glar_base::def_kernel_sb_v0;
 
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_1, 1, 1, 2, 1);
+def_kernel_sb_v0!(TA, TB, TC, TA, TC, T, packa_panel_1, 1, 1, 2);
 
 // #[target_feature(enable = "sse")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
@@ -88,28 +89,6 @@ pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
         kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
     } else {
         kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
-    }
-}
-
-pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const TA,
-    beta: *const TC,
-    b: *const TB,
-    b_rs: usize,
-    b_cs: usize,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    ap: *const TA,
-    f: F,
-) {
-    if c_rs == 1 {
-        kernel_bs_v0::<_, false>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
-    } else {
-        kernel_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
     }
 }
 

@@ -35,7 +35,7 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize,
     let features = (*RUNTIME_HW_CONFIG).cpu_ft();
     if features.sve && features.fcma {
         let vs = unsafe { sve_vs() };
-        pack_sve::packa_panel(m, k, x, rs, cs, y, vs, vs);
+        pack_sve::packa_panel(m, k, x, rs, cs, y, vs);
     } else {
         pack_neon::packa_panel_12(m, k, x, rs, cs, y, NEON_VS);
     }
@@ -173,13 +173,13 @@ unsafe fn kernel<F: UnaryFnC>(
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.mr, hw_cfg.nr, hw_cfg.func),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.mr, hw_cfg.nr, null_fn),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -223,32 +223,13 @@ unsafe fn kernel_n<F: UnaryFnC>(
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Sve => sve::kernel_sb(
-                m,
-                n,
-                k,
-                alpha,
-                beta,
-                a,
-                a_rs,
-                a_cs,
-                b,
-                c,
-                c_rs,
-                c_cs,
-                ap,
-                hw_cfg.mr,
-                hw_cfg.nr,
-                hw_cfg.func,
-            ),
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Sve => {
-                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.mr, hw_cfg.nr, null_fn)
-            }
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }

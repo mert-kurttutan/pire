@@ -1,10 +1,24 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
-use glar_base::{load_buf, store_buf, c_mem, prefetch_0};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon, mem};
+
+const VS: usize = 2;
+
+
+const ZERO: TC = 0f64;
+
+const ONE_SCALAR: TC = 1f64;
+const ZERO_SCALAR: TC = 0f64;
 
 macro_rules! beta_fmadd {
-    (C, $m0:expr, $r1:expr) => {
+    (C, $m0:expr, $r1:expr, 2) => {
+        concat!(
+            "ldr q1, ", $m0, "\n",
+            "fmla v", $r1, ".2d, v1.2d, v0.d[0]\n",
+        ) 
+    };
+    (C, $m0:expr, $r1:expr, 1) => {
         concat!(
             "ldr q1, ", $m0, "\n",
             "fmla v", $r1, ".2d, v1.2d, v0.d[0]\n",
@@ -20,18 +34,6 @@ macro_rules! vzeroall {
     }
 }
 
-macro_rules! mem {
-    ($m0:tt, $b0:tt, $b1:tt) => {
-        concat!("[", $m0, ", #", $b0, "+", $b1, "]")
-    };
-    ($m0:tt, $b0:tt) => {
-        concat!("[", $m0, ", #", $b0, "]")
-    };
-    ($m0:tt) => {
-        concat!("[", $m0, "]")
-    };
-}
-
 macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr, $i:expr) => {
         concat!(
@@ -41,7 +43,7 @@ macro_rules! vfmadd {
 }
 
 macro_rules! loadp_unit {
-    ($layout:tt, $m0:expr, $r1:expr) => {
+    ($m0:expr, $r1:expr) => {
         concat!(
             "ldr q", $r1, ", ", $m0, "\n",
         )
@@ -60,10 +62,14 @@ macro_rules! asm_alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
+                // check if s1 is 0 bit
+                "cmp {alpha_st:w}, #0", "\n",
+                "BEQ 13f", "\n",
                 "ldr d1, [{alphax}]", "\n",
                 #(
                     "fmul  v", r, ".2d, v", r, ".2d, v1.d[0]\n",
                 )*
+                "13:", "\n",
             )
         })
     }
@@ -82,56 +88,56 @@ macro_rules! load_beta {
 
 
 macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr, $r5:expr, $r6:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr, $r3:expr, $r4:expr, $r5:expr, $r6:expr) => {
         concat!(
-            beta_fmadd!(C, mem!($m0), $r1),
-            beta_fmadd!(C, mem!($m0, "0x10"), $r2),
-            beta_fmadd!(C, mem!($m0, "0x20"), $r3),
-            beta_fmadd!(C, mem!($m0, "0x30"), $r4),
-            beta_fmadd!(C, mem!($m0, "0x40"), $r5),
-            beta_fmadd!(C, mem!($m0, "0x50"), $r6),
+            beta_fmadd!(C, mem!($m0), $r1, $q),
+            beta_fmadd!(C, mem!($m0, "0x10"), $r2, $q),
+            beta_fmadd!(C, mem!($m0, "0x20"), $r3, $q),
+            beta_fmadd!(C, mem!($m0, "0x30"), $r4, $q),
+            beta_fmadd!(C, mem!($m0, "0x40"), $r5, $q),
+            beta_fmadd!(C, mem!($m0, "0x50"), $r6, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
         concat!(
-            beta_fmadd!(C, mem!($m0), $r1),
-            beta_fmadd!(C, mem!($m0, "0x10"), $r2),
-            beta_fmadd!(C, mem!($m0, "0x20"), $r3),
-            beta_fmadd!(C, mem!($m0, "0x30"), $r4),
+            beta_fmadd!(C, mem!($m0), $r1, $q),
+            beta_fmadd!(C, mem!($m0, "0x10"), $r2, $q),
+            beta_fmadd!(C, mem!($m0, "0x20"), $r3, $q),
+            beta_fmadd!(C, mem!($m0, "0x30"), $r4, $q),
         )
     };
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
+    ($layout:tt, $m0:expr, $q:tt, $r1:expr, $r2:expr) => {
         concat!(
-            beta_fmadd!(C, mem!($m0), $r1),
-            beta_fmadd!(C, mem!($m0, "0x10"), $r2),
+            beta_fmadd!(C, mem!($m0), $r1, $q),
+            beta_fmadd!(C, mem!($m0, "0x10"), $r2, $q),
         )
     };
 }
 
 
 macro_rules! loadp {
-    (12, $layout:tt, $m0:expr, $b0:expr) => {
+    (3, $m0:expr) => {
         concat!(
-            loadp_unit!($layout, mem!($m0, $b0), 0),
-            loadp_unit!($layout, mem!($m0, $b0, "0x10"), 1),
-            loadp_unit!($layout, mem!($m0, $b0, "0x20"), 2),
-            loadp_unit!($layout, mem!($m0, $b0, "0x30"), 3),
-            loadp_unit!($layout, mem!($m0, $b0, "0x40"), 4),
-            loadp_unit!($layout, mem!($m0, $b0, "0x50"), 5),
+            loadp_unit!(mem!($m0), 0),
+            loadp_unit!(mem!($m0, "0x10"), 1),
+            loadp_unit!(mem!($m0, "0x20"), 2),
+            loadp_unit!(mem!($m0, "0x30"), 3),
+            loadp_unit!(mem!($m0, "0x40"), 4),
+            loadp_unit!(mem!($m0, "0x50"), 5),
         )
     };
-    (8, $layout:tt, $m0:expr, $b0:expr) => {
+    (2, $m0:expr) => {
         concat!(
-            loadp_unit!($layout, mem!($m0, $b0), 0),
-            loadp_unit!($layout, mem!($m0, $b0, "0x10"), 1),
-            loadp_unit!($layout, mem!($m0, $b0, "0x20"), 2),
-            loadp_unit!($layout, mem!($m0, $b0, "0x30"), 3),
+            loadp_unit!(mem!($m0), 0),
+            loadp_unit!(mem!($m0, "0x10"), 1),
+            loadp_unit!(mem!($m0, "0x20"), 2),
+            loadp_unit!(mem!($m0, "0x30"), 3),
         )
     };
-    (4, $layout:tt, $m0:expr, $b0:expr) => {
+    (1, $m0:expr) => {
         concat!(
-            loadp_unit!($layout, mem!($m0, $b0), 0),
-            loadp_unit!($layout, mem!($m0, $b0, "0x10"), 1),
+            loadp_unit!(mem!($m0), 0),
+            loadp_unit!(mem!($m0, "0x10"), 1),
         )
     };
 }
@@ -174,7 +180,7 @@ x4 -> cx + 3*cs_b
 
 
 macro_rules! asm_init_ab {
-    ($KER:tt,B,B) => {
+    (B) => {
         concat!(
             "/* {x5} */", "\n",
             "/* {x4} */", "\n",
@@ -188,7 +194,7 @@ macro_rules! asm_init_ab {
             "cmp {x0}, #0",
         )
     };
-    ($ker:tt,B,S) => {
+    (S) => {
         concat!(
             // mov cs_b to reg
             "mov ({dim_arrx}), {x1}", "\n",
@@ -231,12 +237,8 @@ macro_rules! asm_c_load {
 }
 
 
-macro_rules! asm_vzeroall {
-    ($mr:tt,$nr:tt) => {vzeroall!(8,31)};
-    // (8,1) => {vzeroall!(4,5)};
-
-    // (4,2) => {vzeroall!(4,5)};
-    // (4,1) => {vzeroall!(4,4)};
+macro_rules! vzero_kernel {
+    () => {vzeroall!(8,31)};
 }
 
 macro_rules! inc_b {
@@ -374,9 +376,9 @@ macro_rules! c_reg_1x6 {
 
 
 macro_rules! acc_3x4 {
-    ($ni:tt, $layout:tt) => {
+    ($ni:tt, $layout:tt, $q:tt) => {
         acc_p!(
-            $layout, c_mem!($ni), c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni), c_reg_3x4!(3,$ni), c_reg_3x4!(4,$ni), c_reg_3x4!(5,$ni)
+            $layout, c_mem!($ni), $q, c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni), c_reg_3x4!(3,$ni), c_reg_3x4!(4,$ni), c_reg_3x4!(5,$ni)
         )
     };
 }
@@ -390,8 +392,8 @@ macro_rules! store_3x4 {
 }
 
 macro_rules! acc_2x6 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni), c_reg_2x6!(2,$ni), c_reg_2x6!(3,$ni))
+    ($ni:tt, $layout:tt,$q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni), c_reg_2x6!(2,$ni), c_reg_2x6!(3,$ni))
     };
 }
 
@@ -402,8 +404,8 @@ macro_rules! store_2x6 {
 }
 
 macro_rules! acc_1x6 {
-    ($ni:tt, $layout:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x6!(0,$ni), c_reg_1x6!(1,$ni))
+    ($ni:tt, $layout:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1x6!(0,$ni), c_reg_1x6!(1,$ni))
     };
 }
 
@@ -413,31 +415,18 @@ macro_rules! store_1x6 {
     };
 }
 
-
-
-macro_rules! cum_seq {
-    ($step_macro:tt, $nr:tt, $layout:tt) => {
-        seq!(n in 0..$nr {
-            concat!(#($step_macro!(n, $layout),)*)
-        })
-    };
-}
-
 macro_rules! load_b {
-    (B, $ni:tt, $K:tt, $X:tt, $r:expr) => {
+    (B, $r:expr) => {
         concat!(
-            "ldr q", $r, ", [{bx}, #", $ni, "*8+", $K, "*", $X, "*8]", "\n",
+            "ldr q", $r, ", [{bx}]", "\n",
         )
     };
 }
 
 
 macro_rules! load_a {
-    ($mr:tt, B, $K:tt) => {
-        loadp!($mr, B, "{ax}", concat!($mr,"*8*",$K))
-    };
-    ($mr:tt, C, $K:tt) => {
-        loadp!($mr, C, "[{ax}]")
+    ($mr:tt) => {
+        loadp!($mr, "{ax}")
     };
 }
 
@@ -578,12 +567,11 @@ macro_rules! fmadd_1v {
 
 // ***************************** 3x4 ******************************* //
 macro_rules! step_3x4 {
-    ($nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+    ($nr:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(12, $a_layout, $K),
-                load_b!($b_layout, 0, $K, $nr, 6),
-                load_b!($b_layout, 2, $K, $nr, 7),
+                load_a!(3),
+                load_b!($b_layout, 0),
                 #(
                     fmadd_3v!(n),
                 )*
@@ -595,12 +583,11 @@ macro_rules! step_3x4 {
 
 // ***************************** 2x6 ******************************* //
 macro_rules! step_2x6 {
-    ($nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+    ($nr:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(8, $a_layout, $K),
-                load_b!($b_layout, 0, $K, $nr, 4),
-                load_b!($b_layout, 2, $K, $nr, 5),
+                load_a!(2),
+                load_b!($b_layout, 0),
                 #(
                     fmadd_2v!(n),
                 )*
@@ -612,12 +599,11 @@ macro_rules! step_2x6 {
 
 // ***************************** 2x6 ******************************* //
 macro_rules! step_1x6 {
-    ($nr:tt, $a_layout:tt, $b_layout:tt, $K:tt) => {
+    ($nr:tt, $b_layout:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(4, $a_layout, $K),
-                load_b!($b_layout, 0, $K, $nr, 2),
-                load_b!($b_layout, 2, $K, $nr, 3),
+                load_a!(1),
+                load_b!($b_layout, 0),
                 #(
                     fmadd_1v!(n),
                 )*
@@ -630,7 +616,7 @@ macro_rules! step_1x6 {
 use crate::UnaryFnC;
 
 macro_rules! prefetch_c {
-    (24, 4) => {
+    () => {
         concat!(
             "ldr {x0}, [{dim_arrx}, #16]\n",
             "add {x1}, {cx}, {x0}\n ",
@@ -650,292 +636,16 @@ macro_rules! prefetch_c {
             "prfm pldl1keep, [{x3},#96]\n",
         )
     };
-    (24, $nr:tt) => {
-        ""
-        // seq!(j in 0..$nr {
-        //     concat!(
-        // 		#(
-
-        // 		)*
-        // 	)
-        // });
-    };
-    (16, $nr:tt) => {
-            ""
-        // seq!(j in 0..$nr {
-        //     _mm_prefetch($c.add(16+j*$ldc) as *const i8, 3);
-        // });
-    };
-    (8, $nr:tt) => {
-            ""
-        // seq!(j in 0..$nr {
-        //     _mm_prefetch($c.add(8+j*$ldc) as *const i8, 3);
-        // });
-    }
 }
 
+def_ukernel_neon!(step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, B, C, ukernel_bbc);
 
-macro_rules! def_ukernel {
-    (
-        $step_macro:tt,
-        $acc_macro:tt,
-        $store_macro:tt,
-        $mr:tt, $nr:tt,
-        $a_layout:tt, $b_layout:tt,
-        $is_partial:tt,
-        $func_name:ident
-    ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
-            a: *const TA, b: *const TB, c: *mut TC,
-            alpha: *const TA, beta: *const TB,
-            k: usize,
-            d_arr: [usize; 4],
-            m: usize,
-            f: F,
-        ) {
-            let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
-            let mut cf = c;
-            let mut c_buf = [0f64;$mr*$nr];
-            let c_cs = d_arr[3];
-            if BUF || m != $mr {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, $mr);
-                dim_arr[2] = $mr*TC_SIZE;
-                cf = c_buf.as_mut_ptr();
-            }
-            asm!(
-                asm_vzeroall!($mr,$nr),
+def_ukernel_neon!(step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, B, C, ukernel_3_bbp);
+def_ukernel_neon!(step_2x6, acc_2x6, store_2x6, 2, 4, 4, 5, B, C, ukernel_2_bbp);
+def_ukernel_neon!(step_1x6, acc_1x6, store_1x6, 1, 4, 4, 5, B, C, ukernel_1_bbp);
 
-                prefetch_c!(24,4),
-        
-                asm_init_ab!($mr,$a_layout,$b_layout),
-                
-                // 3 -> CONSIDKLEFT
-                "BEQ 3f",
-                
-                // 2 -> KITER
-                "2:",
-                prefetch_0!(192, "{bx}"),
-                $step_macro!($nr, $a_layout, $b_layout, 0),
-                $step_macro!($nr, $a_layout, $b_layout, 1),
-                prefetch_0!(256, "{bx}"),
-                $step_macro!($nr, $a_layout, $b_layout, 2),
-                $step_macro!($nr, $a_layout, $b_layout, 3),
+def_ukernel_neon!(step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, C, ukernel_n_bbc);
 
-                inc_a_k_unroll!($a_layout, $mr, 4),
-                inc_b_k_unroll!($b_layout, $nr, 4),
-        
-                "sub {x0}, {x0}, #1",
-                // 2 -> KITER
-                "cmp {x0}, 0",
-                "BNE 2b",
-
-                // 3 -> CONSIDKLEFT
-                "3:",
-
-                "ldr {x0}, [{dim_arrx}, #32]",
-                "cmp {x0}, #0",
-
-                // 5 -> POSTACCUM
-                "BEQ 5f",
-                // 4 -> KLEFT
-                "4:",
-                $step_macro!($nr, $a_layout, $b_layout, 0),
-                inc_a_k_unroll!($a_layout, $mr, 1),
-                inc_b_k_unroll!($b_layout, $nr, 1),
-
-                "sub {x0}, {x0}, #1",
-        
-                // 4 -> KLEFT
-                "cmp {x0}, 0",
-                "BNE 4b",
-        
-                // 5 -> POSTACCUM
-                "5:",
-                asm_c_load!($nr),
-                // scale by alpha
-                asm_alpha_scale!($mr, $nr),
-
-                load_beta!(),
-
-                // 6 -> BETAZERO
-                "BEQ 6f",
-                cum_seq!($acc_macro,$nr,$is_partial),
-
-                // 6 -> BETAZERO
-                "6:",
-                cum_seq!($store_macro,$nr,$is_partial),
-                
-                // 7 -> DDONE
-                "7:",
-                ax = inout(reg) a => _,
-                bx = inout(reg) b => _,
-                cx = inout(reg) cf => _,
-                dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                alphax = inout(reg) alpha => _,
-                betax = inout(reg) beta => _,
-                x0 = out(reg) _,
-                x1 = out(reg) _,
-                x2 = out(reg) _,
-                x3 = out(reg) _,
-                x4 = out(reg) _,
-                x5 = out(reg) _,
-                out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
-            );
-            if BUF || m != $mr {
-                for j in 0..$nr {
-                    f.call(cf.add(j*$mr), $mr);
-                }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, $nr, $mr);
-            } else {
-                for j in 0..$nr {
-                    f.call(cf.add(j*c_cs), m);
-                }
-            }
-        }
-    };
-}
-
-macro_rules! def_ukernelxn {
-    (
-        $step_macro:tt,
-        $acc_macro:tt,
-        $store_macro:tt,
-        $mr:tt, $nr:tt,
-        $a_layout:tt, $b_layout:tt,
-        $is_partial:tt,
-        $func_name:ident
-    ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
-            a: *const TA, b: *const TB, c: *mut TC,
-            alpha: *const TA, beta: *const TB,
-            k: usize,
-            d_arr: [usize; 4],
-            m: usize, n: usize,
-            f: F,
-        ) {
-            let (k_i, k_l) = (k / 4, k % 4);
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, d_arr[3]*TC_SIZE, k_i, k_l];
-            let mut cf = c;
-            let mut c_buf = [0f64;$mr*$nr];
-            let c_cs = d_arr[3];
-            if BUF || m != $mr {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, $mr);
-                dim_arr[2] = $mr*TC_SIZE;
-                cf = c_buf.as_mut_ptr();
-            }
-            let _ = 'blk: {
-                seq!(ni in 1..$nr {
-                    if ni == n {
-                        asm!(
-                            asm_vzeroall!($mr,ni),
-                
-                            asm_init_ab!($mr,$a_layout,$b_layout),
-                        
-                            // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
-                        
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{cx}"),
-                            $step_macro!(ni, $a_layout, $b_layout, 0),
-                            $step_macro!(ni, $a_layout, $b_layout, 1),
-                            $step_macro!(ni, $a_layout, $b_layout, 2),
-                            $step_macro!(ni, $a_layout, $b_layout, 3),
-            
-                            inc_a_k_unroll!($a_layout, $mr, 4),
-                            inc_b_k_unroll!($b_layout, ni, 4),
-                
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $a_layout, $b_layout, 0),
-                            inc_a_k_unroll!($a_layout, $mr, 1),
-                            inc_b_k_unroll!($b_layout, ni, 1),
-
-                            "sub {x0}, {x0}, #1",
-                
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-                
-                            // 5 -> POSTACCUM
-                            "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
-
-                            load_beta!(),
-
-                            // 6 -> BETAZERO
-                            "BEQ 6f",
-                            cum_seq!($acc_macro,ni,$is_partial),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
-                            
-                            // 7 -> DDONE
-                            "7:",
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
-                        );
-                        break 'blk;
-                    }
-                });
-            };
-            if BUF || m != $mr {
-                for j in 0..n {
-                    f.call(cf.add(j*$mr), $mr);
-                }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, $mr);
-            } else {
-                for j in 0..n {
-                    f.call(cf.add(j*c_cs), m);
-                }
-            }
-        }
-    };
-}
-
-def_ukernel!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, C, ukernel_bb);
-
-def_ukernel!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, C, ukernel_3_bb_partial);
-def_ukernel!(step_2x6, acc_2x6, store_2x6, 8, 4, B, B, C, ukernel_2_bb_partial);
-def_ukernel!(step_1x6, acc_1x6, store_1x6, 4, 4, B, B, C, ukernel_1_bb_partial);
-
-
-def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, C, ukernel_n_bb);
-
-def_ukernelxn!(step_3x4, acc_3x4, store_3x4, 12, 4, B, B, C, ukernel_3xn_bb_partial);
-def_ukernelxn!(step_2x6, acc_2x6, store_2x6, 8, 4, B, B, C, ukernel_2xn_bb_partial);
-def_ukernelxn!(step_1x6, acc_1x6, store_1x6, 4, 4, B, B, C, ukernel_1xn_bb_partial);
-
+def_ukernel_neon!(step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, C, ukernel_3xn_bbp);
+def_ukernel_neon!(step_2x6, acc_2x6, store_2x6, 2, 4, 1, 4, B, C, ukernel_2xn_bbp);
+def_ukernel_neon!(step_1x6, acc_1x6, store_1x6, 1, 4, 1, 4, B, C, ukernel_1xn_bbp);

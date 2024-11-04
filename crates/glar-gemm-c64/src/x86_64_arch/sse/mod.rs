@@ -5,11 +5,15 @@ pub mod asm_ukernel;
 pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
-use paste::paste;
-
 use crate::{TA, TB, TC};
+use paste::paste;
+use seq_macro::seq;
 
 const VS: usize = 1;
+
+const fn simd_vector_length() -> usize {
+    VS
+}
 
 use crate::UnaryFnC;
 
@@ -55,7 +59,7 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TA, TB, TC, TA, TC, 2, 2, 2, 1);
+def_kernel_bb_v0!(TA, TB, TC, TA, TC, F, 2, 2);
 
 use glar_base::def_kernel_bs;
 
@@ -65,7 +69,7 @@ use super::pack_sse::packa_panel_2;
 
 use glar_base::def_kernel_sb_v0;
 
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_2, 2, 2, 2, 1);
+def_kernel_sb_v0!(TA, TB, TC, TA, TC, T, packa_panel_2, 1, 2, 2);
 
 // #[target_feature(enable = "sse")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(

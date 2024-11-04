@@ -6,6 +6,7 @@ pub(crate) use asm_ukernel::*;
 // pub(crate) use axpy_kernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 use std::arch::asm;
 
 // use half::f16;
@@ -13,6 +14,10 @@ use std::arch::asm;
 use crate::{TA, TB, TC};
 
 const VS: usize = 32;
+
+// const fn simd_vector_length() -> usize {
+//     VS
+// }
 
 use crate::UnaryFnC;
 
@@ -72,7 +77,7 @@ use crate::UnaryFnC;
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(TA, TB, TC, TA, TC, 2, 15, 128, 4, 2, 1);
+def_kernel_bb_pf1!(TA, TB, TC, TA, TC, F, 2, 15, 128, 4);
 
 use glar_base::def_kernel_bs;
 
@@ -82,7 +87,7 @@ use super::pack_avx::packa_panel_64_same;
 
 use glar_base::def_kernel_sb_pf1;
 
-def_kernel_sb_pf1!(TA, TB, TC, TA, TC, packa_panel_64_same, 1, 2, 15, 128, 4, 2, 1);
+def_kernel_sb_pf1!(TA, TB, TC, TA, TC, packa_panel_64_same, 1, 2, 15, 128, 8);
 
 pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
     m: usize,

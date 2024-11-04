@@ -6,6 +6,7 @@ pub(crate) use asm_ukernel::*;
 pub(crate) use axpy_kernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 
 use crate::{TA, TB, TC};
 
@@ -54,14 +55,17 @@ pub unsafe fn axpy<F: UnaryFnC>(
     }
 }
 
+const fn simd_vector_length() -> usize {
+    VS
+}
+
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TC, TC, TC, TC, TC, 3, 2, 3, 2, 1);
+def_kernel_bb_v0!(TC, TC, TC, TC, TC, T, 3, 2);
 
 use super::pack_neon::packa_panel_12;
 
 use glar_base::def_kernel_sb_v0;
-
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, packa_panel_12, 1, 3, 2, 3, 2, 1);
+def_kernel_sb_v0!(TA, TB, TC, TA, TC, T, packa_panel_12, 1, 3, 2);
 
 // #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(

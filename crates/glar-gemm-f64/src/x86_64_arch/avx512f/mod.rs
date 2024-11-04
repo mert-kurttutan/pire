@@ -4,6 +4,7 @@ pub mod asm_ukernel;
 pub(crate) use asm_ukernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 use std::arch::asm;
 
 use crate::{TA, TB, TC};
@@ -14,7 +15,7 @@ use crate::UnaryFnC;
 
 use glar_base::def_kernel_bb_pf1;
 
-def_kernel_bb_pf1!(f64, f64, f64, f64, f64, 3, 8, 64, 16, 3, 2, 1);
+def_kernel_bb_pf1!(f64, f64, f64, f64, f64, F, 3, 8, 64, 16);
 
 use glar_base::def_kernel_bs;
 
@@ -23,7 +24,7 @@ def_kernel_bs!(f64, f64, f64, f64, f64, 3, 8, 3, 2, 1);
 use super::pack_avx::packa_panel_24;
 use glar_base::def_kernel_sb_pf1;
 
-def_kernel_sb_pf1!(f64, f64, f64, f64, f64, packa_panel_24, 1, 3, 8, 96, 8, 3, 2, 1);
+def_kernel_sb_pf1!(f64, f64, f64, f64, f64, packa_panel_24, 1, 3, 8, 96, 8);
 
 pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
     m: usize,

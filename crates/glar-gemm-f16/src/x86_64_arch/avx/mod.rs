@@ -7,9 +7,14 @@ pub(crate) use asm_ukernel::*;
 pub(crate) use axpy_kernel::*;
 
 use paste::paste;
+use seq_macro::seq;
 use std::arch::asm;
 
 const VS: usize = 8;
+
+const fn simd_vector_length() -> usize {
+    VS
+}
 
 use crate::UnaryFnC;
 
@@ -57,74 +62,12 @@ pub unsafe fn axpy<F: UnaryFnC>(
         f.call(y_cur, 1);
     }
 }
+type TA = f32;
+type TB = f32;
+type TC = f16;
 
-macro_rules! def_kernel_bb {
-    ($MR:tt, $NR:tt, $($mr_left:tt),*) => {
-        paste! {
-            #[target_feature(enable = "avx")]
-            pub unsafe fn [<kernel_$MR x $NR _bb>]<F: UnaryFnC, const STRIDED: bool>(
-                m: usize, n: usize, k: usize,
-                alpha: *const f32,
-                beta: *const f32,
-                c: *mut f16, c_rs: usize, c_cs: usize,
-                ap: *const f32, bp: *const f32,
-                f: F,
-            ) {
-                const MR: usize = $MR;
-                const NR: usize = $NR;
-                let m_rounded = m / MR * MR;
-                let n_rounded = n / NR * NR;
-                let m_left = m % MR;
-                let n_left = n % NR;
-
-                let d_arr = [0, 0, c_rs];
-
-                let mut m_i = 0;
-                while m_i < m_rounded {
-                    let c_cur0 = c.add(m_i * c_rs);
-                    let ap_cur = ap.add(m_i * k);
-                    let mut n_i = 0;
-                    while n_i < n_rounded {
-                        let bp_cur = bp.add(n_i * k);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x $NR _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, f);
-                        n_i += NR;
-                    }
-                    if n_left != 0 {
-                        let bp_cur = bp.add(n_i * k);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        [<ukernel_$MR x n _bb>]::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
-                    }
-                    m_i += MR;
-                }
-
-
-                $(
-                    if (m_left+VS-1) / VS * VS == $mr_left {
-                        let c_cur0 = c.add(m_i * c_rs);
-                        let ap_cur = ap.add(m_i * k);
-                        let mut n_i = 0;
-                        while n_i < n_rounded {
-                            let bp_cur = bp.add(n_i * k);
-                            let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x $NR _bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, f);
-                            n_i += NR;
-                        }
-                        if n_left !=0 {
-                            let bp_cur = bp.add(n_i * k);
-                            let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left x n_bb>]::<_, true>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
-                        }
-                    }
-                )*
-
-                asm!("vzeroupper");
-            }
-        }
-    };
-}
-
-def_kernel_bb!(16, 4, 16, 8);
+use glar_base::def_kernel_bb_v0;
+def_kernel_bb_v0!(TA, TB, TC, TA, TA, T, 2, 4);
 
 // #[target_feature(enable = "avx,fma")]
 pub(crate) unsafe fn kernel<F: UnaryFnC>(
@@ -141,8 +84,9 @@ pub(crate) unsafe fn kernel<F: UnaryFnC>(
     f: F,
 ) {
     if c_rs == 1 {
-        kernel_16x4_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     } else {
-        kernel_16x4_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
     }
+    asm!("vzeroupper");
 }

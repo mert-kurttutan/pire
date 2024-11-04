@@ -35,7 +35,7 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize,
     let hw_config = &*RUNTIME_HW_CONFIG;
     if hw_config.cpu_ft.sve {
         let vs = unsafe { sve_vs() };
-        pack_sve::packa_panel(m, k, x, rs, cs, y, vs, vs);
+        pack_sve::packa_panel(m, k, x, rs, cs, y, vs);
     } else {
         pack_neon::packa_panel_12(m, k, x, rs, cs, y, NEON_VS);
     }
@@ -167,18 +167,16 @@ unsafe fn kernel<F: UnaryFnC>(
     bp: *const TB,
     kc_last: bool,
 ) {
-    let mr = hw_cfg.mr;
-    let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, hw_cfg.func),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, null_fn),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -219,20 +217,16 @@ unsafe fn kernel_n<F: UnaryFnC>(
     c_cs: usize,
     kc_last: bool,
 ) {
-    let mr = hw_cfg.mr;
-    let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Sve => {
-                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
-            }
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
