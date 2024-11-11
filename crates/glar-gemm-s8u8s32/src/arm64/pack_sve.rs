@@ -477,10 +477,6 @@ macro_rules! def_packb {
     };
 }
 
-fn simd_vector_length() -> usize {
-    4
-}
-
 // def_packb!(4);
 // def_packb!(8);
 def_packb!(12);
@@ -494,9 +490,9 @@ macro_rules! def_packa {
             pub(crate) unsafe fn packa_panel(
                 m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA, mr: usize,
+                ap: *mut TA, vs: usize,
             ) {
-                let vs = simd_vector_length();
+                let mr = vs * $mr;
                 let k_eff = (k+7) / 8 * 8;
                 let ap0 = ap;
                 let a0 = a;
@@ -551,4 +547,4 @@ macro_rules! def_packa {
     };
 }
 
-def_packa!(16);
+def_packa!(2);

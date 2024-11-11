@@ -122,12 +122,6 @@ macro_rules! def_packb {
 
 def_packb!(8);
 
-// def_packb!(6);
-
-fn simd_vector_length() -> usize {
-    4
-}
-
 macro_rules! def_packa {
     () => {
         paste! {
@@ -135,9 +129,9 @@ macro_rules! def_packa {
             pub(crate) unsafe fn packa_panel(
                 m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA, mr: usize,
+                ap: *mut TA, vs: usize,
             ) {
-                let vs = simd_vector_length();
+                let mr = vs * 3;
                 let ap0 = ap;
                 let a0 = a;
                 let m_rounded = m / mr * mr;

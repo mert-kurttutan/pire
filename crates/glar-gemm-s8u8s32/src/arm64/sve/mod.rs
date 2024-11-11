@@ -10,9 +10,8 @@ use seq_macro::seq;
 
 use crate::{TA, TB, TC};
 
-// const VS: usize = 16;
-fn simd_vector_length() -> usize {
-    8
+unsafe fn simd_vector_length() -> usize {
+    super::sve_vs()
 }
 
 use crate::UnaryFnC;
@@ -99,13 +98,12 @@ pub unsafe fn axpy2<F: UnaryFnC>(
     }
 }
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, f32, T, 2, 12);
+def_kernel_bb_v0!(i8, u8, i32, f32, f32, F, 2, 12);
 
 use super::pack_sve::packa_panel;
 
 use glar_base::def_kernel_sb_v0;
-
-def_kernel_sb_v0!(i8, u8, i32, f32, f32, T, packa_panel, 1, 2, 12);
+def_kernel_sb_v0!(i8, u8, i32, f32, f32, F, packa_panel, 8, 2, 12);
 
 // #[target_feature(enable = "neon")]
 pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(

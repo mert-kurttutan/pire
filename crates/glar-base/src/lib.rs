@@ -177,9 +177,9 @@ fn detect_hw_config() -> HWConfig {
         let avx2 = extended_feature_info.has_avx2();
         let avx512f16 = extended_feature_info.has_avx512_fp16();
         // let avx512bf16 = extended_feature_info.has_avx512_bf16();
-        let avx512f = extended_feature_info.has_avx512f() && false;
-        let avx512bw = extended_feature_info.has_avx512bw() && false;
-        let avx512_vnni = extended_feature_info.has_avx512vnni() && false;
+        let avx512f = extended_feature_info.has_avx512f();
+        let avx512bw = extended_feature_info.has_avx512bw();
+        let avx512_vnni = extended_feature_info.has_avx512vnni();
         let f16c = feature_info.has_f16c();
         let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
         let fma4 = extended_prcoessor_info.has_fma4();
@@ -4390,12 +4390,12 @@ macro_rules! def_ukernel_neon {
             };
             let _ = 'blk: {
                 seq!(ni in $n0..$n1 {
-                    if BUF {
-                        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                        dim_arr[2] = MR*TC_SIZE;
-                        cf = c_buf.as_mut_ptr();
-                    }
                     if glar_base::n_cond!($n0, ni, n) {
+                        if BUF {
+                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            dim_arr[2] = MR*TC_SIZE;
+                            cf = c_buf.as_mut_ptr();
+                        }
                         asm!(
                             prefetch_c!(),
                             vzero_kernel!(),
@@ -4460,6 +4460,145 @@ macro_rules! def_ukernel_neon {
                             betax = inout(reg) beta => _,
                             alpha_st = in(reg) alpha_st,
                             beta_st = in(reg) beta_st,
+                            x0 = out(reg) _,
+                            x1 = out(reg) _,
+                            x2 = out(reg) _,
+                            x3 = out(reg) _,
+                            x4 = out(reg) _,
+                            x5 = out(reg) _,
+                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
+                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
+                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+                        );
+                        break 'blk;
+                    }
+                });
+            };
+            if BUF {
+                for j in 0..n {
+                    f.call(cf.add(j*MR), MR);
+                }
+                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+            } else {
+                for j in 0..n {
+                    f.call(cf.add(j*c_cs), m);
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! def_ukernel_neon_alt {
+    (
+        $step_macro:tt,
+        $acc_macro:tt,
+        $store_macro:tt,
+        $mr:tt, $nr:tt,
+        $n0:tt, $n1:tt,
+        $b_layout:tt,
+        $is_partial:tt,
+        $func_name:ident
+    ) => {
+        #[target_feature(enable="neon")]
+        pub(crate) unsafe fn $func_name<F: UnaryFnC, const BUF: bool>(
+            a: *const TA, b: *const TB, c: *mut TC,
+            alpha: *const TA, beta: *const TB,
+            k: usize,
+            d_arr: [usize; 3], c_cs: usize,
+            m: usize, n: usize,
+            f: F,
+        ) {
+            alt_arr!(alt);
+            const MR: usize = $mr * VS;
+            use core::mem::size_of;
+            let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
+            let mut cf = c;
+            let mut c_buf = [ZERO;MR*$nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
+            let beta_st = if *beta == ZERO_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
+            let _ = 'blk: {
+                seq!(ni in $n0..$n1 {
+                    if glar_base::n_cond!($n0, ni, n) {
+                        if BUF {
+                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            dim_arr[2] = MR*TC_SIZE;
+                            cf = c_buf.as_mut_ptr();
+                        }
+                        asm!(
+                            prefetch_c!(),
+                            vzero_kernel!(),
+
+                            asm_init_ab!($b_layout),
+
+                            // 3 -> CONSIDKLEFT
+                            "BEQ 3f",
+
+                            // 2 -> KITER
+                            "2:",
+                            prefetch_0!(128, "{bx}"),
+                            $step_macro!(ni, $b_layout),
+                            $step_macro!(ni, $b_layout),
+                            $step_macro!(ni, $b_layout),
+                            $step_macro!(ni, $b_layout),
+
+                            "sub {x0}, {x0}, #1",
+                            // 2 -> KITER
+                            "cmp {x0}, 0",
+                            "BNE 2b",
+
+                            // 3 -> CONSIDKLEFT
+                            "3:",
+                            "ldr {x0}, [{dim_arrx}, #32]",
+                            "cmp {x0}, #0",
+
+                            // 5 -> POSTACCUM
+                            "BEQ 5f",
+                            // 4 -> KLEFT
+                            "4:",
+                            $step_macro!(ni, $b_layout),
+
+                            "sub {x0}, {x0}, #1",
+
+                            // 4 -> KLEFT
+                            "cmp {x0}, 0",
+                            "BNE 4b",
+
+                            // 5 -> POSTACCUM
+                            "5:",
+                            asm_c_load!(ni),
+                            // scale by alpha
+                            asm_alpha_scale!($mr, ni),
+
+                            "cmp {beta_st:w}, #0", "\n",
+                            "BEQ 6f",
+
+                            load_beta!(),
+
+                            cum_seq!($acc_macro,ni,$is_partial,2),
+
+                            // 6 -> BETAZERO
+                            "6:",
+                            cum_seq!($store_macro,ni,$is_partial),
+
+                            ax = inout(reg) a => _,
+                            bx = inout(reg) b => _,
+                            cx = inout(reg) cf => _,
+                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                            alphax = inout(reg) alpha => _,
+                            betax = inout(reg) beta => _,
+                            alpha_st = in(reg) alpha_st,
+                            beta_st = in(reg) beta_st,
+                            altx = inout(reg) alt.as_ptr() => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,
@@ -4649,7 +4788,7 @@ macro_rules! def_ukernel_neon_i8mm {
         ) {
             const MR: usize = $mr * VS;
             use core::mem::size_of;
-            let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
+            let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 32, (k % 32) / 8];
             let mut cf = c;
             let mut c_buf = [ZERO;MR*$nr];
             let alpha_st = if *alpha == ONE_SCALAR {
@@ -4659,17 +4798,19 @@ macro_rules! def_ukernel_neon_i8mm {
             };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
-            } else {
+            } else if *beta == ONE_SCALAR {
                 1i32
+            } else {
+                2i32
             };
             let _ = 'blk: {
                 seq!(ni in $n0..$n1 {
-                    if BUF {
-                        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                        dim_arr[2] = MR*TC_SIZE;
-                        cf = c_buf.as_mut_ptr();
-                    }
                     if glar_base::n_cond!($n0, ni, n) {
+                        if BUF {
+                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            dim_arr[2] = MR*TC_SIZE;
+                            cf = c_buf.as_mut_ptr();
+                        }
                         asm!(
                             prefetch_c!(),
                             vzero_kernel!(),
@@ -4718,9 +4859,16 @@ macro_rules! def_ukernel_neon_i8mm {
                             "cmp {beta_st:w}, #0", "\n",
                             "BEQ 6f",
 
-                            load_beta!(),
+                            "cmp {beta_st:w}, #1", "\n",
+                            "BEQ 9f",
 
+                            load_beta!(),
                             cum_seq!($acc_macro,ni,$is_partial,2),
+                            "B 6f",
+
+                            "9:",
+                            // 9 -> BETAONE
+                            cum_seq!($acc_macro,ni,$is_partial,1),
 
                             // 6 -> BETAZERO
                             "6:",
@@ -4819,8 +4967,10 @@ macro_rules! def_ukernel_sve {
                     if glar_base::n_cond!($n0, ni, n) {
                         asm!(
                             "ptrue p0.h",
-                            "/* {m_s} */", "\n",
+                            "mov {m_s}, #0",
                             "/* {m_e} */", "\n",
+                            // // multiply {m_e} by 2
+                            // "lsl {m_e}, {m_e}, #1", "\n",
                             prefetch_c!(),
                             vzero_kernel!(),
 
@@ -4885,8 +5035,8 @@ macro_rules! def_ukernel_sve {
                             incax = in(reg) inc_a as u64,
                             alpha_st = in(reg) alpha_st,
                             beta_st = in(reg) beta_st,
-                            m_s = in(reg) 0 as u64,
-                            m_e = in(reg) (m %vs) as u64,
+                            m_s = out(reg) _,
+                            m_e = inout(reg) (m %vs) as u64 => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,
@@ -4943,9 +5093,9 @@ macro_rules! def_ukernel_sve_i8mm {
         ) {
             use core::mem::size_of;
             let vs = sve_vs();
-            let inc_a = vs * $mr * size_of::<TA>();
+            let inc_a = $mr * vs * size_of::<TA>() * 8;
             let mr = $mr * vs;
-            let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
+            let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 32, (k % 32) / 8];
             let mut cf = c;
             let mut c_buf = [ZERO;(256/size_of::<TC>())*$mr*$nr];
             let alpha_st = if *alpha == ONE_SCALAR {
@@ -4955,12 +5105,14 @@ macro_rules! def_ukernel_sve_i8mm {
             };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
-            } else {
+            } else if *beta == ONE_SCALAR {
                 1i32
+            } else {
+                2i32
             };
             let _ = 'blk: {
                 seq!(ni in $n0..$n1 {
-                    // usingy dynamic n leads to bug due sve on windows
+                    // usingy dynamic n leads to bug due to llvm bug sve on windows
                     // see: https://github.com/llvm/llvm-project/issues/80009
                     if BUF {
                         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);

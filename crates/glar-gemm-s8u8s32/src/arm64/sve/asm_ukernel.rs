@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, mem, def_ukernel_sve_i8mm};
+use super::super::sve_vs;
 
 const ZERO: TC = 0i32;
 
@@ -716,17 +717,6 @@ macro_rules! prefetch_c {
     };
 }
 
-#[inline(always)]
-unsafe fn sve_vs() -> usize {
-    // use cntw instruction to get the number of vector length
-    let sve_vs: u64;
-    asm!(
-        "cntw {x0}, all",
-        x0 = out(reg) sve_vs,
-    );
-    sve_vs as usize
-}
-
 const MAX_VS: usize = 64;
 
 def_ukernel_sve_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, 12, 13, B, M, ukernel_1_bbp);
@@ -748,10 +738,10 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
     f: F,
 ) {
     let vs = sve_vs();
-    let inc_a = vs * 2 * 4 * 2;
-    let (k_i, k_l) = (k / 32, (k % 32) / 8);
-    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, c_cs*TC_SIZE, k_i, k_l];
+    let inc_a = 2 * vs * 8;
+    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, c_cs*TC_SIZE, k / 32, (k % 32) / 8];
     let mut cf = c;
+    let mr = vs * 2;
     let mut c_buf = [0i32; MAX_VS * 2 * 6];
     let alpha_st = if *alpha == 1f32 {
         0i32
@@ -766,7 +756,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         2i32
     };
     if BUF {
-        let mr = vs * 2;
         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 12, mr);
         dim_arr[2] = mr*TC_SIZE;
         cf = c_buf.as_mut_ptr();
@@ -870,7 +859,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
     );
     if BUF {
-        let mr = vs * 2;
         for j in 0..12 {
             f.call(cf.add(j*mr), mr);
         }

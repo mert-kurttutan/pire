@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, mem, cum_seq, def_ukernel_sve};
+use super::super::sve_vs;
 
 use half::f16;
 
@@ -168,8 +169,8 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-            storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
+            storep_unit!(C, $r1, mem!($m0)),
+            storep_unit!(C, $r2, mem!($m0, "1", "MUL VL")),
             "whilelo p1.h, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r3, mem!($m0, "2", "MUL VL")),
         )
@@ -182,7 +183,7 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
+            storep_unit!(C, $r1, mem!($m0)),
             "whilelo p1.h, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
         )
@@ -730,15 +731,10 @@ macro_rules! prefetch_c {
     };
 }
 
-#[inline(always)]
-unsafe fn sve_vs() -> usize {
-    16
-}
-
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, M, ukernel_1_bbp);
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 1, 8, B, M, ukernel_1xn_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 3, 8, 8, 9, B, M, ukernel_2_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 3, 8, 1, 8, B, M, ukernel_2xn_bbp);
+def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 8, 9, B, M, ukernel_2_bbp);
+def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 1, 8, B, M, ukernel_2xn_bbp);
 
 def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, B, M, ukernel_3_bbp);
 def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, M, ukernel_3xn_bbp);
@@ -757,7 +753,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
 ) {
     let vs = sve_vs();
     let mr = vs * 3;
-    let inc_a = mr * 4;
+    let inc_a = mr * 2;
     let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
     let mut cf = c;
     let mut c_buf = [f16::ZERO; 2048 * 3 * 4];

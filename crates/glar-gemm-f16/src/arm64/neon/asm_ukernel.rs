@@ -2,9 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon_fp16, mem};
-use half::f16;
-
-const VS: usize = 8;
+use super::VS;
 
 const ZERO: TC = TC::ZERO;
 
@@ -250,29 +248,7 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
-    };
-}
-
-macro_rules! inc_a_k_unroll {
-    (C, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {ax}, {ax}, #2*", $K, "*", $X, " \n",
-        )
-    };
-}
-
-macro_rules! inc_b_k_unroll {
-    (S, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {bx}, {bx}, #2*", $K, "*", $X, " \n",
-        )
+        concat!("add {bx}, {bx}, #2*", $nr, " \n")
     };
 }
 
@@ -572,7 +548,8 @@ macro_rules! step_3x4 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(3),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #2*3*16 \n",
+                load_b!($b_layout, 6),
                 #(
                     fmadd_3v!(n),
                 )*
@@ -588,7 +565,8 @@ macro_rules! step_2x6 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(2),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #2*2*16 \n",
+                load_b!($b_layout, 4),
                 #(
                     fmadd_2v!(n),
                 )*
@@ -604,7 +582,8 @@ macro_rules! step_1x6 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(1),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #2*1*16 \n",
+                load_b!($b_layout, 2),
                 #(
                     fmadd_1v!(n),
                 )*

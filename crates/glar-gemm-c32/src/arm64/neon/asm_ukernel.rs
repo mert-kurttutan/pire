@@ -1,9 +1,14 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
-use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon, mem};
+use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon_alt, mem};
+use super::VS;
 
-const VS: usize = 4;
+macro_rules! alt_arr {
+    ($vec_name:ident) => {
+        let $vec_name = [-1.0f32, 1.0f32, -1.0f32, 1.0f32];
+    }
+}
 
 const ZERO: TC = TC::ZERO;
 
@@ -80,6 +85,7 @@ macro_rules! complex_mul {
 macro_rules! asm_alpha_scale_0 {
     ($mr:tt,$nr:tt) => {
         concat!(
+            permute_complex!($mr,$nr),
             // check if s1 is 0 bit
             "cmp {alpha_st:w}, #0", "\n",
 
@@ -311,45 +317,13 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
-    };
-}
-
-macro_rules! inc_a_k_unroll {
-    (C, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {ax}, {ax}, #8*", $K, "*", $X, " \n",
-        )
-    };
-}
-
-macro_rules! inc_b_k_unroll {
-    (S, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {bx}, {bx}, #8*", $K, "*", $X, " \n",
-        )
+        concat!("add {bx}, {bx}, #8*", $nr, " \n")
     };
 }
 
 macro_rules! asm_alpha_scale {
     ($mr:tt, $nr:tt) => {
         asm_alpha_scale_0!(8,31)
-    };
-    (8, 1) => {
-        asm_alpha_scale_0!(4,5)
-    };
-
-    (4, 2) => {
-        asm_alpha_scale_0!(4,5)
-    };
-    (4, 1) => {
-        asm_alpha_scale_0!(4,4)
     };
 }
 
@@ -500,50 +474,50 @@ macro_rules! fmadd_3v {
 macro_rules! fmadd_2v {
     (0,0) => {
         concat!(
-            vfmadd!(0, 6, 8, 0),
-            vfmadd!(1, 6, 10, 0),
-            vfmadd!(2, 6, 12, 0),
-            vfmadd!(3, 6, 14, 0),
+            vfmadd!(0, 4, 8, 0),
+            vfmadd!(1, 4, 10, 0),
+            vfmadd!(2, 4, 12, 0),
+            vfmadd!(3, 4, 14, 0),
         )
     };
     (0,1) => {
         concat!(
-            vfmadd!(0, 6, 9, 1),
-            vfmadd!(1, 6, 11, 1),
-            vfmadd!(2, 6, 13, 1),
-            vfmadd!(3, 6, 15, 1),
+            vfmadd!(0, 4, 9, 1),
+            vfmadd!(1, 4, 11, 1),
+            vfmadd!(2, 4, 13, 1),
+            vfmadd!(3, 4, 15, 1),
         )
     };
     (1,0) => {
         concat!(
-            vfmadd!(0, 6, 16, 2),
-            vfmadd!(1, 6, 18, 2),
-            vfmadd!(2, 6, 20, 2),
-            vfmadd!(3, 6, 22, 2),
+            vfmadd!(0, 4, 16, 2),
+            vfmadd!(1, 4, 18, 2),
+            vfmadd!(2, 4, 20, 2),
+            vfmadd!(3, 4, 22, 2),
         )
     };
     (1,1) => {
         concat!(
-            vfmadd!(0, 6, 17, 3),
-            vfmadd!(1, 6, 19, 3),
-            vfmadd!(2, 6, 21, 3),
-            vfmadd!(3, 6, 23, 3),
+            vfmadd!(0, 4, 17, 3),
+            vfmadd!(1, 4, 19, 3),
+            vfmadd!(2, 4, 21, 3),
+            vfmadd!(3, 4, 23, 3),
         )
     };
     (2,0) => {
         concat!(
-            vfmadd!(0, 7, 24, 0),
-            vfmadd!(1, 7, 26, 0),
-            vfmadd!(2, 7, 28, 0),
-            vfmadd!(3, 7, 30, 0),
+            vfmadd!(0, 5, 24, 0),
+            vfmadd!(1, 5, 26, 0),
+            vfmadd!(2, 5, 28, 0),
+            vfmadd!(3, 5, 30, 0),
         )
     };
     (2,1) => {
         concat!(
-            vfmadd!(0, 7, 25, 1),
-            vfmadd!(1, 7, 27, 1),
-            vfmadd!(2, 7, 29, 1),
-            vfmadd!(3, 7, 31, 1),
+            vfmadd!(0, 5, 25, 1),
+            vfmadd!(1, 5, 27, 1),
+            vfmadd!(2, 5, 29, 1),
+            vfmadd!(3, 5, 31, 1),
         )
     };
 }
@@ -552,38 +526,38 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0,0) => {
         concat!(
-            vfmadd!(0, 6, 8, 0),
-            vfmadd!(1, 6, 10, 0),
+            vfmadd!(0, 2, 8, 0),
+            vfmadd!(1, 2, 10, 0),
         )
     };
     (0,1) => {
         concat!(
-            vfmadd!(0, 6, 9, 1),
-            vfmadd!(1, 6, 11, 1),
+            vfmadd!(0, 2, 9, 1),
+            vfmadd!(1, 2, 11, 1),
         )
     };
     (1,0) => {
         concat!(
-            vfmadd!(0, 6, 12, 2),
-            vfmadd!(1, 6, 14, 2),
+            vfmadd!(0, 2, 12, 2),
+            vfmadd!(1, 2, 14, 2),
         )
     };
     (1,1) => {
         concat!(
-            vfmadd!(0, 6, 13, 3),
-            vfmadd!(1, 6, 15, 3),
+            vfmadd!(0, 2, 13, 3),
+            vfmadd!(1, 2, 15, 3),
         )
     };
     (2,0) => {
         concat!(
-            vfmadd!(0, 7, 14, 0),
-            vfmadd!(1, 7, 16, 0),
+            vfmadd!(0, 3, 14, 0),
+            vfmadd!(1, 3, 16, 0),
         )
     };
     (2,1) => {
         concat!(
-            vfmadd!(0, 7, 15, 1),
-            vfmadd!(1, 7, 17, 1),
+            vfmadd!(0, 3, 15, 1),
+            vfmadd!(1, 3, 17, 1),
         )
     };
 }
@@ -595,7 +569,8 @@ macro_rules! step_3x2 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(3),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #8*3*4 \n",
+                load_b!($b_layout, 6),
                 #(
                     fmadd_3v!(n,0),
                     fmadd_3v!(n,1),
@@ -612,8 +587,8 @@ macro_rules! step_2x3 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(2),
-                load_b!($b_layout, 0),
-                load_b!($b_layout, 2),
+                "add {ax}, {ax}, #8*2*4 \n",
+                load_b!($b_layout, 4),
                 #(
                     fmadd_2v!(n,0),
                     fmadd_2v!(n,1),
@@ -630,7 +605,7 @@ macro_rules! step_1x3 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(1),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #8*1*4 \n",
                 load_b!($b_layout, 2),
                 #(
                     fmadd_1v!(n,0),
@@ -667,14 +642,14 @@ macro_rules! prefetch_c {
     };
 }
 
-def_ukernel_neon!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_bbc);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_bbc);
 
-def_ukernel_neon!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_3_bbp);
-def_ukernel_neon!(step_2x3, acc_2x3, store_2x3, 2, 2, 2, 3, B, C, ukernel_2_bbp);
-def_ukernel_neon!(step_1x3, acc_1x3, store_1x3, 1, 2, 2, 3, B, C, ukernel_1_bbp);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_3_bbp);
+def_ukernel_neon_alt!(step_2x3, acc_2x3, store_2x3, 2, 2, 2, 3, B, C, ukernel_2_bbp);
+def_ukernel_neon_alt!(step_1x3, acc_1x3, store_1x3, 1, 2, 2, 3, B, C, ukernel_1_bbp);
 
-def_ukernel_neon!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_n_bbc);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_n_bbc);
 
-def_ukernel_neon!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_3xn_bbp);
-def_ukernel_neon!(step_2x3, acc_2x3, store_2x3, 2, 2, 1, 2, B, C, ukernel_2xn_bbp);
-def_ukernel_neon!(step_1x3, acc_1x3, store_1x3, 1, 2, 1, 2, B, C, ukernel_1xn_bbp);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_3xn_bbp);
+def_ukernel_neon_alt!(step_2x3, acc_2x3, store_2x3, 2, 2, 1, 2, B, C, ukernel_2xn_bbp);
+def_ukernel_neon_alt!(step_1x3, acc_1x3, store_1x3, 1, 2, 1, 2, B, C, ukernel_1xn_bbp);

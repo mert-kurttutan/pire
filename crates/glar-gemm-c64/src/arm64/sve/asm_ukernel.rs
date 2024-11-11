@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sve, mem, cum_seq};
+use super::super::sve_vs;
 
 const ZERO: TC = TC::ZERO;
 
@@ -68,9 +69,9 @@ macro_rules! complex_mul {
         concat!(
             vzeroall!(4,4),
             "fcmla z4.d, p0/m, z", $r0, ".d, z7.d, #0\n",
-            "fcmla z", $r0, ".d, p0/m, z", $r0, ".d, z7.d, #90\n",
-
-            "fadd z", $r0, ".d, z", $r0, ".d, z4.d\n",
+            "fcmla z4.d, p0/m, z", $r0, ".d, z7.d, #90\n",
+            // copy from z4 to $r0
+            "mov z", $r0, ".d, z4.d\n",
         )
     };
 }
@@ -204,8 +205,8 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-            storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
+            storep_unit!(C, $r1, mem!($m0)),
+            storep_unit!(C, $r2, mem!($m0, "1", "MUL VL")),
             "whilelo p1.d, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r3, mem!($m0, "2", "MUL VL")),
         )
@@ -218,7 +219,7 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
+            storep_unit!(C, $r1, mem!($m0)),
             "whilelo p1.d, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
         )
@@ -259,6 +260,8 @@ macro_rules! asm_init_ab {
             "/* {x2} */", "\n",
 
             "/* {x1} */", "\n",
+            // // multiply {m_e} by 2
+            "lsl {m_e}, {m_e}, #1", "\n",
 
             "ldr {x0}, [{dim_arrx}, #24]", "\n",
             "cmp {x0}, #0",
@@ -266,6 +269,8 @@ macro_rules! asm_init_ab {
     };
     (S) => {
         concat!(
+            // multiply {m_e} by 2
+            "lsl {m_e}, {m_e}, #1", "\n",
             // mov cs_b to reg
             "mov ({dim_arrx}), {x1}", "\n",
             // "mov 8({dim_arrx}), {x2}", "\n",
@@ -457,49 +462,49 @@ macro_rules! store_1x8 {
 macro_rules! load_b {
     (B, 0) => {
         concat!(
-            "ld1rqd {{ z3.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 1) => {
         concat!(
-            "ld1rqd {{ z4.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 2) => {
         concat!(
-            "ld1rqd {{ z5.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 3) => {
         concat!(
-            "ld1rqd {{ z6.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z6.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 4) => {
         concat!(
-            "ld1rqd {{ z7.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z7.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 5) => {
         concat!(
-            "ld1rqd {{ z3.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 6) => {
         concat!(
-            "ld1rqd {{ z4.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
     (B, 7) => {
         concat!(
-            "ld1rqd {{ z5.d }}, p2/z, [{bx}]", "\n",
+            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*16 \n",
         )
     };
@@ -744,12 +749,6 @@ macro_rules! prefetch_c {
     };
 }
 
-#[inline(always)]
-unsafe fn sve_vs() -> usize {
-    4
-}
-
-
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, M, ukernel_1_bbp);
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 1, 8, B, M, ukernel_1xn_bbp);
 def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 8, 9, B, M, ukernel_2_bbp);
@@ -793,7 +792,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         cf = c_buf.as_mut_ptr();
     }
     asm!(
-        "ptrue p2.d",
         "ptrue p0.d",
         "ptrue p0.s",
         vzero_kernel!(),
@@ -876,13 +874,13 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         x5 = out(reg) _,
         x6 = out(reg) _,
         x7 = out(reg) _,
+        m_e = inout(reg) m as u64 => _,
         out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
         out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
         out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
         out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
     );
     if BUF {
-        let mr = sve_vs() * 3;
         for j in 0..8 {
             f.call(cf.add(j*mr), mr);
         }

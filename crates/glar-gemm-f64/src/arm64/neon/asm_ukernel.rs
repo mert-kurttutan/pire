@@ -2,9 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon, mem};
-
-const VS: usize = 2;
-
+use super::VS;
 
 const ZERO: TC = 0f64;
 
@@ -249,29 +247,7 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
-    };
-}
-
-macro_rules! inc_a_k_unroll {
-    (C, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {ax}, {ax}, #8*", $K, "*", $X, " \n",
-        )
-    };
-}
-
-macro_rules! inc_b_k_unroll {
-    (S, $X:tt, $K:tt) => {
-        ""
-    };
-    (B, $X:tt, $K:tt) => {
-        concat!(
-            "add {bx}, {bx}, #8*", $K, "*", $X, " \n",
-        )
+        concat!("add {bx}, {bx}, #8*", $nr, " \n")
     };
 }
 
@@ -421,6 +397,12 @@ macro_rules! load_b {
             "ldr q", $r, ", [{bx}]", "\n",
         )
     };
+    (B, $r1:expr, $r2:expr) => {
+        concat!(
+            "ldr q", $r1, ", [{bx}]", "\n",
+            "ldr q", $r2, ", [{bx}, #0x10]", "\n",
+        )
+    };
 }
 
 
@@ -516,10 +498,10 @@ macro_rules! fmadd_2v {
     };
     (5) => {
         concat!(
-            vfmadd!(0, 7, 28, 1),
-            vfmadd!(1, 7, 29, 1),
-            vfmadd!(2, 7, 30, 1),
-            vfmadd!(3, 7, 31, 1),
+            vfmadd!(0, 6, 28, 1),
+            vfmadd!(1, 6, 29, 1),
+            vfmadd!(2, 6, 30, 1),
+            vfmadd!(3, 6, 31, 1),
         )
     };
 }
@@ -571,7 +553,8 @@ macro_rules! step_3x4 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(3),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #8*3*4 \n",
+                load_b!($b_layout, 6, 7),
                 #(
                     fmadd_3v!(n),
                 )*
@@ -587,7 +570,8 @@ macro_rules! step_2x6 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(2),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #8*2*4 \n",
+                load_b!($b_layout, 4, 5),
                 #(
                     fmadd_2v!(n),
                 )*
@@ -603,7 +587,8 @@ macro_rules! step_1x6 {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(1),
-                load_b!($b_layout, 0),
+                "add {ax}, {ax}, #8*1*4 \n",
+                load_b!($b_layout, 2, 3),
                 #(
                     fmadd_1v!(n),
                 )*

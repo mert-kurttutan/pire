@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sve, mem, cum_seq};
+use super::super::sve_vs;
 
 const ZERO: TC = TC::ZERO;
 
@@ -211,8 +212,8 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-            storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
+            storep_unit!(C, $r1, mem!($m0)),
+            storep_unit!(C, $r2, mem!($m0, "1", "MUL VL")),
             "whilelo p1.d, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r3, mem!($m0, "2", "MUL VL")),
         )
@@ -225,7 +226,7 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
+            storep_unit!(C, $r1, mem!($m0)),
             "whilelo p1.d, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
         )
@@ -770,11 +771,6 @@ macro_rules! prefetch_c {
             "prfm pldl1keep, [{x3},#128]\n",
         )
     };
-}
-
-#[inline(always)]
-unsafe fn sve_vs() -> usize {
-    4   
 }
 
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, M, ukernel_1_bbp);

@@ -20,7 +20,7 @@ const SVE_NR: usize = 8;
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     let features = (*RUNTIME_HW_CONFIG).cpu_ft();
-    let (mr, nr) = if features.sve && features.fcma { (unsafe { sve_vs() }, SVE_NR) } else { (NEON_MR, NEON_NR) };
+    let (mr, nr) = if features.sve && features.fcma { (unsafe { sve_vs() * 3 }, SVE_NR) } else { (NEON_MR, NEON_NR) };
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
@@ -52,7 +52,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut TB, n: usize, k: usize,
 
 pub(crate) fn round_m_simd(m: usize) -> usize {
     let features = (*RUNTIME_HW_CONFIG).cpu_ft();
-    let vs = if features.sve { 12 } else { NEON_VS };
+    let vs = if features.sve { unsafe { sve_vs() } } else { NEON_VS };
     (m + vs - 1) / vs * vs
 }
 
@@ -66,14 +66,14 @@ pub(crate) enum RegDim {
 }
 
 #[target_feature(enable = "neon,sve")]
-unsafe fn sve_vs() -> usize {
-    // use cntw instruction to get the number of vector length
+pub(crate) unsafe fn sve_vs() -> usize {
+    // use cntb instruction to get the number of vector length
     let sve_vs: u64;
     core::arch::asm!(
         "cntb {x0}, all",
         x0 = out(reg) sve_vs,
     );
-    ((sve_vs / 8) * 3) as usize
+    (sve_vs / core::mem::size_of::<TC>() as u64) as usize
 }
 
 pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
@@ -99,7 +99,7 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
         let (mr, nr, reg_dim) = if features.sve && features.fcma {
-            (unsafe { sve_vs() }, SVE_NR, RegDim::Sve)
+            (unsafe { sve_vs() * 3 }, SVE_NR, RegDim::Sve)
         } else {
             (NEON_MR, NEON_NR, RegDim::Neon)
         };

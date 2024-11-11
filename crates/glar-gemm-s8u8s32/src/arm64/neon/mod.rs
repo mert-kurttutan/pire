@@ -106,7 +106,6 @@ def_kernel_bb_v0!(i8, u8, i32, f32, f32, T, 2, 12);
 use super::pack_neon::packa_panel_8;
 
 use glar_base::def_kernel_sb_v0;
-
 def_kernel_sb_v0!(i8, u8, i32, f32, f32, T, packa_panel_8, 8, 2, 12);
 
 // #[target_feature(enable = "neon")]

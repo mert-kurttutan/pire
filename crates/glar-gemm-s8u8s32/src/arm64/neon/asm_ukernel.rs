@@ -2,8 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, def_ukernel_neon_i8mm, mem};
-
-const VS: usize = 4;
+use super::VS;
 
 type TS = f32;
 
@@ -118,6 +117,7 @@ macro_rules! asm_alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
+                unzip_c!(),
                 "cmp {alpha_st:w}, #0", "\n",
                 "BEQ 13f", "\n",
 
@@ -752,7 +752,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
     m: usize, _n: usize,
     f: F,
 ) {
-    const MR: usize = 2 * 4;
+    const MR: usize = 2 * VS;
     let (k_i, k_l) = (k / 32, (k % 32) / 8);
     let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, c_cs*TC_SIZE, k_i, k_l];
     let mut cf = c;
@@ -822,8 +822,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         // scale by alpha
         "/* {alphax} */",
         asm_alpha_scale!(2,12),
-
-        unzip_c!(),
 
         "cmp {beta_st:w}, #0", "\n",
         "BEQ 6f",

@@ -2,6 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sve, cum_seq, mem};
+use super::super::sve_vs;
 
 const ZERO: TC = 0.0;
 
@@ -166,8 +167,8 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-            storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
+            storep_unit!(C, $r1, mem!($m0)),
+            storep_unit!(C, $r2, mem!($m0, "1", "MUL VL")),
             "whilelo p1.s, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r3, mem!($m0, "2", "MUL VL")),
         )
@@ -180,7 +181,7 @@ macro_rules! storep {
     };
     (M, $m0:expr, $r1:expr, $r2:expr) => {
         concat!(
-            storep_unit!(M, $r1, mem!($m0)),
+            storep_unit!(C, $r1, mem!($m0)),
             "whilelo p1.s, {m_s}, {m_e}", "\n",
             storep_unit!(M, $r2, mem!($m0, "1", "MUL VL")),
         )
@@ -419,57 +420,57 @@ macro_rules! store_1x8 {
 macro_rules! load_b {
     (B, 1) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*4 \n",
         )
     };
     (B, 2) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #2*4 \n",
         )
     };
     (B, 3) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #3*4 \n",
         )
     };
     (B, 4) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
         )
     };
     (B, 5) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
-            "ld1rqw {{ z6.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z4.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #1*4 \n",
         )
     };
     (B, 6) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
-            "ld1rqw {{ z6.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z4.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #2*4 \n",
         )
     };
     (B, 7) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
-            "ld1rqw {{ z6.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z4.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #3*4 \n",
         )
     };
     (B, 8) => {
         concat!(
-            "ld1rqw {{ z5.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
-            "ld1rqw {{ z6.s }}, p0/z, [{bx}]", "\n",
+            "ld1rqw {{ z4.s }}, p0/z, [{bx}]", "\n",
             "add {bx}, {bx}, #4*4 \n",
         )
     };
@@ -728,24 +729,13 @@ macro_rules! prefetch_c {
     };
 }
 
-#[inline(always)]
-unsafe fn sve_vs() -> usize {
-    // use cntw instruction to get the number of vector length
-    let sve_vs: u64;
-    asm!(
-        "cntw {x0}, all",
-        x0 = out(reg) sve_vs,
-    );
-    sve_vs as usize
-}
-
 const MAX_VS: usize = 64;
 
 
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, M, ukernel_1_bbp);
 def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 1, 8, B, M, ukernel_1xn_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 3, 8, 8, 9, B, M, ukernel_2_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 3, 8, 1, 8, B, M, ukernel_2xn_bbp);
+def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 8, 9, B, M, ukernel_2_bbp);
+def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 1, 8, B, M, ukernel_2xn_bbp);
 
 def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, B, M, ukernel_3_bbp);
 def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, M, ukernel_3xn_bbp);
@@ -765,7 +755,8 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
     f: F,
 ) {
     let vs = sve_vs();
-    let inc_a = vs * 3 * 4;
+    let mr = vs * 3;
+    let inc_a = mr * 4;
     let (k_i, k_l) = (k / 4, k % 4);
     let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, c_cs*TC_SIZE, k_i, k_l];
     let mut cf = c;
@@ -781,7 +772,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         1i32
     };
     if BUF {
-        let mr = vs * 3;
         load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 8, mr);
         dim_arr[2] = mr*TC_SIZE;
         cf = c_buf.as_mut_ptr();
@@ -873,7 +863,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
     );
     if BUF {
-        let mr = vs * 3;
         for j in 0..8 {
             f.call(cf.add(j*mr), mr);
         }
