@@ -1,12 +1,12 @@
 use seq_macro::seq;
 use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, TC_SIZE};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx,
+    c_mem, def_ukernel_avx,
     init_ab_avx, dim_to_reg_avx, c_reg_2x4, c_reg_1x4,
     b_num_2x4, b_num_1x4,
-    cum_seq, load_a_avx, storep_avx, acc_p_avx,
+    load_a_avx, storep_avx, acc_p_avx,
 };
 
 type TS = TC;
@@ -282,8 +282,6 @@ macro_rules! step_1x4 {
         })
     };
 }
-
-use crate::UnaryFnC;
 
 #[inline(always)]
 fn mask_and_offset(m: usize) -> ([u64;8], usize) {

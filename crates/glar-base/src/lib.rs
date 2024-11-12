@@ -1857,19 +1857,30 @@ macro_rules! partial_strided {
     };
 }
 
+pub fn avx_vzeroupper() {
+    #[cfg(target_arch = "x86_64")]
+    if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
+        unsafe {
+            core::arch::asm!("vzeroupper");
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! def_kernel_bb_pf1 {
     (
-        $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty, $no_partial:tt,
+        $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
+        $no_partial:tt,
+        $RS:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt
     ) => {
 
         pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
             m: usize, n: usize, k: usize,
-            alpha: *const $t_as,
-            beta: *const $t_bs,
-            c: *mut $tc, c_rs: usize, c_cs: usize,
-            ap: *const $ta, bp: *const $tb,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            ap: *const $t_ap, bp: *const $t_bp,
             f: F,
         ) {
             const STRIDED_PARTIAL: bool = true;
@@ -1905,7 +1916,7 @@ macro_rules! def_kernel_bb_pf1 {
             }
 
 
-            seq!(mr_left in 1..=$MR {
+            seq_macro::seq!(mr_left in 1..=$MR {
                 if (m_left+VS-1) / VS == mr_left {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
@@ -1913,7 +1924,7 @@ macro_rules! def_kernel_bb_pf1 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left _bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
                         }
                         n_i += NR;
@@ -1921,37 +1932,62 @@ macro_rules! def_kernel_bb_pf1 {
                     if n_left !=0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left xn_bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 }
             });
         }
+
+        pub(crate) unsafe fn kernel<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            ap: *const $t_ap,
+            bp: *const $t_bp,
+            f: F,
+        ) {
+            let k = (k + $RS - 1) / $RS * $RS;
+            if c_rs == 1 {
+                kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            } else {
+                kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            }
+            glar_base::avx_vzeroupper();
+        }
+
     };
 }
 
 #[macro_export]
 macro_rules! def_kernel_bb_v0 {
     (
-        $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty, $no_partial:tt,
+        $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
+        $no_partial:tt,
+        $RS:tt,
         $MR:tt, $NR:tt
     ) => {
         pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
             m: usize, n: usize, k: usize,
-            alpha: *const $t_as,
-            beta: *const $t_bs,
-            c: *mut $tc, c_rs: usize, c_cs: usize,
-            ap: *const $ta, bp: *const $tb,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            ap: *const $t_ap, bp: *const $t_bp,
             f: F,
         ) {
             let vs = simd_vector_length();
             const STRIDED_PARTIAL: bool = true;
-            let MR = $MR * vs;
+            let mr = $MR * vs;
             const NR: usize = $NR;
-            let m_rounded = m / MR * MR;
+            let m_rounded = m / mr * mr;
             let n_rounded = n / NR * NR;
-            let m_left = m % MR;
+            let m_left = m % mr;
             let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
@@ -1964,18 +2000,18 @@ macro_rules! def_kernel_bb_v0 {
                 while n_i < n_rounded {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, NR, f);
+                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, NR, f);
                     n_i += NR;
                 }
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
+                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, n_left, f);
                 }
-                m_i += MR;
+                m_i += mr;
             }
 
-            seq!(mr_left in 1..=$MR {
+            seq_macro::seq!(mr_left in 1..=$MR {
                 if (m_left+vs-1) / vs == mr_left {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
@@ -1983,7 +2019,7 @@ macro_rules! def_kernel_bb_v0 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left _bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
                         }
                         n_i += NR;
@@ -1991,12 +2027,33 @@ macro_rules! def_kernel_bb_v0 {
                     if n_left !=0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left xn_bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 }
             });
+        }
+        pub(crate) unsafe fn kernel<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            ap: *const $t_ap,
+            bp: *const $t_bp,
+            f: F,
+        ) {
+            let k = (k + $RS - 1) / $RS * $RS;
+            if c_rs == 1 {
+                kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            } else {
+                kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
+            }
+            glar_base::avx_vzeroupper();
         }
     };
 }
@@ -2004,18 +2061,18 @@ macro_rules! def_kernel_bb_v0 {
 #[macro_export]
 macro_rules! def_kernel_sb_pf1 {
     (
-        $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
+        $t_a:ty, $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
         $pack_fn:tt,
         $RS:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt
     ) => {
         pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
             m: usize, n: usize, k: usize,
-            alpha: *const $t_as, beta: *const $t_bs,
-            a: *const $ta, a_rs: usize, a_cs: usize,
-            bp: *const $tb,
-            c: *mut $tc, c_rs: usize, c_cs: usize,
-            ap: *mut $ta,
+            alpha: *const $t_s, beta: *const $t_s,
+            a: *const $t_a, a_rs: usize, a_cs: usize,
+            bp: *const $t_bp,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            ap: *mut $t_ap,
             f: F,
         ) {
             let k_eff = (k+$RS-1) / $RS * $RS;
@@ -2049,7 +2106,7 @@ macro_rules! def_kernel_sb_pf1 {
                 m_i += MR;
             }
 
-            seq!(mr_left in 1..=$MR {
+            seq_macro::seq!(mr_left in 1..=$MR {
                 if (m_left+VS-1) / VS == mr_left {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
@@ -2058,7 +2115,7 @@ macro_rules! def_kernel_sb_pf1 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left _bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, NR, f);
                         }
                         n_i += NR;
@@ -2066,7 +2123,7 @@ macro_rules! def_kernel_sb_pf1 {
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left xn_bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
@@ -2074,34 +2131,59 @@ macro_rules! def_kernel_sb_pf1 {
                 }
             });
         }
+
+        pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            a: *const $t_a,
+            a_rs: usize,
+            a_cs: usize,
+            b: *const $t_bp,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            ap_buf: *mut $t_ap,
+            f: F,
+        ) {
+            if c_rs == 1 {
+                kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+            } else {
+                kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+            }
+            glar_base::avx_vzeroupper();
+        }
     };
 }
 
 #[macro_export]
 macro_rules! def_kernel_sb_v0 {
     (
-        $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty, $no_partial:tt,
+        $t_a:ty, $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
+        $no_partial:tt,
         $pack_fn:tt,
         $RS:tt,
         $MR:tt, $NR:tt
     ) => {
         pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
             m: usize, n: usize, k: usize,
-            alpha: *const $t_as, beta: *const $t_bs,
-            a: *const $ta, a_rs: usize, a_cs: usize,
-            bp: *const $tb,
-            c: *mut $tc, c_rs: usize, c_cs: usize,
-            ap: *mut $ta,
+            alpha: *const $t_s, beta: *const $t_s,
+            a: *const $t_a, a_rs: usize, a_cs: usize,
+            bp: *const $t_bp,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            ap: *mut $t_ap,
             f: F,
         ) {
             let k_eff = (k+$RS-1) / $RS * $RS;
             const STRIDED_PARTIAL: bool = true;
             let vs = simd_vector_length();
-            let MR = $MR * vs;
+            let mr = $MR * vs;
             const NR: usize = $NR;
-            let m_rounded = m / MR * MR;
+            let m_rounded = m / mr * mr;
             let n_rounded = n / NR * NR;
-            let m_left = m % MR;
+            let m_left = m % mr;
             let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
@@ -2110,23 +2192,23 @@ macro_rules! def_kernel_sb_v0 {
             while m_i < m_rounded {
                 let c_cur0 = c.add(m_i * c_rs);
                 let a_cur = a.add(m_i * a_rs);
-                $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, vs);
+                $pack_fn(mr, k, a_cur, a_rs, a_cs, ap, vs);
                 let mut n_i = 0;
                 while n_i < n_rounded {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, NR, f);
+                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, NR, f);
                     n_i += NR;
                 }
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, n_left, f);
+                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, n_left, f);
                 }
-                m_i += MR;
+                m_i += mr;
             }
 
-            seq!(mr_left in 1..=$MR {
+            seq_macro::seq!(mr_left in 1..=$MR {
                 if (m_left+vs-1) / vs == mr_left {
                     let c_cur0 = c.add(m_i * c_rs);
                     let a_cur = a.add(m_i * a_rs);
@@ -2135,7 +2217,7 @@ macro_rules! def_kernel_sb_v0 {
                     while n_i < n_rounded {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left _bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, NR, f);
                         }
                         n_i += NR;
@@ -2143,7 +2225,7 @@ macro_rules! def_kernel_sb_v0 {
                     if n_left != 0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste! {
+                        paste::paste! {
                             [<ukernel_ mr_left xn_bbp>]::<_, glar_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
@@ -2151,72 +2233,120 @@ macro_rules! def_kernel_sb_v0 {
                 }
             });
         }
+
+        pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            a: *const $t_a,
+            a_rs: usize,
+            a_cs: usize,
+            b: *const $t_bp,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            ap_buf: *mut $t_ap,
+            f: F,
+        ) {
+            if c_rs == 1 {
+                kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+            } else {
+                kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
+            }
+            glar_base::avx_vzeroupper();
+        }
     };
 }
 
 #[macro_export]
 macro_rules! def_kernel_bs {
     (
-        $ta:ty, $tb:ty, $tc:ty, $t_as:ty, $t_bs:ty,
-        $MR:tt, $NR:tt, $($mr_left:tt),*
+        $t_ap:ty, $t_b:ty, $t_c:ty, $t_s:ty,
+        $MR:tt, $NR:tt
     ) => {
-        paste! {
-            pub unsafe fn kernel_bs_v0<F: UnaryFnC, const STRIDED: bool>(
-                m: usize, n: usize, k: usize,
-                alpha: *const $t_as, beta: *const $t_bs,
-                b: *const $tb, b_rs: usize, b_cs: usize,
-                c: *mut $tc, c_rs: usize, c_cs: usize,
-                ap: *const $ta,
-                f: F,
-            ) {
-                const MR: usize = $MR * VS;
-                const NR: usize = $NR;
-                let m_rounded = m / MR * MR;
-                let n_rounded = n / NR * NR;
-                let m_left = m % MR;
-                let n_left = n % NR;
+        pub unsafe fn kernel_bs_v0<F: UnaryFnC, const STRIDED: bool>(
+            m: usize, n: usize, k: usize,
+            alpha: *const $t_s, beta: *const $t_s,
+            b: *const $t_b, b_rs: usize, b_cs: usize,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            ap: *const $t_ap,
+            f: F,
+        ) {
+            const MR: usize = $MR * VS;
+            const NR: usize = $NR;
+            let m_rounded = m / MR * MR;
+            let n_rounded = n / NR * NR;
+            let m_left = m % MR;
+            let n_left = n % NR;
 
-                let d_arr = [b_rs, b_cs, c_rs];
+            let d_arr = [b_rs, b_cs, c_rs];
 
-                let mut m_i = 0;
-                while m_i < m_rounded {
+            let mut m_i = 0;
+            while m_i < m_rounded {
+                let c_cur0 = c.add(m_i * c_rs);
+                let ap_cur = ap.add(m_i * k);
+                let mut n_i = 0;
+                while n_i < n_rounded {
+                    let b_cur = b.add(n_i * b_cs);
+                    let c_cur1 = c_cur0.add(n_i * c_cs);
+                    ukernel_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, NR, f);
+                    n_i += NR;
+                }
+                if n_left != 0 {
+                    let b_cur = b.add(n_i * b_cs);
+                    let c_cur1 = c_cur0.add(n_i * c_cs);
+                    ukernel_n_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
+                }
+                m_i += MR;
+            }
+            seq_macro::seq!(mr_left in 1..=$MR {
+                if (m_left+VS-1) / VS == mr_left {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
                     let mut n_i = 0;
                     while n_i < n_rounded {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, NR, f);
+                        paste::paste! {
+                            [<ukernel_ mr_left _bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
+                        }
                         n_i += NR;
                     }
                     if n_left != 0 {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
-                        ukernel_n_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
+                        paste::paste! {
+                            [<ukernel_ mr_left xn_bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
+                        }
                     }
-                    m_i += MR;
+                    return;
                 }
+            });
+        }
 
-                $(
-                    if (m_left+VS-1) / VS == $mr_left {
-                        let c_cur0 = c.add(m_i * c_rs);
-                        let ap_cur = ap.add(m_i * k);
-                        let mut n_i = 0;
-                        while n_i < n_rounded {
-                            let b_cur = b.add(n_i * b_cs);
-                            let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left _bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
-                            n_i += NR;
-                        }
-                        if n_left != 0 {
-                            let b_cur = b.add(n_i * b_cs);
-                            let c_cur1 = c_cur0.add(n_i * c_cs);
-                            [<ukernel_$mr_left xn_bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
-                        }
-                        return;
-                    }
-                )*
+        pub(crate) unsafe fn kernel_bs<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            b: *const $t_b,
+            b_rs: usize,
+            b_cs: usize,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            ap: *const $t_ap,
+            f: F,
+        ) {
+            if c_rs == 1 {
+                kernel_bs_v0::<_, false>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
+            } else {
+                kernel_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
             }
+            glar_base::avx_vzeroupper();
         }
     };
 }
@@ -3585,7 +3715,7 @@ macro_rules! def_ukernel_avx {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
@@ -3637,14 +3767,14 @@ macro_rules! def_ukernel_avx {
                             "je 15f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "jmp 6f",
 
                             "15:",
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -3672,7 +3802,7 @@ macro_rules! def_ukernel_avx {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(c_k.add(j*c_cs), m);
@@ -3717,7 +3847,7 @@ macro_rules! def_ukernel_avx512 {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
@@ -3761,14 +3891,14 @@ macro_rules! def_ukernel_avx512 {
                             "je 15f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "jmp 6f",
 
                             "15:",
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -3803,7 +3933,7 @@ macro_rules! def_ukernel_avx512 {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(c_k.add(j*c_cs), m);
@@ -3848,7 +3978,7 @@ macro_rules! def_ukernel_sse {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
@@ -3896,14 +4026,14 @@ macro_rules! def_ukernel_sse {
                             "je 15f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "jmp 6f",
 
                             "15:",
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -3930,7 +4060,7 @@ macro_rules! def_ukernel_sse {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(c_k.add(j*c_cs), m);
@@ -3968,7 +4098,7 @@ macro_rules! def_ukernel_avx_2 {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
                 dim_arr[0] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
@@ -4042,14 +4172,14 @@ macro_rules! def_ukernel_avx_2 {
                 "je 15f",
 
                 load_beta!(),
-                cum_seq!($acc,$nr,C,2),
+                glar_base::cum_seq!($acc,$nr,C,2),
                 "jmp 6f",
 
                 "15:",
-                cum_seq!($acc,$nr,C,1),
+                glar_base::cum_seq!($acc,$nr,C,1),
 
                 "6:",
-                cum_seq!($store,$nr,C),
+                glar_base::cum_seq!($store,$nr,C),
 
                 ax = inout(reg) a => _,
                 bx = inout(reg) b => _,
@@ -4074,7 +4204,7 @@ macro_rules! def_ukernel_avx_2 {
                 for j in 0..$nr {
                     f.call(c_k.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
             } else {
                 for j in 0..$nr {
                     f.call(c_k.add(j*c_cs), MR);
@@ -4112,7 +4242,7 @@ macro_rules! def_ukernel_avx512_2 {
                 2i32
             };
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
                 dim_arr[0] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
@@ -4184,14 +4314,14 @@ macro_rules! def_ukernel_avx512_2 {
                 "je 15f",
 
                 load_beta!(),
-                cum_seq!($acc,$nr,C,2),
+                glar_base::cum_seq!($acc,$nr,C,2),
                 "jmp 6f",
 
                 "15:",
-                cum_seq!($acc,$nr,C,1),
+                glar_base::cum_seq!($acc,$nr,C,1),
 
                 "6:",
-                cum_seq!($store,$nr,C),
+                glar_base::cum_seq!($store,$nr,C),
 
                 ax = inout(reg) a => _,
                 bx = inout(reg) b => _,
@@ -4221,7 +4351,7 @@ macro_rules! def_ukernel_avx512_2 {
                 for j in 0..$nr {
                     f.call(c_k.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
             } else {
                 for j in 0..$nr {
                     f.call(c_k.add(j*c_cs), MR);
@@ -4266,7 +4396,7 @@ macro_rules! def_ukernel_sse {
             let mut cf = c;
             let mut c_buf = [ZERO;MR*$nr];
             if BUF {
-                load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
+                glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
                 dim_arr[2] = MR*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
@@ -4315,14 +4445,14 @@ macro_rules! def_ukernel_sse {
                             "je 15f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "jmp 6f",
 
                             "15:",
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -4342,7 +4472,7 @@ macro_rules! def_ukernel_sse {
                 for j in 0..n {
                     f.call(cf.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -4392,7 +4522,7 @@ macro_rules! def_ukernel_neon {
                 seq!(ni in $n0..$n1 {
                     if glar_base::n_cond!($n0, ni, n) {
                         if BUF {
-                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
@@ -4446,11 +4576,11 @@ macro_rules! def_ukernel_neon {
 
                             load_beta!(),
 
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -4479,7 +4609,7 @@ macro_rules! def_ukernel_neon {
                 for j in 0..n {
                     f.call(cf.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -4530,7 +4660,7 @@ macro_rules! def_ukernel_neon_alt {
                 seq!(ni in $n0..$n1 {
                     if glar_base::n_cond!($n0, ni, n) {
                         if BUF {
-                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
@@ -4584,11 +4714,11 @@ macro_rules! def_ukernel_neon_alt {
 
                             load_beta!(),
 
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -4618,7 +4748,7 @@ macro_rules! def_ukernel_neon_alt {
                 for j in 0..n {
                     f.call(cf.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -4667,7 +4797,7 @@ macro_rules! def_ukernel_neon_fp16 {
             let _ = 'blk: {
                 seq!(ni in $n0..$n1 {
                     if BUF {
-                        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                        glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
                         dim_arr[2] = MR*TC_SIZE;
                         cf = c_buf.as_mut_ptr();
                     }
@@ -4722,11 +4852,11 @@ macro_rules! def_ukernel_neon_fp16 {
 
                             load_beta!(),
 
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -4755,7 +4885,7 @@ macro_rules! def_ukernel_neon_fp16 {
                 for j in 0..n {
                     f.call(cf.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -4807,7 +4937,7 @@ macro_rules! def_ukernel_neon_i8mm {
                 seq!(ni in $n0..$n1 {
                     if glar_base::n_cond!($n0, ni, n) {
                         if BUF {
-                            load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                            glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
@@ -4863,16 +4993,16 @@ macro_rules! def_ukernel_neon_i8mm {
                             "BEQ 9f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "B 6f",
 
                             "9:",
                             // 9 -> BETAONE
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -4907,7 +5037,7 @@ macro_rules! def_ukernel_neon_i8mm {
                 for j in 0..n {
                     f.call(cf.add(j*MR), MR);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, MR);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -4960,7 +5090,7 @@ macro_rules! def_ukernel_sve {
                     // usingy dynamic n leads to bug due sve on windows
                     // see: https://github.com/llvm/llvm-project/issues/80009
                     if BUF {
-                        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
+                        glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
                         dim_arr[2] = mr*TC_SIZE;
                         cf = c_buf.as_mut_ptr();
                     }
@@ -4969,8 +5099,6 @@ macro_rules! def_ukernel_sve {
                             "ptrue p0.h",
                             "mov {m_s}, #0",
                             "/* {m_e} */", "\n",
-                            // // multiply {m_e} by 2
-                            // "lsl {m_e}, {m_e}, #1", "\n",
                             prefetch_c!(),
                             vzero_kernel!(),
 
@@ -5020,11 +5148,11 @@ macro_rules! def_ukernel_sve {
 
                             load_beta!(),
 
-                            cum_seq!($acc_macro,ni,$is_partial),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
 
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
@@ -5059,7 +5187,7 @@ macro_rules! def_ukernel_sve {
                 for j in 0..n {
                     f.call(cf.add(j*mr), mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, mr);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);
@@ -5115,7 +5243,7 @@ macro_rules! def_ukernel_sve_i8mm {
                     // usingy dynamic n leads to bug due to llvm bug sve on windows
                     // see: https://github.com/llvm/llvm-project/issues/80009
                     if BUF {
-                        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
+                        glar_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
                         dim_arr[2] = mr*TC_SIZE;
                         cf = c_buf.as_mut_ptr();
                     }
@@ -5175,16 +5303,16 @@ macro_rules! def_ukernel_sve_i8mm {
                             "BEQ 9f",
 
                             load_beta!(),
-                            cum_seq!($acc_macro,ni,$is_partial,2),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,2),
                             "B 6f",
 
                             "9:",
                             // 9 -> BETAONE
-                            cum_seq!($acc_macro,ni,$is_partial,1),
+                            glar_base::cum_seq!($acc_macro,ni,$is_partial,1),
 
                             // 6 -> BETAZERO
                             "6:",
-                            cum_seq!($store_macro,ni,$is_partial),
+                            glar_base::cum_seq!($store_macro,ni,$is_partial),
                             ax = inout(reg) a => _,
                             bx = inout(reg) b => _,
                             cx = inout(reg) cf => _,
@@ -5222,7 +5350,7 @@ macro_rules! def_ukernel_sve_i8mm {
                 for j in 0..n {
                     f.call(cf.add(j*mr), mr);
                 }
-                store_buf(c, d_arr[2], c_cs, &c_buf, m, n, mr);
+                glar_base::store_buf(c, d_arr[2], c_cs, &c_buf, m, n, mr);
             } else {
                 for j in 0..n {
                     f.call(cf.add(j*c_cs), m);

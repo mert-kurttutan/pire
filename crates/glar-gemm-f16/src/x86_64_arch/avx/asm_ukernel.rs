@@ -3,10 +3,10 @@ use std::arch::asm;
 use half::f16;
 use crate::{UnaryFnC, TC, TC_SIZE};
 use glar_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx, mem,
+    c_mem, def_ukernel_avx, mem,
     init_ab_avx, dim_to_reg_avx, c_reg_2x4, c_reg_1x4,
     b_num_2x4, b_num_1x4,
-    cum_seq, load_a_avx,
+    load_a_avx,
 };
 
 type TA = f32;

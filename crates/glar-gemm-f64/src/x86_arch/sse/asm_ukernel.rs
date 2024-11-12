@@ -1,9 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC, TC_SIZE};
-use glar_base::{load_buf, store_buf, c_mem, def_ukernel_sse, mem, cum_seq};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use glar_base::{c_mem, def_ukernel_sse, mem};
+use super::VS;
 
-const VS: usize = 2;
 type TS = TC;
 
 const ZERO: f64 = 0.0;
@@ -357,8 +357,6 @@ macro_rules! step_1x2 {
         })
     };
 }
-
-use crate::UnaryFnC;
 
 def_ukernel_sse!(1, step_2x2, acc_2x2, store_2x2, 2, 2, 2, 3, B, C, ukernel_bbc);
 

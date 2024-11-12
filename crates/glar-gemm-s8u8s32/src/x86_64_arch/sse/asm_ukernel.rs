@@ -1,14 +1,13 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::UnaryFnC;
-use crate::{TA, TB, TC, TC_SIZE};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use super::VS;
 use glar_base::{
     load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sse, mem,
     c_reg_2x4, c_reg_1x4,
     b_num_2x4, b_num_1x4, dim_to_reg_avx,
     cum_seq,
 };
-const VS: usize = 4;
 type TS = f32;
 
 const ZERO: i32 = 0;

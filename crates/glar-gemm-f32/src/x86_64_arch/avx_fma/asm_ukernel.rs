@@ -1,11 +1,10 @@
 use seq_macro::seq;
 use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, TC_SIZE};
-use crate::UnaryFnC;
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
-    load_buf, store_buf, c_mem, prefetch_0, def_ukernel_avx, def_ukernel_avx_2,
-    cum_seq, dim_to_reg_avx, c_reg_3x4, c_reg_2x6, c_reg_1x6, acc_3x4, acc_2x6, acc_1x6,
+    c_mem, prefetch_0, def_ukernel_avx, def_ukernel_avx_2,
+    dim_to_reg_avx, c_reg_3x4, c_reg_2x6, c_reg_1x6, acc_3x4, acc_2x6, acc_1x6,
     store_3x4, store_2x6, store_1x6, b_num_2x6, b_num_1x6, init_ab_avx,
     load_a_avx, storep_avx, acc_p_avx, init_ab_2,
 };

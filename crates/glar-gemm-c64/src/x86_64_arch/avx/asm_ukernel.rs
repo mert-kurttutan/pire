@@ -1,11 +1,10 @@
 use seq_macro::seq;
 use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, TC_SIZE};
-use crate::UnaryFnC;
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx, 
-    init_ab_avx, cum_seq, acc_p_avx, storep_avx, load_a_avx,
+    c_mem, def_ukernel_avx, 
+    init_ab_avx, acc_p_avx, storep_avx, load_a_avx,
 };
 
 type TS = TC;

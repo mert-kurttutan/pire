@@ -1,22 +1,17 @@
 #[rustfmt::skip]
-pub mod asm_ukernel;
-pub(crate) mod axpy_kernel;
+mod asm_ukernel;
+mod axpy_kernel;
 
-pub(crate) use asm_ukernel::*;
+use asm_ukernel::*;
+use axpy_kernel::*;
 
-pub(crate) use axpy_kernel::*;
-
-use paste::paste;
-use seq_macro::seq;
-use std::arch::asm;
+use crate::UnaryFnC;
 
 const VS: usize = 8;
 
 const fn simd_vector_length() -> usize {
     VS
 }
-
-use crate::UnaryFnC;
 
 use half::f16;
 
@@ -62,31 +57,6 @@ pub unsafe fn axpy<F: UnaryFnC>(
         f.call(y_cur, 1);
     }
 }
-type TA = f32;
-type TB = f32;
-type TC = f16;
 
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TA, TB, TC, TA, TA, T, 2, 4);
-
-// #[target_feature(enable = "avx,fma")]
-pub(crate) unsafe fn kernel<F: UnaryFnC>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const f32,
-    beta: *const f32,
-    c: *mut f16,
-    c_rs: usize,
-    c_cs: usize,
-    ap: *const f32,
-    bp: *const f32,
-    f: F,
-) {
-    if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-    } else {
-        kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-    }
-    asm!("vzeroupper");
-}
+def_kernel_bb_v0!(f32, f32, f16, f32, T, 1, 2, 4);

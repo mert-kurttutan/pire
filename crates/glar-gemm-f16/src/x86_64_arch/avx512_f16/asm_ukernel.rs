@@ -1,8 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, TC_SIZE};
-use crate::UnaryFnC;
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use half::f16;
 use glar_base::{
     load_buf, store_buf, c_mem, def_ukernel_avx512, cum_seq,

@@ -1,20 +1,15 @@
 #[rustfmt::skip]
-pub mod asm_ukernel;
-// pub(crate) mod axpy_kernel;
+mod asm_ukernel;
+// mod axpy_kernel;
 
-pub(crate) use asm_ukernel::*;
-// pub(crate) use axpy_kernel::*;
+use asm_ukernel::*;
+// use axpy_kernel::*;
 
-use paste::paste;
-use seq_macro::seq;
-
-use crate::{TA, TB, TC};
+use crate::{UnaryFnC, TA, TB, TC};
 
 unsafe fn simd_vector_length() -> usize {
     super::sve_vs()
 }
-
-use crate::UnaryFnC;
 
 #[target_feature(enable = "neon")]
 pub unsafe fn axpy<F: UnaryFnC>(
@@ -98,54 +93,9 @@ pub unsafe fn axpy2<F: UnaryFnC>(
     }
 }
 use glar_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, f32, F, 2, 12);
+def_kernel_bb_v0!(i8, u8, i32, f32, F, 8, 2, 12);
 
 use super::pack_sve::packa_panel;
 
 use glar_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, u8, i32, f32, f32, F, packa_panel, 8, 2, 12);
-
-// #[target_feature(enable = "neon")]
-pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const f32,
-    beta: *const f32,
-    a: *const TA,
-    a_rs: usize,
-    a_cs: usize,
-    b: *const TB,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    ap_buf: *mut TA,
-    f: F,
-) {
-    if c_rs == 1 {
-        kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
-    } else {
-        kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
-    }
-}
-
-pub(crate) unsafe fn kernel<F: UnaryFnC>(
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: *const f32,
-    beta: *const f32,
-    c: *mut TC,
-    c_rs: usize,
-    c_cs: usize,
-    ap: *const TA,
-    bp: *const TB,
-    f: F,
-) {
-    let k_eff = (k + 7) / 8 * 8;
-    if c_rs == 1 {
-        kernel_bb::<_, false>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-    } else {
-        kernel_bb::<_, true>(m, n, k_eff, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-    }
-}
+def_kernel_sb_v0!(i8, i8, u8, i32, f32, F, packa_panel, 8, 2, 12);

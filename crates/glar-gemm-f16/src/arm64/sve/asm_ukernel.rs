@@ -1,6 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC, TC_SIZE};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, mem, cum_seq, def_ukernel_sve};
 use super::super::sve_vs;
 
@@ -429,16 +429,6 @@ macro_rules! store_1x8 {
     };
 }
 
-
-
-macro_rules! cum_seq {
-    ($step_macro:tt, $nr:tt, $layout:tt) => {
-        seq!(n in 0..$nr {
-            concat!(#($step_macro!(n, $layout),)*)
-        })
-    };
-}
-
 macro_rules! load_b {
     (B, 1) => {
         concat!(
@@ -704,10 +694,6 @@ macro_rules! step_3x8 {
     };
 }
 
-
-
-use crate::UnaryFnC;
-
 macro_rules! prefetch_c {
     () => {
         concat!(
@@ -751,6 +737,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
     m: usize, _n: usize,
     f: F,
 ) {
+    use core::mem::size_of;
     let vs = sve_vs();
     let mr = vs * 3;
     let inc_a = mr * 2;

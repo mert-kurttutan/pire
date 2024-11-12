@@ -1,10 +1,9 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::UnaryFnC;
-use crate::{TA, TB, TC, TC_SIZE};
-use glar_base::{load_buf, store_buf, def_ukernel_sse, cum_seq};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use super::VS;
+use glar_base::def_ukernel_sse;
 
-const VS: usize = 4;
 type TS = f32;
 
 const ZERO: i32 = 0;

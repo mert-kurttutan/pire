@@ -1,6 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::{TA, TB, TC, TC_SIZE};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sve, cum_seq, mem};
 use super::super::sve_vs;
 
@@ -686,9 +686,6 @@ macro_rules! step_3x8 {
         })
     };
 }
-
-
-use crate::UnaryFnC;
 
 macro_rules! prefetch_c {
     () => {

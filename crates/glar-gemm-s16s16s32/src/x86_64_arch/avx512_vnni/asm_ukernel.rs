@@ -1,12 +1,11 @@
 use seq_macro::seq;
 use std::arch::asm;
-use crate::UnaryFnC;
 use super::VS;
-use crate::{TA, TB, TC, TC_SIZE};
+use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx512, def_ukernel_avx512_2,
+    c_mem, def_ukernel_avx512, def_ukernel_avx512_2,
     b_num_3x8, b_num_2x12, b_num_1x12, c_reg_3x8, c_reg_2x12, c_reg_1x12, dim_to_reg,
-    cum_seq, load_a_avx512, storep_avx512, acc_p_avx512, init_ab, init_ab_2,
+    load_a_avx512, storep_avx512, acc_p_avx512, init_ab, init_ab_2,
 };
 type TS = f32;
 

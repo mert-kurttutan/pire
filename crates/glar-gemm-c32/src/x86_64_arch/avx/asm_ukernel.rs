@@ -4,9 +4,8 @@ use super::VS;
 use crate::{TA, TB, TC, TC_SIZE};
 use crate::UnaryFnC;
 use glar_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx, 
+    c_mem, def_ukernel_avx, 
     init_ab_avx,
-    cum_seq,
     acc_p_avx, storep_avx, load_a_avx,
 };
 

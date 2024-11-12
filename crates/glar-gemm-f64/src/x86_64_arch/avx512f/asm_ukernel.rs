@@ -3,8 +3,8 @@ use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC, TC_SIZE, UnaryFnC};
 use glar_base::{
-    load_buf, store_buf, c_mem, dim_to_reg, def_ukernel_avx512, def_ukernel_avx512_2,
-    cum_seq, acc_3x8, acc_2x12, acc_1x12, store_3x8, store_2x12, store_1x12,
+    c_mem, dim_to_reg, def_ukernel_avx512, def_ukernel_avx512_2,
+    acc_3x8, acc_2x12, acc_1x12, store_3x8, store_2x12, store_1x12,
     c_reg_3x8, c_reg_2x12, c_reg_1x12, init_ab, b_num_3x8, b_num_2x12, b_num_1x12,
     fmadd_3x8, fmadd_2x12, fmadd_1x12, b_reg, load_a_avx512, storep_avx512, acc_p_avx512,
     init_ab_2,
