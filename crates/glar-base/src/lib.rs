@@ -5070,6 +5070,7 @@ macro_rules! def_ukernel_sve {
         ) {
             use core::mem::size_of;
             let vs = sve_vs();
+            let m_left = if m % vs == 0 {vs} else {m%vs};
             let inc_a = vs * $mr * size_of::<TA>();
             let mr = $mr * vs;
             let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
@@ -5164,7 +5165,7 @@ macro_rules! def_ukernel_sve {
                             alpha_st = in(reg) alpha_st,
                             beta_st = in(reg) beta_st,
                             m_s = out(reg) _,
-                            m_e = inout(reg) (m %vs) as u64 => _,
+                            m_e = inout(reg) m_left as u64 => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,
@@ -5221,6 +5222,7 @@ macro_rules! def_ukernel_sve_i8mm {
         ) {
             use core::mem::size_of;
             let vs = sve_vs();
+            let m_left = if m % vs == 0 {vs} else {m%vs};
             let inc_a = $mr * vs * size_of::<TA>() * 8;
             let mr = $mr * vs;
             let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 32, (k % 32) / 8];
@@ -5323,7 +5325,7 @@ macro_rules! def_ukernel_sve_i8mm {
                             alpha_st = in(reg) alpha_st,
                             beta_st = in(reg) beta_st,
                             m_s = in(reg) 0 as u64,
-                            m_e = in(reg) (m %vs) as u64,
+                            m_e = in(reg) m_left as u64,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,
