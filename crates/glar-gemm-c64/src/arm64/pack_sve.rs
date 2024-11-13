@@ -119,10 +119,7 @@ macro_rules! def_packb {
         }
     };
 }
-
 def_packb!(8);
-
-// def_packb!(6);
 
 macro_rules! def_packa {
     () => {
@@ -131,8 +128,9 @@ macro_rules! def_packa {
             pub(crate) unsafe fn packa_panel(
                 m: usize, k: usize,
                 a: *const TA, a_rs: usize, a_cs: usize,
-                ap: *mut TA, vs: usize, mr: usize,
+                ap: *mut TA, vs: usize,
             ) {
+                let mr = vs * 3;
                 let ap0 = ap;
                 let a0 = a;
                 let m_rounded = m / mr * mr;

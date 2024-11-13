@@ -13,14 +13,14 @@ use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
 const NEON_VS: usize = 4;
 const NEON_MR: usize = 8;
-const NEON_NR: usize = 2;
+const NEON_NR: usize = 12;
 
 const SVE_NR: usize = 12;
 
 #[inline(always)]
 pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     let features = (*RUNTIME_HW_CONFIG).cpu_ft();
-    let (mr, nr) = if features.sve { (unsafe { sve_vs() }, SVE_NR) } else { (NEON_MR, NEON_NR) };
+    let (mr, nr) = if features.sve { (unsafe { sve_vs() * 2 }, SVE_NR) } else { (NEON_MR, NEON_NR) };
     // let mc = std::env::var("GLAR_MC").unwrap_or("4800".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("GLAR_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("GLAR_KC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
@@ -35,7 +35,7 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize,
     let hw_config = &*RUNTIME_HW_CONFIG;
     if hw_config.cpu_ft.sve {
         let vs = sve_vs();
-        pack_sve::packa_panel(m, k, x, rs, cs, y, vs, vs);
+        pack_sve::packa_panel(m, k, x, rs, cs, y, vs);
     } else {
         pack_neon::packa_panel_8(m, k, x, rs, cs, y, NEON_VS);
     }
@@ -80,14 +80,14 @@ pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
 }
 
 #[target_feature(enable = "neon,sve")]
-unsafe fn sve_vs() -> usize {
-    // use cntw instruction to get the number of vector length
+pub(crate) unsafe fn sve_vs() -> usize {
+    // use cntb instruction to get the number of vector length
     let sve_vs: u64;
     core::arch::asm!(
         "cntb {x0}, all",
         x0 = out(reg) sve_vs,
     );
-    ((sve_vs / 8) * 4) as usize
+    (sve_vs / core::mem::size_of::<TC>() as u64) as usize
 }
 
 impl<F: UnaryFnC> KernelDispatcher<F> {
@@ -97,8 +97,11 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
         let features = hw_config.cpu_ft();
         let (_, is_l2_shared, is_l3_shared) = hw_config.get_cache_info();
 
-        let (mr, nr, reg_dim) =
-            if features.sve { (unsafe { sve_vs() }, SVE_NR, RegDim::Sve) } else { (NEON_MR, NEON_NR, RegDim::Neon) };
+        let (mr, nr, reg_dim) = if features.sve {
+            (unsafe { sve_vs() * 2 }, SVE_NR, RegDim::Sve)
+        } else {
+            (NEON_MR, NEON_NR, RegDim::Neon)
+        };
         let vs = if features.sve { unsafe { sve_vs() } } else { NEON_VS };
         Self {
             mc,
@@ -166,18 +169,16 @@ unsafe fn kernel<F: UnaryFnC>(
     bp: *const TB,
     kc_last: bool,
 ) {
-    let mr = hw_cfg.mr;
-    let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, hw_cfg.func),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
-            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, mr, nr, null_fn),
+            RegDim::Sve => sve::kernel(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, null_fn),
         }
     }
 }
@@ -218,20 +219,16 @@ unsafe fn kernel_n<F: UnaryFnC>(
     c_cs: usize,
     kc_last: bool,
 ) {
-    let mr = hw_cfg.mr;
-    let nr = hw_cfg.nr;
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
-            RegDim::Sve => {
-                sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, hw_cfg.func)
-            }
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, hw_cfg.func),
         }
     } else {
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Neon => neon::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
-            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, mr, nr, null_fn),
+            RegDim::Sve => sve::kernel_sb(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap, null_fn),
         }
     }
 }
@@ -303,7 +300,7 @@ def_glar_gemm!(
     packa_fn_simd,
     packb_fn_simd,
     false,
-    false,
+    true,
     into_pack_array,
     F,
 );

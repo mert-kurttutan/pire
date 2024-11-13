@@ -147,6 +147,7 @@ unsafe fn kernel<F: UnaryFnC>(
     }
 }
 
+#[allow(unused)]
 unsafe fn kernel_m<F: UnaryFnC>(
     hw_cfg: &KernelDispatcher<F>,
     m: usize,
@@ -163,16 +164,7 @@ unsafe fn kernel_m<F: UnaryFnC>(
     ap: *const TA,
     kc_last: bool,
 ) {
-    if kc_last {
-        match hw_cfg.reg_dim {
-            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, hw_cfg.func),
-        }
-    } else {
-        let null_fn = IdentityFn {};
-        match hw_cfg.reg_dim {
-            RegDim::Sse => sse::kernel_bs(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, null_fn),
-        }
-    }
+    panic!("Not implemented");
 }
 
 unsafe fn kernel_n<F: UnaryFnC>(
