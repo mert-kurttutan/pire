@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 libc = "0.2"
+raw-cpuid = {version = "11.1.0", git = "https://github.com/gz/rust-cpuid.git" }
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 glar-base = { path = "../../crates/glar-base" }
 glar-gemm-f32 = { path = "../../crates/glar-gemm-f32" }
 glar-gemm-f64 = { path = "../../crates/glar-gemm-f64" }

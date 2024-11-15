@@ -181,8 +181,8 @@ fn detect_hw_config() -> HWConfig {
         let avx512bw = extended_feature_info.has_avx512bw();
         let avx512_vnni = extended_feature_info.has_avx512vnni();
         let f16c = feature_info.has_f16c();
-        let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        let fma4 = extended_prcoessor_info.has_fma4();
+        let extended_processor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+        let fma4 = extended_processor_info.has_fma4();
         let cpu_ft = CpuFeatures {
             sse,
             sse2,
