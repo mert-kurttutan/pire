@@ -39,6 +39,18 @@ macro_rules! beta_fmadd {
     };
 }
 
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
 macro_rules! vzeroall {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
@@ -208,47 +220,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    (3,9) => {alpha_scale_0!(5,31)};
-    (3,8) => {alpha_scale_0!(5,28)};
-    (3,7) => {alpha_scale_0!(5,25)};
-    (3,6) => {alpha_scale_0!(5,22)};
-    (3,5) => {alpha_scale_0!(5,19)};
-    (3,4) => {alpha_scale_0!(5,16)};
-    (3,3) => {alpha_scale_0!(5,13)};
-    (3,2) => {alpha_scale_0!(5,10)};
-    (3,1) => {alpha_scale_0!(5,7)};
-
-    (2,15) => {alpha_scale_0!(2,31)};
-    (2,14) => {alpha_scale_0!(2,29)};
-    (2,13) => {alpha_scale_0!(2,27)};
-    (2,12) => {alpha_scale_0!(2,25)};
-    (2,11) => {alpha_scale_0!(2,23)};
-    (2,10) => {alpha_scale_0!(2,21)};
-    (2,9) => {alpha_scale_0!(2,19)};
-    (2,8) => {alpha_scale_0!(2,17)};
-    (2,7) => {alpha_scale_0!(2,15)};
-    (2,6) => {alpha_scale_0!(2,13)};
-    (2,5) => {alpha_scale_0!(2,11)};
-    (2,4) => {alpha_scale_0!(2,9)};
-    (2,3) => {alpha_scale_0!(2,7)};
-    (2,2) => {alpha_scale_0!(2,5)};
-    (2,1) => {alpha_scale_0!(2,3)};
-
-    (1,15) => {alpha_scale_0!(17,31)};
-    (1,14) => {alpha_scale_0!(17,30)};
-    (1,13) => {alpha_scale_0!(17,29)};
-    (1,12) => {alpha_scale_0!(17,28)};
-    (1,11) => {alpha_scale_0!(17,27)};
-    (1,10) => {alpha_scale_0!(17,26)};
-    (1,9) => {alpha_scale_0!(17,25)};
-    (1,8) => {alpha_scale_0!(17,24)};
-    (1,7) => {alpha_scale_0!(17,23)};
-    (1,6) => {alpha_scale_0!(17,22)};
-    (1,5) => {alpha_scale_0!(17,21)};
-    (1,4) => {alpha_scale_0!(17,20)};
-    (1,3) => {alpha_scale_0!(17,19)};
-    (1,2) => {alpha_scale_0!(17,18)};
-    (1,1) => {alpha_scale_0!(17,17)};
+    () => {alpha_scale_0!(2,31)};
 }
 
 macro_rules! inc_b {
@@ -627,7 +599,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         "lea ({x2}, {x4},), {x3}",
         "lea ({x3}, {x4},), {x4}",
         // scale by alpha
-        alpha_scale!(2, 15),
+        alpha_scale!(),
         load_beta!(),
 
         cum_seq!(acc_2x15,15,C,2),

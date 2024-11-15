@@ -714,18 +714,6 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     n_repeats: usize,
 
-    /// dim m
-    #[arg(short, long, default_value_t = 200)]
-    m: usize,
-
-    /// dim n
-    #[arg(short, long, default_value_t = 200)]
-    n: usize,
-
-    /// dim k
-    #[arg(short, long, default_value_t = 200)]
-    k: usize,
-
     /// batch dim
     #[arg(long, default_value_t = 5)]
     batch_dim: usize,
@@ -789,6 +777,7 @@ use bench::get_benchmark_config;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BenchmarkResult {
+    pub bench_name: String,
     pub bench_config: BenchmarkConfig,
     pub dim_strategy: DimStrategy,
     pub layout: String,
@@ -798,19 +787,22 @@ pub struct BenchmarkResult {
 
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
 const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
 const BENCHMARK_FOLDER: &str = "benchmark_results";
 
-fn get_bench_filename() -> String {
+fn get_bench_file_path(run_folder_path: PathBuf) -> PathBuf {
     // look for the name of files inside the benchmark folder
     // filename should be benchmark_results_n.json
     // where n is the number of files inside the folder
-    let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
-    let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();
+    fs::create_dir_all(run_folder_path.clone()).unwrap();
+    let files = fs::read_dir(run_folder_path.clone()).unwrap();
     let num_files = files.count();
-    format!("benchmark_result_{}.json", num_files)
+
+    let filename = format!("benchmark_results_{}.json", num_files);
+    run_folder_path.join(filename)
 }
 
 fn prepare_num_threads() {
@@ -824,52 +816,68 @@ fn prepare_num_threads() {
     std::env::set_var("OMP_NUM_THREADS", n_threads_str.clone());
 }
 
-fn prepare_benchmark_file() -> std::path::PathBuf {
-    let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
-    fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
-    let benchmark_result_path = benchmark_folder_path.join(get_bench_filename());
-    benchmark_result_path
-}
-
-// fn main() {
-//     prepare_num_threads();
-//     let dim_strategy = DimStrategy::Big(vec![4800]);
-//     let hw = get_benchmark_config();
-//     let args = Args::parse();
-//     let alpha = args.alpha;
-//     let beta = args.beta;
-//     let layout_str = &args.t_layout;
-//     let gemm_backend = gemm_backend_from_str(&args.backend);
-//     let bench_type = bench_type_from_str(&args.bench_type);
-
-//     let test_func = match bench_type {
-//         BenchType::DGemm => test_dgemm,
-//         BenchType::SGemm => test_sgemm,
-//         BenchType::SGemmBatched => test_sgemm_batched,
-//         BenchType::HGemm => test_hgemm,
-//         BenchType::CGemm => test_cgemm,
-//         BenchType::ZGemm => test_zgemm,
-//         BenchType::GemmS16S16S32 => test_gemm_s16s16s32,
-//         BenchType::GemmS8U8S32 => test_gemm_s8u8s32,
-//     };
-//     let dim_len = dim_strategy.dim_len();
-//     for i in 0..dim_len {
-//         let (m, n, k) = dim_strategy.mnk_idx(i);
-//         let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = blis_params_from_str(layout_str, m, n, k);
-//         let end_time = test_func(m, n, k, gemm_backend, &args, alpha, beta.into(), a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-//         println!("m: {}, n: {}, k: {}, time: {:?}", m, n, k, end_time);
-//     }
-// }
-
-static LONG_DIMS: [usize; 12] = [1, 2, 4, 13, 27, 128, 256, 512, 1024, 2400, 4800, 9600];
+static LONG_DIMS: [usize; 16] = [1, 4, 13, 49, 128, 256, 512, 1024, 2400, 2800, 3200, 3600, 4000, 4400, 4800, 6400];
 const SMALL_DIM: usize = 79;
 
+fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
+    let long_dims_len = LONG_DIMS.len();
+    match bench_type {
+        "sgemm" => LONG_DIMS.to_vec()[..long_dims_len - 1].to_vec(),
+        "sgemm_batched" => LONG_DIMS[..long_dims_len - 1].to_vec(),
+        "hgemm" => LONG_DIMS.to_vec(),
+        "dgemm" => LONG_DIMS[..long_dims_len - 1].to_vec(),
+        "cgemm" => LONG_DIMS[..long_dims_len - 1].to_vec(),
+        "zgemm" => LONG_DIMS[..long_dims_len - 2].to_vec(),
+        "gemm_s16s16s32" => LONG_DIMS.to_vec(),
+        "gemm_s8u8s32" => LONG_DIMS.to_vec(),
+        _ => panic!("Unsupported bench type"),
+    }
+}
+
 fn main() {
+    let mut args = Args {
+        n_repeats: 10,
+        batch_dim: 5,
+        t_layout: String::from("nt"),
+        check: false,
+        backend: String::from("glar"),
+        bench_type: String::from("sgemm"),
+        alpha: 1.0,
+        beta: 1.0,
+    };
+    let bench_type_arr = [
+        // "cgemm",
+        "sgemm",
+        "hgemm",
+        "dgemm",
+        "cgemm",
+        "zgemm",
+        "gemm_s16s16s32",
+        "gemm_s8u8s32",
+    ];
+    let backend_arr = ["glar", "mkl"];
+    let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
+    fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
+    let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();
+    let num_files = files.count();
+    let benchmark_run_folder = format!("benchmark_run_{}", num_files);
+    let run_folder_path = benchmark_folder_path.join(benchmark_run_folder.clone());
+    for bench_type in bench_type_arr.iter() {
+        args.bench_type = bench_type.to_string();
+        for backend in backend_arr.iter() {
+            args.backend = backend.to_string();
+            run_bench(&args, run_folder_path.clone());
+        }
+    }
+}
+
+fn run_bench(args: &Args, run_folder_path: PathBuf) {
     prepare_num_threads();
-    let benchmark_result_path = prepare_benchmark_file();
-    let dim_strategy = DimStrategy::SmallM(SMALL_DIM, LONG_DIMS.to_vec());
+    let benchmark_result_path = get_bench_file_path(run_folder_path);
+    let long_dims_vec = bench_type_to_long_dims(&args.bench_type);
+    let dim_strategy = DimStrategy::Big(long_dims_vec);
+    // let dim_strategy = DimStrategy::SmallM(SMALL_DIM, LONG_DIMS.to_vec());
     let hw = get_benchmark_config();
-    let args = Args::parse();
     let alpha = args.alpha;
     let beta = args.beta;
     let layout_str = &args.t_layout;
@@ -877,6 +885,7 @@ fn main() {
     let bench_type = bench_type_from_str(&args.bench_type);
 
     let mut benchmark_result = BenchmarkResult {
+        bench_name: args.bench_type.clone(),
         bench_config: hw,
         dim_strategy: dim_strategy,
         layout: args.t_layout.clone(),

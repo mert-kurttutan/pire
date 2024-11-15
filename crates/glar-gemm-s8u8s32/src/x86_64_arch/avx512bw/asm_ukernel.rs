@@ -4,7 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
     c_mem, def_ukernel_avx512, def_ukernel_avx512_2,
-    c_reg_2x12, c_reg_1x12, b_num_2x12, b_num_1x12, dim_to_reg,
+    c_reg_2x12, c_reg_1x12, b_num_2x12, b_num_1x12,
     load_a_avx512, storep_avx512, acc_p_avx512,
 };
 
@@ -43,6 +43,30 @@ macro_rules! beta_fmadd {
             "vfmadd231ps %zmm30,%zmm0,%zmm", $r, "\n",
             "vcvtps2dq %zmm", $r, ",%zmm", $r, "\n",
         ) 
+    };
+}
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+macro_rules! c_load_2 {
+    () => {
+        concat!(
+            "mov ({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
     };
 }
 
@@ -192,7 +216,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(8,23) };
 }
 
 macro_rules! load_b {

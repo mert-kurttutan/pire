@@ -3,10 +3,12 @@ use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
-    c_mem, prefetch_0, def_ukernel_avx, 
+    c_mem, def_ukernel_avx, 
     c_reg_2x4, c_reg_1x4,
-    b_num_2x4, b_num_1x4, dim_to_reg_avx,
-    load_a_avx, storep_avx, acc_p_avx, def_ukernel_avx_2,
+    b_num_2x4, b_num_1x4,
+    load_a_avx, storep_avx, acc_p_avx, 
+    // def_ukernel_avx_2,
+    // prefetch_0,
 };
 
 type TS = f32;
@@ -45,6 +47,18 @@ macro_rules! beta_fmadd {
             "vfmadd231ps %ymm2,%ymm0,%ymm", $r, "\n",
             "vcvtps2dq %ymm", $r, ",%ymm", $r, "\n",
         ) 
+    };
+}
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
     };
 }
 
@@ -96,16 +110,12 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
-                "cmp $0x3f800000, {alphax} \n", // 0x3f800000 is 1 in float
-                "je 8f \n",
                 "vbroadcastss ({alphax}),%ymm1", "\n",
                 #(
                     "vcvtdq2ps %ymm", r, ",%ymm", r, "\n",
                     "vmulps %ymm1, %ymm", r, ",%ymm", r, "\n",
                     "vcvtps2dq %ymm", r, ",%ymm", r, "\n",
                 )*
-                "8:", "\n",
             )
         })
     }
@@ -139,23 +149,23 @@ macro_rules! init_ab_avx {
     };
 }
 
-macro_rules! init_ab_2 {
-    (B) => {
-        concat!(
-            // move 2 1_i16 to xmm15
-            "mov $0x10001, {x3:e}", "\n",
-            "movd {x3:e}, %xmm15", "\n",
-            "vbroadcastss %xmm15, %ymm15", "\n",
-            "/* {x3} */", "\n",
-            "/* {x2} */", "\n",
-            "/* {x1} */", "\n",
-            "mov 8({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (S) => {
-        ""
-    };
-}
+// macro_rules! init_ab_2 {
+//     (B) => {
+//         concat!(
+//             // move 2 1_i16 to xmm15
+//             "mov $0x10001, {x3:e}", "\n",
+//             "movd {x3:e}, %xmm15", "\n",
+//             "vbroadcastss %xmm15, %ymm15", "\n",
+//             "/* {x3} */", "\n",
+//             "/* {x2} */", "\n",
+//             "/* {x1} */", "\n",
+//             "mov 8({dim_arrx}),{x0}", "\n",
+//         )
+//     };
+//     (S) => {
+//         ""
+//     };
+// }
 
 macro_rules! inc_a_k_unroll {
     ($X:tt, $K:tt) => {
@@ -263,7 +273,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg_avx!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(4,11) };
 }
 
 // ***************************** 2x4 ******************************* //
@@ -340,4 +350,5 @@ def_ukernel_avx!(4,step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, C, ukernel_n_bbc
 def_ukernel_avx!(4,step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, P, ukernel_2xn_bbp);
 def_ukernel_avx!(4,step_1x4, acc_1x4, store_1x4, 1, 4, 1, 4, B, P, ukernel_1xn_bbp);
 
-def_ukernel_avx_2!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 16, 32);
+// def_ukernel_avx_2!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 16, 32);
+def_ukernel_avx!(4,step_2x4, acc_2x4, store_2x4, 2, 4, 4, 5, B, C, ukernel_bbc);

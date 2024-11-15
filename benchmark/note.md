@@ -46,3 +46,6 @@ but not on windows ec2 saphhier rapid machine from aws
 rust gemm bug, on aarch64 platform
 
 ./target/release/bench --m 3600 --n 1000 --k 3600 --bench-type sgemm --backend rustgemm --alpha 3.1 --check
+
+
+single threaded applications are run on the 1st core using taskset, to make sure that it is reproducible

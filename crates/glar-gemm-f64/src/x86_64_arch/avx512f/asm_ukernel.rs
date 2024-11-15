@@ -3,7 +3,7 @@ use std::arch::asm;
 use super::VS;
 use crate::{TA, TB, TC, TC_SIZE, UnaryFnC};
 use glar_base::{
-    c_mem, dim_to_reg, def_ukernel_avx512, def_ukernel_avx512_2,
+    c_mem, def_ukernel_avx512, def_ukernel_avx512_2,
     acc_3x8, acc_2x12, acc_1x12, store_3x8, store_2x12, store_1x12,
     c_reg_3x8, c_reg_2x12, c_reg_1x12, init_ab, b_num_3x8, b_num_2x12, b_num_1x12,
     fmadd_3x8, fmadd_2x12, fmadd_1x12, b_reg, load_a_avx512, storep_avx512, acc_p_avx512,
@@ -39,6 +39,30 @@ macro_rules! beta_fmadd {
     (P, $m0:expr, $r1:expr, 1) => {
         concat!(
             "vaddpd ", $m0, ",%zmm", $r1, ",%zmm", $r1, "{{%k1}}\n",
+        )
+    };
+}
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+macro_rules! c_load_2 {
+    () => {
+        concat!(
+            "mov ({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
         )
     };
 }
@@ -119,7 +143,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(8,31) };
 }
 
 macro_rules! inc_a {

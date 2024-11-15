@@ -4,7 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
     c_mem, def_ukernel_avx,
-    init_ab_avx, dim_to_reg_avx, c_reg_2x4, c_reg_1x4,
+    init_ab_avx, c_reg_2x4, c_reg_1x4,
     b_num_2x4, b_num_1x4,
     acc_p_avx, load_a_avx, storep_avx,
 };
@@ -39,6 +39,18 @@ macro_rules! beta_fmadd {
             "vmulps %ymm2, %ymm0,%ymm3", "\n",
             "vaddps %ymm3,%ymm", $r1, ",%ymm", $r1, "\n",
         ) 
+    };
+}
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
     };
 }
 
@@ -151,7 +163,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg_avx!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(4,11) };
 }
 
 macro_rules! acc_2x4 {

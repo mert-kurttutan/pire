@@ -57,6 +57,8 @@ pub unsafe fn axpy<F: UnaryFnC>(
 
 use glar_base::def_kernel_bb_v0;
 def_kernel_bb_v0!(i16, i16, i32, f32, F, 2, 2, 4);
+// use glar_base::def_kernel_bb_pf1;
+// def_kernel_bb_pf1!(i16, i16, i32, f32, F, 2, 2, 4, 64, 8);
 
 use super::pack_avx::packa_panel_16;
 use glar_base::def_kernel_sb_v0;

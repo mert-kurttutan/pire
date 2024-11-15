@@ -46,6 +46,32 @@ macro_rules! beta_fmadd {
     };
 }
 
+macro_rules! c_load {
+    () => {
+        concat!(
+            permute_complex!(),
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+macro_rules! c_load_2 {
+    () => {
+        concat!(
+            "mov ({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+
 macro_rules! vzeroall {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
@@ -104,9 +130,8 @@ macro_rules! complex_mul {
 }
 
 macro_rules! alpha_scale_0 {
-    (3, 4) => {
+    () => {
         concat!(
-            permute_complex!(3, 4),
             vbroadcast!(), " ({alphax}), %zmm1 \n",
             vbroadcast!(), " 4({alphax}), %zmm2 \n",
 
@@ -124,47 +149,6 @@ macro_rules! alpha_scale_0 {
             complex_mul!(30,31,0),
         )
     };
-    (2, 6) => {
-        concat!(
-            permute_complex!(2, 6),
-            vbroadcast!(), " ({alphax}), %zmm1 \n",
-            vbroadcast!(), " 4({alphax}), %zmm2 \n",
-
-            complex_mul!(8,9,0),
-            complex_mul!(10,11,0),
-            complex_mul!(12,13,0),
-            complex_mul!(14,15,0),
-            complex_mul!(16,17,0),
-            complex_mul!(18,19,0),
-            complex_mul!(20,21,0),
-            complex_mul!(22,23,0),
-            complex_mul!(24,25,0),
-            complex_mul!(26,27,0),
-            complex_mul!(28,29,0),
-            complex_mul!(30,31,0),
-        )
-    };
-    ($r0:tt, $r1:tt) => {
-        concat!(
-            permute_complex!(3, 4),
-            vbroadcast!(), " ({alphax}), %zmm1 \n",
-            vbroadcast!(), " 4({alphax}), %zmm2 \n",
-            // "vbroadcastsd ({alternate}), %zmm0 \n",
-
-            complex_mul!(8,9,0),
-            complex_mul!(10,11,0),
-            complex_mul!(12,13,0),
-            complex_mul!(14,15,0),
-            complex_mul!(16,17,0),
-            complex_mul!(18,19,0),
-            complex_mul!(20,21,0),
-            complex_mul!(22,23,0),
-            complex_mul!(24,25,0),
-            complex_mul!(26,27,0),
-            complex_mul!(28,29,0),
-            complex_mul!(30,31,0),
-        )
-    }
 }
 
 macro_rules! v_to_c {
@@ -179,7 +163,7 @@ macro_rules! v_to_c {
 }
 
 macro_rules! permute_complex {
-    ($mr:tt, $nr:tt) => {
+    () => {
         concat!(
             // permute even and odd elements
             // "vbroadcastsd ({alternate}), %zmm0 \n",
@@ -217,24 +201,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    (3,4) => {alpha_scale_0!(8,31)};
-    (3,3) => {alpha_scale_0!(8,25)};
-    (3,2) => {alpha_scale_0!(8,19)};
-    (3,1) => {alpha_scale_0!(8,13)};
-
-    (2,6) => {alpha_scale_0!(8,31)};
-    (2,5) => {alpha_scale_0!(8,27)};
-    (2,4) => {alpha_scale_0!(8,23)};
-    (2,3) => {alpha_scale_0!(8,19)};
-    (2,2) => {alpha_scale_0!(8,15)};
-    (2,1) => {alpha_scale_0!(8,11)};
-
-    (1,6) => {alpha_scale_0!(20,31)};
-    (1,5) => {alpha_scale_0!(20,29)};
-    (1,4) => {alpha_scale_0!(20,27)};
-    (1,3) => {alpha_scale_0!(20,25)};
-    (1,2) => {alpha_scale_0!(20,23)};
-    (1,1) => {alpha_scale_0!(20,21)};
+    () => {alpha_scale_0!()};
 }
 
 macro_rules! inc_a {

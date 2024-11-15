@@ -1,0 +1,13 @@
+run_0:
+Vendor ID:                GenuineIntel
+  Model name:             Intel(R) Core(TM) i5-10500H CPU @ 2.50GHz
+    CPU family:           6
+    Model:                165
+    Thread(s) per core:   2
+    Core(s) per socket:   6
+    Socket(s):            1
+    Stepping:             2
+    CPU max MHz:          4500,0000
+    CPU min MHz:          800,0000
+
+
