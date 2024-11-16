@@ -88,9 +88,8 @@ macro_rules! complex_mul {
 }
 
 macro_rules! alpha_scale_0 {
-    ($r0:tt, $r1:tt) => {
+    () => {
         concat!(
-            permute_complex!(),
             "mov ({ptr_arrx}), {bx}\n",
             vbroadcast!(), " 0({bx}),%xmm0", "\n",
             "shufpd ", "$0, %xmm0, %xmm0", "\n",
@@ -194,13 +193,9 @@ macro_rules! init_ab {
 
 
 macro_rules! c_load {
-    (2) => {
+    () => {
         concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (1) => {
-        concat!(
+            permute_complex!(),
             "mov 8({dim_arrx}),{x0}", "\n",
         )
     };
@@ -244,11 +239,8 @@ macro_rules! inc_b_k_unroll {
 
 
 macro_rules! alpha_scale {
-    (1, 2) => {
-        alpha_scale_0!(4,7)
-    };
-    (1, 1) => {
-        alpha_scale_0!(4,5)
+    () => {
+        alpha_scale_0!()
     };
 }
 

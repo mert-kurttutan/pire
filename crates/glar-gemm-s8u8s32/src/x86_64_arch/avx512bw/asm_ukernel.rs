@@ -119,8 +119,6 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
-                "cmp $0x3f800000, {alphax} \n", // 0x3f800000 is 1 in float
                 "vbroadcastss ({alphax}),%zmm1", "\n",
                 #(
                     "vcvtdq2ps %zmm", r, ",%zmm", r, "\n",
@@ -281,42 +279,42 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 1, 20, 10),
+            vfmadd!(0, 1, 9, 23),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 21, 11),
+            vfmadd!(0, 2, 10, 24),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 3, 22, 12),
+            vfmadd!(0, 3, 11, 25),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 4, 23, 13),
+            vfmadd!(0, 4, 12, 26),
         )
     };
     (4) => {
         concat!(
-            vfmadd!(0, 5, 24, 14),
+            vfmadd!(0, 5, 13, 27),
         )
     };
     (5) => {
         concat!(
-            vfmadd!(0, 6, 25, 15),
+            vfmadd!(0, 6, 14, 28),
         )
     };
     (6) => {
         concat!(
-            vfmadd!(0, 7, 26, 16),
+            vfmadd!(0, 7, 15, 29),
         )
     };
     (7) => {
         concat!(
-            vfmadd!(0, 8, 27, 17),
+            vfmadd!(0, 8, 16, 30),
         )
     };
 }

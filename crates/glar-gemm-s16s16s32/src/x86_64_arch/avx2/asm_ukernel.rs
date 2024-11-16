@@ -111,16 +111,12 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to 1.0 float
                 "vbroadcastss ({alphax}),%ymm1", "\n",
-                "cmp $0x3f800000, {alphax} \n",
-                "je 8f \n",
                 #(
                     "vcvtdq2ps %ymm", r, ",%ymm", r, "\n",
                     "vmulps %ymm1, %ymm", r, ",%ymm", r, "\n",
                     "vcvtps2dq %ymm", r, ",%ymm", r, "\n",
                 )*
-                "8: \n",
             )
         })
     }

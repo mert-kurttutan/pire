@@ -62,6 +62,7 @@ macro_rules! c_load {
 macro_rules! c_load_2 {
     () => {
         concat!(
+            permute_complex!(),
             "mov ({dim_arrx}),{x0}\n",
             "lea ({x0}, {x0}, 2), {x3}\n",
             "lea ({cx}, {x3},), {x1}\n",

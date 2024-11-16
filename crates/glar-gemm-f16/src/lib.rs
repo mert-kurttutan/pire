@@ -312,8 +312,8 @@ mod tests {
 
     // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
     // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
-    static ALPHA_ARR: [f16; 1] = [f16::from_f32_const(2.0)];
-    static BETA_ARR: [f16; 1] = [f16::from_f32_const(3.0)];
+    static ALPHA_ARR: [f16; 1] = [f16::from_f32_const(1.23)];
+    static BETA_ARR: [f16; 1] = [f16::from_f32_const(1.17)];
 
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let a_stride_scale = 1;

@@ -118,14 +118,10 @@ macro_rules! storep_unit {
     };
 }
 
-macro_rules! asm_alpha_scale_0 {
+macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                unzip_c!(),
-                "cmp {alpha_st:w}, #0", "\n",
-                "BEQ 13f", "\n",
-
                 "ld1rqw {{ z1.s }}, p0/z, [{alphax}]", "\n",
 
                 #(
@@ -133,8 +129,6 @@ macro_rules! asm_alpha_scale_0 {
                     "fmul  z", r, ".s, z", r, ".s, z1.s[0]\n",
                     "fcvtzs z", r, ".s, p0/m, z", r, ".s\n",
                 )*
-
-                "13:", "\n",
             )
         })
     }
@@ -239,7 +233,7 @@ x4 -> cx + 3*cs_b
 */
 
 
-macro_rules! asm_init_ab {
+macro_rules! init_ab {
     (B) => {
         concat!(
             "/* {x11} */", "\n",
@@ -250,15 +244,11 @@ macro_rules! asm_init_ab {
             "/* {x6} */", "\n",
             "/* {x5} */", "\n",
             "/* {x4} */", "\n",
-
             "/* {x3} */", "\n",
-
             "/* {x2} */", "\n",
-
             "/* {x1} */", "\n",
 
             "ldr {x0}, [{dim_arrx}, #24]", "\n",
-            "cmp {x0}, #0",
         )
     };
     (S) => {
@@ -267,15 +257,15 @@ macro_rules! asm_init_ab {
             "mov ({dim_arrx}), {x1}", "\n",
             // "mov 8({dim_arrx}), {x2}", "\n",
             "ldr {x0}, [{dim_arrx}, #24]", "\n",
-            "cmp {x0}, #0",
         )
     };
 }
 
 
-macro_rules! asm_c_load {
-    (12) => {
+macro_rules! c_load {
+    () => {
         concat!(
+            unzip_c!(),
             "ldr {x0}, [{dim_arrx}, #16]\n",
             "add {x1}, {cx}, {x0} \n",
             "add {x2}, {x1}, {x0} \n",
@@ -421,9 +411,9 @@ macro_rules! inc_b {
 }
 
 
-macro_rules! asm_alpha_scale {
-    ($mr:tt, $nr:tt) => {
-        asm_alpha_scale_0!(8,31)
+macro_rules! alpha_scale {
+    () => {
+        alpha_scale_0!(8,31)
     };
 }
 
@@ -765,10 +755,10 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
 
         prefetch_c!(),
 
-        asm_init_ab!(B),
+        init_ab!(B),
         
         // 3 -> CONSIDKLEFT
-        "BEQ 3f",
+        "cmp {x0}, #0", "BEQ 3f",
         
         // 2 -> KITER
         "2:",
@@ -804,15 +794,16 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
 
         // 5 -> POSTACCUM
         "5:",
-        asm_c_load!(12),
-        // scale by alpha
-        "/* {alphax} */",
-        asm_alpha_scale!(2,12),
+        c_load!(),
+        "cmp {alpha_st:w}, #0",
+        "BEQ 13f",
+        alpha_scale!(),
+        "13:",
 
-        "cmp {beta_st:w}, #0", "\n",
+        "cmp {beta_st:w}, #0",
         "BEQ 6f",
 
-        "cmp {beta_st:w}, #1", "\n",
+        "cmp {beta_st:w}, #1",
         "BEQ 9f",
 
         // 6 -> BETAZERO

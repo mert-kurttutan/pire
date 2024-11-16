@@ -2902,40 +2902,40 @@ macro_rules! c_reg_2x12 {
 #[macro_export]
 macro_rules! c_reg_1x12 {
     (0,0) => {
-        20
+        9
     };
     (0,1) => {
-        21
+        10
     };
     (0,2) => {
-        22
+        11
     };
     (0,3) => {
-        23
+        12
     };
     (0,4) => {
-        24
+        13
     };
     (0,5) => {
-        25
+        14
     };
     (0,6) => {
-        26
+        15
     };
     (0,7) => {
-        27
+        16
     };
     (0,8) => {
-        28
+        17
     };
     (0,9) => {
-        29
+        18
     };
     (0,10) => {
-        30
+        19
     };
     (0,11) => {
-        31
+        20
     };
 }
 
@@ -4196,6 +4196,11 @@ macro_rules! def_ukernel_sse {
             m: usize, n: usize,
             f: F,
         ) {
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -4204,7 +4209,7 @@ macro_rules! def_ukernel_sse {
                 2i32
             };
             const MR: usize = $mr * VS;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize, alpha_st as usize];
             let mut ptr_arr = [alpha, beta];
             let mut cf = c;
             let mut c_buf = [ZERO;MR*$nr];
@@ -4249,7 +4254,10 @@ macro_rules! def_ukernel_sse {
                             "5:", // POSTACCUM
                             c_load!(),
 
+                            "cmpw $0, 24({dim_arrx})",
+                            "je 9f",
                             alpha_scale!(),
+                            "9:",
 
                             "cmpw $0, 20({dim_arrx})",
                             "je 6f",
@@ -4343,10 +4351,10 @@ macro_rules! def_ukernel_neon {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4483,10 +4491,10 @@ macro_rules! def_ukernel_neon_alt {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4622,10 +4630,10 @@ macro_rules! def_ukernel_neon_fp16 {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4763,10 +4771,10 @@ macro_rules! def_ukernel_neon_i8mm {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4923,10 +4931,10 @@ macro_rules! def_ukernel_sve {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -5079,10 +5087,10 @@ macro_rules! def_ukernel_sve_i8mm {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",

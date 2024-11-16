@@ -268,19 +268,19 @@ macro_rules! fmadd_2v {
     (1) => {
         concat!(
             vfmadd!(0, 3, 6, 14),
-            vfmadd!(1, 3, 7, 15),
+            vfmadd!(1, 3, 7, 12),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 2, 8, 12),
-            vfmadd!(1, 2, 9, 13),
+            vfmadd!(0, 2, 8, 13),
+            vfmadd!(1, 2, 9, 14),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 3, 10, 14),
-            vfmadd!(1, 3, 11, 15),
+            vfmadd!(0, 3, 10, 12),
+            vfmadd!(1, 3, 11, 13),
         )
     };
 }
