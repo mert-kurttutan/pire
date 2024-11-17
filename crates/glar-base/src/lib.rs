@@ -99,6 +99,12 @@ pub struct CpuFeatures {
     pub i8mm: bool,
 }
 
+#[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
+#[derive(Copy, Clone)]
+pub struct CpuFeatures {
+    pub dummy: bool,
+}
+
 // padding in bytes
 const CACHELINE_PAD: usize = 1024;
 
@@ -228,8 +234,6 @@ fn detect_hw_config() -> HWConfig {
         let f32mm = is_aarch64_feature_detected!("f32mm");
         let fcma = is_aarch64_feature_detected!("fcma");
         let i8mm = is_aarch64_feature_detected!("i8mm");
-        // println!("neon: {}, sve: {}, fp16: {}, f32mm: {}, fcma: {}", neon, sve, fp16, f32mm, fcma);
-        // let fcma = is_aarch64_feature_detected!("fcma");
 
         return HWConfig {
             cpu_ft: CpuFeatures { neon, sve, fp16, f32mm, fcma, i8mm },
@@ -239,9 +243,89 @@ fn detect_hw_config() -> HWConfig {
             is_l3_shared: true,
         };
     }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
+    {
+        return HWConfig {
+            cpu_ft: CpuFeatures { dummy: false },
+            hw_model: HWModel::Reference,
+            is_l1_shared: false,
+            is_l2_shared: false,
+            is_l3_shared: true,
+        };
+    }
 }
 
+#[cfg(feature = "debug_cpu_features")]
+#[allow(unused)]
+fn apply_debug_cpu_features(cpu_ft: &mut CpuFeatures) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        let sse_turn_off = std::env::var("GLAR_SSE_OFF").is_ok();
+        let sse2_turn_off = std::env::var("GLAR_SSE2_OFF").is_ok();
+        let sse3_turn_off = std::env::var("GLAR_SSE3_OFF").is_ok();
+        let ssse3_turn_off = std::env::var("GLAR_SSSE3_OFF").is_ok();
+        let avx_turn_off = std::env::var("GLAR_AVX_OFF").is_ok();
+        let avx2_turn_off = std::env::var("GLAR_AVX2_OFF").is_ok();
+        let avx512f_turn_off = std::env::var("GLAR_AVX512F_OFF").is_ok();
+        let avx512f16_turn_off = std::env::var("GLAR_AVX512F16_OFF").is_ok();
+        let avx512bw_turn_off = std::env::var("GLAR_AVX512BW_OFF").is_ok();
+        let avx512_vnni_turn_off = std::env::var("GLAR_AVX512_VNNI_OFF").is_ok();
+        let fma_turn_off = std::env::var("GLAR_FMA_OFF").is_ok();
+        let fma4_turn_off = std::env::var("GLAR_FMA4_OFF").is_ok();
+        let f16c_turn_off = std::env::var("GLAR_F16C_OFF").is_ok();
+
+        cpu_ft.sse = cpu_ft.sse && !sse_turn_off;
+        cpu_ft.sse2 = cpu_ft.sse2 && !sse2_turn_off;
+        cpu_ft.sse3 = cpu_ft.sse3 && !sse3_turn_off;
+        cpu_ft.ssse3 = cpu_ft.ssse3 && !ssse3_turn_off;
+        cpu_ft.avx = cpu_ft.avx && !avx_turn_off;
+        cpu_ft.avx2 = cpu_ft.avx2 && !avx2_turn_off;
+        cpu_ft.avx512f = cpu_ft.avx512f && !avx512f_turn_off;
+        cpu_ft.avx512f16 = cpu_ft.avx512f16 && !avx512f16_turn_off;
+        cpu_ft.avx512bw = cpu_ft.avx512bw && !avx512bw_turn_off;
+        cpu_ft.avx512_vnni = cpu_ft.avx512_vnni && !avx512_vnni_turn_off;
+        cpu_ft.fma = cpu_ft.fma && !fma_turn_off;
+        cpu_ft.fma4 = cpu_ft.fma4 && !fma4_turn_off;
+        cpu_ft.f16c = cpu_ft.f16c && !f16c_turn_off;
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        let sse_turn_off = std::env::var("GLAR_SSE_OFF").is_ok();
+        let sse2_turn_off = std::env::var("GLAR_SSE2_OFF").is_ok();
+        let sse3_turn_off = std::env::var("GLAR_SSE3_OFF").is_ok();
+        let ssse3_turn_off = std::env::var("GLAR_SSSE3_OFF").is_ok();
+
+        cpu_ft.sse = cpu_ft.sse && !sse_turn_off;
+        cpu_ft.sse2 = cpu_ft.sse2 && !sse2_turn_off;
+        cpu_ft.sse3 = cpu_ft.sse3 && !sse3_turn_off;
+        cpu_ft.ssse3 = cpu_ft.ssse3 && !ssse3_turn_off;
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        let neon_turn_off = std::env::var("GLAR_NEON_OFF").is_ok();
+        let sve_turn_off = std::env::var("GLAR_SVE_OFF").is_ok();
+        let fp16_turn_off = std::env::var("GLAR_FP16_OFF").is_ok();
+        let f32mm_turn_off = std::env::var("GLAR_F32MM_OFF").is_ok();
+        let fcma_turn_off = std::env::var("GLAR_FCMA_OFF").is_ok();
+        let i8mm_turn_off = std::env::var("GLAR_I8MM_OFF").is_ok();
+
+        cpu_ft.neon = cpu_ft.neon && !neon_turn_off;
+        cpu_ft.sve = cpu_ft.sve && !sve_turn_off;
+        cpu_ft.fp16 = cpu_ft.fp16 && !fp16_turn_off;
+        cpu_ft.f32mm = cpu_ft.f32mm && !f32mm_turn_off;
+        cpu_ft.fcma = cpu_ft.fcma && !fcma_turn_off;
+        cpu_ft.i8mm = cpu_ft.i8mm && !i8mm_turn_off;
+    }
+}
+
+#[cfg(not(feature = "debug_cpu_features"))]
 pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| detect_hw_config());
+#[cfg(feature = "debug_cpu_features")]
+pub static RUNTIME_HW_CONFIG: Lazy<HWConfig> = Lazy::new(|| {
+    let mut hw_config = detect_hw_config();
+    apply_debug_cpu_features(&mut hw_config.cpu_ft);
+    hw_config
+});
 
 pub static GLAR_NUM_THREADS: Lazy<usize> = Lazy::new(|| {
     let n_core = std::thread::available_parallelism().unwrap().get();
@@ -395,6 +479,48 @@ pub(crate) mod cpu_features {
         RUNTIME_HW_CONFIG.cpu_ft.i8mm && RUNTIME_HW_CONFIG.cpu_ft.neon
     }
     // TODO: Use actual info from hardware
+    pub fn get_cache_params() -> (usize, usize, usize) {
+        (4800, 256, 128)
+    }
+}
+
+#[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
+pub(crate) mod cpu_features {
+    use super::HWModel;
+    use super::RUNTIME_HW_CONFIG;
+
+    pub fn hw_model() -> HWModel {
+        RUNTIME_HW_CONFIG.hw_model
+    }
+
+    pub fn has_f32_compute() -> bool {
+        false
+    }
+
+    pub fn has_c32_compute() -> bool {
+        false
+    }
+
+    pub fn has_f16f32_compute() -> bool {
+        false
+    }
+    pub fn has_f64_compute() -> bool {
+        false
+    }
+
+    pub fn has_c64_compute() -> bool {
+        false
+    }
+
+    pub fn has_f16_compute() -> bool {
+        false
+    }
+    pub fn has_i16i32_compute() -> bool {
+        false
+    }
+    pub fn has_i8i32_compute() -> bool {
+        false
+    }
     pub fn get_cache_params() -> (usize, usize, usize) {
         (4800, 256, 128)
     }

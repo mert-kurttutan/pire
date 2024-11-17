@@ -24,6 +24,7 @@ use core::mem::size_of;
 pub(crate) type TA = f64;
 pub(crate) type TB = f64;
 pub(crate) type TC = f64;
+#[allow(unused)]
 const TC_SIZE: usize = size_of::<TC>();
 
 use glar_base::{

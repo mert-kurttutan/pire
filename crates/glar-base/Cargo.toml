@@ -15,3 +15,8 @@ raw-cpuid = {version = "11.1.0", git = "https://github.com/gz/rust-cpuid.git" }
 
 [dev-dependencies]
 glar-dev = { version = "0.1.0", path = "../../crates/glar-dev" }
+
+
+[features]
+default = []
+debug_cpu_features = []
