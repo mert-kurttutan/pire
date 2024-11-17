@@ -49,17 +49,6 @@ pub fn matrix_size(m: usize, n: usize) -> usize {
 
 use range_rwlock::{RangeLock, RangeLockReadGuard, RangeLockWriteGuard};
 
-#[macro_export]
-macro_rules! env_or {
-    ($name:expr, $default:expr) => {
-        if let Some(value) = core::option_env!($name) {
-            const_str::parse!(value, usize)
-        } else {
-            $default
-        }
-    };
-}
-
 #[cfg(target_arch = "x86_64")]
 #[derive(Copy, Clone)]
 pub struct CpuFeatures {

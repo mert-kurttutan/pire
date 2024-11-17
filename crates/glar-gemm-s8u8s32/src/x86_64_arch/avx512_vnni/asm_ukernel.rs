@@ -291,62 +291,42 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 1, 20),
+            vfmadd!(0, 1, 9),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 21),
+            vfmadd!(0, 2, 10),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 3, 22),
+            vfmadd!(0, 3, 11),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 4, 23),
+            vfmadd!(0, 4, 12),
         )
     };
     (4) => {
         concat!(
-            vfmadd!(0, 5, 24),
+            vfmadd!(0, 5, 13),
         )
     };
     (5) => {
         concat!(
-            vfmadd!(0, 6, 25),
+            vfmadd!(0, 6, 14),
         )
     };
     (6) => {
         concat!(
-            vfmadd!(0, 7, 26),
+            vfmadd!(0, 7, 15),
         )
     };
     (7) => {
         concat!(
-            vfmadd!(0, 8, 27),
-        )
-    };
-    (8) => {
-        concat!(
-            vfmadd!(0, 9, 28),
-        )
-    };
-    (9) => {
-        concat!(
-            vfmadd!(0, 10, 29),
-        )
-    };
-    (10) => {
-        concat!(
-            vfmadd!(0, 11, 30),
-        )
-    };
-    (11) => {
-        concat!(
-            vfmadd!(0, 12, 31),
+            vfmadd!(0, 8, 16),
         )
     };
 }

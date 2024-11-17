@@ -190,6 +190,10 @@ fn b_size_packed(n: usize, k: usize) -> usize {
 // this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
 // this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
 // in the special case of very large k and small m, n
+
+/// # Safety
+///
+/// a and ap must have big enough size to store the packed matrix
 pub unsafe fn packa_c32_unchecked(
     m: usize,
     k: usize,
@@ -225,6 +229,9 @@ pub unsafe fn packa_c32_unchecked(
     return Array::packed_matrix(ap, m, k);
 }
 
+/// # Safety
+///
+/// b and bp must have big enough size to store the packed matrix
 pub unsafe fn packb_c32_unchecked(
     n: usize,
     k: usize,
@@ -259,23 +266,21 @@ pub unsafe fn packb_c32_unchecked(
 }
 
 pub unsafe fn packa_c32(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
-    let pack_size = a_size_packed(m, k);
-    let ap_ptr = ap.as_mut_ptr() as *mut f32;
+    // safety check for alignment and size
+    assert!(ap.len() >= a_size_packed(m, k));
+    let ap_ptr = ap.as_mut_ptr();
     let ap_align_offset = ap_ptr.align_offset(AB_ALIGN);
-    // safety check
-    assert!(ap.len() >= pack_size);
-    let ap_ptr_o = ap_ptr.add(ap_align_offset);
-    unsafe { packa_c32_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_o as *mut TA) }
+    let ap_ptr_aligned = ap_ptr.add(ap_align_offset);
+    unsafe { packa_c32_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_aligned) }
 }
 
 pub unsafe fn packb_c32(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
-    let pack_size = b_size_packed(n, k);
-    let bp_ptr = bp.as_mut_ptr() as *mut f32;
+    // safety check for alignment and size
+    assert!(bp.len() >= b_size_packed(n, k));
+    let bp_ptr = bp.as_mut_ptr();
     let bp_align_offset = bp_ptr.align_offset(AB_ALIGN);
-    // safety check
-    assert!(bp.len() >= pack_size);
-    let bp_ptr_o = bp_ptr.add(bp_align_offset);
-    unsafe { packb_c32_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_o as *mut TB) }
+    let bp_ptr_aligned = bp_ptr.add(bp_align_offset);
+    unsafe { packb_c32_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_aligned) }
 }
 
 #[cfg(test)]
@@ -303,13 +308,7 @@ mod tests {
         }
     }
 
-    // fn my_unary(_c: *mut TC, _m: usize) {}
-
     const EPS: f64 = 2e-2;
-
-    // static ALPHA_ARR: [TA; 2] = [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }];
-    // static BETA_ARR: [TC; 3] =
-    //     [Complex { re: 1.0, im: 0.0 }, Complex { re: 1.7, im: 1.3 }, Complex { re: 0.0, im: 0.0 }];
 
     static ALPHA_ARR: [TA; 1] = [Complex { re: 1.0, im: 0.79 }];
     static BETA_ARR: [TC; 1] = [Complex { re: 1.0, im: 1.7 }];
