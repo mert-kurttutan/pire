@@ -26,6 +26,7 @@ use num_complex::Complex;
 pub(crate) type TA = Complex<f32>;
 pub(crate) type TB = Complex<f32>;
 pub(crate) type TC = Complex<f32>;
+#[allow(unused)]
 const TC_SIZE: usize = size_of::<TC>();
 
 use reference::{packa_fn_ref, packb_fn_ref, round_k_ref, round_m_ref, RefGemm};
