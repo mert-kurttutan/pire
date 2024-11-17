@@ -1402,6 +1402,122 @@ impl<'a, X> PtrData<'a, X> {
 }
 
 #[macro_export]
+macro_rules! packing_api {
+    ($ta:ty, $tb:ty) => {
+        fn a_size_packed(m: usize, k: usize) -> usize {
+            let round_m_fn = dispatch_round_m();
+            let round_k_fn = dispatch_round_k();
+            let m_round = round_m_fn(m);
+            let k_round = round_k_fn(k);
+            return m_round * k_round + AB_ALIGN / size_of::<TA>();
+        }
+
+        fn b_size_packed(n: usize, k: usize) -> usize {
+            let round_k_fn = dispatch_round_k();
+            let k_round = round_k_fn(k);
+            return n * k_round + AB_ALIGN / size_of::<TB>();
+        }
+        // block idx for packa and packb is s.t.
+        // m dim for block idx is contiguous and n dim is contiguous
+        // this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
+        // this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
+        // in the special case of very large k and small m, n
+
+        /// # Safety
+        ///
+        /// a and ap must have big enough size to store the packed matrix
+        pub unsafe fn pack_a_unchecked(
+            m: usize,
+            k: usize,
+            a: *const $ta,
+            a_rs: usize,
+            a_cs: usize,
+            ap: *mut $ta,
+        ) -> Array<TA> {
+            assert_eq!(ap.align_offset(AB_ALIGN), 0);
+            if m == 1 {
+                for j in 0..k {
+                    *ap.add(j) = *a.add(j * a_cs);
+                }
+                return Array::strided_matrix(ap, 1, m);
+            }
+            let pack_fn = dispatch_pack_a();
+            let round_m_fn = dispatch_round_m();
+            let round_k_fn = dispatch_round_k();
+
+            let (mc, _, kc) = dispatch_get_mcnckc();
+            let mut ap_cur = ap;
+            for p in (0..k).step_by(kc) {
+                let kc_len = kc.min(k - p);
+                let kc_len_eff = round_k_fn(kc_len);
+                for i in (0..m).step_by(mc) {
+                    let mc_len = mc.min(m - i);
+                    let mc_len_eff = round_m_fn(mc_len);
+                    let a_cur = a.add(i * a_rs + p * a_cs);
+                    pack_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
+                    ap_cur = ap_cur.add(mc_len_eff * kc_len_eff);
+                }
+            }
+            return Array::packed_matrix(ap, m, k);
+        }
+
+        /// # Safety
+        ///
+        /// b and bp must have big enough size to store the packed matrix
+        pub unsafe fn pack_b_unchecked(
+            n: usize,
+            k: usize,
+            b: *const $tb,
+            b_rs: usize,
+            b_cs: usize,
+            bp: *mut $tb,
+        ) -> Array<TB> {
+            assert_eq!(bp.align_offset(AB_ALIGN), 0);
+            if n == 1 {
+                for j in 0..k {
+                    *bp.add(j) = *b.add(j * b_rs);
+                }
+                return Array::strided_matrix(bp, 1, k);
+            }
+            let pack_fn = dispatch_pack_b();
+            let round_k_fn = dispatch_round_k();
+
+            let (_, nc, kc) = dispatch_get_mcnckc();
+            let mut bp_cur = bp;
+            for p in (0..k).step_by(kc) {
+                let kc_len = kc.min(k - p);
+                let kc_len_eff = round_k_fn(kc_len);
+                for i in (0..n).step_by(nc) {
+                    let nc_len = nc.min(n - i);
+                    let b_cur = b.add(i * b_cs + p * b_rs);
+                    pack_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
+                    bp_cur = bp_cur.add(nc_len * kc_len_eff);
+                }
+            }
+            return Array::packed_matrix(bp, n, k);
+        }
+
+        pub unsafe fn pack_a(m: usize, k: usize, a: &[$ta], a_rs: usize, a_cs: usize, ap: &mut [$ta]) -> Array<TA> {
+            // safety check for size and alignment
+            assert!(ap.len() >= a_size_packed(m, k));
+            let ap_ptr = ap.as_mut_ptr();
+            let ap_align_offset = ap_ptr.align_offset(AB_ALIGN);
+            let ap_ptr_aligned = ap_ptr.add(ap_align_offset);
+            unsafe { pack_a_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_aligned) }
+        }
+
+        pub unsafe fn pack_b(n: usize, k: usize, b: &[$tb], b_rs: usize, b_cs: usize, bp: &mut [$tb]) -> Array<TB> {
+            // safety check for size and alignment
+            assert!(bp.len() >= b_size_packed(n, k));
+            let bp_ptr = bp.as_mut_ptr();
+            let bp_align_offset = bp_ptr.align_offset(AB_ALIGN);
+            let bp_ptr_aligned = bp_ptr.add(bp_align_offset);
+            unsafe { pack_b_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_aligned) }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! is_mixed {
     (T, $st1:expr, $st2:expr) => {
         $st1

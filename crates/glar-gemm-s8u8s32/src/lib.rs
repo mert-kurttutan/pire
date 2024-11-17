@@ -140,7 +140,7 @@ fn dispatch_round_k() -> fn(usize) -> usize {
     round_k_ref
 }
 
-fn dispatch_packa() -> unsafe fn(*const TA, *mut TA, usize, usize, usize, usize) {
+fn dispatch_pack_a() -> unsafe fn(*const TA, *mut TA, usize, usize, usize, usize) {
     #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64"))]
     {
         if has_i8i32_compute() {
@@ -150,7 +150,7 @@ fn dispatch_packa() -> unsafe fn(*const TA, *mut TA, usize, usize, usize, usize)
     packa_fn_ref
 }
 
-fn dispatch_packb() -> unsafe fn(*const TB, *mut TB, usize, usize, usize, usize) {
+fn dispatch_pack_b() -> unsafe fn(*const TB, *mut TB, usize, usize, usize, usize) {
     #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64"))]
     {
         if has_i8i32_compute() {
@@ -170,98 +170,7 @@ fn dispatch_get_mcnckc() -> (usize, usize, usize) {
     get_cache_params()
 }
 
-fn a_size_packed(m: usize, k: usize) -> usize {
-    let round_m_fn = dispatch_round_m();
-    let round_k_fn = dispatch_round_k();
-    let m_round = round_m_fn(m);
-    let k_round = round_k_fn(k);
-    return m_round * k_round + AB_ALIGN / size_of::<TA>();
-}
-
-fn b_size_packed(n: usize, k: usize) -> usize {
-    let round_k_fn = dispatch_round_k();
-    let k_round = round_k_fn(k);
-    return n * k_round + AB_ALIGN / size_of::<TB>();
-}
-
-// block idx for packa and packb is s.t.
-// m dim for block idx is contiguous and n dim is contiguous
-// this is to ensure that indexing for parallelization over these dims are easy  (otherwise ranges would have to be in the same mc, nc range)
-// this is not an issue since we do not parallelize over k dim (think about this when we parallelize over k dim in the future, which is only beneficial only
-// in the special case of very large k and small m, n
-pub unsafe fn packa_i8_unchecked(m: usize, k: usize, a: *const TA, a_rs: usize, a_cs: usize, ap: *mut TA) -> Array<TA> {
-    assert_eq!(ap.align_offset(AB_ALIGN), 0);
-    if m == 1 {
-        for j in 0..k {
-            *ap.add(j) = *a.add(j * a_cs);
-        }
-        return Array::strided_matrix(ap, 1, m);
-    }
-    let pack_fn = dispatch_packa();
-    let round_m_fn = dispatch_round_m();
-    let round_k_fn = dispatch_round_k();
-
-    let (mc, _, kc) = dispatch_get_mcnckc();
-    let mut ap_cur = ap;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        let kc_len_eff = round_k_fn(kc_len);
-        for i in (0..m).step_by(mc) {
-            let mc_len = mc.min(m - i);
-            let mc_len_eff = round_m_fn(mc_len);
-            let a_cur = a.add(i * a_rs + p * a_cs);
-            pack_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
-            ap_cur = ap_cur.add(mc_len_eff * kc_len_eff);
-        }
-    }
-    return Array::packed_matrix(ap, m, k);
-}
-
-pub unsafe fn packb_u8_unchecked(n: usize, k: usize, b: *const TB, b_rs: usize, b_cs: usize, bp: *mut TB) -> Array<TB> {
-    assert_eq!(bp.align_offset(AB_ALIGN), 0);
-    if n == 1 {
-        for j in 0..k {
-            *bp.add(j) = *b.add(j * b_rs);
-        }
-        return Array::strided_matrix(bp, 1, k);
-    }
-    let pack_fn = dispatch_packb();
-    let round_k_fn = dispatch_round_k();
-
-    let (_, nc, kc) = dispatch_get_mcnckc();
-    let mut bp_cur = bp;
-    for p in (0..k).step_by(kc) {
-        let kc_len = kc.min(k - p);
-        let kc_len_eff = round_k_fn(kc_len);
-        for i in (0..n).step_by(nc) {
-            let nc_len = nc.min(n - i);
-            let b_cur = b.add(i * b_cs + p * b_rs);
-            pack_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
-            bp_cur = bp_cur.add(nc_len * kc_len_eff);
-        }
-    }
-    return Array::packed_matrix(bp, n, k);
-}
-
-pub unsafe fn packa_i8(m: usize, k: usize, a: &[TA], a_rs: usize, a_cs: usize, ap: &mut [TA]) -> Array<TA> {
-    let pack_size = a_size_packed(m, k);
-    let ap_ptr = ap.as_mut_ptr() as *mut f32;
-    let ap_align_offset = ap_ptr.align_offset(AB_ALIGN);
-    // safety check
-    assert!(ap.len() >= pack_size);
-    let ap_ptr_o = ap_ptr.add(ap_align_offset);
-    unsafe { packa_i8_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_o as *mut TA) }
-}
-
-pub unsafe fn packb_u8(n: usize, k: usize, b: &[TB], b_rs: usize, b_cs: usize, bp: &mut [TB]) -> Array<TB> {
-    let pack_size = b_size_packed(n, k);
-    let bp_ptr = bp.as_mut_ptr() as *mut f32;
-    let bp_align_offset = bp_ptr.align_offset(AB_ALIGN);
-    // safety check
-    assert!(bp.len() >= pack_size);
-    let bp_ptr_o = bp_ptr.add(bp_align_offset);
-    unsafe { packb_u8_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_o as *mut TB) }
-}
+glar_base::packing_api!(TA, TB);
 
 #[cfg(test)]
 mod tests {
@@ -338,12 +247,12 @@ mod tests {
                         c_cs * c_stride_scale,
                     );
                     let a_matrix = if is_a_packed {
-                        unsafe { packa_i8(m, k, &a, a_rs, a_cs, &mut ap) }
+                        unsafe { pack_a(m, k, &a, a_rs, a_cs, &mut ap) }
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
                     let b_matrix = if is_b_packed {
-                        unsafe { packb_u8(n, k, &b, b_rs, b_cs, &mut bp) }
+                        unsafe { pack_b(n, k, &b, b_rs, b_cs, &mut bp) }
                     } else {
                         Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
                     };
