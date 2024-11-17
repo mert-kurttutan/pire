@@ -343,7 +343,7 @@ def_glar_gemm!(
     packa_fn_simd,
     packb_fn_simd,
     false,
-    false,
+    true,
     into_pack_array,
     F,
 );

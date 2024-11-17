@@ -61,18 +61,14 @@ macro_rules! storep_unit {
     };
 }
 
-macro_rules! asm_alpha_scale_0 {
+macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                "cmp {alpha_st:w}, #0", "\n",
-
-                "BEQ 13f", "\n",
                 "ld1rqd {{ z1.d }}, p0/z, [{alphax}]", "\n",
                 #(
                     "fmul  z", r, ".d, z", r, ".d, z1.d[0]\n",
                 )*
-                "13:", "\n",
             )
         })
     }
@@ -207,22 +203,18 @@ x4 -> cx + 3*cs_b
 */
 
 
-macro_rules! asm_init_ab {
+macro_rules! init_ab {
     (B) => {
         concat!(
             "/* {x7} */", "\n",
             "/* {x6} */", "\n",
             "/* {x5} */", "\n",
             "/* {x4} */", "\n",
-
             "/* {x3} */", "\n",
-
             "/* {x2} */", "\n",
-
             "/* {x1} */", "\n",
 
             "ldr {x0}, [{dim_arrx}, #24]", "\n",
-            "cmp {x0}, #0",
         )
     };
     (S) => {
@@ -231,14 +223,13 @@ macro_rules! asm_init_ab {
             "mov ({dim_arrx}), {x1}", "\n",
             // "mov 8({dim_arrx}), {x2}", "\n",
             "ldr {x0}, [{dim_arrx}, #24]", "\n",
-            "cmp {x0}, #0",
         )
     };
 }
 
 
-macro_rules! asm_c_load {
-    (8) => {
+macro_rules! c_load {
+    () => {
         concat!(
             "ldr {x0}, [{dim_arrx}, #16]\n",
             "add {x1}, {cx}, {x0} \n",
@@ -248,63 +239,6 @@ macro_rules! asm_c_load {
             "add {x5}, {x4}, {x0} \n",
             "add {x6}, {x5}, {x0} \n",
             "add {x7}, {x6}, {x0} \n",
-        )
-    };
-    (7) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-        )
-    };
-    (6) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-        )
-    };
-    (5) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-        )
-    };
-    (4) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-        )
-    };
-    (3) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-        )
-    };
-    (2) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-        )
-    };
-    (1) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
         )
     };
 }
@@ -327,9 +261,9 @@ macro_rules! inc_b {
 }
 
 
-macro_rules! asm_alpha_scale {
-    ($mr:tt, $nr:tt) => {
-        asm_alpha_scale_0!(8,31)
+macro_rules! alpha_scale {
+    () => {
+        alpha_scale_0!(8,31)
     };
 }
 
@@ -774,10 +708,10 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
 
         prefetch_c!(),
 
-        asm_init_ab!(B),
+        init_ab!(B),
         
         // 3 -> CONSIDKLEFT
-        "BEQ 3f",
+        "cmp {x0}, #0", "BEQ 3f",
         
         // 2 -> KITER
         "2:",
@@ -815,11 +749,13 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
 
         // 5 -> POSTACCUM
         "5:",
-        asm_c_load!(8),
-        // scale by alpha
-        asm_alpha_scale!(3,8),
+        c_load!(),
+        "cmp {alpha_st:w}, #0",
+        "BEQ 13f",
+        alpha_scale!(),
+        "13:",
 
-        "cmp {beta_st:w}, #0", "\n",
+        "cmp {beta_st:w}, #0",
         "BEQ 6f",
 
         load_beta!(),

@@ -92,10 +92,7 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
                 "mov ({ptr_arrx}), {ax}\n",
-                "cmp $0x3f800000, {ax} \n",
-                "je 8f \n",
                 vbroadcast!(), " ({ax}),%xmm1", "\n",
                 "shufps ", "$0, %xmm1, %xmm1", "\n",
                 #(
@@ -103,7 +100,6 @@ macro_rules! alpha_scale_0 {
                     "mulps %xmm1, %xmm", r, "\n",
                     "cvtps2dq %xmm", r, ",%xmm", r, "\n",
                 )*
-                "8: \n",
             )
         })
     }
@@ -169,26 +165,11 @@ macro_rules! init_ab {
 
 
 macro_rules! c_load {
-    (4) => {
+    () => {
         concat!(
             "mov 8({dim_arrx}),{x0}", "\n",
             "lea ({x0}, {x0}, 2), {bx}", "\n",
             "lea ({cx}, {bx},), {bx}", "\n",
-        )
-    };
-    (3) => {
-        concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (2) => {
-        concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (1) => {
-        concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
         )
     };
 }
@@ -219,10 +200,7 @@ macro_rules! inc_b_k_unroll {
 
 
 macro_rules! alpha_scale {
-    (1, 4) => {alpha_scale_0!(4,7)};
-    (1, 3) => {alpha_scale_0!(4,6)};
-    (1, 2) => {alpha_scale_0!(4,5)};
-    (1, 1) => {alpha_scale_0!(4,4)};
+    () => {alpha_scale_0!(4,7)};
 }
 
 macro_rules! c_reg_1x4 {

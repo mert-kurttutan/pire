@@ -33,12 +33,7 @@ fn get_mnk(dim_triple: (DimSize, DimSize, DimSize), d0: usize, dt: usize) -> (us
 use criterion::BenchmarkId;
 use std::any::type_name;
 
-pub fn bench_blas_group3<
-    M: criterion::measurement::Measurement,
-    TA: AS,
-    TB: 'static,
-    TC: 'static,
->(
+pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'static, TC: 'static>(
     bench_c: &mut BenchmarkGroup<M>,
     dim_triple: (DimSize, DimSize, DimSize),
     d0: usize,
@@ -55,110 +50,30 @@ pub fn bench_blas_group3<
     let (c_rs, c_cs) = (1, m as isize);
     let type_name = type_name::<TA>();
     #[cfg(feature = "mkl")]
-    bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-mkl-gemm", type_name), dt),
-        &dt,
-        |bench_b, _x| {
-            bench_b.iter(|| unsafe {
-                dispatch_gemm(
-                    GemmBackend::Mkl,
-                    m,
-                    n,
-                    k,
-                    alpha,
-                    a,
-                    a_rs,
-                    a_cs,
-                    b,
-                    b_rs,
-                    b_cs,
-                    beta,
-                    c,
-                    c_rs,
-                    c_cs,
-                );
-            })
-        },
-    );
-    bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-glar-gemm", type_name), dt),
-        &dt,
-        |bench_b, _x| {
-            bench_b.iter(|| unsafe {
-                dispatch_gemm(
-                    GemmBackend::Glar,
-                    m,
-                    n,
-                    k,
-                    alpha,
-                    a,
-                    a_rs,
-                    a_cs,
-                    b,
-                    b_rs,
-                    b_cs,
-                    beta,
-                    c,
-                    c_rs,
-                    c_cs,
-                );
-            })
-        },
-    );
+    bench_c.bench_with_input(BenchmarkId::new(format!("{}-mkl-gemm", type_name), dt), &dt, |bench_b, _x| {
+        bench_b.iter(|| unsafe {
+            dispatch_gemm(GemmBackend::Mkl, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
+        })
+    });
+    bench_c.bench_with_input(BenchmarkId::new(format!("{}-glar-gemm", type_name), dt), &dt, |bench_b, _x| {
+        bench_b.iter(|| unsafe {
+            dispatch_gemm(GemmBackend::Glar, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
+        })
+    });
 
     #[cfg(feature = "blis")]
-    bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-blis-gemm", type_name), dt),
-        &dt,
-        |bench_b, _x| {
-            bench_b.iter(|| unsafe {
-                dispatch_gemm(
-                    GemmBackend::Blis,
-                    m,
-                    n,
-                    k,
-                    alpha,
-                    a,
-                    a_rs,
-                    a_cs,
-                    b,
-                    b_rs,
-                    b_cs,
-                    beta,
-                    c,
-                    c_rs,
-                    c_cs,
-                );
-            })
-        },
-    );
+    bench_c.bench_with_input(BenchmarkId::new(format!("{}-blis-gemm", type_name), dt), &dt, |bench_b, _x| {
+        bench_b.iter(|| unsafe {
+            dispatch_gemm(GemmBackend::Blis, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
+        })
+    });
 
     #[cfg(feature = "rustgemm")]
-    bench_c.bench_with_input(
-        BenchmarkId::new(format!("{}-rust-gemm", type_name), dt),
-        &dt,
-        |bench_b, _x| {
-            bench_b.iter(|| unsafe {
-                dispatch_gemm(
-                    GemmBackend::RustGemm,
-                    m,
-                    n,
-                    k,
-                    alpha,
-                    a,
-                    a_rs,
-                    a_cs,
-                    b,
-                    b_rs,
-                    b_cs,
-                    beta,
-                    c,
-                    c_rs,
-                    c_cs,
-                );
-            })
-        },
-    );
+    bench_c.bench_with_input(BenchmarkId::new(format!("{}-rust-gemm", type_name), dt), &dt, |bench_b, _x| {
+        bench_b.iter(|| unsafe {
+            dispatch_gemm(GemmBackend::RustGemm, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
+        })
+    });
 }
 // type TA = Complex<f64>;
 // type TB = Complex<f64>;
@@ -202,17 +117,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 7200, 8000,
     ];
     for dt in mnk_vec {
-        bench_blas_group3(
-            &mut group,
-            dim_triple,
-            d0,
-            dt,
-            alpha,
-            a.as_ptr(),
-            b_vec.as_ptr(),
-            beta,
-            c_vec.as_mut_ptr(),
-        );
+        bench_blas_group3(&mut group, dim_triple, d0, dt, alpha, a.as_ptr(), b_vec.as_ptr(), beta, c_vec.as_mut_ptr());
     }
     group.finish();
 }

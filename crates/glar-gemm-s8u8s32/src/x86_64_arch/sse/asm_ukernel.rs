@@ -5,7 +5,7 @@ use super::VS;
 use glar_base::{
     load_buf, store_buf, c_mem, prefetch_0, def_ukernel_sse, mem,
     c_reg_2x4, c_reg_1x4,
-    b_num_2x4, b_num_1x4, dim_to_reg_avx,
+    b_num_2x4, b_num_1x4,
     cum_seq,
 };
 type TS = f32;
@@ -33,6 +33,30 @@ macro_rules! beta_fmadd {
         ) 
     };
 }
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+// macro_rules! c_load_2 {
+//     () => {
+//         concat!(
+//             "mov ({dim_arrx}),{x0}\n",
+//             "lea ({x0}, {x0}, 2), {x3}\n",
+//             "lea ({cx}, {x3},), {x1}\n",
+//             "lea ({x1}, {x3},), {x2}\n",
+//             "lea ({x2}, {x3},), {x3}\n",
+//         )
+//     };
+// }
 
 macro_rules! vzeroall {
     ($r0:tt, $r1:tt) => {
@@ -78,9 +102,6 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
-                "cmp $0x3f800000, {alphax} \n", // 0x3f800000 is 1 in float
-                "je 8f \n",
                 "movss ({alphax}),%xmm1", "\n",
                 "shufps $0,%xmm1,%xmm1", "\n",
                 #(
@@ -88,7 +109,6 @@ macro_rules! alpha_scale_0 {
                     "mulps %xmm1, %xmm", r, "\n",
                     "cvtps2dq %xmm", r, ",%xmm", r, "\n",
                 )*
-                "8:", "\n",
             )
         })
     }
@@ -248,19 +268,19 @@ macro_rules! fmadd_2v {
     (1) => {
         concat!(
             vfmadd!(0, 3, 6, 14),
-            vfmadd!(1, 3, 7, 15),
+            vfmadd!(1, 3, 7, 12),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 2, 8, 12),
-            vfmadd!(1, 2, 9, 13),
+            vfmadd!(0, 2, 8, 13),
+            vfmadd!(1, 2, 9, 14),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 3, 10, 14),
-            vfmadd!(1, 3, 11, 15),
+            vfmadd!(0, 3, 10, 12),
+            vfmadd!(1, 3, 11, 13),
         )
     };
 }
@@ -293,7 +313,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg_avx!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(4,11) };
 }
 
 // ***************************** 2x4 ******************************* //
@@ -363,7 +383,6 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         "mov 8({dim_arrx}),{x0}",
         "test {x0},{x0}",
         "je 3f",
-        // "je 3f",
         "mov {cx}, {x2}",
         "mov {ax}, {x5}",
         "mov 24({dim_arrx}),{x1}",
@@ -424,7 +443,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         "lea ({cx}, {x3},), {x1}",
         // "lea ({x1}, {x3},), {x2}",
         // scale by alpha
-        alpha_scale!(2, 4),
+        alpha_scale!(),
         load_beta!(),
 
         // 6 -> BETAZERO

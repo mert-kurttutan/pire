@@ -4,7 +4,7 @@ use super::VS;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use glar_base::{
     c_mem, def_ukernel_avx512, def_ukernel_avx512_2,
-    c_reg_2x12, c_reg_1x12, b_num_2x12, b_num_1x12, dim_to_reg,
+    c_reg_2x12, c_reg_1x12, b_num_2x12, b_num_1x12,
     load_a_avx512, storep_avx512, acc_p_avx512,
 };
 
@@ -43,6 +43,30 @@ macro_rules! beta_fmadd {
             "vfmadd231ps %zmm30,%zmm0,%zmm", $r, "\n",
             "vcvtps2dq %zmm", $r, ",%zmm", $r, "\n",
         ) 
+    };
+}
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+macro_rules! c_load_2 {
+    () => {
+        concat!(
+            "mov ({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
     };
 }
 
@@ -95,8 +119,6 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
-                "cmp $0x3f800000, {alphax} \n", // 0x3f800000 is 1 in float
                 "vbroadcastss ({alphax}),%zmm1", "\n",
                 #(
                     "vcvtdq2ps %zmm", r, ",%zmm", r, "\n",
@@ -192,7 +214,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(8,23) };
 }
 
 macro_rules! load_b {
@@ -257,42 +279,42 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 1, 20, 10),
+            vfmadd!(0, 1, 9, 23),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 21, 11),
+            vfmadd!(0, 2, 10, 24),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 3, 22, 12),
+            vfmadd!(0, 3, 11, 25),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 4, 23, 13),
+            vfmadd!(0, 4, 12, 26),
         )
     };
     (4) => {
         concat!(
-            vfmadd!(0, 5, 24, 14),
+            vfmadd!(0, 5, 13, 27),
         )
     };
     (5) => {
         concat!(
-            vfmadd!(0, 6, 25, 15),
+            vfmadd!(0, 6, 14, 28),
         )
     };
     (6) => {
         concat!(
-            vfmadd!(0, 7, 26, 16),
+            vfmadd!(0, 7, 15, 29),
         )
     };
     (7) => {
         concat!(
-            vfmadd!(0, 8, 27, 17),
+            vfmadd!(0, 8, 16, 30),
         )
     };
 }

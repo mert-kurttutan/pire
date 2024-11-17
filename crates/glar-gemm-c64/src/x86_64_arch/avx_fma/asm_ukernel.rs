@@ -43,6 +43,32 @@ macro_rules! beta_fmadd {
     };
 }
 
+macro_rules! c_load {
+    () => {
+        concat!(
+            permute_complex!(),
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+macro_rules! c_load_2 {
+    () => {
+        concat!(
+            permute_complex!(),
+            "mov ({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
 macro_rules! vzeroall {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
@@ -104,9 +130,9 @@ macro_rules! complex_mul {
 }
 
 macro_rules! alpha_scale_0 {
-    ($r0:tt, $r1:tt) => {
+    () => {
         concat!(
-            permute_complex!(),
+
             "vbroadcastsd ({alphax}), %ymm0 \n",
             "vbroadcastsd 8({alphax}), %ymm1 \n",
             
@@ -194,30 +220,8 @@ macro_rules! inc_b_k_unroll {
 
 
 macro_rules! alpha_scale {
-    (3, 2) => {
-        alpha_scale_0!(4,15)
-    };
-    (3, 1) => {
-        alpha_scale_0!(4,9)
-    };
-    (2, 3) => {
-        alpha_scale_0!(4,15)
-    };
-    (2, 2) => {
-        alpha_scale_0!(4,11)
-    };
-    (2, 1) => {
-        alpha_scale_0!(4,7)
-    };
-
-    (1, 3) => {
-        alpha_scale_0!(4,15)
-    };
-    (1, 2) => {
-        alpha_scale_0!(4,11)
-    };
-    (1, 1) => {
-        alpha_scale_0!(4,7)
+    () => {
+        alpha_scale_0!()
     };
 }
 

@@ -163,12 +163,7 @@ macro_rules! init_ab {
 
 
 macro_rules! c_load {
-    (2) => {
-        concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (1) => {
+    () => {
         concat!(
             "mov 8({dim_arrx}),{x0}", "\n",
         )
@@ -212,18 +207,8 @@ macro_rules! inc_b_k_unroll {
 }
 
 macro_rules! alpha_scale {
-    (2, 2) => {
+    () => {
         alpha_scale_0!(4,7)
-    };
-    (2, 1) => {
-        alpha_scale_0!(4,5)
-    };
-
-    (1, 2) => {
-        alpha_scale_0!(4,5)
-    };
-    (1, 1) => {
-        alpha_scale_0!(4,4)
     };
 }
 

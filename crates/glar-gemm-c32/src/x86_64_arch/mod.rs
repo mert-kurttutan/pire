@@ -46,7 +46,7 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         HWModel::Skylake => (2400, 192, 320),
-        HWModel::Haswell => (2400, 192, 192),
+        HWModel::Haswell => (2400, 192, 384),
         _ => get_cache_params(),
     };
     (mc / mr * mr, nc / nr * nr, kc)
@@ -344,7 +344,7 @@ def_glar_gemm!(
     packa_fn_simd,
     packb_fn_simd,
     false,
-    false,
+    true,
     into_pack_array,
     F,
 );

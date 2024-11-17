@@ -181,8 +181,8 @@ fn detect_hw_config() -> HWConfig {
         let avx512bw = extended_feature_info.has_avx512bw();
         let avx512_vnni = extended_feature_info.has_avx512vnni();
         let f16c = feature_info.has_f16c();
-        let extended_prcoessor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-        let fma4 = extended_prcoessor_info.has_fma4();
+        let extended_processor_info = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+        let fma4 = extended_processor_info.has_fma4();
         let cpu_ft = CpuFeatures {
             sse,
             sse2,
@@ -2449,75 +2449,6 @@ macro_rules! c_load {
             "lea ({x2}, {x3},), {x3}\n",
         )
     };
-    (11) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-            "lea ({x2}, {x3},), {x3}\n",
-        )
-    };
-    (10) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-            "lea ({x2}, {x3},), {x3}\n",
-        )
-    };
-    (9) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-        )
-    };
-    (8) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-        )
-    };
-    (7) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-        )
-    };
-    (6) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n", "lea ({x0}, {x0}, 2), {x1}", "\n", "lea ({cx}, {x1},), {x1}", "\n",)
-    };
-    (5) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n", "lea ({x0}, {x0}, 2), {x1}", "\n", "lea ({cx}, {x1},), {x1}", "\n",)
-    };
-    (4) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n", "lea ({x0}, {x0}, 2), {x1}", "\n", "lea ({cx}, {x1},), {x1}", "\n",)
-    };
-    (3) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n",)
-    };
-    (2) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n",)
-    };
-    (1) => {
-        concat!("mov 16({dim_arrx}),{x0}", "\n",)
-    };
-    ($nr:tt) => {
-        concat!(
-            "mov 16({dim_arrx}),{x0}\n",
-            "lea ({x0}, {x0}, 2), {x3}\n",
-            "lea ({cx}, {x3},), {x1}\n",
-            "lea ({x1}, {x3},), {x2}\n",
-            "lea ({x2}, {x3},), {x3}\n",
-        )
-    };
 }
 
 #[macro_export]
@@ -2971,40 +2902,40 @@ macro_rules! c_reg_2x12 {
 #[macro_export]
 macro_rules! c_reg_1x12 {
     (0,0) => {
-        20
+        9
     };
     (0,1) => {
-        21
+        10
     };
     (0,2) => {
-        22
+        11
     };
     (0,3) => {
-        23
+        12
     };
     (0,4) => {
-        24
+        13
     };
     (0,5) => {
-        25
+        14
     };
     (0,6) => {
-        26
+        15
     };
     (0,7) => {
-        27
+        16
     };
     (0,8) => {
-        28
+        17
     };
     (0,9) => {
-        29
+        18
     };
     (0,10) => {
-        30
+        19
     };
     (0,11) => {
-        31
+        20
     };
 }
 
@@ -3184,163 +3115,6 @@ macro_rules! storep_avx512 {
 }
 
 #[macro_export]
-macro_rules! dim_to_reg {
-    ($f:tt, 3, 8) => {
-        $f!(8, 31)
-    };
-    ($f:tt, 3, 7) => {
-        $f!(8, 28)
-    };
-    ($f:tt, 3, 6) => {
-        $f!(8, 25)
-    };
-    ($f:tt, 3, 5) => {
-        $f!(8, 22)
-    };
-    ($f:tt, 3, 4) => {
-        $f!(8, 19)
-    };
-    ($f:tt, 3, 3) => {
-        $f!(8, 16)
-    };
-    ($f:tt, 3, 2) => {
-        $f!(8, 13)
-    };
-    ($f:tt, 3, 1) => {
-        $f!(8, 10)
-    };
-
-    ($f:tt, 2, 12) => {
-        $f!(8, 31)
-    };
-    ($f:tt, 2, 11) => {
-        $f!(8, 29)
-    };
-    ($f:tt, 2, 10) => {
-        $f!(8, 27)
-    };
-    ($f:tt, 2, 9) => {
-        $f!(8, 25)
-    };
-    ($f:tt, 2, 8) => {
-        $f!(8, 23)
-    };
-    ($f:tt, 2, 7) => {
-        $f!(8, 21)
-    };
-    ($f:tt, 2, 6) => {
-        $f!(8, 19)
-    };
-    ($f:tt, 2, 5) => {
-        $f!(8, 17)
-    };
-    ($f:tt, 2, 4) => {
-        $f!(8, 15)
-    };
-    ($f:tt, 2, 3) => {
-        $f!(8, 13)
-    };
-    ($f:tt, 2, 2) => {
-        $f!(8, 11)
-    };
-    ($f:tt, 2, 1) => {
-        $f!(8, 9)
-    };
-
-    ($f:tt, 1, 12) => {
-        $f!(20, 31)
-    };
-    ($f:tt, 1, 11) => {
-        $f!(20, 30)
-    };
-    ($f:tt, 1, 10) => {
-        $f!(20, 29)
-    };
-    ($f:tt, 1, 9) => {
-        $f!(20, 28)
-    };
-    ($f:tt, 1, 8) => {
-        $f!(20, 27)
-    };
-    ($f:tt, 1, 7) => {
-        $f!(20, 26)
-    };
-    ($f:tt, 1, 6) => {
-        $f!(20, 25)
-    };
-    ($f:tt, 1, 5) => {
-        $f!(20, 24)
-    };
-    ($f:tt, 1, 4) => {
-        $f!(20, 23)
-    };
-    ($f:tt, 1, 3) => {
-        $f!(20, 22)
-    };
-    ($f:tt, 1, 2) => {
-        $f!(20, 21)
-    };
-    ($f:tt, 1, 1) => {
-        $f!(20, 20)
-    };
-}
-
-#[macro_export]
-macro_rules! dim_to_reg_avx {
-    ($f:tt, 3, 4) => {
-        $f!(4, 15)
-    };
-    ($f:tt, 3, 3) => {
-        $f!(4, 12)
-    };
-    ($f:tt, 3, 2) => {
-        $f!(4, 9)
-    };
-    ($f:tt, 3, 1) => {
-        $f!(4, 6)
-    };
-
-    ($f:tt, 2, 6) => {
-        $f!(4, 15)
-    };
-    ($f:tt, 2, 5) => {
-        $f!(4, 13)
-    };
-    ($f:tt, 2, 4) => {
-        $f!(4, 11)
-    };
-    ($f:tt, 2, 3) => {
-        $f!(4, 9)
-    };
-    ($f:tt, 2, 2) => {
-        $f!(4, 7)
-    };
-    ($f:tt, 2, 1) => {
-        $f!(4, 5)
-    };
-
-    ($f:tt, 1, 6) => {
-        $f!(7, 12)
-    };
-    ($f:tt, 1, 5) => {
-        $f!(7, 11)
-    };
-    ($f:tt, 1, 4) => {
-        $f!(7, 10)
-    };
-    ($f:tt, 1, 3) => {
-        $f!(7, 9)
-    };
-    ($f:tt, 1, 2) => {
-        $f!(7, 8)
-    };
-    ($f:tt, 1, 1) => {
-        $f!(7, 7)
-    };
-}
-
-#[macro_export]
-
 macro_rules! cum_seq {
     ($step_macro:tt, $nr:tt, $layout:tt, $b:tt) => {
         seq!(n in 0..$nr {
@@ -3707,6 +3481,11 @@ macro_rules! def_ukernel_avx {
             let mut dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
             let mut c_k = c;
             let mut c_buf = [ZERO;MR*$nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -3754,9 +3533,12 @@ macro_rules! def_ukernel_avx {
                             "dec {x0}", "jne 4b", // KLEFT
 
                             "5:", // POSTACCUM
-                            glar_base::c_load!(ni),
+                            c_load!(),
 
-                            alpha_scale!($mr, ni),
+                            "cmpw $0, ({alpha_st})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
 
                             load_mask!($is_partial),
 
@@ -3783,6 +3565,7 @@ macro_rules! def_ukernel_avx {
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
                             beta_st = in(reg) &beta_st,
+                            alpha_st = in(reg) &alpha_st,
                             maskx = inout(reg) mask_ptr => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
@@ -3839,6 +3622,11 @@ macro_rules! def_ukernel_avx512 {
             let mut dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
             let mut c_k = c;
             let mut c_buf = [ZERO;MR*$nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -3878,9 +3666,12 @@ macro_rules! def_ukernel_avx512 {
                             "dec {x0}", "jne 4b", // KLEFT
 
                             "5:", // POSTACCUM
-                            glar_base::c_load!(ni),
+                            c_load!(),
 
-                            alpha_scale!($mr, ni),
+                            "cmpw $0, ({alpha_st})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
 
                             load_mask!($is_partial),
 
@@ -3907,6 +3698,7 @@ macro_rules! def_ukernel_avx512 {
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
                             beta_st = in(reg) &beta_st,
+                            alpha_st = in(reg) &alpha_st,
                             maskx = inout(reg) mask_ptr => _,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
@@ -3970,6 +3762,11 @@ macro_rules! def_ukernel_sse {
             let mut dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
             let mut c_k = c;
             let mut c_buf = [ZERO;MR*$nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -4015,9 +3812,12 @@ macro_rules! def_ukernel_sse {
                             "dec {x0}", "jne 4b", // KLEFT
 
                             "5:", // POSTACCUM
-                            glar_base::c_load!(ni),
+                            c_load!(),
 
-                            alpha_scale!($mr, ni),
+                            "cmpw $0, ({alpha_st})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
 
                             "cmpw $0, ({beta_st})",
                             "je 6f",
@@ -4042,6 +3842,7 @@ macro_rules! def_ukernel_sse {
                             alphax = inout(reg) alpha => _,
                             betax = inout(reg) beta => _,
                             beta_st = in(reg) &beta_st,
+                            alpha_st = in(reg) &alpha_st,
                             x0 = out(reg) _,
                             x1 = out(reg) _,
                             x2 = out(reg) _,
@@ -4090,6 +3891,11 @@ macro_rules! def_ukernel_avx_2 {
 
             let mut dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
             let mut c_buf = [ZERO; MR*$nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -4159,12 +3965,12 @@ macro_rules! def_ukernel_avx_2 {
                 "add {x1}, {x2}", "dec {x0}", "jne 4b",
 
                 "5:",
-                "mov ({dim_arrx}),{x0}",
-                "lea ({x0}, {x0}, 2), {x3}",
-                "lea ({cx}, {x3},), {x1}",
-                "lea ({x1}, {x3},), {x2}",
+                c_load_2!(),
 
-                alpha_scale!($mr, $nr),
+                "cmpw $0, ({alpha_st})",
+                "je 9f",
+                alpha_scale!(),
+                "9:",
                 "cmpw $0, ({beta_st})",
                 "je 6f",
 
@@ -4188,6 +3994,7 @@ macro_rules! def_ukernel_avx_2 {
                 alphax = inout(reg) alpha => _,
                 betax = inout(reg) beta => _,
                 beta_st = in(reg) &beta_st,
+                alpha_st = in(reg) &alpha_st,
                 x0 = out(reg) _,
                 x1 = out(reg)_,
                 x2 = out(reg) _,
@@ -4234,6 +4041,11 @@ macro_rules! def_ukernel_avx512_2 {
 
             let mut dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
             let mut c_buf = [ZERO; MR * $nr];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -4300,12 +4112,12 @@ macro_rules! def_ukernel_avx512_2 {
                 "add {x1}, {x2}", "dec {x0}", "jne 4b", // KLEFT
 
                 "5:", // POSTACCUM
-                "mov ({dim_arrx}),{x0}",
-                "lea ({x0}, {x0}, 2), {x3}",
-                "lea ({cx}, {x3},), {x1}",
-                "lea ({x1}, {x3},), {x2}",
+                c_load_2!(),
 
-                alpha_scale!($mr, $nr),
+                "cmpw $0, ({alpha_st})",
+                "je 9f",
+                alpha_scale!(),
+                "9:",
 
                 "cmpw $0, ({beta_st})",
                 "je 6f",
@@ -4330,6 +4142,7 @@ macro_rules! def_ukernel_avx512_2 {
                 alphax = inout(reg) alpha => _,
                 betax = inout(reg) beta => _,
                 beta_st = in(reg) &beta_st,
+                alpha_st = in(reg) &alpha_st,
                 x0 = out(reg) _,
                 x1 = out(reg)_,
                 x2 = out(reg) _,
@@ -4383,6 +4196,11 @@ macro_rules! def_ukernel_sse {
             m: usize, n: usize,
             f: F,
         ) {
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
             } else if *beta == ONE_SCALAR {
@@ -4391,7 +4209,7 @@ macro_rules! def_ukernel_sse {
                 2i32
             };
             const MR: usize = $mr * VS;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize];
+            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize, alpha_st as usize];
             let mut ptr_arr = [alpha, beta];
             let mut cf = c;
             let mut c_buf = [ZERO;MR*$nr];
@@ -4434,9 +4252,12 @@ macro_rules! def_ukernel_sse {
                             "dec {x0}", "jne 4b", // KLEFT
 
                             "5:", // POSTACCUM
-                            c_load!(ni),
+                            c_load!(),
 
-                            alpha_scale!($mr, ni),
+                            "cmpw $0, 24({dim_arrx})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
 
                             "cmpw $0, 20({dim_arrx})",
                             "je 6f",
@@ -4530,10 +4351,10 @@ macro_rules! def_ukernel_neon {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4567,11 +4388,13 @@ macro_rules! def_ukernel_neon {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
 
-                            "cmp {beta_st:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
                             load_beta!(),
@@ -4668,10 +4491,10 @@ macro_rules! def_ukernel_neon_alt {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4705,11 +4528,12 @@ macro_rules! def_ukernel_neon_alt {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
-
-                            "cmp {beta_st:w}, #0", "\n",
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
                             load_beta!(),
@@ -4806,10 +4630,10 @@ macro_rules! def_ukernel_neon_fp16 {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4843,11 +4667,13 @@ macro_rules! def_ukernel_neon_fp16 {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
 
-                            "cmp {beta_st:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
                             load_beta!(),
@@ -4945,10 +4771,10 @@ macro_rules! def_ukernel_neon_i8mm {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -4982,14 +4808,16 @@ macro_rules! def_ukernel_neon_i8mm {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
 
-                            "cmp {beta_st:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
-                            "cmp {beta_st:w}, #1", "\n",
+                            "cmp {beta_st:w}, #1",
                             "BEQ 9f",
 
                             load_beta!(),
@@ -5103,10 +4931,10 @@ macro_rules! def_ukernel_sve {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -5140,11 +4968,13 @@ macro_rules! def_ukernel_sve {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
 
-                            "cmp {beta_st:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
                             load_beta!(),
@@ -5257,10 +5087,10 @@ macro_rules! def_ukernel_sve_i8mm {
                             prefetch_c!(),
                             vzero_kernel!(),
 
-                            asm_init_ab!($b_layout),
+                            init_ab!($b_layout),
 
                             // 3 -> CONSIDKLEFT
-                            "BEQ 3f",
+                            "cmp {x0}, #0", "BEQ 3f",
 
                             // 2 -> KITER
                             "2:",
@@ -5294,14 +5124,16 @@ macro_rules! def_ukernel_sve_i8mm {
 
                             // 5 -> POSTACCUM
                             "5:",
-                            asm_c_load!(ni),
-                            // scale by alpha
-                            asm_alpha_scale!($mr, ni),
+                            c_load!(),
+                            "cmp {alpha_st:w}, #0",
+                            "BEQ 13f",
+                            alpha_scale!(),
+                            "13:",
 
-                            "cmp {beta_st:w}, #0", "\n",
+                            "cmp {beta_st:w}, #0",
                             "BEQ 6f",
 
-                            "cmp {beta_st:w}, #1", "\n",
+                            "cmp {beta_st:w}, #1",
                             "BEQ 9f",
 
                             load_beta!(),

@@ -789,6 +789,7 @@ where
         let b = bp[i];
         let cur_diff: f64 = a.diff(&b);
         if cur_diff > diff {
+            println!("a, b: {:?} {:?}", a, b);
             diff_idx = i;
             diff = cur_diff;
         }

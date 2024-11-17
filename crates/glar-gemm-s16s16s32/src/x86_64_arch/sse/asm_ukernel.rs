@@ -5,7 +5,7 @@ use super::VS;
 use glar_base::{
     c_mem, def_ukernel_sse, 
     mem, c_reg_2x4, c_reg_1x4,
-    b_num_2x4, b_num_1x4, dim_to_reg_avx,
+    b_num_2x4, b_num_1x4,
     init_ab_avx,
 };
 
@@ -34,6 +34,30 @@ macro_rules! beta_fmadd {
         ) 
     };
 }
+
+macro_rules! c_load {
+    () => {
+        concat!(
+            "mov 16({dim_arrx}),{x0}\n",
+            "lea ({x0}, {x0}, 2), {x3}\n",
+            "lea ({cx}, {x3},), {x1}\n",
+            "lea ({x1}, {x3},), {x2}\n",
+            "lea ({x2}, {x3},), {x3}\n",
+        )
+    };
+}
+
+// macro_rules! c_load_2 {
+//     () => {
+//         concat!(
+//             "mov ({dim_arrx}),{x0}\n",
+//             "lea ({x0}, {x0}, 2), {x3}\n",
+//             "lea ({cx}, {x3},), {x1}\n",
+//             "lea ({x1}, {x3},), {x2}\n",
+//             "lea ({x2}, {x3},), {x3}\n",
+//         )
+//     };
+// }
 
 macro_rules! vzeroall {
     ($r0:tt, $r1:tt) => {
@@ -79,17 +103,13 @@ macro_rules! alpha_scale_0 {
     ($r0:tt, $r1:tt) => {
         seq!(r in $r0..=$r1 {
             concat!(
-                // jmp to 8 if alpha is equal to one
-                "cmp $0x3f800000, {alphax} \n", // 0x3f800000 is 1 in float
                 "movss ({alphax}),%xmm1", "\n",
                 "shufps $0,%xmm1,%xmm1", "\n",
-                "je 8f \n",
                 #(
                     "cvtdq2ps %xmm", r, ",%xmm", r, "\n",
                     "mulps %xmm1, %xmm", r, "\n",
                     "cvtps2dq %xmm", r, ",%xmm", r, "\n",
                 )*
-                "8:", "\n",
             )
         })
     }
@@ -237,22 +257,22 @@ macro_rules! fmadd_2v {
 macro_rules! fmadd_1v {
     (0) => {
         concat!(
-            vfmadd!(0, 1, 5, 9),
+            vfmadd!(0, 1, 7, 11),
         )
     };
     (1) => {
         concat!(
-            vfmadd!(0, 2, 6, 10),
+            vfmadd!(0, 2, 8, 12),
         )
     };
     (2) => {
         concat!(
-            vfmadd!(0, 3, 7, 11),
+            vfmadd!(0, 3, 9, 13),
         )
     };
     (3) => {
         concat!(
-            vfmadd!(0, 4, 8, 12),
+            vfmadd!(0, 4, 10, 14),
         )
     };
 }
@@ -262,7 +282,7 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! alpha_scale {
-    ($mr:tt,$nr:tt) => { dim_to_reg_avx!(alpha_scale_0, $mr, $nr) };
+    () => { alpha_scale_0!(4,11) };
 }
 
 // ***************************** 2x4 ******************************* //
