@@ -37,7 +37,7 @@ use glar_base::{
 pub(crate) trait UnaryFnC: UnaryFn<TC> {}
 impl<F: UnaryFn<TC>> UnaryFnC for F {}
 
-pub(crate) unsafe fn glar_sgemm_generic<F: UnaryFnC>(
+pub(crate) unsafe fn glar_sgemm_fused<F: UnaryFnC>(
     m: usize,
     n: usize,
     k: usize,
@@ -87,12 +87,12 @@ pub unsafe fn glar_sgemm(
     let a = Array::strided_matrix(a, a_rs, a_cs);
     let b = Array::strided_matrix(b, b_rs, b_cs);
     let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
-    let null_fn = IdentityFn {};
-    glar_sgemm_generic(m, n, k, alpha, a, b, beta, c, null_fn);
+    let identity_fn = IdentityFn {};
+    glar_sgemm_fused(m, n, k, alpha, a, b, beta, c, identity_fn);
 }
 
 #[cfg(feature = "fuse")]
-pub unsafe fn glar_sgemm_fused(
+pub unsafe fn glar_sgemm_fn_ptr(
     m: usize,
     n: usize,
     k: usize,
@@ -107,7 +107,7 @@ pub unsafe fn glar_sgemm_fused(
     c: *mut TC,
     c_rs: usize,
     c_cs: usize,
-    unary: fn(*mut TC, usize),
+    unary: unsafe fn(*mut TC, usize),
 ) {
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
@@ -118,7 +118,7 @@ pub unsafe fn glar_sgemm_fused(
     let a = Array::strided_matrix(a, a_rs, a_cs);
     let b = Array::strided_matrix(b, b_rs, b_cs);
     let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
-    glar_sgemm_generic(m, n, k, alpha, a, b, beta, c, unary);
+    glar_sgemm_fused(m, n, k, alpha, a, b, beta, c, unary);
 }
 
 fn dispatch_round_m() -> fn(usize) -> usize {
@@ -191,18 +191,14 @@ mod tests {
         get_cache_params()
     }
 
-    unsafe fn my_unary(c: *mut TC, m: usize) {
+    unsafe fn unary_fn_test(c: *mut TC, m: usize) {
         for i in 0..m {
             *c.add(i) *= 2.0;
         }
     }
 
-    // fn my_unary(_c: *mut TC, _m: usize) {}
-
     const EPS: f64 = 2e-2;
 
-    // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
-    // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
     static ALPHA_ARR: [f32; 1] = [2.0];
     static BETA_ARR: [f32; 1] = [3.1415];
 
@@ -215,7 +211,7 @@ mod tests {
         let m_dims = generate_m_dims(mc, mr);
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
-        let unary_fn: unsafe fn(*mut TC, usize) = my_unary;
+        let unary_fn: unsafe fn(*mut TC, usize) = unary_fn_test;
         let m_max = *m_dims.iter().max().unwrap();
         let n_max = *n_dims.iter().max().unwrap();
         let k_max = *k_dims.iter().max().unwrap();
@@ -262,7 +258,7 @@ mod tests {
                             c_ref.copy_from_slice(&c);
                             let c_matrix = ArrayMut::strided_matrix(c.as_mut_ptr(), c_rs, c_cs);
                             unsafe {
-                                glar_sgemm_generic(m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn);
+                                glar_sgemm_fused(m, n, k, alpha, a_matrix, b_matrix, beta, c_matrix, unary_fn);
                             }
                             let diff_max = unsafe {
                                 check_gemm_f32(
