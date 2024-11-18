@@ -2,11 +2,16 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
+
+// Will be using libloading instead of native dynmic linking, this is more convenient and acceptible
+// since this crate is for testing
+
 use libc::{c_double, c_float, c_int, c_schar, c_short, c_ushort, c_void};
 
 use num_complex::{c32, c64, Complex32, Complex64};
 
 use half::f16;
+use once_cell::sync::Lazy;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -40,486 +45,549 @@ pub enum CBLAS_OFFSET {
 }
 pub use self::CBLAS_OFFSET::*;
 
-#[cfg(feature = "mkl")]
-#[allow(dead_code)]
-extern "C" {
-    #[allow(clippy::too_many_arguments)]
-    pub fn cblas_gemm_s8u8s32(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        offsetc: CBLAS_OFFSET,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_void,
-        lda: c_int,
-        oa: c_schar,
-        b: *const c_void,
-        ldb: c_int,
-        ob: c_schar,
-        beta: c_float,
-        c: *mut c_int,
-        ldc: c_int,
-        oc: *const c_int,
-    );
+type SGEMM_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    c_int,
+    c_int,
+    c_int,
+    c_float,
+    *const c_float,
+    c_int,
+    *const c_float,
+    c_int,
+    c_float,
+    *mut c_float,
+    c_int,
+);
 
-    pub fn cblas_sgemv(
-        layout: CBLAS_LAYOUT,
-        trans: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        alpha: c_float,
-        a: *const c_float,
-        lda: c_int,
-        x: *const c_float,
-        incx: c_int,
-        beta: c_float,
-        y: *mut c_float,
-        incy: c_int,
-    );
+type SGEMM_B_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    *const CBLAS_TRANSPOSE,
+    *const CBLAS_TRANSPOSE,
+    *const c_int,
+    *const c_int,
+    *const c_int,
+    *const c_float,
+    *const *const c_float,
+    *const c_int,
+    *const *const c_float,
+    *const c_int,
+    *const c_float,
+    *const *mut c_float,
+    *const c_int,
+    c_int,
+    *const c_int,
+);
 
-    pub fn cblas_dgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_double,
-        a: *const c_double,
-        lda: c_int,
-        b: *const c_double,
-        ldb: c_int,
-        beta: c_double,
-        c: *mut c_double,
-        ldc: c_int,
-    );
+type DGEMM_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    c_int,
+    c_int,
+    c_int,
+    c_double,
+    *const c_double,
+    c_int,
+    *const c_double,
+    c_int,
+    c_double,
+    *mut c_double,
+    c_int,
+);
 
-    pub fn cblas_dgemv(
-        layout: CBLAS_LAYOUT,
-        trans: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        alpha: c_double,
-        a: *const c_double,
-        lda: c_int,
-        x: *const c_double,
-        incx: c_int,
-        beta: c_double,
-        y: *mut c_double,
-        incy: c_int,
-    );
+type CGEMM_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    c_int,
+    c_int,
+    c_int,
+    *const c_void,
+    *const c_void,
+    c_int,
+    *const c_void,
+    c_int,
+    *const c_void,
+    *mut c_void,
+    c_int,
+);
 
-    pub fn cblas_sgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_float,
-        lda: c_int,
-        b: *const c_float,
-        ldb: c_int,
-        beta: c_float,
-        c: *mut c_float,
-        ldc: c_int,
-    );
+type ZGEMM_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    c_int,
+    c_int,
+    c_int,
+    *const c_void,
+    *const c_void,
+    c_int,
+    *const c_void,
+    c_int,
+    *const c_void,
+    *mut c_void,
+    c_int,
+);
 
-    pub fn cblas_hgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_ushort,
-        a: *const c_ushort,
-        lda: c_int,
-        b: *const c_ushort,
-        ldb: c_int,
-        beta: c_ushort,
-        c: *mut c_ushort,
-        ldc: c_int,
-    );
+type HGEMM_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    c_int,
+    c_int,
+    c_int,
+    c_ushort,
+    *const c_ushort,
+    c_int,
+    *const c_ushort,
+    c_int,
+    c_ushort,
+    *mut c_ushort,
+    c_int,
+);
 
-    pub fn cblas_cgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        lda: c_int,
-        b: *const c_void,
-        ldb: c_int,
-        beta: *const c_void,
-        c: *mut c_void,
-        ldc: c_int,
-    );
+type GEMM_I8_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    CBLAS_OFFSET,
+    c_int,
+    c_int,
+    c_int,
+    c_float,
+    *const c_void,
+    c_int,
+    c_schar,
+    *const c_void,
+    c_int,
+    c_schar,
+    c_float,
+    *mut c_int,
+    c_int,
+    *const c_int,
+);
 
-    pub fn cblas_zgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        lda: c_int,
-        b: *const c_void,
-        ldb: c_int,
-        beta: *const c_void,
-        c: *mut c_void,
-        ldc: c_int,
-    );
+type GEMM_I16_FN_TYPE = unsafe extern "C" fn(
+    CBLAS_LAYOUT,
+    CBLAS_TRANSPOSE,
+    CBLAS_TRANSPOSE,
+    CBLAS_OFFSET,
+    c_int,
+    c_int,
+    c_int,
+    c_float,
+    *const c_short,
+    c_int,
+    c_short,
+    *const c_short,
+    c_int,
+    c_short,
+    c_float,
+    *mut c_int,
+    c_int,
+    *const c_int,
+);
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn cblas_gemm_s16s16s32(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        offsetc: CBLAS_OFFSET,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_short,
-        lda: c_int,
-        oa: c_short,
-        b: *const c_short,
-        ldb: c_int,
-        ob: c_short,
-        beta: c_float,
-        c: *mut c_int,
-        ldc: c_int,
-        oc: *const c_int,
-    );
+const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
-    pub fn cblas_sgemm_batch(
-        layout: CBLAS_LAYOUT,
-        transa: *const CBLAS_TRANSPOSE,
-        transb: *const CBLAS_TRANSPOSE,
-        m: *const c_int,
-        n: *const c_int,
-        k: *const c_int,
-        alpha: *const c_float,
-        a: *const *const c_float,
-        lda: *const c_int,
-        b: *const *const c_float,
-        ldb: *const c_int,
-        beta: *const c_float,
-        c: *const *mut c_float,
-        ldc: *const c_int,
-        group_count: c_int,
-        group_size: *const c_int,
-    );
 
+// TODO: Add more reasonalble deafult paths for different os,s windows/unix
+pub static CBLAS_LIBRARY_MKL: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    let default_mkl_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
+    let mkl_path = std::env::var("GLAR_MKL_PATH").unwrap_or(default_mkl_path);
+    libloading::Library::new(mkl_path).unwrap()
+});
+
+pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
+    let openblas_path = std::env::var("GLAR_OPENBLAS_PATH").unwrap_or(default_openblas_path);
+    libloading::Library::new(openblas_path).unwrap()
+});
+
+pub static CBLAS_LIBRARY_BLIS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
+    let blis_path = std::env::var("GLAR_BLIS_PATH").unwrap_or(default_blis_path);
+    libloading::Library::new(blis_path).unwrap()
+});
+
+pub static CBLAS_SGEMM_MKL: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_sgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_SGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_sgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_SGEMM_BLIS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_sgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_SGEMM_B_MKL: Lazy<libloading::Symbol<'static, SGEMM_B_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_sgemm_batch").unwrap();
+    cblas_gemm
+});
+
+
+pub static CBLAS_DGEMM_MKL: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_dgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_DGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_dgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_DGEMM_BLIS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_dgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_CGEMM_MKL: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_cgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_CGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_cgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_CGEMM_BLIS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_cgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_ZGEMM_MKL: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_zgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_ZGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_zgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_ZGEMM_BLIS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_zgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_HGEMM_MKL: Lazy<libloading::Symbol<'static, HGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_hgemm").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_GEMM_I8: Lazy<libloading::Symbol<'static, GEMM_I8_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_gemm_s8u8s32").unwrap();
+    cblas_gemm
+});
+
+pub static CBLAS_GEMM_I16: Lazy<libloading::Symbol<'static, GEMM_I16_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_gemm_s16s16s32").unwrap();
+    cblas_gemm
+});
+
+pub enum CBlasBackend {
+    Mkl,
+    Blis,
+    OpenBlas,
 }
 
-#[cfg(feature = "openblas")]
-#[allow(dead_code)]
-extern "C" {
-    pub fn cblas_sgemv(
-        layout: CBLAS_LAYOUT,
-        trans: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        alpha: c_float,
-        a: *const c_float,
-        lda: c_int,
-        x: *const c_float,
-        incx: c_int,
-        beta: c_float,
-        y: *mut c_float,
-        incy: c_int,
-    );
-
-    pub fn cblas_dgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_double,
-        a: *const c_double,
-        lda: c_int,
-        b: *const c_double,
-        ldb: c_int,
-        beta: c_double,
-        c: *mut c_double,
-        ldc: c_int,
-    );
-
-    pub fn cblas_dgemv(
-        layout: CBLAS_LAYOUT,
-        trans: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        alpha: c_double,
-        a: *const c_double,
-        lda: c_int,
-        x: *const c_double,
-        incx: c_int,
-        beta: c_double,
-        y: *mut c_double,
-        incy: c_int,
-    );
-
-    pub fn cblas_sgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_float,
-        lda: c_int,
-        b: *const c_float,
-        ldb: c_int,
-        beta: c_float,
-        c: *mut c_float,
-        ldc: c_int,
-    );
-
-    pub fn cblas_cgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        lda: c_int,
-        b: *const c_void,
-        ldb: c_int,
-        beta: *const c_void,
-        c: *mut c_void,
-        ldc: c_int,
-    );
-
-    pub fn cblas_zgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        lda: c_int,
-        b: *const c_void,
-        ldb: c_int,
-        beta: *const c_void,
-        c: *mut c_void,
-        ldc: c_int,
-    );
-}
-
-#[cfg(feature = "openblas")]
-pub mod openblas {
-    use super::{CBLAS_LAYOUT, CBLAS_OFFSET, CBLAS_TRANSPOSE};
-    use libc::{c_double, c_float, c_int, c_schar, c_short, c_ushort, c_void};
-    #[allow(clippy::too_many_arguments)]
-    pub fn cblas_gemm_s8u8s32(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        offsetc: CBLAS_OFFSET,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_void,
-        lda: c_int,
-        oa: c_schar,
-        b: *const c_void,
-        ldb: c_int,
-        ob: c_schar,
-        beta: c_float,
-        c: *mut c_int,
-        ldc: c_int,
-        oc: *const c_int,
-    ) {
-        panic!("openblas does not support s8u8s32");
-    }
-    pub fn cblas_hgemm(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_ushort,
-        a: *const c_ushort,
-        lda: c_int,
-        b: *const c_ushort,
-        ldb: c_int,
-        beta: c_ushort,
-        c: *mut c_ushort,
-        ldc: c_int,
-    ) {
-        panic!("openblas does not support hgemm");
-    }
-    #[allow(clippy::too_many_arguments)]
-    pub fn cblas_gemm_s16s16s32(
-        layout: CBLAS_LAYOUT,
-        transa: CBLAS_TRANSPOSE,
-        transb: CBLAS_TRANSPOSE,
-        offsetc: CBLAS_OFFSET,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: c_float,
-        a: *const c_short,
-        lda: c_int,
-        oa: c_short,
-        b: *const c_short,
-        ldb: c_int,
-        ob: c_short,
-        beta: c_float,
-        c: *mut c_int,
-        ldc: c_int,
-        oc: *const c_int,
-    ) {
-        panic!("openblas does not support s16s16s32");
-    }
-    pub fn cblas_sgemm_batch(
-        layout: CBLAS_LAYOUT,
-        transa: *const CBLAS_TRANSPOSE,
-        transb: *const CBLAS_TRANSPOSE,
-        m: *const c_int,
-        n: *const c_int,
-        k: *const c_int,
-        alpha: *const c_float,
-        a: *const *const c_float,
-        lda: *const c_int,
-        b: *const *const c_float,
-        ldb: *const c_int,
-        beta: *const c_float,
-        c: *const *mut c_float,
-        ldc: *const c_int,
-        group_count: c_int,
-        group_size: *const c_int,
-    ) {
-        panic!("openblas does not support sgemm_batch");
+pub unsafe fn cblas_sgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_float,
+    a: *const c_float,
+    lda: c_int,
+    b: *const c_float,
+    ldb: c_int,
+    beta: c_float,
+    c: *mut c_float,
+    ldc: c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_SGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::Blis => {
+            CBLAS_SGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::OpenBlas => {
+            CBLAS_SGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
     }
 }
 
-#[cfg(feature = "openblas")]
-pub use openblas::*;
-
-const BLIS_TRANS_SHIFT: usize = 3;
-const BLIS_CONJ_SHIFT: usize = 4;
-const BLIS_UPLO_SHIFT: usize = 5;
-const BLIS_UPPER_SHIFT: usize = 5;
-const BLIS_DIAG_SHIFT: usize = 6;
-const BLIS_LOWER_SHIFT: usize = 7;
-
-/// Conjugation enum
-#[repr(C)]
-pub enum conj_t {
-    BLIS_NO_CONJUGATE = 0,
-    BLIS_CONJUGATE = 1 << BLIS_CONJ_SHIFT,
+pub unsafe fn cblas_dgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_double,
+    a: *const c_double,
+    lda: c_int,
+    b: *const c_double,
+    ldb: c_int,
+    beta: c_double,
+    c: *mut c_double,
+    ldc: c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_DGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::Blis => {
+            CBLAS_DGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::OpenBlas => {
+            CBLAS_DGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+    }
 }
 
-pub use self::conj_t::*;
-/// Transpose enum
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub enum trans_t {
-    BLIS_NO_TRANSPOSE = 0,
-    BLIS_TRANSPOSE = 1 << BLIS_TRANS_SHIFT,
-    BLIS_CONJ_NO_TRANSPOSE = 1 << BLIS_CONJ_SHIFT,
-    BLIS_CONJ_TRANSPOSE = 1 << BLIS_TRANS_SHIFT | 1 << BLIS_CONJ_SHIFT,
+pub unsafe fn cblas_cgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: *const c_void,
+    a: *const c_void,
+    lda: c_int,
+    b: *const c_void,
+    ldb: c_int,
+    beta: *const c_void,
+    c: *mut c_void,
+    ldc: c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_CGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::Blis => {
+            CBLAS_CGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::OpenBlas => {
+            CBLAS_CGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+    }
 }
-pub use self::trans_t::*;
-#[cfg(feature = "blis")]
-extern "C" {
-    pub fn bli_cgemm(
-        transa: trans_t,
-        transb: trans_t,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        rsa: i32,
-        csa: i32,
-        b: *const c_void,
-        rsb: i32,
-        csb: i32,
-        beta: *const c_void,
-        c: *mut c_void,
-        rsc: i32,
-        csc: i32,
-    );
-    pub fn bli_zgemm(
-        transa: trans_t,
-        transb: trans_t,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_void,
-        a: *const c_void,
-        rsa: i32,
-        csa: i32,
-        b: *const c_void,
-        rsb: i32,
-        csb: i32,
-        beta: *const c_void,
-        c: *mut c_void,
-        rsc: i32,
-        csc: i32,
-    );
-    pub fn bli_sgemm(
-        transa: trans_t,
-        transb: trans_t,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_float,
-        a: *const c_float,
-        rsa: i32,
-        csa: i32,
-        b: *const c_float,
-        rsb: i32,
-        csb: i32,
-        beta: *const c_float,
-        c: *mut c_float,
-        rsc: i32,
-        csc: i32,
-    );
 
-    pub fn bli_dgemm(
-        // layout: CBLAS_LAYOUT,
-        transa: trans_t,
-        transb: trans_t,
-        m: c_int,
-        n: c_int,
-        k: c_int,
-        alpha: *const c_double,
-        a: *const c_double,
-        rsa: i32,
-        csa: i32,
-        b: *const c_double,
-        rsb: i32,
-        csb: i32,
-        beta: *const c_double,
-        c: *mut c_double,
-        rsc: i32,
-        csc: i32,
-    );
+pub unsafe fn cblas_zgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: *const c_void,
+    a: *const c_void,
+    lda: c_int,
+    b: *const c_void,
+    ldb: c_int,
+    beta: *const c_void,
+    c: *mut c_void,
+    ldc: c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_ZGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::Blis => {
+            CBLAS_ZGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::OpenBlas => {
+            CBLAS_ZGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+    }
+}
+pub unsafe fn cblas_hgemm(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_ushort,
+    a: *const c_ushort,
+    lda: c_int,
+    b: *const c_ushort,
+    ldb: c_int,
+    beta: c_ushort,
+    c: *mut c_ushort,
+    ldc: c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_HGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        }
+        CBlasBackend::Blis => {
+            unimplemented!()
+        }
+        CBlasBackend::OpenBlas => {
+            unimplemented!()
+        }
+    }
+}
 
+pub unsafe fn cblas_gemm_s8u8s32(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    offsetc: CBLAS_OFFSET,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_float,
+    a: *const c_void,
+    lda: c_int,
+    oa: c_schar,
+    b: *const c_void,
+    ldb: c_int,
+    ob: c_schar,
+    beta: c_float,
+    c: *mut c_int,
+    ldc: c_int,
+    oc: *const c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_GEMM_I8(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
+        }
+        CBlasBackend::Blis => {
+            unimplemented!()
+        }
+        CBlasBackend::OpenBlas => {
+            unimplemented!()
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub unsafe fn cblas_gemm_s16s16s32(
+    layout: CBLAS_LAYOUT,
+    transa: CBLAS_TRANSPOSE,
+    transb: CBLAS_TRANSPOSE,
+    offsetc: CBLAS_OFFSET,
+    m: c_int,
+    n: c_int,
+    k: c_int,
+    alpha: c_float,
+    a: *const c_short,
+    lda: c_int,
+    oa: c_short,
+    b: *const c_short,
+    ldb: c_int,
+    ob: c_short,
+    beta: c_float,
+    c: *mut c_int,
+    ldc: c_int,
+    oc: *const c_int,
+    backend: CBlasBackend,
+) {
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_GEMM_I16(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
+        }
+        CBlasBackend::Blis => {
+            unimplemented!()
+        }
+        CBlasBackend::OpenBlas => {
+            unimplemented!()
+        }
+    }
+}
+
+pub unsafe fn cblas_sgemm_batch(
+    layout: CBLAS_LAYOUT,
+    transa: *const CBLAS_TRANSPOSE,
+    transb: *const CBLAS_TRANSPOSE,
+    m: *const c_int,
+    n: *const c_int,
+    k: *const c_int,
+    alpha: *const c_float,
+    a: *const *const c_float,
+    lda: *const c_int,
+    b: *const *const c_float,
+    ldb: *const c_int,
+    beta: *const c_float,
+    c: *const *mut c_float,
+    ldc: *const c_int,
+    group_count: c_int,
+    group_size: *const c_int,
+    backend: CBlasBackend,
+) {
+    let lib = libloading::Library::new("C:/Users/I011745/Desktop/corenum/glar/.env/Library/bin/mkl_rt.2.dll").unwrap();
+    let cblas_sgemm_batch: libloading::Symbol<
+        unsafe extern "C" fn(
+            CBLAS_LAYOUT,
+            *const CBLAS_TRANSPOSE,
+            *const CBLAS_TRANSPOSE,
+            *const c_int,
+            *const c_int,
+            *const c_int,
+            *const c_float,
+            *const *const c_float,
+            *const c_int,
+            *const *const c_float,
+            *const c_int,
+            *const c_float,
+            *const *mut c_float,
+            *const c_int,
+            c_int,
+            *const c_int,
+        ),
+    > = lib.get(b"cblas_sgemm_batch").unwrap();
+    cblas_sgemm_batch(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, group_count, group_size);
+
+    match backend {
+        CBlasBackend::Mkl => {
+            CBLAS_SGEMM_B_MKL(
+                layout,
+                transa,
+                transb,
+                m,
+                n,
+                k,
+                alpha,
+                a,
+                lda,
+                b,
+                ldb,
+                beta,
+                c,
+                ldc,
+                group_count,
+                group_size,
+            );
+        }
+        CBlasBackend::Blis => {
+            unimplemented!()
+        }
+        CBlasBackend::OpenBlas => {
+            unimplemented!()
+        }
+    }
 }
 
 pub enum ABLayout {
@@ -1081,6 +1149,7 @@ pub unsafe fn check_gemm_s16s16s32(
             c_ref.as_mut_ptr(),
             ldc,
             oc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1155,6 +1224,7 @@ pub unsafe fn check_gemm_s8u8s32(
             c_ref.as_mut_ptr(),
             ldc,
             oc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1212,7 +1282,21 @@ pub unsafe fn check_gemm_f16(
         let alpha = alpha.to_bits();
         let beta = beta.to_bits();
         cblas_hgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc,
+            layout,
+            transa,
+            transb,
+            m as c_int,
+            n as c_int,
+            k as c_int,
+            alpha,
+            a,
+            lda,
+            b,
+            ldb,
+            beta,
+            c_ref_ptr,
+            ldc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1279,6 +1363,7 @@ pub unsafe fn check_gemm_f64(
             beta,
             c_ref.as_mut_ptr(),
             ldc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1345,6 +1430,7 @@ pub unsafe fn check_gemm_f32(
             beta,
             c_ref.as_mut_ptr(),
             ldc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1372,38 +1458,6 @@ pub unsafe fn check_gemm_f32(
     let diff = max_abs_diff(&c, &c_ref, eps);
     return diff;
 }
-
-// pub unsafe fn check_gemm_f16(
-// 	m: usize, n: usize, k: usize,
-// 	alpha: f16,
-// 	a: *const f16, a_rs: usize, a_cs: usize,
-// 	b: *const f16, b_rs: usize, b_cs: usize,
-// 	beta: f16,
-// 	c: &[f16], c_rs: usize, c_cs: usize,
-//     c_ref: &mut [f16],
-//     eps: f64,
-// ) -> f64 {
-//     #[cfg(feature="mkl")] {
-//         let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-//         let a = a as *const u16;
-//         let b = b as *const u16;
-//         let c_ref_ptr = c_ref.as_mut_ptr() as *mut u16;
-//         let alpha = alpha.to_bits();
-//         let beta = beta.to_bits();
-//         cblas_hgemm(
-//             layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha, a, lda, b, ldb, beta, c_ref_ptr, ldc
-//         );
-//         let diff = max_abs_diff(&c, &c_ref, eps);
-//         return diff;
-//     }
-//     #[cfg(not(feature="mkl"))] {
-//         // calculate diff using fallback
-//         gemm_fallback_f16(m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c_ref.as_mut_ptr(), c_rs, c_cs);
-//         let diff = max_abs_diff(&c, &c_ref, eps);
-//         return diff;
-//     }
-
-// }
 
 pub unsafe fn check_gemm_c32(
     m: usize,
@@ -1433,8 +1487,21 @@ pub unsafe fn check_gemm_c32(
         let alpha_ptr = &alpha as *const Complex32 as *const c_void;
         let beta_ptr = &beta as *const Complex32 as *const c_void;
         cblas_cgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr,
+            layout,
+            transa,
+            transb,
+            m as c_int,
+            n as c_int,
+            k as c_int,
+            alpha_ptr,
+            a,
+            lda,
+            b,
+            ldb,
+            beta_ptr,
+            c_ref_ptr,
             ldc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]
@@ -1491,8 +1558,21 @@ pub unsafe fn check_gemm_c64(
         let alpha_ptr = &alpha as *const Complex64 as *const c_void;
         let beta_ptr = &beta as *const Complex64 as *const c_void;
         cblas_zgemm(
-            layout, transa, transb, m as c_int, n as c_int, k as c_int, alpha_ptr, a, lda, b, ldb, beta_ptr, c_ref_ptr,
+            layout,
+            transa,
+            transb,
+            m as c_int,
+            n as c_int,
+            k as c_int,
+            alpha_ptr,
+            a,
+            lda,
+            b,
+            ldb,
+            beta_ptr,
+            c_ref_ptr,
             ldc,
+            CBlasBackend::Mkl,
         );
     }
     #[cfg(not(feature = "mkl"))]

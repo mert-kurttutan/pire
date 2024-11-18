@@ -8,6 +8,8 @@ license = "MIT"
 keywords = ["high-performance", "math"]
 
 [dependencies]
+libloading = "0.8.5"
+once_cell = { workspace = true }
 libc = "0.2"
 rand = "0.8.5"
 half = { workspace = true, features = ["rand_distr"] }
@@ -16,6 +18,3 @@ num-complex = { version = "0.4.6"}
 [features]
 default = []
 mkl = []
-openblas = []
-blis = []
-blasfeo = []

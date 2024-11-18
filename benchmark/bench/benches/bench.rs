@@ -102,9 +102,9 @@ fn bench_bbb(c: &mut Criterion) {
     let mut b_vec = vec![TB::ONE; m * m];
     let mut c_vec = vec![TC::ZERO; m * m];
     use glar_dev::random_matrix_uniform;
-    random_matrix_uniform(m, m, &mut a, m);
-    random_matrix_uniform(m, m, &mut b_vec, m);
-    random_matrix_uniform(m, m, &mut c_vec, m);
+    random_matrix_uniform(&mut a);
+    random_matrix_uniform(&mut b_vec);
+    random_matrix_uniform(&mut c_vec);
     let d0 = 1;
     let mnk_vec = vec![
         // 10, 100,
