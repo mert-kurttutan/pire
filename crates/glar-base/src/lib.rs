@@ -1,3 +1,7 @@
+//! # This crate is only for internal use in the glar project
+//! Nothing is expected to be used outside this module
+//! No semver guarantees
+
 use std::sync::{Barrier, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 // Consider Once Cell
 use once_cell::sync::Lazy;
