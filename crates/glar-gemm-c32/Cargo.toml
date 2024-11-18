@@ -6,7 +6,7 @@ authors = ["mert-kurttutan"]
 description = "high performance cpu kernels"
 license = "MIT"
 keywords = ["high-performance", "math"]
-
+rust-version = "1.65"
 
 [dependencies]
 glar-base = { version = "0.1.0", path = "../glar-base" }
@@ -16,6 +16,7 @@ num-complex = { version = "0.4.6"}
 
 [dev-dependencies]
 glar-dev = { version = "0.1.0", path = "../../crates/glar-dev" }
+aligned-vec = { workspace = true }
 
 [features]
 default = []

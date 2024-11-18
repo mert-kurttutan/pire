@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
-
 // Will be using libloading instead of native dynmic linking, this is more convenient and acceptible
 // since this crate is for testing
 
@@ -193,7 +192,6 @@ type GEMM_I16_FN_TYPE = unsafe extern "C" fn(
 
 const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
-
 // TODO: Add more reasonalble deafult paths for different os,s windows/unix
 pub static CBLAS_LIBRARY_MKL: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     let default_mkl_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
@@ -232,7 +230,6 @@ pub static CBLAS_SGEMM_B_MKL: Lazy<libloading::Symbol<'static, SGEMM_B_FN_TYPE>>
     let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_sgemm_batch").unwrap();
     cblas_gemm
 });
-
 
 pub static CBLAS_DGEMM_MKL: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
     let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_dgemm").unwrap();

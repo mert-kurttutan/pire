@@ -1401,6 +1401,10 @@ impl<'a, X> PtrData<'a, X> {
     }
 }
 
+pub fn matrix_size_strided(m: usize, n: usize, rs: usize, cs: usize) -> usize {
+    (m - 1) * rs + (n - 1) * cs
+}
+
 #[macro_export]
 macro_rules! packing_api {
     ($ta:ty, $tb:ty) => {
@@ -1409,13 +1413,13 @@ macro_rules! packing_api {
             let round_k_fn = dispatch_round_k();
             let m_round = round_m_fn(m);
             let k_round = round_k_fn(k);
-            return m_round * k_round + AB_ALIGN / size_of::<TA>();
+            return m_round * k_round;
         }
 
         fn b_size_packed(n: usize, k: usize) -> usize {
             let round_k_fn = dispatch_round_k();
             let k_round = round_k_fn(k);
-            return n * k_round + AB_ALIGN / size_of::<TB>();
+            return n * k_round;
         }
         // block idx for packa and packb is s.t.
         // m dim for block idx is contiguous and n dim is contiguous
@@ -1497,22 +1501,22 @@ macro_rules! packing_api {
             return Array::packed_matrix(bp, n, k);
         }
 
-        pub unsafe fn pack_a(m: usize, k: usize, a: &[$ta], a_rs: usize, a_cs: usize, ap: &mut [$ta]) -> Array<TA> {
-            // safety check for size and alignment
+        pub fn pack_a(m: usize, k: usize, a: &[$ta], a_rs: usize, a_cs: usize, ap: &mut [$ta]) -> Array<TA> {
+            // panics if ap does not have enough size
+            // safety check for size
             assert!(ap.len() >= a_size_packed(m, k));
-            let ap_ptr = ap.as_mut_ptr();
-            let ap_align_offset = ap_ptr.align_offset(AB_ALIGN);
-            let ap_ptr_aligned = ap_ptr.add(ap_align_offset);
-            unsafe { pack_a_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap_ptr_aligned) }
+            assert!(a.len() >= glar_base::matrix_size_strided(m, k, a_rs, a_cs));
+            // safety: ap has enough size due to the assert above
+            unsafe { pack_a_unchecked(m, k, a.as_ptr(), a_rs, a_cs, ap.as_mut_ptr()) }
         }
 
-        pub unsafe fn pack_b(n: usize, k: usize, b: &[$tb], b_rs: usize, b_cs: usize, bp: &mut [$tb]) -> Array<TB> {
-            // safety check for size and alignment
+        pub fn pack_b(n: usize, k: usize, b: &[$tb], b_rs: usize, b_cs: usize, bp: &mut [$tb]) -> Array<TB> {
+            // panics if bp does not have enough size
+            // safety check for size
             assert!(bp.len() >= b_size_packed(n, k));
-            let bp_ptr = bp.as_mut_ptr();
-            let bp_align_offset = bp_ptr.align_offset(AB_ALIGN);
-            let bp_ptr_aligned = bp_ptr.add(bp_align_offset);
-            unsafe { pack_b_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp_ptr_aligned) }
+            assert!(b.len() >= glar_base::matrix_size_strided(k, n, b_rs, b_cs));
+            // safety: bp has enough size due to the assert above
+            unsafe { pack_b_unchecked(n, k, b.as_ptr(), b_rs, b_cs, bp.as_mut_ptr()) }
         }
     };
 }
@@ -1556,7 +1560,7 @@ macro_rules! def_glar_gemm {
     ) => {
         def_pa!($packa_ty,$include_flag,$ta,$tap);
         def_pa!($packb_ty,$include_flag,$tb,$tbp);
-        pub unsafe fn $name <F:UnaryFnC>(
+        pub(crate) unsafe fn $name <F:UnaryFnC>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
@@ -1631,7 +1635,7 @@ macro_rules! def_glar_gemm {
             extend(pool_vec);
         }
 
-        pub unsafe fn $name_mt<F:UnaryFnC>(
+        pub(crate) unsafe fn $name_mt<F:UnaryFnC>(
             hw_config: &$t_dispatcher <F>,
             m: usize, n: usize, k: usize,
             alpha: $t_as,
@@ -2088,11 +2092,16 @@ macro_rules! partial_strided {
     };
 }
 
+#[target_feature(enable = "avx")]
+unsafe fn vzeroupper_unchecked() {
+    core::arch::x86_64::_mm256_zeroupper();
+}
+
 pub fn avx_vzeroupper() {
     #[cfg(target_arch = "x86_64")]
     if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
         unsafe {
-            core::arch::asm!("vzeroupper");
+            vzeroupper_unchecked();
         }
     }
 }

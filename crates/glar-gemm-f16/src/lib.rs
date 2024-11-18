@@ -29,7 +29,7 @@ use glar_base::{
 };
 use reference::{packa_fn_ref, packb_fn_ref, round_k_ref, round_m_ref, RefGemm};
 
-pub(crate) trait UnaryFnC: UnaryFn<TC> {}
+pub trait UnaryFnC: UnaryFn<TC> {}
 impl<F: UnaryFn<TC>> UnaryFnC for F {}
 
 pub(crate) unsafe fn glar_hgemm_fused<F: UnaryFnC>(
@@ -184,8 +184,50 @@ mod tests {
         check_gemm_f16, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides, random_matrix_uniform,
         ABLayout,
     };
+    #[test]
+    fn test_pack_a() {
+        let a_stride_scale = 1;
+        let (mc, _, kc) = get_mcnckc();
+        let (mr, _, kr) = (48, 8, 8);
+        let m_dims = generate_m_dims(mc, mr);
+        let k_dims = generate_k_dims(kc, kr);
 
-    #[inline(always)]
+        for &m in &m_dims {
+            for &k in &k_dims {
+                let a_rs = 1 * a_stride_scale;
+                let a_cs = m * a_stride_scale;
+                let a_size = a_size_packed(m, k);
+                let a = vec![TA::ZERO; m * k * a_stride_scale];
+                let mut ap = vec![TA::ZERO; a_size + AB_ALIGN];
+                let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
+                let ap_array = pack_a(m, k, &a, a_rs, a_cs, &mut ap[ap_align_offset..]);
+                assert!(!ap_array.is_strided() || m == 1);
+            }
+        }
+    }
+
+    #[test]
+    fn test_pack_b() {
+        let b_stride_scale = 1;
+        let (_, nc, kc) = get_mcnckc();
+        let (_, nr, kr) = (48, 8, 8);
+        let n_dims = generate_n_dims(nc, nr);
+        let k_dims = generate_k_dims(kc, kr);
+
+        for &n in &n_dims {
+            for &k in &k_dims {
+                let b_rs = 1 * b_stride_scale;
+                let b_cs = k * b_stride_scale;
+                let b_size = b_size_packed(n, k);
+                let b = vec![TB::ZERO; n * k * b_stride_scale];
+                let mut bp = vec![TB::ZERO; b_size + AB_ALIGN];
+                let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
+                let bp_array = pack_b(n, k, &b, b_rs, b_cs, &mut bp[bp_align_offset..]);
+                assert!(!bp_array.is_strided() || n == 1);
+            }
+        }
+    }
+
     #[allow(unreachable_code)]
     pub(crate) fn get_mcnckc() -> (usize, usize, usize) {
         #[cfg(target_arch = "x86_64")]
@@ -203,8 +245,6 @@ mod tests {
 
     const EPS: f64 = 10e-1;
 
-    // static ALPHA_ARR: [f32; 2] = [1.0, 3.1415];
-    // static BETA_ARR: [f32; 3] = [1.0, 3.1415, 0.0];
     static ALPHA_ARR: [f16; 1] = [f16::from_f32_const(1.23)];
     static BETA_ARR: [f16; 1] = [f16::from_f32_const(1.17)];
 
@@ -232,10 +272,14 @@ mod tests {
         let mut c_ref = vec![TC::ZERO; c_size];
 
         let ap_size = if is_a_packed { a_size_packed(m_max, k_max) } else { 0 };
-        let mut ap = vec![TA::ZERO; ap_size];
+        let mut ap = vec![TA::ZERO; ap_size + AB_ALIGN];
+        let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
+        let ap_mut_ref = &mut ap[ap_align_offset..];
 
         let bp_size = if is_b_packed { b_size_packed(n_max, k_max) } else { 0 };
-        let mut bp = vec![TB::ZERO; bp_size];
+        let mut bp = vec![TB::ZERO; bp_size + AB_ALIGN];
+        let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
+        let bp_mut_ref = &mut bp[bp_align_offset..];
         for &m in &m_dims {
             for &n in &n_dims {
                 for &k in &k_dims {
@@ -249,12 +293,12 @@ mod tests {
                         c_cs * c_stride_scale,
                     );
                     let a_matrix = if is_a_packed {
-                        unsafe { pack_a(m, k, &a, a_rs, a_cs, &mut ap) }
+                        pack_a(m, k, &a, a_rs, a_cs, ap_mut_ref)
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
                     let b_matrix = if is_b_packed {
-                        unsafe { pack_b(n, k, &b, b_rs, b_cs, &mut bp) }
+                        pack_b(n, k, &b, b_rs, b_cs, bp_mut_ref)
                     } else {
                         Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
                     };
