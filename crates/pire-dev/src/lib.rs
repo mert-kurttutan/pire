@@ -194,19 +194,28 @@ const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
 // TODO: Add more reasonalble deafult paths for different os,s windows/unix
 pub static CBLAS_LIBRARY_MKL: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    #[cfg(target_os = "windows")]
     let default_mkl_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
+    #[cfg(target_os = "linux")]
+    let default_mkl_path = format!("{PROJECT_DIR}/../../.env/lib/libmkl_rt.so");
     let mkl_path = std::env::var("PIRE_MKL_PATH").unwrap_or(default_mkl_path);
     libloading::Library::new(mkl_path).unwrap()
 });
 
 pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    #[cfg(target_os = "windows")]
     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
+    #[cfg(target_os = "linux")]
+    let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/libopenblas.so");
     let openblas_path = std::env::var("PIRE_OPENBLAS_PATH").unwrap_or(default_openblas_path);
     libloading::Library::new(openblas_path).unwrap()
 });
 
 pub static CBLAS_LIBRARY_BLIS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+    #[cfg(target_os = "windows")]
     let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
+    #[cfg(target_os = "linux")]
+    let default_blis_path = format!("{PROJECT_DIR}/../../blis/lib/haswell/libblis.so");
     let blis_path = std::env::var("PIRE_BLIS_PATH").unwrap_or(default_blis_path);
     libloading::Library::new(blis_path).unwrap()
 });
@@ -438,10 +447,10 @@ pub unsafe fn cblas_hgemm(
             CBLAS_HGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
         }
         CBlasBackend::Blis => {
-            unimplemented!()
+            // pass
         }
         CBlasBackend::OpenBlas => {
-            unimplemented!()
+            // pass
         }
     }
 }
@@ -472,10 +481,10 @@ pub unsafe fn cblas_gemm_s8u8s32(
             CBLAS_GEMM_I8(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
         }
         CBlasBackend::Blis => {
-            unimplemented!()
+            // pass
         }
         CBlasBackend::OpenBlas => {
-            unimplemented!()
+            // pass
         }
     }
 }
@@ -507,10 +516,10 @@ pub unsafe fn cblas_gemm_s16s16s32(
             CBLAS_GEMM_I16(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
         }
         CBlasBackend::Blis => {
-            unimplemented!()
+            // pass
         }
         CBlasBackend::OpenBlas => {
-            unimplemented!()
+            // pass
         }
     }
 }
@@ -579,10 +588,10 @@ pub unsafe fn cblas_sgemm_batch(
             );
         }
         CBlasBackend::Blis => {
-            unimplemented!()
+            // pass
         }
         CBlasBackend::OpenBlas => {
-            unimplemented!()
+            // pass
         }
     }
 }

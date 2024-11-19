@@ -752,7 +752,7 @@ pub unsafe fn dispatch_gemm_s16s16s32(
             );
         }
         GemmBackend::RustGemm => {
-            panic!("s16s16s32 is not supported in rustgemm");
+            // pass
         }
         GemmBackend::Pire => {
             use pire_gemm_s16s16s32::pire_gemm_s16s16s32 as gemm_s16s16s32;
@@ -794,10 +794,13 @@ pub unsafe fn dispatch_gemm_s8u8s32(
     c_cs: isize,
 ) {
     match backend {
-        GemmBackend::Blis => {
-            panic!("s16s16s32 is not supported in blis");
-        }
-        GemmBackend::Mkl => {
+        GemmBackend::Mkl | GemmBackend::Blis | GemmBackend::OpenBlas => {
+            let cblas_backend = match backend {
+                GemmBackend::Blis => CBlasBackend::Blis,
+                GemmBackend::Mkl => CBlasBackend::Mkl,
+                GemmBackend::OpenBlas => CBlasBackend::OpenBlas,
+                _ => panic!("Unsupported backend"),
+            };
             let oc_val = 0;
             let oc = &oc_val as *const c_int;
             let a = a as *const c_void;
@@ -832,11 +835,11 @@ pub unsafe fn dispatch_gemm_s8u8s32(
                 c,
                 ldc as i32,
                 oc,
-                CBlasBackend::Mkl,
+                cblas_backend,
             );
         }
         GemmBackend::RustGemm => {
-            panic!("s16s16s32 is not supported in rustgemm");
+            // pass
         }
         GemmBackend::Pire => {
             use pire_gemm_s8u8s32::pire_gemm_s8u8s32 as gemm_s8u8s32;
@@ -856,9 +859,6 @@ pub unsafe fn dispatch_gemm_s8u8s32(
                 c_rs as usize,
                 c_cs as usize,
             );
-        }
-        GemmBackend::OpenBlas => {
-            panic!("s8u8s32 is not supported in openblas");
         }
     }
 }

@@ -1,3 +1,4 @@
+use half::f16;
 use pire_dev::{
     check_gemm_c32,
     check_gemm_c64,
@@ -10,7 +11,6 @@ use pire_dev::{
     // CBLAS_LAYOUT,
     CBLAS_TRANSPOSE,
 };
-use half::f16;
 
 use bench::{
     dispatch_cgemm, dispatch_dgemm, dispatch_gemm_batch_f32, dispatch_gemm_s16s16s32, dispatch_gemm_s8u8s32,
@@ -834,7 +834,6 @@ fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
     }
 }
 
-
 fn run_bench(args: &Args, run_folder_path: PathBuf) {
     prepare_num_threads();
     let benchmark_result_path = get_bench_file_path(run_folder_path);
@@ -901,6 +900,14 @@ fn main() {
         "gemm_s16s16s32",
         "gemm_s8u8s32",
     ];
+    let bench_pair_to_pass = [
+        ("hgemm", "blis"),
+        ("gemm_s16s16s32", "blis"),
+        ("gemm_s8u8s32", "blis"),
+        ("hgemm", "openblas"),
+        ("gemm_s16s16s32", "openblas"),
+        ("gemm_s8u8s32", "openblas"),
+    ];
     let backend_arr = ["pire", "mkl"];
     let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
     fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
@@ -911,6 +918,10 @@ fn main() {
     for bench_type in bench_type_arr.iter() {
         args.bench_type = bench_type.to_string();
         for backend in backend_arr.iter() {
+            let bench_pair = (*bench_type, *backend);
+            if bench_pair_to_pass.contains(&bench_pair) {
+                continue;
+            }
             args.backend = backend.to_string();
             run_bench(&args, run_folder_path.clone());
         }
