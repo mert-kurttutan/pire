@@ -132,12 +132,22 @@ const SKYLAKE: [u8; 13] = [78, 85, 94, 126, 140, 141, 167, 151, 154, 183, 186, 1
 const HASWELL: [u8; 10] = [69, 70, 63, 42, 58, 165, 79, 86, 61, 71];
 
 impl HWModel {
-    pub fn from_hw(family_id: u8, model_id: u8) -> Self {
+    pub fn from_hw(family_id: u8, model_id: u8, cpu_ft: CpuFeatures) -> Self {
         if family_id == 6 {
             if SKYLAKE.contains(&model_id) {
                 return HWModel::Skylake;
             }
             if HASWELL.contains(&model_id) {
+                return HWModel::Haswell;
+            }
+        }
+        // if model id is not in the list, default by looking at cpu features
+        #[cfg(target_arch = "x86_64")]
+        {
+            if cpu_ft.avx512f {
+                return HWModel::Skylake;
+            }
+            if cpu_ft.avx {
                 return HWModel::Haswell;
             }
         }
@@ -197,7 +207,7 @@ fn detect_hw_config() -> HWConfig {
         };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
-        let hw_model = HWModel::from_hw(family_id, model_id);
+        let hw_model = HWModel::from_hw(family_id, model_id, cpu_ft);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
     }
