@@ -809,7 +809,7 @@ fn prepare_num_threads() {
     let default_num_threads = std::thread::available_parallelism().unwrap().get().to_string();
     let n_threads_str = std::env::var("NUM_THREADS").unwrap_or(default_num_threads);
     std::env::set_var("NUM_THREADS", n_threads_str.clone());
-    std::env::set_var("Pire_NUM_THREADS", n_threads_str.clone());
+    std::env::set_var("PIRE_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("BLIS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("OPENBLAS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("MKL_NUM_THREADS", n_threads_str.clone());
@@ -834,42 +834,6 @@ fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
     }
 }
 
-fn main() {
-    let mut args = Args {
-        n_repeats: 10,
-        batch_dim: 5,
-        t_layout: String::from("nt"),
-        check: false,
-        backend: String::from("pire"),
-        bench_type: String::from("sgemm"),
-        alpha: 1.0,
-        beta: 1.0,
-    };
-    let bench_type_arr = [
-        // "cgemm",
-        "sgemm",
-        "hgemm",
-        "dgemm",
-        "cgemm",
-        "zgemm",
-        "gemm_s16s16s32",
-        "gemm_s8u8s32",
-    ];
-    let backend_arr = ["pire", "mkl"];
-    let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
-    fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
-    let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();
-    let num_files = files.count();
-    let benchmark_run_folder = format!("benchmark_run_{}", num_files);
-    let run_folder_path = benchmark_folder_path.join(benchmark_run_folder.clone());
-    for bench_type in bench_type_arr.iter() {
-        args.bench_type = bench_type.to_string();
-        for backend in backend_arr.iter() {
-            args.backend = backend.to_string();
-            run_bench(&args, run_folder_path.clone());
-        }
-    }
-}
 
 fn run_bench(args: &Args, run_folder_path: PathBuf) {
     prepare_num_threads();
@@ -913,5 +877,42 @@ fn run_bench(args: &Args, run_folder_path: PathBuf) {
         benchmark_result.times.push(end_time);
         let j = serde_json::to_string(&benchmark_result).unwrap();
         std::fs::write(benchmark_result_path.clone(), j).unwrap();
+    }
+}
+
+fn main() {
+    let mut args = Args {
+        n_repeats: 10,
+        batch_dim: 5,
+        t_layout: String::from("nt"),
+        check: false,
+        backend: String::from("pire"),
+        bench_type: String::from("sgemm"),
+        alpha: 1.0,
+        beta: 1.0,
+    };
+    let bench_type_arr = [
+        // "cgemm",
+        "sgemm",
+        "hgemm",
+        "dgemm",
+        "cgemm",
+        "zgemm",
+        "gemm_s16s16s32",
+        "gemm_s8u8s32",
+    ];
+    let backend_arr = ["pire", "mkl"];
+    let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
+    fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
+    let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();
+    let num_files = files.count();
+    let benchmark_run_folder = format!("benchmark_run_{}", num_files);
+    let run_folder_path = benchmark_folder_path.join(benchmark_run_folder.clone());
+    for bench_type in bench_type_arr.iter() {
+        args.bench_type = bench_type.to_string();
+        for backend in backend_arr.iter() {
+            args.backend = backend.to_string();
+            run_bench(&args, run_folder_path.clone());
+        }
     }
 }

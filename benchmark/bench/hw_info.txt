@@ -10,4 +10,5 @@ Vendor ID:                GenuineIntel
     CPU max MHz:          4500,0000
     CPU min MHz:          800,0000
 
-
+run_1:
+11th Gen Intel® Core™ i7-11850H @ 2.50GHz
