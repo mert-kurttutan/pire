@@ -1,4 +1,4 @@
-use glar_dev::{
+use pire_dev::{
     check_gemm_c32,
     check_gemm_c64,
     check_gemm_f16,
@@ -726,7 +726,7 @@ struct Args {
     check: bool,
 
     // gemm backend
-    #[arg(long, default_value_t = String::from("glar"))]
+    #[arg(long, default_value_t = String::from("pire"))]
     backend: String,
 
     // bench type
@@ -809,7 +809,7 @@ fn prepare_num_threads() {
     let default_num_threads = std::thread::available_parallelism().unwrap().get().to_string();
     let n_threads_str = std::env::var("NUM_THREADS").unwrap_or(default_num_threads);
     std::env::set_var("NUM_THREADS", n_threads_str.clone());
-    std::env::set_var("GLAR_NUM_THREADS", n_threads_str.clone());
+    std::env::set_var("Pire_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("BLIS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("OPENBLAS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("MKL_NUM_THREADS", n_threads_str.clone());
@@ -840,7 +840,7 @@ fn main() {
         batch_dim: 5,
         t_layout: String::from("nt"),
         check: false,
-        backend: String::from("glar"),
+        backend: String::from("pire"),
         bench_type: String::from("sgemm"),
         alpha: 1.0,
         beta: 1.0,
@@ -855,7 +855,7 @@ fn main() {
         "gemm_s16s16s32",
         "gemm_s8u8s32",
     ];
-    let backend_arr = ["glar", "mkl"];
+    let backend_arr = ["pire", "mkl"];
     let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
     fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
     let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();

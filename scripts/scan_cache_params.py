@@ -9,21 +9,21 @@ def scan_params(
 
     for nc in nc_arr:
         for kc in kc_arr:
-            # set env GLAR_NC=nc, GLAR_KC=kc
-            os.environ['GLAR_NC'] = str(nc)
-            os.environ['GLAR_KC'] = str(kc)
+            # set env PIRE_NC=nc, PIRE_KC=kc
+            os.environ['PIRE_NC'] = str(nc)
+            os.environ['PIRE_KC'] = str(kc)
 
-            # append print the value of env vars GLAR_NC and GLAR_KC to the output file
+            # append print the value of env vars PIRE_NC and PIRE_KC to the output file
             with open(output_file, 'a') as f:
-                nc = os.environ['GLAR_NC']
-                kc = os.environ['GLAR_KC']
+                nc = os.environ['PIRE_NC']
+                kc = os.environ['PIRE_KC']
                 f.write(f"NC={nc}, KC={kc}\n")
 
-            glar_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend glar"
+            pire_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend pire"
             mkl_command_str = f"{binary_location} --m {m} --n {n} --k {k} --bench-type {bench_type} --backend mkl"
 
-            # execute the glar and mkl commands and append the output to the output file
-            subprocess.run(glar_command_str, shell=True, stdout=open(output_file, 'a'))
+            # execute the pire and mkl commands and append the output to the output file
+            subprocess.run(pire_command_str, shell=True, stdout=open(output_file, 'a'))
             subprocess.run(mkl_command_str, shell=True, stdout=open(output_file, 'a'))
 
 

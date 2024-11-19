@@ -3,7 +3,7 @@ use num_traits::identities::{ConstOne, ConstZero};
 use std::time::Duration;
 
 #[cfg(feature = "blis")]
-use glar_dev::BLIS_NO_TRANSPOSE;
+use pire_dev::BLIS_NO_TRANSPOSE;
 
 use num_complex::{c32, Complex};
 
@@ -55,7 +55,7 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
             dispatch_gemm(GemmBackend::Mkl, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
         })
     });
-    bench_c.bench_with_input(BenchmarkId::new(format!("{}-glar-gemm", type_name), dt), &dt, |bench_b, _x| {
+    bench_c.bench_with_input(BenchmarkId::new(format!("{}-pire-gemm", type_name), dt), &dt, |bench_b, _x| {
         bench_b.iter(|| unsafe {
             dispatch_gemm(GemmBackend::Glar, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
         })
@@ -101,7 +101,7 @@ fn bench_bbb(c: &mut Criterion) {
     let mut a = vec![TA::ONE; m * m];
     let mut b_vec = vec![TB::ONE; m * m];
     let mut c_vec = vec![TC::ZERO; m * m];
-    use glar_dev::random_matrix_uniform;
+    use pire_dev::random_matrix_uniform;
     random_matrix_uniform(&mut a);
     random_matrix_uniform(&mut b_vec);
     random_matrix_uniform(&mut c_vec);

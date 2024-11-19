@@ -8,15 +8,15 @@ libc = "0.2"
 raw-cpuid = {version = "11.1.0", git = "https://github.com/gz/rust-cpuid.git" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-glar-base = { path = "../../crates/glar-base" }
-glar-gemm-f32 = { path = "../../crates/glar-gemm-f32" }
-glar-gemm-f64 = { path = "../../crates/glar-gemm-f64" }
-glar-gemm-f16 = { path = "../../crates/glar-gemm-f16" }
-glar-gemm-s16s16s32 = { path = "../../crates/glar-gemm-s16s16s32" }
-glar-gemm-s8u8s32 = { path = "../../crates/glar-gemm-s8u8s32" }
-glar-gemm-c32 = { path = "../../crates/glar-gemm-c32" }
-glar-gemm-c64 = { path = "../../crates/glar-gemm-c64" }
-glar-dev = { path = "../../crates/glar-dev" }
+pire-base = { path = "../../crates/pire-base" }
+pire-gemm-f32 = { path = "../../crates/pire-gemm-f32" }
+pire-gemm-f64 = { path = "../../crates/pire-gemm-f64" }
+pire-gemm-f16 = { path = "../../crates/pire-gemm-f16" }
+pire-gemm-s16s16s32 = { path = "../../crates/pire-gemm-s16s16s32" }
+pire-gemm-s8u8s32 = { path = "../../crates/pire-gemm-s8u8s32" }
+pire-gemm-c32 = { path = "../../crates/pire-gemm-c32" }
+pire-gemm-c64 = { path = "../../crates/pire-gemm-c64" }
+pire-dev = { path = "../../crates/pire-dev" }
 clap = {version = "~4.0", features = ["unicode", "derive"] }
 gemm = {git = "https://github.com/sarah-ek/gemm", optional = true }
 num-complex = { version = "0.4.6", features = ["rand"] }
@@ -35,6 +35,6 @@ harness = false
 [features]
 default = []
 mkl_check = []
-mkl = ["glar-dev/mkl"]
-glar = []
+mkl = ["pire-dev/mkl"]
+pire = []
 rustgemm = ["dep:gemm"]

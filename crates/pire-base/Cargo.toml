@@ -1,0 +1,22 @@
+[package]
+name = "pire-base"
+version = "0.1.0"
+edition = "2021"
+authors = ["mert-kurttutan"]
+description = "high performance cpu kernels"
+license = "MIT"
+keywords = ["high-performance", "math", "linear-algebra", "kernel"]
+rust-version = "1.65"
+
+[dependencies]
+once_cell = { workspace = true }
+# latest version with bf16 is not released yet, fix when released
+raw-cpuid = {version = "11.1.0", git = "https://github.com/gz/rust-cpuid.git" }
+
+[dev-dependencies]
+pire-dev = { version = "0.1.0", path = "../../crates/pire-dev" }
+
+
+[features]
+default = []
+debug_cpu_features = []

@@ -8,7 +8,7 @@ use num_complex::Complex;
 
 type C32 = Complex<f32>;
 
-use glar_dev::{stride_to_cblas, CBlasBackend, CBLAS_OFFSET::*};
+use pire_dev::{stride_to_cblas, CBlasBackend, CBLAS_OFFSET::*};
 
 use libc::{c_int, c_ushort, c_void};
 
@@ -31,7 +31,7 @@ pub enum GemmBackend {
     Blis,
     Mkl,
     RustGemm,
-    Glar,
+    Pire,
     OpenBlas,
 }
 
@@ -45,8 +45,8 @@ pub fn gemm_backend_from_str(backend_str: &str) -> GemmBackend {
     if backend_str == "rustgemm" {
         return GemmBackend::RustGemm;
     }
-    if backend_str == "glar" {
-        return GemmBackend::Glar;
+    if backend_str == "pire" {
+        return GemmBackend::Pire;
     }
     if backend_str == "openblas" {
         return GemmBackend::OpenBlas;
@@ -90,7 +90,7 @@ pub unsafe fn dispatch_dgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
-            glar_dev::cblas_dgemm(
+            pire_dev::cblas_dgemm(
                 layout,
                 transa,
                 transb,
@@ -132,8 +132,8 @@ pub unsafe fn dispatch_dgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glar => {
-            glar_gemm_f64::glar_dgemm(
+        GemmBackend::Pire => {
+            pire_gemm_f64::pire_dgemm(
                 m,
                 n,
                 k,
@@ -189,7 +189,7 @@ pub unsafe fn dispatch_sgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
-            use glar_dev::cblas_sgemm;
+            use pire_dev::cblas_sgemm;
             cblas_sgemm(
                 layout,
                 transa,
@@ -232,8 +232,8 @@ pub unsafe fn dispatch_sgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glar => {
-            glar_gemm_f32::glar_sgemm(
+        GemmBackend::Pire => {
+            pire_gemm_f32::pire_sgemm(
                 m,
                 n,
                 k,
@@ -294,7 +294,7 @@ pub unsafe fn dispatch_cgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
-            glar_dev::cblas_cgemm(
+            pire_dev::cblas_cgemm(
                 layout,
                 transa,
                 transb,
@@ -336,8 +336,8 @@ pub unsafe fn dispatch_cgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glar => {
-            glar_gemm_c32::glar_cgemm(
+        GemmBackend::Pire => {
+            pire_gemm_c32::pire_cgemm(
                 m,
                 n,
                 k,
@@ -398,7 +398,7 @@ pub unsafe fn dispatch_zgemm(
                 c_rs as usize,
                 c_cs as usize,
             );
-            glar_dev::cblas_zgemm(
+            pire_dev::cblas_zgemm(
                 layout,
                 transa,
                 transb,
@@ -440,8 +440,8 @@ pub unsafe fn dispatch_zgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glar => {
-            glar_gemm_c64::glar_zgemm(
+        GemmBackend::Pire => {
+            pire_gemm_c64::pire_zgemm(
                 m,
                 n,
                 k,
@@ -516,7 +516,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
             let c_vec = (0..batch_size).map(|i| c.offset(i as isize * stridec)).collect::<Vec<*mut f32>>();
             let stride_size_vec = [batch_size as i32; 1];
 
-            glar_dev::cblas_sgemm_batch(
+            pire_dev::cblas_sgemm_batch(
                 layout,
                 transa_vec.as_ptr(),
                 transb_vec.as_ptr(),
@@ -564,9 +564,9 @@ pub unsafe fn dispatch_gemm_batch_f32(
                 }
             }
         }
-        GemmBackend::Glar => {
+        GemmBackend::Pire => {
             for i in 0..batch_size {
-                glar_gemm_f32::glar_sgemm(
+                pire_gemm_f32::pire_sgemm(
                     m,
                     n,
                     k,
@@ -628,7 +628,7 @@ pub unsafe fn dispatch_hgemm(
             let c = c as *mut c_ushort;
             let alpha = alpha.to_bits();
             let beta = beta.to_bits();
-            glar_dev::cblas_hgemm(
+            pire_dev::cblas_hgemm(
                 layout,
                 transa,
                 transb,
@@ -670,8 +670,8 @@ pub unsafe fn dispatch_hgemm(
                 gemm::Parallelism::Rayon(0),
             );
         }
-        GemmBackend::Glar => {
-            glar_gemm_f16::glar_hgemm(
+        GemmBackend::Pire => {
+            pire_gemm_f16::pire_hgemm(
                 m,
                 n,
                 k,
@@ -729,7 +729,7 @@ pub unsafe fn dispatch_gemm_s16s16s32(
                 c_rs as usize,
                 c_cs as usize,
             );
-            glar_dev::cblas_gemm_s16s16s32(
+            pire_dev::cblas_gemm_s16s16s32(
                 layout,
                 transa,
                 transb,
@@ -754,8 +754,8 @@ pub unsafe fn dispatch_gemm_s16s16s32(
         GemmBackend::RustGemm => {
             panic!("s16s16s32 is not supported in rustgemm");
         }
-        GemmBackend::Glar => {
-            use glar_gemm_s16s16s32::glar_gemm_s16s16s32 as gemm_s16s16s32;
+        GemmBackend::Pire => {
+            use pire_gemm_s16s16s32::pire_gemm_s16s16s32 as gemm_s16s16s32;
             gemm_s16s16s32(
                 m,
                 n,
@@ -813,7 +813,7 @@ pub unsafe fn dispatch_gemm_s8u8s32(
                 c_rs as usize,
                 c_cs as usize,
             );
-            glar_dev::cblas_gemm_s8u8s32(
+            pire_dev::cblas_gemm_s8u8s32(
                 layout,
                 transa,
                 transb,
@@ -838,8 +838,8 @@ pub unsafe fn dispatch_gemm_s8u8s32(
         GemmBackend::RustGemm => {
             panic!("s16s16s32 is not supported in rustgemm");
         }
-        GemmBackend::Glar => {
-            use glar_gemm_s8u8s32::glar_gemm_s8u8s32 as gemm_s8u8s32;
+        GemmBackend::Pire => {
+            use pire_gemm_s8u8s32::pire_gemm_s8u8s32 as gemm_s8u8s32;
             gemm_s8u8s32(
                 m,
                 n,
