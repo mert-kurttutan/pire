@@ -206,7 +206,7 @@ pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsa
     #[cfg(target_os = "windows")]
     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
     #[cfg(target_os = "linux")]
-    let default_blis_path = format!("{PROJECT_DIR}/../../../blis/lib/haswell/libblis.so");
+    let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/libopenblas.so");
     let openblas_path = std::env::var("PIRE_OPENBLAS_PATH").unwrap_or(default_openblas_path);
     libloading::Library::new(openblas_path).unwrap()
 });
@@ -215,7 +215,7 @@ pub static CBLAS_LIBRARY_BLIS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     #[cfg(target_os = "windows")]
     let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
     #[cfg(target_os = "linux")]
-    let default_blis_path = format!("{PROJECT_DIR}/../../blis/lib/haswell/libblis.so");
+    let default_blis_path = format!("{PROJECT_DIR}/../../../blis/lib/haswell/libblis.so");
     let blis_path = std::env::var("PIRE_BLIS_PATH").unwrap_or(default_blis_path);
     libloading::Library::new(blis_path).unwrap()
 });
