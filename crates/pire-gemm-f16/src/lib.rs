@@ -179,6 +179,7 @@ pire_base::packing_api!(TA, TB);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aligned_vec::avec;
     use pire_base::{get_cache_params, matrix_size};
     use pire_dev::{
         check_gemm_f16, generate_k_dims, generate_m_dims, generate_n_dims, layout_to_strides, random_matrix_uniform,
@@ -198,9 +199,8 @@ mod tests {
                 let a_cs = m * a_stride_scale;
                 let a_size = a_size_packed(m, k);
                 let a = vec![TA::ZERO; m * k * a_stride_scale];
-                let mut ap = vec![TA::ZERO; a_size + AB_ALIGN];
-                let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
-                let ap_array = pack_a(m, k, &a, a_rs, a_cs, &mut ap[ap_align_offset..]);
+                let mut ap = avec![[AB_ALIGN]| TA::ZERO; a_size];
+                let ap_array = pack_a(m, k, &a, a_rs, a_cs, &mut ap);
                 assert!(!ap_array.is_strided() || m == 1);
             }
         }
@@ -220,9 +220,8 @@ mod tests {
                 let b_cs = k * b_stride_scale;
                 let b_size = b_size_packed(n, k);
                 let b = vec![TB::ZERO; n * k * b_stride_scale];
-                let mut bp = vec![TB::ZERO; b_size + AB_ALIGN];
-                let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
-                let bp_array = pack_b(n, k, &b, b_rs, b_cs, &mut bp[bp_align_offset..]);
+                let mut bp = avec![[AB_ALIGN]| TA::ZERO; b_size];
+                let bp_array = pack_b(n, k, &b, b_rs, b_cs, &mut bp);
                 assert!(!bp_array.is_strided() || n == 1);
             }
         }

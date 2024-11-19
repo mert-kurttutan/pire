@@ -16,7 +16,7 @@ half = { workspace = true }
 
 [dev-dependencies]
 pire-dev = { version = "0.1.0", path = "../../crates/pire-dev" }
-
+aligned-vec = { workspace = true }
 
 [features]
 default = []
