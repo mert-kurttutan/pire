@@ -132,7 +132,7 @@ const SKYLAKE: [u8; 13] = [78, 85, 94, 126, 140, 141, 167, 151, 154, 183, 186, 1
 const HASWELL: [u8; 10] = [69, 70, 63, 42, 58, 165, 79, 86, 61, 71];
 
 impl HWModel {
-    pub fn from_hw(family_id: u8, model_id: u8, cpu_ft: CpuFeatures) -> Self {
+    pub fn from_hw(family_id: u8, model_id: u8, _cpu_ft: CpuFeatures) -> Self {
         if family_id == 6 {
             if SKYLAKE.contains(&model_id) {
                 return HWModel::Skylake;
@@ -144,10 +144,10 @@ impl HWModel {
         // if model id is not in the list, default by looking at cpu features
         #[cfg(target_arch = "x86_64")]
         {
-            if cpu_ft.avx512f {
+            if _cpu_ft.avx512f {
                 return HWModel::Skylake;
             }
-            if cpu_ft.avx {
+            if _cpu_ft.avx {
                 return HWModel::Haswell;
             }
         }
@@ -222,7 +222,7 @@ fn detect_hw_config() -> HWConfig {
         let cpu_ft = CpuFeatures { sse, sse2, sse3, ssse3 };
         let family_id = feature_info.family_id();
         let model_id = feature_info.model_id();
-        let hw_model = HWModel::from_hw(family_id, model_id);
+        let hw_model = HWModel::from_hw(family_id, model_id, cpu_ft);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
         return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
     }
@@ -4589,6 +4589,185 @@ macro_rules! def_ukernel_sse {
 }
 
 #[macro_export]
+macro_rules! asm_body_neon {
+    (
+        $step_macro:tt, $acc_macro:tt, $store_macro:tt,
+        $mr:tt, $nr:tt, $b_layout:tt, $is_partial:tt,
+        $a:tt, $b:tt, $c:tt, $alpha:tt, $beta:tt, $alpha_st:tt, $beta_st:tt,
+        $dim_arr:tt, | $($alt:ident,)? |,
+        | $($xreg:ident,)* |,
+        [$($vreg:tt,)*]
+    ) => {
+        asm!(
+            prefetch_c!(),
+            vzero_kernel!(),
+
+            init_ab!($b_layout),
+
+            // 3 -> CONSIDKLEFT
+            "cmp {x0}, #0", "BEQ 3f",
+
+            // 2 -> KITER
+            "2:",
+            prefetch_0!(128, "{bx}"),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+
+            "sub {x0}, {x0}, #1",
+            // 2 -> KITER
+            "cmp {x0}, 0",
+            "BNE 2b",
+
+            // 3 -> CONSIDKLEFT
+            "3:",
+            "ldr {x0}, [{dim_arrx}, #32]",
+            "cmp {x0}, #0",
+
+            // 5 -> POSTACCUM
+            "BEQ 5f",
+            // 4 -> KLEFT
+            "4:",
+            $step_macro!($nr, $b_layout),
+
+            "sub {x0}, {x0}, #1",
+
+            // 4 -> KLEFT
+            "cmp {x0}, 0",
+            "BNE 4b",
+
+            // 5 -> POSTACCUM
+            "5:",
+            c_load!(),
+            "cmp {alpha_st:w}, #0",
+            "BEQ 13f",
+            alpha_scale!(),
+            "13:",
+
+            "cmp {beta_st:w}, #0",
+            "BEQ 6f",
+
+            load_beta!(),
+
+            pire_base::cum_seq!($acc_macro,$nr,$is_partial,2),
+
+            // 6 -> BETAZERO
+            "6:",
+            pire_base::cum_seq!($store_macro,$nr,$is_partial),
+
+            ax = inout(reg) $a => _,
+            bx = inout(reg) $b => _,
+            cx = inout(reg) $c => _,
+            dim_arrx = inout(reg) $dim_arr.as_ptr() => _,
+            alphax = inout(reg) $alpha => _,
+            betax = inout(reg) $beta => _,
+            beta_st = in(reg) &$beta_st,
+            alpha_st = in(reg) &$alpha_st,
+            $(altx = inout(reg) $alt.as_ptr() => _,)?
+            $($xreg = out(reg) _,)*
+            $(out($vreg) _,)*
+        );
+    }
+}
+
+#[macro_export]
+macro_rules! asm_body_sve {
+    (
+        $step_macro:tt, $acc_macro:tt, $store_macro:tt,
+        $mr:tt, $nr:tt, $b_layout:tt, $is_partial:tt,
+        $a:tt, $b:tt, $c:tt, $alpha:tt, $beta:tt, $alpha_st:tt, $beta_st:tt,
+        $m_left:tt, $inc_a:tt,
+        $dim_arr:tt, | $($alt:ident,)? |,
+        | $($xreg:ident,)* |,
+        [$($vreg:tt,)*]
+    ) => {
+        asm!(
+            "ptrue p0.h",
+            "mov {m_s}, #0",
+            "/* {m_e} */", "\n",
+            prefetch_c!(),
+            vzero_kernel!(),
+
+            init_ab!($b_layout),
+
+            // 3 -> CONSIDKLEFT
+            "cmp {x0}, #0", "BEQ 3f",
+
+            // 2 -> KITER
+            "2:",
+            prefetch_0!(128, "{bx}"),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+            $step_macro!($nr, $b_layout),
+
+            "sub {x0}, {x0}, #1",
+            // 2 -> KITER
+            "cmp {x0}, 0",
+            "BNE 2b",
+
+            // 3 -> CONSIDKLEFT
+            "3:",
+            "ldr {x0}, [{dim_arrx}, #32]",
+            "cmp {x0}, #0",
+
+            // 5 -> POSTACCUM
+            "BEQ 5f",
+            // 4 -> KLEFT
+            "4:",
+            $step_macro!($nr, $b_layout),
+
+            "sub {x0}, {x0}, #1",
+
+            // 4 -> KLEFT
+            "cmp {x0}, 0",
+            "BNE 4b",
+
+            // 5 -> POSTACCUM
+            "5:",
+            c_load!(),
+            "cmp {alpha_st:w}, #0",
+            "BEQ 13f",
+            alpha_scale!(),
+            "13:",
+
+            "cmp {beta_st:w}, #0",
+            "BEQ 6f",
+
+            "cmp {beta_st:w}, #1",
+            "BEQ 9f",
+
+            load_beta!(),
+            pire_base::cum_seq!($acc_macro,$nr,$is_partial,2),
+            "B 6f",
+
+            "9:",
+            // 9 -> BETAONE
+            pire_base::cum_seq!($acc_macro,$nr,$is_partial,1),
+
+            // 6 -> BETAZERO
+            "6:",
+            pire_base::cum_seq!($store_macro,$nr,$is_partial),
+            ax = inout(reg) $a => _,
+            bx = inout(reg) $b => _,
+            cx = inout(reg) $c => _,
+            dim_arrx = inout(reg) $dim_arr.as_ptr() => _,
+            alphax = inout(reg) $alpha => _,
+            betax = inout(reg) $beta => _,
+            beta_st = in(reg) &$beta_st,
+            alpha_st = in(reg) &$alpha_st,
+            incax = in(reg) $inc_a as u64,
+            m_s = out(reg) _,
+            m_e = inout(reg) $m_left as u64 => _,
+            $(altx = inout(reg) $alt.as_ptr() => _,)?
+            $($xreg = out(reg) _,)*
+            $(out($vreg) _,)*
+        );
+    }
+}
+
+#[macro_export]
 macro_rules! def_ukernel_neon {
     (
         $step_macro:tt,
@@ -4632,82 +4811,22 @@ macro_rules! def_ukernel_neon {
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
-                        asm!(
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            load_beta!(),
-
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+                        pire_base::asm_body_neon!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            dim_arr, | |,
+                            | x0, x1, x2, x3, x4, x5, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                            ]
                         );
                         break 'blk;
                     }
@@ -4772,82 +4891,22 @@ macro_rules! def_ukernel_neon_alt {
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
-                        asm!(
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            load_beta!(),
-
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            altx = inout(reg) alt.as_ptr() => _,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+                        pire_base::asm_body_neon!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            dim_arr, | alt, |,
+                            | x0, x1, x2, x3, x4, x5, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                            ]
                         );
                         break 'blk;
                     }
@@ -4911,82 +4970,22 @@ macro_rules! def_ukernel_neon_fp16 {
                         cf = c_buf.as_mut_ptr();
                     }
                     if pire_base::n_cond!($n0, ni, n) {
-                        asm!(
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            load_beta!(),
-
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+                        pire_base::asm_body_neon!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            dim_arr, | |,
+                            | x0, x1, x2, x3, x4, x5, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                            ]
                         );
                         break 'blk;
                     }
@@ -5052,95 +5051,22 @@ macro_rules! def_ukernel_neon_i8mm {
                             dim_arr[2] = MR*TC_SIZE;
                             cf = c_buf.as_mut_ptr();
                         }
-                        asm!(
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            "cmp {beta_st:w}, #1",
-                            "BEQ 9f",
-
-                            load_beta!(),
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-                            "B 6f",
-
-                            "9:",
-                            // 9 -> BETAONE
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,1),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            x6 = out(reg) _,
-                            x7 = out(reg) _,
-                            x8 = out(reg) _,
-                            x9 = out(reg) _,
-                            x10 = out(reg) _,
-                            x11 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+                        pire_base::asm_body_neon!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            dim_arr, | |,
+                            | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                            ]
                         );
                         break 'blk;
                     }
@@ -5188,7 +5114,7 @@ macro_rules! def_ukernel_sve {
             let mr = $mr * vs;
             let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
             let mut cf = c;
-            let mut c_buf = [ZERO;(256/size_of::<TC>())*$mr*$nr];
+            let mut c_buf = [ZERO;(2048/size_of::<TC>())*$mr*$nr];
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
             } else {
@@ -5196,8 +5122,10 @@ macro_rules! def_ukernel_sve {
             };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
-            } else {
+            } else if *beta == ONE_SCALAR {
                 1i32
+            } else {
+                2i32
             };
             let _ = 'blk: {
                 seq!(ni in $n0..$n1 {
@@ -5209,91 +5137,24 @@ macro_rules! def_ukernel_sve {
                         cf = c_buf.as_mut_ptr();
                     }
                     if pire_base::n_cond!($n0, ni, n) {
-                        asm!(
-                            "ptrue p0.h",
-                            "mov {m_s}, #0",
-                            "/* {m_e} */", "\n",
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            load_beta!(),
-
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            incax = in(reg) inc_a as u64,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            m_s = out(reg) _,
-                            m_e = inout(reg) m_left as u64 => _,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            x6 = out(reg) _,
-                            x7 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
-                            out("p0") _, out("p1") _, out("p2") _, out("p3") _,
+                        pire_base::asm_body_sve!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            m_left, inc_a,
+                            dim_arr, | |,
+                            | x0, x1, x2, x3, x4, x5, x6, x7, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                                "p0", "p1", "p2", "p3",
+                            ]
                         );
                         break 'blk;
                     }
@@ -5342,7 +5203,7 @@ macro_rules! def_ukernel_sve_i8mm {
             let mr = $mr * vs;
             let mut dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 32, (k % 32) / 8];
             let mut cf = c;
-            let mut c_buf = [ZERO;(256/size_of::<TC>())*$mr*$nr];
+            let mut c_buf = [ZERO;(2048/size_of::<TC>())*$mr*$nr];
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
             } else {
@@ -5365,101 +5226,24 @@ macro_rules! def_ukernel_sve_i8mm {
                         cf = c_buf.as_mut_ptr();
                     }
                     if pire_base::n_cond!($n0, ni, n) {
-                        asm!(
-                            "ptrue p0.h",
-                            "/* {m_s} */", "\n",
-                            "/* {m_e} */", "\n",
-                            prefetch_c!(),
-                            vzero_kernel!(),
-
-                            init_ab!($b_layout),
-
-                            // 3 -> CONSIDKLEFT
-                            "cmp {x0}, #0", "BEQ 3f",
-
-                            // 2 -> KITER
-                            "2:",
-                            prefetch_0!(128, "{bx}"),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-                            // 2 -> KITER
-                            "cmp {x0}, 0",
-                            "BNE 2b",
-
-                            // 3 -> CONSIDKLEFT
-                            "3:",
-                            "ldr {x0}, [{dim_arrx}, #32]",
-                            "cmp {x0}, #0",
-
-                            // 5 -> POSTACCUM
-                            "BEQ 5f",
-                            // 4 -> KLEFT
-                            "4:",
-                            $step_macro!(ni, $b_layout),
-
-                            "sub {x0}, {x0}, #1",
-
-                            // 4 -> KLEFT
-                            "cmp {x0}, 0",
-                            "BNE 4b",
-
-                            // 5 -> POSTACCUM
-                            "5:",
-                            c_load!(),
-                            "cmp {alpha_st:w}, #0",
-                            "BEQ 13f",
-                            alpha_scale!(),
-                            "13:",
-
-                            "cmp {beta_st:w}, #0",
-                            "BEQ 6f",
-
-                            "cmp {beta_st:w}, #1",
-                            "BEQ 9f",
-
-                            load_beta!(),
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-                            "B 6f",
-
-                            "9:",
-                            // 9 -> BETAONE
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,1),
-
-                            // 6 -> BETAZERO
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            alphax = inout(reg) alpha => _,
-                            betax = inout(reg) beta => _,
-                            incax = in(reg) inc_a as u64,
-                            alpha_st = in(reg) alpha_st,
-                            beta_st = in(reg) beta_st,
-                            m_s = in(reg) 0 as u64,
-                            m_e = in(reg) m_left as u64,
-                            x0 = out(reg) _,
-                            x1 = out(reg) _,
-                            x2 = out(reg) _,
-                            x3 = out(reg) _,
-                            x4 = out(reg) _,
-                            x5 = out(reg) _,
-                            x6 = out(reg) _,
-                            x7 = out(reg) _,
-                            x8 = out(reg) _,
-                            x9 = out(reg) _,
-                            x10 = out(reg) _,
-                            x11 = out(reg) _,
-                            out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-                            out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-                            out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-                            out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
-                            out("p0") _, out("p1") _, out("p2") _, out("p3") _,
+                        pire_base::asm_body_sve!(
+                            $step_macro, $acc_macro, $store_macro,
+                            $mr, ni, $b_layout, $is_partial,
+                            a, b, cf, alpha, beta, alpha_st, beta_st,
+                            m_left, inc_a,
+                            dim_arr, | |,
+                            | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                            [
+                                "v0", "v1", "v2", "v3",
+                                "v4", "v5", "v6", "v7",
+                                "v8", "v9", "v10", "v11",
+                                "v12", "v13", "v14", "v15",
+                                "v16", "v17", "v18", "v19",
+                                "v20", "v21", "v22", "v23",
+                                "v24", "v25", "v26", "v27",
+                                "v28", "v29", "v30", "v31",
+                                "p0", "p1", "p2", "p3",
+                            ]
                         );
                         break 'blk;
                     }
