@@ -16,6 +16,12 @@ const ONE_SCALAR: f64 = 1.0;
 
 const VS: usize = 2;
 
+macro_rules! load_mask {
+    ($is_partial:tt) => {
+        ""
+    };
+}
+
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr, 1) => {
         concat!(
