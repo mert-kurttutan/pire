@@ -19,7 +19,7 @@ macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr, 1) => {
         concat!(
             "ldr q1, ", $m0, "\n",
-            "fmla v", $r1, ".4s, v1.4s, v0.s[0]\n",
+            "fadd v", $r1, ".4s, v", $r1, ".4s, v1.4s\n",
         ) 
     };
 }

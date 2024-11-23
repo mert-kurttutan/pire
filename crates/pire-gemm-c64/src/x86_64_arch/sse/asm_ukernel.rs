@@ -14,6 +14,12 @@ const ONE_SCALAR: TC = TC::ONE;
 
 const VS: usize = 1;
 
+macro_rules! load_mask {
+    ($is_partial:tt) => {
+        ""
+    };
+}
+
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr,1) => {
         concat!(

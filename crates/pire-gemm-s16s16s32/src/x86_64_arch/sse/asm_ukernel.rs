@@ -15,6 +15,13 @@ const ZERO: i32 = 0;
 
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;
+
+macro_rules! load_mask {
+    ($is_partial:tt) => {
+        ""
+    };
+}
+
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
         concat!(
