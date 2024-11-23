@@ -303,29 +303,15 @@ macro_rules! mask_ptr {
     };
 }
 
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, B, P, ukernel_3_bbp);
-def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, 8, 9, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, 8, 9, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, B, P, ukernel_3_bbp);
+def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, S, P, ukernel_3_bsp);
-def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, 8, 9, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, 8, 9, S, P, ukernel_1_bsp);
-
-
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, C, ukernel_n_bbc);
-
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, P, ukernel_3xn_bbp);
-def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, 1, 8, B, P, ukernel_2xn_bbp);
-def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, 1, 8, B, P, ukernel_1xn_bbp);
-
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, S, C, ukernel_n_bsc);
-
-def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, S, P, ukernel_3xn_bsp);
-def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, 1, 8, S, P, ukernel_2xn_bsp);
-def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, 1, 8, S, P, ukernel_1xn_bsp);
-
+def_ukernel_avx512!(1, step_3x8, acc_3x8, store_3x8, 3, 8, S, P, ukernel_3_bsp);
+def_ukernel_avx512!(1, step_2x12, acc_2x12, store_2x12, 2, 8, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1x12, acc_1x12, store_1x12, 1, 8, S, P, ukernel_1_bsp);
 
 
 def_ukernel_avx512_2!(1, step_3x8, acc_3x8, store_3x8, 3, 8, 8, 64);

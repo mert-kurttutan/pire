@@ -49,7 +49,6 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
     let (b_rs, b_cs) = (1, k as isize);
     let (c_rs, c_cs) = (1, m as isize);
     let type_name = type_name::<TA>();
-    #[cfg(feature = "mkl")]
     bench_c.bench_with_input(BenchmarkId::new(format!("{}-mkl-gemm", type_name), dt), &dt, |bench_b, _x| {
         bench_b.iter(|| unsafe {
             dispatch_gemm(GemmBackend::Mkl, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
@@ -57,7 +56,7 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
     });
     bench_c.bench_with_input(BenchmarkId::new(format!("{}-pire-gemm", type_name), dt), &dt, |bench_b, _x| {
         bench_b.iter(|| unsafe {
-            dispatch_gemm(GemmBackend::Glar, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
+            dispatch_gemm(GemmBackend::Pire, m, n, k, alpha, a, a_rs, a_cs, b, b_rs, b_cs, beta, c, c_rs, c_cs);
         })
     });
 

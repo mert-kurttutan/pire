@@ -2163,7 +2163,7 @@ macro_rules! def_kernel_bb_pf1 {
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
+                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2186,7 +2186,7 @@ macro_rules! def_kernel_bb_pf1 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 }
@@ -2259,7 +2259,7 @@ macro_rules! def_kernel_bb_v0 {
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, n_left, f);
+                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, n_left, f);
                 }
                 m_i += mr;
             }
@@ -2281,7 +2281,7 @@ macro_rules! def_kernel_bb_v0 {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                 }
@@ -2354,7 +2354,7 @@ macro_rules! def_kernel_sb_pf1 {
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, n_left, f);
+                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2377,7 +2377,7 @@ macro_rules! def_kernel_sb_pf1 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
+                            [<ukernel_ mr_left _bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                     return;
@@ -2456,7 +2456,7 @@ macro_rules! def_kernel_sb_v0 {
                 if n_left != 0 {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, n_left, f);
+                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, n_left, f);
                 }
                 m_i += mr;
             }
@@ -2479,7 +2479,7 @@ macro_rules! def_kernel_sb_v0 {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                     return;
@@ -2550,7 +2550,7 @@ macro_rules! def_kernel_bs {
                 if n_left != 0 {
                     let b_cur = b.add(n_i * b_cs);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
+                    ukernel_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2571,7 +2571,7 @@ macro_rules! def_kernel_bs {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         paste::paste! {
-                            [<ukernel_ mr_left xn_bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
+                            [<ukernel_ mr_left _bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
                         }
                     }
                     return;
@@ -3715,7 +3715,6 @@ macro_rules! def_ukernel_avx {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -3752,8 +3751,8 @@ macro_rules! def_ukernel_avx {
                 c_k = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
+                seq!(ni in 1..=$nr {
+                    if pire_base::n_cond!(1, ni, n) {
                         pire_base::prefetch_c_avx!($mr,ni,c,c_cs);
                         asm!(
                             vzero_kernel!(),
@@ -3856,7 +3855,6 @@ macro_rules! def_ukernel_avx512 {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -3893,8 +3891,8 @@ macro_rules! def_ukernel_avx512 {
                 c_k = c_buf.as_mut_ptr();
             }
             let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
+                seq!(ni in 1..=$nr {
+                    if pire_base::n_cond!(1, ni, n) {
                         pire_base::prefetch_c_avx512!($mr,ni,c,c_cs);
                         asm!(
                             vzero_kernel!(),
@@ -4133,7 +4131,7 @@ macro_rules! def_ukernel_avx_2 {
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 3], c_cs: usize,
-            a_pft1_offset: usize, _n: usize,
+            a_pft1_offset: usize, n: usize,
             f: F,
         ) {
             const MR: usize = $mr * VS;
@@ -4157,116 +4155,123 @@ macro_rules! def_ukernel_avx_2 {
                 2i32
             };
             if BUF {
-                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, n, MR);
                 dim_arr[0] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            asm!(
-                vzero_kernel!(),
-                init_ab_2!(B),
-                "test {x0},{x0}",
-                "je 3f",
-                "mov {cx}, {x2}",
-                "mov {ax}, {x5}",
-                "mov 24({dim_arrx}),{x1}",
-                "add {x1}, {x5}",
-                "mov ({dim_arrx}),{x1}",
-                "2:",
-                prefetch_0!(256, "{bx}"),
-                $step!($nr, B, 0),
+            let _ = 'blk: {
+                seq!(ni in 1..=$nr {
+                    if pire_base::n_cond!(1, ni, n) {
+                        asm!(
+                            vzero_kernel!(),
+                            init_ab_2!(B),
+                            "test {x0},{x0}",
+                            "je 3f",
+                            "mov {cx}, {x2}",
+                            "mov {ax}, {x5}",
+                            "mov 24({dim_arrx}),{x1}",
+                            "add {x1}, {x5}",
+                            "mov ({dim_arrx}),{x1}",
+                            "2:",
+                            prefetch_0!(256, "{bx}"),
+                            $step!(ni, B, 0),
 
-                "movq $64*4, {x4}",
-                // divisiblity by 4
-                "testq $3, {x0}",
-                "cmovz {x1},{x4}",
+                            "movq $64*4, {x4}",
+                            // divisiblity by 4
+                            "testq $3, {x0}",
+                            "cmovz {x1},{x4}",
 
-                $step!($nr, B, 1),
+                            $step!(ni, B, 1),
 
-                "prefetcht1 ({x2})",
+                            "prefetcht1 ({x2})",
 
-                "subq $64*3, {x2}",
-                "addq {x4}, {x2}",
+                            "subq $64*3, {x2}",
+                            "addq {x4}, {x2}",
 
-                $step!($nr, B, 2),
+                            $step!(ni, B, 2),
 
-                "prefetcht1 ({x5})",
-                "addq $16, {x5}",
+                            "prefetcht1 ({x5})",
+                            "addq $16, {x5}",
 
-                "testq $63, {x0}",
-                "cmovz {cx},{x2}",
+                            "testq $63, {x0}",
+                            "cmovz {cx},{x2}",
 
-                $step!($nr, B, 3),
+                            $step!(ni, B, 3),
 
-                inc_a_k_unroll!($mr, 4),
-                inc_b_k_unroll!(B, $nr, 4),
+                            inc_a_k_unroll!($mr, 4),
+                            inc_b_k_unroll!(B, ni, 4),
 
-                "dec {x0}",
-                "jne 2b",
-                "3:",
-                "mov 16({dim_arrx}),{x0}",
-                "test {x0},{x0}", "je 5f", // POSTACCUM
+                            "dec {x0}",
+                            "jne 2b",
+                            "3:",
+                            "mov 16({dim_arrx}),{x0}",
+                            "test {x0},{x0}", "je 5f", // POSTACCUM
 
-                "mov {cx}, {x2}",
-                "mov ({dim_arrx}),{x1}",
-                "4:",
-                "prefetcht0 ({x2})",
-                "prefetcht0 64({x2})",
-                "prefetcht0 92({x2})",
-                $step!($nr, B, 0),
-                inc_a_k_unroll!($mr, 1),
-                inc_b_k_unroll!(B, $nr, 1),
-                "add {x1}, {x2}", "dec {x0}", "jne 4b",
+                            "mov {cx}, {x2}",
+                            "mov ({dim_arrx}),{x1}",
+                            "4:",
+                            "prefetcht0 ({x2})",
+                            "prefetcht0 64({x2})",
+                            "prefetcht0 92({x2})",
+                            $step!(ni, B, 0),
+                            inc_a_k_unroll!($mr, 1),
+                            inc_b_k_unroll!(B, ni, 1),
+                            "add {x1}, {x2}", "dec {x0}", "jne 4b",
 
-                "5:",
-                c_load_2!(),
+                            "5:",
+                            c_load_2!(),
 
-                "cmpw $0, ({alpha_st})",
-                "je 9f",
-                alpha_scale!(),
-                "9:",
-                "cmpw $0, ({beta_st})",
-                "je 6f",
+                            "cmpw $0, ({alpha_st})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
+                            "cmpw $0, ({beta_st})",
+                            "je 6f",
 
-                "cmpw $1, ({beta_st})",
-                "je 15f",
+                            "cmpw $1, ({beta_st})",
+                            "je 15f",
 
-                load_beta!(),
-                pire_base::cum_seq!($acc,$nr,C,2),
-                "jmp 6f",
+                            load_beta!(),
+                            pire_base::cum_seq!($acc,ni,C,2),
+                            "jmp 6f",
 
-                "15:",
-                pire_base::cum_seq!($acc,$nr,C,1),
+                            "15:",
+                            pire_base::cum_seq!($acc,ni,C,1),
 
-                "6:",
-                pire_base::cum_seq!($store,$nr,C),
+                            "6:",
+                            pire_base::cum_seq!($store,ni,C),
 
-                ax = inout(reg) a => _,
-                bx = inout(reg) b => _,
-                cx = inout(reg) c_k => _,
-                dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                alphax = inout(reg) alpha => _,
-                betax = inout(reg) beta => _,
-                beta_st = in(reg) &beta_st,
-                alpha_st = in(reg) &alpha_st,
-                x0 = out(reg) _,
-                x1 = out(reg)_,
-                x2 = out(reg) _,
-                x3 = out(reg) _,
-                x4 = out(reg) _,
-                x5 = out(reg) _,
-                out("ymm0") _, out("ymm1") _, out("ymm2") _, out("ymm3") _,
-                out("ymm4") _, out("ymm5") _, out("ymm6") _, out("ymm7") _,
-                out("ymm8") _, out("ymm9") _, out("ymm10") _, out("ymm11") _,
-                out("ymm12") _, out("ymm13") _, out("ymm14") _, out("ymm15") _,
-                options(att_syntax)
-            );
+                            ax = inout(reg) a => _,
+                            bx = inout(reg) b => _,
+                            cx = inout(reg) c_k => _,
+                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                            alphax = inout(reg) alpha => _,
+                            betax = inout(reg) beta => _,
+                            beta_st = in(reg) &beta_st,
+                            alpha_st = in(reg) &alpha_st,
+                            x0 = out(reg) _,
+                            x1 = out(reg)_,
+                            x2 = out(reg) _,
+                            x3 = out(reg) _,
+                            x4 = out(reg) _,
+                            x5 = out(reg) _,
+                            out("ymm0") _, out("ymm1") _, out("ymm2") _, out("ymm3") _,
+                            out("ymm4") _, out("ymm5") _, out("ymm6") _, out("ymm7") _,
+                            out("ymm8") _, out("ymm9") _, out("ymm10") _, out("ymm11") _,
+                            out("ymm12") _, out("ymm13") _, out("ymm14") _, out("ymm15") _,
+                            options(att_syntax)
+                        );
+                        break 'blk;
+                    }
+                });
+            };
             if BUF {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
                 }
-                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, n, MR);
             } else {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j*c_cs), MR);
                 }
             }
@@ -4283,7 +4288,7 @@ macro_rules! def_ukernel_avx512_2 {
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 3], c_cs: usize,
-            a_pft1_offset: usize, _n: usize,
+            a_pft1_offset: usize, n: usize,
             f: F,
         ) {
             const MR: usize = $mr * VS;
@@ -4307,119 +4312,126 @@ macro_rules! def_ukernel_avx512_2 {
                 2i32
             };
             if BUF {
-                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, n, MR);
                 dim_arr[0] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            asm!(
-                vzero_kernel!(),
-                init_ab_2!(B),
-                "test {x0},{x0}", "je 3f",
+            let _ = 'blk: {
+                seq!(ni in 1..=$nr {
+                    if pire_base::n_cond!(1, ni, n) {
+                        asm!(
+                            vzero_kernel!(),
+                            init_ab_2!(B),
+                            "test {x0},{x0}", "je 3f",
 
-                "mov {cx}, {x2}",
-                "mov {ax}, {x5}",
-                "mov 24({dim_arrx}),{x1}",
-                "add {x1}, {x5}",
-                "mov ({dim_arrx}),{x1}",
+                            "mov {cx}, {x2}",
+                            "mov {ax}, {x5}",
+                            "mov 24({dim_arrx}),{x1}",
+                            "add {x1}, {x5}",
+                            "mov ({dim_arrx}),{x1}",
 
-                "2:", // KITER
-                $step!($nr, B),
+                            "2:", // KITER
+                            $step!(ni, B),
 
-                "movq $64*4, {x4}",
-                // divisiblity by 4
-                "testq $3, {x0}",
-                "cmovz {x1},{x4}",
+                            "movq $64*4, {x4}",
+                            // divisiblity by 4
+                            "testq $3, {x0}",
+                            "cmovz {x1},{x4}",
 
-                $step!($nr, B),
+                            $step!(ni, B),
 
-                "prefetcht1 ({x2})",
+                            "prefetcht1 ({x2})",
 
-                "subq $64*3, {x2}",
-                "addq {x4}, {x2}",
+                            "subq $64*3, {x2}",
+                            "addq {x4}, {x2}",
 
-                $step!($nr, B),
+                            $step!(ni, B),
 
-                "prefetcht1 ({x5})",
-                concat!("addq $", $pf1_step, ", {x5}"),
+                            "prefetcht1 ({x5})",
+                            concat!("addq $", $pf1_step, ", {x5}"),
 
-                "testq $63, {x0}",
-                "cmovz {cx},{x2}",
+                            "testq $63, {x0}",
+                            "cmovz {cx},{x2}",
 
-                $step!($nr, B),
+                            $step!(ni, B),
 
-                "dec {x0}", "jne 2b", // KITER
+                            "dec {x0}", "jne 2b", // KITER
 
-                "3:",
-                "mov 16({dim_arrx}),{x0}",
-                "test {x0},{x0}", "je 5f", // POSTACCUM
+                            "3:",
+                            "mov 16({dim_arrx}),{x0}",
+                            "test {x0},{x0}", "je 5f", // POSTACCUM
 
 
-                "mov {cx}, {x2}",
-                "mov ({dim_arrx}),{x1}",
+                            "mov {cx}, {x2}",
+                            "mov ({dim_arrx}),{x1}",
 
-                "4:", // KLEFT
-                "prefetcht0 ({x2})",
-                "prefetcht0 64({x2})",
-                "prefetcht0 128({x2})",
-                $step!($nr, B),
-                "add {x1}, {x2}", "dec {x0}", "jne 4b", // KLEFT
+                            "4:", // KLEFT
+                            "prefetcht0 ({x2})",
+                            "prefetcht0 64({x2})",
+                            "prefetcht0 128({x2})",
+                            $step!(ni, B),
+                            "add {x1}, {x2}", "dec {x0}", "jne 4b", // KLEFT
 
-                "5:", // POSTACCUM
-                c_load_2!(),
+                            "5:", // POSTACCUM
+                            c_load_2!(),
 
-                "cmpw $0, ({alpha_st})",
-                "je 9f",
-                alpha_scale!(),
-                "9:",
+                            "cmpw $0, ({alpha_st})",
+                            "je 9f",
+                            alpha_scale!(),
+                            "9:",
 
-                "cmpw $0, ({beta_st})",
-                "je 6f",
+                            "cmpw $0, ({beta_st})",
+                            "je 6f",
 
-                "cmpw $1, ({beta_st})",
-                "je 15f",
+                            "cmpw $1, ({beta_st})",
+                            "je 15f",
 
-                load_beta!(),
-                pire_base::cum_seq!($acc,$nr,C,2),
-                "jmp 6f",
+                            load_beta!(),
+                            pire_base::cum_seq!($acc,ni,C,2),
+                            "jmp 6f",
 
-                "15:",
-                pire_base::cum_seq!($acc,$nr,C,1),
+                            "15:",
+                            pire_base::cum_seq!($acc,ni,C,1),
 
-                "6:",
-                pire_base::cum_seq!($store,$nr,C),
+                            "6:",
+                            pire_base::cum_seq!($store,ni,C),
 
-                ax = inout(reg) a => _,
-                bx = inout(reg) b => _,
-                cx = inout(reg) c_k => _,
-                dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                alphax = inout(reg) alpha => _,
-                betax = inout(reg) beta => _,
-                beta_st = in(reg) &beta_st,
-                alpha_st = in(reg) &alpha_st,
-                x0 = out(reg) _,
-                x1 = out(reg)_,
-                x2 = out(reg) _,
-                x3 = out(reg) _,
-                x4 = out(reg) _,
-                x5 = out(reg) _,
-                out("zmm0") _, out("zmm1") _, out("zmm2") _, out("zmm3") _,
-                out("zmm4") _, out("zmm5") _, out("zmm6") _, out("zmm7") _,
-                out("zmm8") _, out("zmm9") _, out("zmm10") _, out("zmm11") _,
-                out("zmm12") _, out("zmm13") _, out("zmm14") _, out("zmm15") _,
-                out("zmm16") _, out("zmm17") _, out("zmm18") _, out("zmm19") _,
-                out("zmm20") _, out("zmm21") _, out("zmm22") _, out("zmm23") _,
-                out("zmm24") _, out("zmm25") _, out("zmm26") _, out("zmm27") _,
-                out("zmm28") _, out("zmm29") _, out("zmm30") _, out("zmm31") _,
-                out("k1") _,
-                options(att_syntax)
-            );
+                            ax = inout(reg) a => _,
+                            bx = inout(reg) b => _,
+                            cx = inout(reg) c_k => _,
+                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                            alphax = inout(reg) alpha => _,
+                            betax = inout(reg) beta => _,
+                            beta_st = in(reg) &beta_st,
+                            alpha_st = in(reg) &alpha_st,
+                            x0 = out(reg) _,
+                            x1 = out(reg)_,
+                            x2 = out(reg) _,
+                            x3 = out(reg) _,
+                            x4 = out(reg) _,
+                            x5 = out(reg) _,
+                            out("zmm0") _, out("zmm1") _, out("zmm2") _, out("zmm3") _,
+                            out("zmm4") _, out("zmm5") _, out("zmm6") _, out("zmm7") _,
+                            out("zmm8") _, out("zmm9") _, out("zmm10") _, out("zmm11") _,
+                            out("zmm12") _, out("zmm13") _, out("zmm14") _, out("zmm15") _,
+                            out("zmm16") _, out("zmm17") _, out("zmm18") _, out("zmm19") _,
+                            out("zmm20") _, out("zmm21") _, out("zmm22") _, out("zmm23") _,
+                            out("zmm24") _, out("zmm25") _, out("zmm26") _, out("zmm27") _,
+                            out("zmm28") _, out("zmm29") _, out("zmm30") _, out("zmm31") _,
+                            out("k1") _,
+                            options(att_syntax)
+                        );
+                        break 'blk;
+                    }
+                });
+            };
             if BUF {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
                 }
-                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, n, MR);
             } else {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j*c_cs), MR);
                 }
             }
