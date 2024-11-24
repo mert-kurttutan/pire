@@ -2140,9 +2140,7 @@ macro_rules! def_kernel_bb_pf1 {
             const MR: usize = $MR * VS;
             const NR: usize = $NR;
             let m_rounded = m / MR * MR;
-            let n_rounded = n / NR * NR;
             let m_left = m % MR;
-            let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
 
@@ -2152,18 +2150,13 @@ macro_rules! def_kernel_bb_pf1 {
                 let ap_cur = ap.add(m_i * k);
                 let mut a_pft1_offset = $pf1_0 * k;
                 let mut n_i = 0;
-                while n_i < n_rounded {
+                while n_i < n {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, a_pft1_offset, NR, f);
+                    let nr = NR.min(n - n_i);
+                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, a_pft1_offset, nr, f);
                     n_i += NR;
                     a_pft1_offset += $pf_step * k;
-                }
-                // let a_pft1_offset = ($MR+(n_iter0-n_iter)*2)*4*k;
-                if n_left != 0 {
-                    let bp_cur = bp.add(n_i * k);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2174,20 +2167,14 @@ macro_rules! def_kernel_bb_pf1 {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
                     let mut n_i = 0;
-                    while n_i < n_rounded {
+                    while n_i < n {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
                         paste::paste! {
-                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, nr, f);
                         }
                         n_i += NR;
-                    }
-                    if n_left !=0 {
-                        let bp_cur = bp.add(n_i * k);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
-                        }
                     }
                 }
             });
@@ -2239,9 +2226,7 @@ macro_rules! def_kernel_bb_v0 {
             let mr = $MR * vs;
             const NR: usize = $NR;
             let m_rounded = m / mr * mr;
-            let n_rounded = n / NR * NR;
             let m_left = m % mr;
-            let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
 
@@ -2250,16 +2235,12 @@ macro_rules! def_kernel_bb_v0 {
                 let c_cur0 = c.add(m_i * c_rs);
                 let ap_cur = ap.add(m_i * k);
                 let mut n_i = 0;
-                while n_i < n_rounded {
+                while n_i < n {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, NR, f);
+                    let nr = NR.min(n - n_i);
+                    ukernel_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, nr, f);
                     n_i += NR;
-                }
-                if n_left != 0 {
-                    let bp_cur = bp.add(n_i * k);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, mr, n_left, f);
                 }
                 m_i += mr;
             }
@@ -2269,20 +2250,14 @@ macro_rules! def_kernel_bb_v0 {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
                     let mut n_i = 0;
-                    while n_i < n_rounded {
+                    while n_i < n {
                         let bp_cur = bp.add(n_i * k);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
                         paste::paste! {
-                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, nr, f);
                         }
                         n_i += NR;
-                    }
-                    if n_left !=0 {
-                        let bp_cur = bp.add(n_i * k);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap_cur, bp_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
-                        }
                     }
                 }
             });
@@ -2332,9 +2307,7 @@ macro_rules! def_kernel_sb_pf1 {
             const MR: usize = $MR * VS;
             const NR: usize = $NR;
             let m_rounded = m / MR * MR;
-            let n_rounded = n / NR * NR;
             let m_left = m % MR;
-            let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
 
@@ -2345,16 +2318,12 @@ macro_rules! def_kernel_sb_pf1 {
                 let a_pft1_offset = $pf1_0 * k;
                 $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
                 let mut n_i = 0;
-                while n_i < n_rounded {
+                while n_i < n {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, a_pft1_offset, NR, f);
+                    let nr = NR.min(n - n_i);
+                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, a_pft1_offset, nr, f);
                     n_i += NR;
-                }
-                if n_left != 0 {
-                    let bp_cur = bp.add(n_i * k_eff);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2365,20 +2334,14 @@ macro_rules! def_kernel_sb_pf1 {
                     let a_cur = a.add(m_i * a_rs);
                     $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
                     let mut n_i = 0;
-                    while n_i < n_rounded {
+                    while n_i < n {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
                         paste::paste! {
-                            [<ukernel_ mr_left _bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, NR, f);
+                            [<ukernel_ mr_left _bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, nr, f);
                         }
                         n_i += NR;
-                    }
-                    if n_left != 0 {
-                        let bp_cur = bp.add(n_i * k_eff);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
-                        }
                     }
                     return;
                 }
@@ -2435,9 +2398,7 @@ macro_rules! def_kernel_sb_v0 {
             let mr = $MR * vs;
             const NR: usize = $NR;
             let m_rounded = m / mr * mr;
-            let n_rounded = n / NR * NR;
             let m_left = m % mr;
-            let n_left = n % NR;
 
             let d_arr = [0, 0, c_rs];
 
@@ -2447,16 +2408,12 @@ macro_rules! def_kernel_sb_v0 {
                 let a_cur = a.add(m_i * a_rs);
                 $pack_fn(mr, k, a_cur, a_rs, a_cs, ap, vs);
                 let mut n_i = 0;
-                while n_i < n_rounded {
+                while n_i < n {
                     let bp_cur = bp.add(n_i * k_eff);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, NR, f);
+                    let nr = NR.min(n - n_i);
+                    ukernel_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, nr, f);
                     n_i += NR;
-                }
-                if n_left != 0 {
-                    let bp_cur = bp.add(n_i * k_eff);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bbc::<_, STRIDED>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, mr, n_left, f);
                 }
                 m_i += mr;
             }
@@ -2467,20 +2424,14 @@ macro_rules! def_kernel_sb_v0 {
                     let a_cur = a.add(m_i * a_rs);
                     $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, vs);
                     let mut n_i = 0;
-                    while n_i < n_rounded {
+                    while n_i < n {
                         let bp_cur = bp.add(n_i * k_eff);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
                         paste::paste! {
-                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, NR, f);
+                            [<ukernel_ mr_left _bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, nr, f);
                         }
                         n_i += NR;
-                    }
-                    if n_left != 0 {
-                        let bp_cur = bp.add(n_i * k_eff);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste::paste! {
-                            [<ukernel_ mr_left xn_bbp>]::<_, pire_base::partial_strided!(STRIDED,STRIDED_PARTIAL,$no_partial)>(ap, bp_cur, c_cur1, alpha, beta, k_eff, d_arr, c_cs, m_left, n_left, f);
-                        }
                     }
                     return;
                 }
@@ -2530,9 +2481,7 @@ macro_rules! def_kernel_bs {
             const MR: usize = $MR * VS;
             const NR: usize = $NR;
             let m_rounded = m / MR * MR;
-            let n_rounded = n / NR * NR;
             let m_left = m % MR;
-            let n_left = n % NR;
 
             let d_arr = [b_rs, b_cs, c_rs];
 
@@ -2541,16 +2490,12 @@ macro_rules! def_kernel_bs {
                 let c_cur0 = c.add(m_i * c_rs);
                 let ap_cur = ap.add(m_i * k);
                 let mut n_i = 0;
-                while n_i < n_rounded {
+                while n_i < n {
                     let b_cur = b.add(n_i * b_cs);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, NR, f);
+                    let nr = NR.min(n - n_i);
+                    ukernel_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, nr, f);
                     n_i += NR;
-                }
-                if n_left != 0 {
-                    let b_cur = b.add(n_i * b_cs);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    ukernel_n_bsc::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, MR, n_left, f);
                 }
                 m_i += MR;
             }
@@ -2559,20 +2504,14 @@ macro_rules! def_kernel_bs {
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
                     let mut n_i = 0;
-                    while n_i < n_rounded {
+                    while n_i < n {
                         let b_cur = b.add(n_i * b_cs);
                         let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
                         paste::paste! {
-                            [<ukernel_ mr_left _bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, NR, f);
+                            [<ukernel_ mr_left _bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, nr, f);
                         }
                         n_i += NR;
-                    }
-                    if n_left != 0 {
-                        let b_cur = b.add(n_i * b_cs);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        paste::paste! {
-                            [<ukernel_ mr_left xn_bsp>]::<_, STRIDED>(ap_cur, b_cur, c_cur1, alpha, beta, k, d_arr, c_cs, m_left, n_left, f);
-                        }
                     }
                     return;
                 }
@@ -2623,16 +2562,6 @@ macro_rules! mem {
     };
     ($m0:tt) => {
         concat!("[", $m0, "]")
-    };
-}
-
-#[macro_export]
-macro_rules! n_cond {
-    (1, $ni:tt, $nr:tt) => {
-        $ni == $nr
-    };
-    ($n0:tt, $ni:tt, $nr:tt) => {
-        true
     };
 }
 
@@ -3704,6 +3633,81 @@ macro_rules! prefetch_b {
     };
 }
 
+#[cfg(target_arch = "x86")]
+#[macro_export]
+macro_rules! asm_body_sse {
+    (
+        $step_macro:tt, $acc_macro:tt, $store_macro:tt,
+        $mr:tt, $nr:tt, $b_layout:tt, $is_partial:tt,
+        $a:tt, $b:tt, $c:tt, $ptr_arr:tt,
+        $dim_arr:tt,
+        [$($vreg:tt,)*]
+    ) => {
+        asm!(
+            vzero_kernel!(),
+
+            init_ab!($b_layout),
+            "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
+
+            "2:", // KITER
+            pire_base::prefetch_b!($b_layout),
+            $step_macro!($nr, $b_layout, 0),
+            $step_macro!($nr, $b_layout, 1),
+            $step_macro!($nr, $b_layout, 2),
+            $step_macro!($nr, $b_layout, 3),
+
+            inc_a_k_unroll!($mr, 4),
+            inc_b_k_unroll!($b_layout, $nr, 4),
+
+            "dec {x0}", "jne 2b", // KITER
+
+            "3:", // CONSIDKLEFT
+            "mov 16({dim_arrx}), {x0}",
+            "test {x0},{x0}", "je 5f", // POSTACCUM
+
+            "4:", // KLEFT
+            $step_macro!($nr, $b_layout, 0),
+            inc_a_k_unroll!($mr, 1),
+            inc_b_k_unroll!($b_layout, $nr, 1),
+
+            "dec {x0}", "jne 4b", // KLEFT
+
+            "5:", // POSTACCUM
+            c_load!(),
+
+            "cmpw $0, 24({dim_arrx})",
+            "je 9f",
+            alpha_scale!(),
+            "9:",
+
+            "cmpw $0, 20({dim_arrx})",
+            "je 6f",
+
+            "cmpw $1, 20({dim_arrx})",
+            "je 15f",
+
+            load_beta!(),
+            pire_base::cum_seq!($acc_macro,$nr,$is_partial,2),
+            "jmp 6f",
+
+            "15:",
+            pire_base::cum_seq!($acc_macro,$nr,$is_partial,1),
+
+            "6:",
+            pire_base::cum_seq!($store_macro,$nr,$is_partial),
+
+            ax = inout(reg) $a => _,
+            bx = inout(reg) $b => _,
+            cx = inout(reg) $c => _,
+            ptr_arrx = inout(reg) $ptr_arr.as_ptr() => _,
+            dim_arrx = inout(reg) $dim_arr.as_ptr() => _,
+            x0 = out(reg) _,
+            $(out($vreg) _,)*
+            options(att_syntax)
+        );
+    }
+}
+
 #[macro_export]
 macro_rules! asm_body_avx {
     (
@@ -4089,7 +4093,6 @@ macro_rules! def_ukernel_sse {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4124,26 +4127,43 @@ macro_rules! def_ukernel_sse {
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::prefetch_c_sse!($mr,ni,c,c_cs);
-                        pire_base::asm_body_avx!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, c_k, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | |
-                            [
-                                "xmm0", "xmm1", "xmm2", "xmm3",
-                                "xmm4", "xmm5", "xmm6", "xmm7",
-                                "xmm8", "xmm9", "xmm10", "xmm11",
-                                "xmm12", "xmm13", "xmm14", "xmm15",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
-            };
+            if n == $nr {
+                pire_base::prefetch_c_sse!($mr,$nr,c,c_cs);
+                pire_base::asm_body_avx!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, c_k, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | |
+                    [
+                        "xmm0", "xmm1", "xmm2", "xmm3",
+                        "xmm4", "xmm5", "xmm6", "xmm7",
+                        "xmm8", "xmm9", "xmm10", "xmm11",
+                        "xmm12", "xmm13", "xmm14", "xmm15",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if ni == n {
+                            pire_base::prefetch_c_sse!($mr,ni,c,c_cs);
+                            pire_base::asm_body_avx!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, c_k, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | |
+                                [
+                                    "xmm0", "xmm1", "xmm2", "xmm3",
+                                    "xmm4", "xmm5", "xmm6", "xmm7",
+                                    "xmm8", "xmm9", "xmm10", "xmm11",
+                                    "xmm12", "xmm13", "xmm14", "xmm15",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
+
             if BUF {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
@@ -4167,7 +4187,6 @@ macro_rules! def_ukernel_avx {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4203,21 +4222,42 @@ macro_rules! def_ukernel_avx {
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::prefetch_c_avx!($mr,ni,c,c_cs);
-                        pire_base::asm_body_avx!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, c_k, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | mask_ptr, |
-                            ["ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm8", "ymm9", "ymm10", "ymm11", "ymm12", "ymm13", "ymm14", "ymm15",]
-                        );
-                        break 'blk;
-                    }
-                });
-            };
+            if n == $nr {
+                pire_base::prefetch_c_avx!($mr,$nr,c,c_cs);
+                pire_base::asm_body_avx!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, c_k, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | mask_ptr, |
+                    [
+                        "ymm0", "ymm1", "ymm2", "ymm3",
+                        "ymm4", "ymm5", "ymm6", "ymm7",
+                        "ymm8", "ymm9", "ymm10", "ymm11",
+                        "ymm12", "ymm13", "ymm14", "ymm15",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::prefetch_c_avx!($mr,ni,c,c_cs);
+                            pire_base::asm_body_avx!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, c_k, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | mask_ptr, |
+                                [
+                                    "ymm0", "ymm1", "ymm2", "ymm3",
+                                    "ymm4", "ymm5", "ymm6", "ymm7",
+                                    "ymm8", "ymm9", "ymm10", "ymm11",
+                                    "ymm12", "ymm13", "ymm14", "ymm15",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
             if BUF {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
@@ -4240,7 +4280,6 @@ macro_rules! def_ukernel_avx512 {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4276,31 +4315,52 @@ macro_rules! def_ukernel_avx512 {
                 dim_arr[2] = MR*TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::prefetch_c_avx512!($mr,ni,c,c_cs);
-                        pire_base::asm_body_avx512!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, c_k, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | mask_ptr, |
-                            [
-                                "zmm0", "zmm1", "zmm2", "zmm3",
-                                "zmm4", "zmm5", "zmm6", "zmm7",
-                                "zmm8", "zmm9", "zmm10", "zmm11",
-                                "zmm12", "zmm13", "zmm14", "zmm15",
-                                "zmm16", "zmm17", "zmm18", "zmm19",
-                                "zmm20", "zmm21", "zmm22", "zmm23",
-                                "zmm24", "zmm25", "zmm26", "zmm27",
-                                "zmm28", "zmm29", "zmm30", "zmm31",
-                                "k1",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
-            };
+            if n == $nr {
+                pire_base::prefetch_c_avx512!($mr,$nr,c,c_cs);
+                pire_base::asm_body_avx512!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, c_k, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | mask_ptr, |
+                    [
+                        "zmm0", "zmm1", "zmm2", "zmm3",
+                        "zmm4", "zmm5", "zmm6", "zmm7",
+                        "zmm8", "zmm9", "zmm10", "zmm11",
+                        "zmm12", "zmm13", "zmm14", "zmm15",
+                        "zmm16", "zmm17", "zmm18", "zmm19",
+                        "zmm20", "zmm21", "zmm22", "zmm23",
+                        "zmm24", "zmm25", "zmm26", "zmm27",
+                        "zmm28", "zmm29", "zmm30", "zmm31",
+                        "k1",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::prefetch_c_avx512!($mr,ni,c,c_cs);
+                            pire_base::asm_body_avx512!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, c_k, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | mask_ptr, |
+                                [
+                                    "zmm0", "zmm1", "zmm2", "zmm3",
+                                    "zmm4", "zmm5", "zmm6", "zmm7",
+                                    "zmm8", "zmm9", "zmm10", "zmm11",
+                                    "zmm12", "zmm13", "zmm14", "zmm15",
+                                    "zmm16", "zmm17", "zmm18", "zmm19",
+                                    "zmm20", "zmm21", "zmm22", "zmm23",
+                                    "zmm24", "zmm25", "zmm26", "zmm27",
+                                    "zmm28", "zmm29", "zmm30", "zmm31",
+                                    "k1",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
             if BUF {
                 for j in 0..n {
                     f.call(c_k.add(j*MR), MR);
@@ -4329,7 +4389,7 @@ macro_rules! def_ukernel_avx_2 {
             d_arr: [usize; 3],
             c_cs: usize,
             a_pft1_offset: usize,
-            _n: usize,
+            n: usize,
             f: F,
         ) {
             const MR: usize = $mr * VS;
@@ -4349,36 +4409,66 @@ macro_rules! def_ukernel_avx_2 {
                 2i32
             };
             if BUF {
-                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, n, MR);
                 dim_arr[0] = MR * TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            pire_base::asm_body_avx_2!(
-                $step_macro,
-                $acc_macro,
-                $store_macro,
-                $mr,
-                $nr,
-                a,
-                b,
-                c_k,
-                alpha,
-                beta,
-                alpha_st,
-                beta_st,
-                dim_arr,
-                [
-                    "ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm8", "ymm9", "ymm10", "ymm11",
-                    "ymm12", "ymm13", "ymm14", "ymm15",
-                ]
-            );
+            if n == $nr {
+                pire_base::asm_body_avx_2!(
+                    $step_macro,
+                    $acc_macro,
+                    $store_macro,
+                    $mr,
+                    $nr,
+                    a,
+                    b,
+                    c_k,
+                    alpha,
+                    beta,
+                    alpha_st,
+                    beta_st,
+                    dim_arr,
+                    [
+                        "ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm8", "ymm9", "ymm10", "ymm11",
+                        "ymm12", "ymm13", "ymm14", "ymm15",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::asm_body_avx_2!(
+                                $step_macro,
+                                $acc_macro,
+                                $store_macro,
+                                $mr,
+                                ni,
+                                a,
+                                b,
+                                c_k,
+                                alpha,
+                                beta,
+                                alpha_st,
+                                beta_st,
+                                dim_arr,
+                                [
+                                    "ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm8", "ymm9", "ymm10", "ymm11",
+                                    "ymm12", "ymm13", "ymm14", "ymm15",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
+
             if BUF {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j * MR), MR);
                 }
-                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, n, MR);
             } else {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j * c_cs), MR);
                 }
             }
@@ -4400,7 +4490,7 @@ macro_rules! def_ukernel_avx512_2 {
             d_arr: [usize; 3],
             c_cs: usize,
             a_pft1_offset: usize,
-            _n: usize,
+            n: usize,
             f: F,
         ) {
             const MR: usize = $mr * VS;
@@ -4420,38 +4510,69 @@ macro_rules! def_ukernel_avx512_2 {
                 2i32
             };
             if BUF {
-                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, $nr, MR);
+                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, MR, n, MR);
                 dim_arr[0] = MR * TC_SIZE;
                 c_k = c_buf.as_mut_ptr();
             }
-            pire_base::asm_body_avx512_2!(
-                $step_macro,
-                $acc_macro,
-                $store_macro,
-                $mr,
-                $nr,
-                a,
-                b,
-                c_k,
-                alpha,
-                beta,
-                alpha_st,
-                beta_st,
-                dim_arr,
-                $pf1_step,
-                [
-                    "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9", "zmm10", "zmm11",
-                    "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19", "zmm20", "zmm21", "zmm22",
-                    "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29", "zmm30", "zmm31",
-                ]
-            );
+            if n == $nr {
+                pire_base::asm_body_avx512_2!(
+                    $step_macro,
+                    $acc_macro,
+                    $store_macro,
+                    $mr,
+                    $nr,
+                    a,
+                    b,
+                    c_k,
+                    alpha,
+                    beta,
+                    alpha_st,
+                    beta_st,
+                    dim_arr,
+                    $pf1_step,
+                    [
+                        "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9", "zmm10", "zmm11",
+                        "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19", "zmm20", "zmm21", "zmm22",
+                        "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29", "zmm30", "zmm31",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::asm_body_avx512_2!(
+                                $step_macro,
+                                $acc_macro,
+                                $store_macro,
+                                $mr,
+                                ni,
+                                a,
+                                b,
+                                c_k,
+                                alpha,
+                                beta,
+                                alpha_st,
+                                beta_st,
+                                dim_arr,
+                                $pf1_step,
+                                [
+                                    "zmm0", "zmm1", "zmm2", "zmm3", "zmm4", "zmm5", "zmm6", "zmm7", "zmm8", "zmm9", "zmm10", "zmm11",
+                                    "zmm12", "zmm13", "zmm14", "zmm15", "zmm16", "zmm17", "zmm18", "zmm19", "zmm20", "zmm21", "zmm22",
+                                    "zmm23", "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29", "zmm30", "zmm31",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
             if BUF {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j * MR), MR);
                 }
-                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, $nr, MR);
+                pire_base::store_buf(c, d_arr[2], c_cs, &c_buf, MR, n, MR);
             } else {
-                for j in 0..$nr {
+                for j in 0..n {
                     f.call(c_k.add(j * c_cs), MR);
                 }
             }
@@ -4468,7 +4589,6 @@ macro_rules! def_ukernel_sse {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4494,85 +4614,152 @@ macro_rules! def_ukernel_sse {
                 2i32
             };
             const MR: usize = $mr * VS;
-            let mut dim_arr = [d_arr[0]*8, d_arr[1]*8, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize, alpha_st as usize];
+            let mut dim_arr = [c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, beta_st as usize, alpha_st as usize];
             let mut ptr_arr = [alpha, beta];
             let mut cf = c;
             let mut c_buf = [ZERO;MR*$nr];
             if BUF {
                 pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, n, MR);
-                dim_arr[2] = MR*TC_SIZE;
+                dim_arr[0] = MR*TC_SIZE;
                 cf = c_buf.as_mut_ptr();
             }
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::prefetch_c_sse!($mr,ni,c,c_cs);
-                        asm!(
-                            vzero_kernel!(),
+            if n == $nr {
+                pire_base::prefetch_c_sse!($mr,$nr,c,c_cs);
+                asm!(
+                    vzero_kernel!(),
 
-                            init_ab!($b_layout),
-                            "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
+                    init_ab!($b_layout),
+                    "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
 
-                            "2:", // KITER
-                            pire_base::prefetch_b!($b_layout),
-                            $step_macro!(ni, $b_layout, 0),
-                            $step_macro!(ni, $b_layout, 1),
-                            $step_macro!(ni, $b_layout, 2),
-                            $step_macro!(ni, $b_layout, 3),
+                    "2:", // KITER
+                    pire_base::prefetch_b!($b_layout),
+                    $step_macro!($nr, $b_layout, 0),
+                    $step_macro!($nr, $b_layout, 1),
+                    $step_macro!($nr, $b_layout, 2),
+                    $step_macro!($nr, $b_layout, 3),
 
-                            inc_a_k_unroll!($mr, 4),
-                            inc_b_k_unroll!($b_layout, ni, 4),
+                    inc_a_k_unroll!($mr, 4),
+                    inc_b_k_unroll!($b_layout, $nr, 4),
 
-                            "dec {x0}", "jne 2b", // KITER
+                    "dec {x0}", "jne 2b", // KITER
 
-                            "3:", // CONSIDKLEFT
-                            "mov 16({dim_arrx}), {x0}",
-                            "test {x0},{x0}", "je 5f", // POSTACCUM
+                    "3:", // CONSIDKLEFT
+                    "mov 8({dim_arrx}), {x0}",
+                    "test {x0},{x0}", "je 5f", // POSTACCUM
 
-                            "4:", // KLEFT
-                            $step_macro!(ni, $b_layout, 0),
-                            inc_a_k_unroll!($mr, 1),
-                            inc_b_k_unroll!($b_layout, ni, 1),
+                    "4:", // KLEFT
+                    $step_macro!($nr, $b_layout, 0),
+                    inc_a_k_unroll!($mr, 1),
+                    inc_b_k_unroll!($b_layout, $nr, 1),
 
-                            "dec {x0}", "jne 4b", // KLEFT
+                    "dec {x0}", "jne 4b", // KLEFT
 
-                            "5:", // POSTACCUM
-                            c_load!(),
+                    "5:", // POSTACCUM
+                    c_load!(),
 
-                            "cmpw $0, 24({dim_arrx})",
-                            "je 9f",
-                            alpha_scale!(),
-                            "9:",
+                    "cmpw $0, 16({dim_arrx})",
+                    "je 9f",
+                    alpha_scale!(),
+                    "9:",
 
-                            "cmpw $0, 20({dim_arrx})",
-                            "je 6f",
+                    "cmpw $0, 12({dim_arrx})",
+                    "je 6f",
 
-                            "cmpw $1, 20({dim_arrx})",
-                            "je 15f",
+                    "cmpw $1, 12({dim_arrx})",
+                    "je 15f",
 
-                            load_beta!(),
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
-                            "jmp 6f",
+                    load_beta!(),
+                    pire_base::cum_seq!($acc_macro,$nr,$is_partial,2),
+                    "jmp 6f",
 
-                            "15:",
-                            pire_base::cum_seq!($acc_macro,ni,$is_partial,1),
+                    "15:",
+                    pire_base::cum_seq!($acc_macro,$nr,$is_partial,1),
 
-                            "6:",
-                            pire_base::cum_seq!($store_macro,ni,$is_partial),
+                    "6:",
+                    pire_base::cum_seq!($store_macro,$nr,$is_partial),
 
-                            ax = inout(reg) a => _,
-                            bx = inout(reg) b => _,
-                            cx = inout(reg) cf => _,
-                            ptr_arrx = inout(reg) ptr_arr.as_ptr() => _,
-                            dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-                            x0 = out(reg) _,
-                            out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
-                            out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
-                            options(att_syntax)
-                        );
-                        break 'blk;
-                    }
-                });
+                    ax = inout(reg) a => _,
+                    bx = inout(reg) b => _,
+                    cx = inout(reg) cf => _,
+                    ptr_arrx = inout(reg) ptr_arr.as_ptr() => _,
+                    dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                    x0 = out(reg) _,
+                    out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+                    out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+                    options(att_syntax)
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::prefetch_c_sse!($mr,ni,c,c_cs);
+                            asm!(
+                                vzero_kernel!(),
+
+                                init_ab!($b_layout),
+                                "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
+
+                                "2:", // KITER
+                                pire_base::prefetch_b!($b_layout),
+                                $step_macro!(ni, $b_layout, 0),
+                                $step_macro!(ni, $b_layout, 1),
+                                $step_macro!(ni, $b_layout, 2),
+                                $step_macro!(ni, $b_layout, 3),
+
+                                inc_a_k_unroll!($mr, 4),
+                                inc_b_k_unroll!($b_layout, ni, 4),
+
+                                "dec {x0}", "jne 2b", // KITER
+
+                                "3:", // CONSIDKLEFT
+                                "mov 8({dim_arrx}), {x0}",
+                                "test {x0},{x0}", "je 5f", // POSTACCUM
+
+                                "4:", // KLEFT
+                                $step_macro!(ni, $b_layout, 0),
+                                inc_a_k_unroll!($mr, 1),
+                                inc_b_k_unroll!($b_layout, ni, 1),
+
+                                "dec {x0}", "jne 4b", // KLEFT
+
+                                "5:", // POSTACCUM
+                                c_load!(),
+
+                                "cmpw $0, 16({dim_arrx})",
+                                "je 9f",
+                                alpha_scale!(),
+                                "9:",
+
+                                "cmpw $0, 12({dim_arrx})",
+                                "je 6f",
+
+                                "cmpw $1, 12({dim_arrx})",
+                                "je 15f",
+
+                                load_beta!(),
+                                pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
+                                "jmp 6f",
+
+                                "15:",
+                                pire_base::cum_seq!($acc_macro,ni,$is_partial,1),
+
+                                "6:",
+                                pire_base::cum_seq!($store_macro,ni,$is_partial),
+
+                                ax = inout(reg) a => _,
+                                bx = inout(reg) b => _,
+                                cx = inout(reg) cf => _,
+                                ptr_arrx = inout(reg) ptr_arr.as_ptr() => _,
+                                dim_arrx = inout(reg) dim_arr.as_ptr() => _,
+                                x0 = out(reg) _,
+                                out("xmm0") _, out("xmm1") _, out("xmm2") _, out("xmm3") _,
+                                out("xmm4") _, out("xmm5") _, out("xmm6") _, out("xmm7") _,
+                                options(att_syntax)
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -4774,7 +4961,6 @@ macro_rules! def_ukernel_neon {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4803,34 +4989,59 @@ macro_rules! def_ukernel_neon {
             } else {
                 1i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        if BUF {
-                            pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                            dim_arr[2] = MR*TC_SIZE;
-                            cf = c_buf.as_mut_ptr();
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, MR);
+                    dim_arr[2] = MR*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_neon!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | |,
+                    | x0, x1, x2, x3, x4, x5, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            if BUF {
+                                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                                dim_arr[2] = MR*TC_SIZE;
+                                cf = c_buf.as_mut_ptr();
+                            }
+                            pire_base::asm_body_neon!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | |,
+                                | x0, x1, x2, x3, x4, x5, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                ]
+                            );
+                            break 'blk;
                         }
-                        pire_base::asm_body_neon!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | |,
-                            | x0, x1, x2, x3, x4, x5, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -4853,7 +5064,6 @@ macro_rules! def_ukernel_neon_alt {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4883,34 +5093,59 @@ macro_rules! def_ukernel_neon_alt {
             } else {
                 1i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        if BUF {
-                            pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                            dim_arr[2] = MR*TC_SIZE;
-                            cf = c_buf.as_mut_ptr();
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, MR);
+                    dim_arr[2] = MR*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_neon!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | alt, |,
+                    | x0, x1, x2, x3, x4, x5, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == $nr {
+                            if BUF {
+                                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                                dim_arr[2] = MR*TC_SIZE;
+                                cf = c_buf.as_mut_ptr();
+                            }
+                            pire_base::asm_body_neon!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | alt, |,
+                                | x0, x1, x2, x3, x4, x5, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                ]
+                            );
+                            break 'blk;
                         }
-                        pire_base::asm_body_neon!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | alt, |,
-                            | x0, x1, x2, x3, x4, x5, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -4933,7 +5168,6 @@ macro_rules! def_ukernel_neon_fp16 {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -4962,34 +5196,59 @@ macro_rules! def_ukernel_neon_fp16 {
             } else {
                 1i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if BUF {
-                        pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                        dim_arr[2] = MR*TC_SIZE;
-                        cf = c_buf.as_mut_ptr();
-                    }
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::asm_body_neon!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | |,
-                            | x0, x1, x2, x3, x4, x5, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, MR);
+                    dim_arr[2] = MR*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_neon!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | |,
+                    | x0, x1, x2, x3, x4, x5, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            if BUF {
+                                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                                dim_arr[2] = MR*TC_SIZE;
+                                cf = c_buf.as_mut_ptr();
+                            }
+                            pire_base::asm_body_neon!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | |,
+                                | x0, x1, x2, x3, x4, x5, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -5012,7 +5271,6 @@ macro_rules! def_ukernel_neon_i8mm {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -5043,34 +5301,59 @@ macro_rules! def_ukernel_neon_i8mm {
             } else {
                 2i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    if pire_base::n_cond!($n0, ni, n) {
-                        if BUF {
-                            pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
-                            dim_arr[2] = MR*TC_SIZE;
-                            cf = c_buf.as_mut_ptr();
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, MR);
+                    dim_arr[2] = MR*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_neon!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    dim_arr, | |,
+                    | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            if BUF {
+                                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, MR);
+                                dim_arr[2] = MR*TC_SIZE;
+                                cf = c_buf.as_mut_ptr();
+                            }
+                            pire_base::asm_body_neon!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                dim_arr, | |,
+                                | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                ]
+                            );
+                            break 'blk;
                         }
-                        pire_base::asm_body_neon!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            dim_arr, | |,
-                            | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -5093,7 +5376,6 @@ macro_rules! def_ukernel_sve {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -5127,38 +5409,65 @@ macro_rules! def_ukernel_sve {
             } else {
                 2i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    // usingy dynamic n leads to bug due sve on windows
-                    // see: https://github.com/llvm/llvm-project/issues/80009
-                    if BUF {
-                        pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
-                        dim_arr[2] = mr*TC_SIZE;
-                        cf = c_buf.as_mut_ptr();
-                    }
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::asm_body_sve!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            m_left, inc_a,
-                            dim_arr, | |,
-                            | x0, x1, x2, x3, x4, x5, x6, x7, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                                "p0", "p1", "p2", "p3",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, mr);
+                    dim_arr[2] = mr*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_sve!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    m_left, inc_a,
+                    dim_arr, | |,
+                    | x0, x1, x2, x3, x4, x5, x6, x7, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                        "p0", "p1", "p2", "p3",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni{
+                            // usingy dynamic n leads to bug due sve on windows
+                            // see: https://github.com/llvm/llvm-project/issues/80009
+                            if BUF {
+                                pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
+                                dim_arr[2] = mr*TC_SIZE;
+                                cf = c_buf.as_mut_ptr();
+                            }
+                            pire_base::asm_body_sve!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                m_left, inc_a,
+                                dim_arr, | |,
+                                | x0, x1, x2, x3, x4, x5, x6, x7, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                    "p0", "p1", "p2", "p3",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {
@@ -5181,7 +5490,6 @@ macro_rules! def_ukernel_sve_i8mm {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
-        $n0:tt, $n1:tt,
         $b_layout:tt,
         $is_partial:tt,
         // $feature_enable:tt,
@@ -5216,38 +5524,65 @@ macro_rules! def_ukernel_sve_i8mm {
             } else {
                 2i32
             };
-            let _ = 'blk: {
-                seq!(ni in $n0..$n1 {
-                    // usingy dynamic n leads to bug due to llvm bug sve on windows
-                    // see: https://github.com/llvm/llvm-project/issues/80009
-                    if BUF {
-                        pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
-                        dim_arr[2] = mr*TC_SIZE;
-                        cf = c_buf.as_mut_ptr();
-                    }
-                    if pire_base::n_cond!($n0, ni, n) {
-                        pire_base::asm_body_sve!(
-                            $step_macro, $acc_macro, $store_macro,
-                            $mr, ni, $b_layout, $is_partial,
-                            a, b, cf, alpha, beta, alpha_st, beta_st,
-                            m_left, inc_a,
-                            dim_arr, | |,
-                            | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
-                            [
-                                "v0", "v1", "v2", "v3",
-                                "v4", "v5", "v6", "v7",
-                                "v8", "v9", "v10", "v11",
-                                "v12", "v13", "v14", "v15",
-                                "v16", "v17", "v18", "v19",
-                                "v20", "v21", "v22", "v23",
-                                "v24", "v25", "v26", "v27",
-                                "v28", "v29", "v30", "v31",
-                                "p0", "p1", "p2", "p3",
-                            ]
-                        );
-                        break 'blk;
-                    }
-                });
+            if n == $nr {
+                if BUF {
+                    pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, $nr, mr);
+                    dim_arr[2] = mr*TC_SIZE;
+                    cf = c_buf.as_mut_ptr();
+                }
+                pire_base::asm_body_sve!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $mr, $nr, $b_layout, $is_partial,
+                    a, b, cf, alpha, beta, alpha_st, beta_st,
+                    m_left, inc_a,
+                    dim_arr, | |,
+                    | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                    [
+                        "v0", "v1", "v2", "v3",
+                        "v4", "v5", "v6", "v7",
+                        "v8", "v9", "v10", "v11",
+                        "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19",
+                        "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27",
+                        "v28", "v29", "v30", "v31",
+                        "p0", "p1", "p2", "p3",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        // usingy dynamic n leads to bug due to llvm bug sve on windows
+                        // see: https://github.com/llvm/llvm-project/issues/80009
+                        if BUF {
+                            pire_base::load_buf(c, d_arr[2], c_cs, &mut c_buf, m, ni, mr);
+                            dim_arr[2] = mr*TC_SIZE;
+                            cf = c_buf.as_mut_ptr();
+                        }
+                        if n == ni {
+                            pire_base::asm_body_sve!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $mr, ni, $b_layout, $is_partial,
+                                a, b, cf, alpha, beta, alpha_st, beta_st,
+                                m_left, inc_a,
+                                dim_arr, | |,
+                                | x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, |,
+                                [
+                                    "v0", "v1", "v2", "v3",
+                                    "v4", "v5", "v6", "v7",
+                                    "v8", "v9", "v10", "v11",
+                                    "v12", "v13", "v14", "v15",
+                                    "v16", "v17", "v18", "v19",
+                                    "v20", "v21", "v22", "v23",
+                                    "v24", "v25", "v26", "v27",
+                                    "v28", "v29", "v30", "v31",
+                                    "p0", "p1", "p2", "p3",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
             };
             if BUF {
                 for j in 0..n {

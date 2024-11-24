@@ -173,13 +173,7 @@ x4 -> bx + 3*cs_b
 macro_rules! init_ab {
     (B) => {
         concat!(
-            "mov 12({dim_arrx}),{x0}", "\n",
-        )
-    };
-    (S) => {
-        concat!(
-            // mov cs_b to reg
-            "mov 12({dim_arrx}),{x0}", "\n",
+            "mov 4({dim_arrx}),{x0}", "\n",
         )
     };
 }
@@ -189,7 +183,7 @@ macro_rules! c_load {
     () => {
         concat!(
             permute_complex!(),
-            "mov 8({dim_arrx}),{x0}", "\n",
+            "mov 0({dim_arrx}),{x0}", "\n",
         )
     };
 }
@@ -332,13 +326,8 @@ macro_rules! step_1x2 {
     };
 }
 
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, 2, 3, B, C, ukernel_bbc);
+def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, B, C, ukernel_bbc);
 
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, 2, 3, B, C, ukernel_1_bbp);
-
-
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, 1, 2, B, C, ukernel_n_bbc);
-
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, 1, 2, B, C, ukernel_1xn_bbp);
+def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, B, C, ukernel_1_bbp);
 
 

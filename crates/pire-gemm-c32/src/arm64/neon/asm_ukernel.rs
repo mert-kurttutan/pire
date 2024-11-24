@@ -608,14 +608,10 @@ macro_rules! prefetch_c {
     };
 }
 
-def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_bbc);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, B, C, ukernel_bbc);
 
-def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, C, ukernel_3_bbp);
-def_ukernel_neon_alt!(step_2x3, acc_2x3, store_2x3, 2, 2, 2, 3, B, C, ukernel_2_bbp);
-def_ukernel_neon_alt!(step_1x3, acc_1x3, store_1x3, 1, 2, 2, 3, B, C, ukernel_1_bbp);
+def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, B, C, ukernel_3_bbp);
+def_ukernel_neon_alt!(step_2x3, acc_2x3, store_2x3, 2, 2, B, C, ukernel_2_bbp);
+def_ukernel_neon_alt!(step_1x3, acc_1x3, store_1x3, 1, 2, B, C, ukernel_1_bbp);
 
-def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_n_bbc);
 
-def_ukernel_neon_alt!(step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_3xn_bbp);
-def_ukernel_neon_alt!(step_2x3, acc_2x3, store_2x3, 2, 2, 1, 2, B, C, ukernel_2xn_bbp);
-def_ukernel_neon_alt!(step_1x3, acc_1x3, store_1x3, 1, 2, 1, 2, B, C, ukernel_1xn_bbp);

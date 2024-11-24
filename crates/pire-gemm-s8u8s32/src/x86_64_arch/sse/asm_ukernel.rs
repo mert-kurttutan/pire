@@ -353,18 +353,13 @@ macro_rules! step_1x4 {
     };
 }
 
-def_ukernel_sse!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 4, 5, B, C, ukernel_2_bbp);
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 4, 5, B, C, ukernel_1_bbp);
+def_ukernel_sse!(4, step_2x4, acc_2x4, store_2x4, 2, 4, B, C, ukernel_2_bbp);
+def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, C, ukernel_1_bbp);
 
+def_ukernel_sse!(4, step_2x4, acc_2x4, store_2x4, 2, 4, B, C, ukernel_bbc);
 
-def_ukernel_sse!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, C, ukernel_n_bbc);
-
-def_ukernel_sse!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, C, ukernel_2xn_bbp);
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 1, 4, B, C, ukernel_1xn_bbp);
-
-
-
-pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
+#[allow(unused)]
+pub(crate) unsafe fn ukernel_bbcold<F: UnaryFnC, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

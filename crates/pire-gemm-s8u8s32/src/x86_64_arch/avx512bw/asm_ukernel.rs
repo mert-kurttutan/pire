@@ -408,13 +408,7 @@ macro_rules! load_mask {
     }
 }
 
-def_ukernel_avx512!(4, step_2x8, acc_2x8, store_2x8, 2, 8, 8, 9, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(4, step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, P, ukernel_1_bbp);
-
-
-def_ukernel_avx512!(4, step_2x8, acc_2x8, store_2x8, 2, 8, 1, 8, B, C, ukernel_n_bbc);
-
-def_ukernel_avx512!(4, step_2x8, acc_2x8, store_2x8, 2, 8, 1, 8, B, P, ukernel_2xn_bbp);
-def_ukernel_avx512!(4, step_1x8, acc_1x8, store_1x8, 1, 8, 1, 8, B, P, ukernel_1xn_bbp);
+def_ukernel_avx512!(4, step_2x8, acc_2x8, store_2x8, 2, 8, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(4, step_1x8, acc_1x8, store_1x8, 1, 8, B, P, ukernel_1_bbp);
 
 def_ukernel_avx512_2!(4, step_2x8, acc_2x8, store_2x8, 2, 8, 32, 32);

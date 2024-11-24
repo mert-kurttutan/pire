@@ -316,27 +316,15 @@ macro_rules! load_mask {
     }
 }
 
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, B, P, ukernel_3_bbp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 4, 5, B, P, ukernel_2_bbp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 4, 5, B, P, ukernel_1_bbp);
+def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, B, P, ukernel_3_bbp);
+def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, B, P, ukernel_2_bbp);
+def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, B, P, ukernel_1_bbp);
 
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, S, C, ukernel_bsc);
+def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, S, C, ukernel_bsc);
 
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, S, P, ukernel_3_bsp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 4, 5, S, P, ukernel_2_bsp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 4, 5, S, P, ukernel_1_bsp);
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, C, ukernel_n_bbc);
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, P, ukernel_3xn_bbp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 1, 4, B, P, ukernel_2xn_bbp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 1, 4, B, P, ukernel_1xn_bbp);
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, S, C, ukernel_n_bsc);
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, S, P, ukernel_3xn_bsp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 1, 4, S, P, ukernel_2xn_bsp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 1, 4, S, P, ukernel_1xn_bsp);
+def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, S, P, ukernel_3_bsp);
+def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, S, P, ukernel_2_bsp);
+def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, S, P, ukernel_1_bsp);
 
 // based on l1 prefetching scheme is from openblas impl for skylax
 // see: https://github.com/OpenMathLib/OpenBLAS/pull/2300

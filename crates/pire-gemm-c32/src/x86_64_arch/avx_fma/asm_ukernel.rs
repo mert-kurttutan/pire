@@ -503,27 +503,14 @@ macro_rules! load_mask {
     }
 }
 
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, B, P, ukernel_3_bbp);
-def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 2, 2, 3, B, P, ukernel_2_bbp);
-def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 2, 2, 3, B, P, ukernel_1_bbp);
+def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, B, P, ukernel_3_bbp);
+def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 2, B, P, ukernel_2_bbp);
+def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 2, B, P, ukernel_1_bbp);
 
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, S, C, ukernel_bsc);
+def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, S, C, ukernel_bsc);
 
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 2, 3, S, P, ukernel_3_bsp);
-def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 2, 2, 3, S, P, ukernel_2_bsp);
-def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 2, 2, 3, S, P, ukernel_1_bsp);
-
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, C, ukernel_n_bbc);
-
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, B, P, ukernel_3xn_bbp);
-def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 3, 1, 2, B, P, ukernel_2xn_bbp);
-def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 3, 1, 2, B, P, ukernel_1xn_bbp);
-
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, S, C, ukernel_n_bsc);
-
-def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 1, 2, S, P, ukernel_3xn_bsp);
-def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 3, 1, 2, S, P, ukernel_2xn_bsp);
-def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 3, 1, 2, S, P, ukernel_1xn_bsp);
-
+def_ukernel_avx!(1, step_3x2, acc_3x2, store_3x2, 3, 2, S, P, ukernel_3_bsp);
+def_ukernel_avx!(1, step_2x3, acc_2x3, store_2x3, 2, 2, S, P, ukernel_2_bsp);
+def_ukernel_avx!(1, step_1x3, acc_1x3, store_1x3, 1, 2, S, P, ukernel_1_bsp);
 
 def_ukernel_avx_2!(1, step_3x2, acc_3x2, store_3x2, 3, 2, 4, 32);

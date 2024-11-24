@@ -693,14 +693,8 @@ macro_rules! prefetch_c {
     };
 }
 
-def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 8, 9, B, M, ukernel_1_bbp);
-def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, 1, 8, B, M, ukernel_1xn_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 8, 9, B, M, ukernel_2_bbp);
-def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, 1, 8, B, M, ukernel_2xn_bbp);
+def_ukernel_sve!(step_1x8, acc_1x8, store_1x8, 1, 8, B, M, ukernel_1_bbp);
+def_ukernel_sve!(step_2x8, acc_2x8, store_2x8, 2, 8, B, M, ukernel_2_bbp);
+def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, B, M, ukernel_3_bbp);
 
-def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, B, M, ukernel_3_bbp);
-def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, M, ukernel_3xn_bbp);
-
-
-def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 1, 8, B, C, ukernel_n_bbc);
-def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, 8, 9, B, C, ukernel_bbc);
+def_ukernel_sve!(step_3x8, acc_3x8, store_3x8, 3, 8, B, C, ukernel_bbc);

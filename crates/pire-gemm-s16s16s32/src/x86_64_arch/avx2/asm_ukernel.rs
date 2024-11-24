@@ -306,16 +306,10 @@ macro_rules! load_mask {
     }
 }
 
-// def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 4, 5, B, C, ukernel_bbc);
+// def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, B, C, ukernel_bbc);
 
-def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 4, 5, B, P, ukernel_2_bbp);
-def_ukernel_avx!(2, step_1x4, acc_1x4, store_1x4, 1, 4, 4, 5, B, P, ukernel_1_bbp);
-
-
-def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, C, ukernel_n_bbc);
-
-def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 1, 4, B, P, ukernel_2xn_bbp);
-def_ukernel_avx!(2, step_1x4, acc_1x4, store_1x4, 1, 4, 1, 4, B, P, ukernel_1xn_bbp);
+def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, B, P, ukernel_2_bbp);
+def_ukernel_avx!(2, step_1x4, acc_1x4, store_1x4, 1, 4, B, P, ukernel_1_bbp);
 
 // def_ukernel_avx_2!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 8, 32);
-def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, 4, 5, B, C, ukernel_bbc);
+def_ukernel_avx!(2, step_2x4, acc_2x4, store_2x4, 2, 4, B, C, ukernel_bbc);

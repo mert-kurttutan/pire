@@ -158,7 +158,7 @@ macro_rules! init_ab {
             "mov $0x10001, {x0:e}", "\n",
             "movd {x0:e}, %xmm3", "\n",
             "shufps $0,%xmm3,%xmm3\n",
-            "mov 12({dim_arrx}),{x0}", "\n",
+            "mov 4({dim_arrx}),{x0}", "\n",
         )
     };
 }
@@ -167,7 +167,7 @@ macro_rules! init_ab {
 macro_rules! c_load {
     () => {
         concat!(
-            "mov 8({dim_arrx}),{x0}", "\n",
+            "mov ({dim_arrx}),{x0}", "\n",
             "lea ({x0}, {x0}, 2), {bx}", "\n",
             "lea ({cx}, {bx},), {bx}", "\n",
         )
@@ -284,11 +284,6 @@ macro_rules! step_1x4 {
     };
 }
 
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 4, 5, B, C, ukernel_bbc);
+def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, C, ukernel_bbc);
 
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 4, 5, B, C, ukernel_1_bbp);
-
-
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 1, 4, B, C, ukernel_n_bbc);
-
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, 1, 4, B, C, ukernel_1xn_bbp);
+def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, C, ukernel_1_bbp);
