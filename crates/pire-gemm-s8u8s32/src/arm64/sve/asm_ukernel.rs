@@ -707,17 +707,14 @@ macro_rules! prefetch_c {
 
 const MAX_VS: usize = 64;
 
-def_ukernel_sve_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, 12, 13, B, M, ukernel_1_bbp);
-def_ukernel_sve_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, 1, 12, B, M, ukernel_1xn_bbp);
-def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, 12, 13, B, M, ukernel_2_bbp);
-def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, 1, 12, B, M, ukernel_2xn_bbp);
+def_ukernel_sve_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, B, M, ukernel_1_bbp);
+def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, M, ukernel_2_bbp);
 
+def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, C, ukernel_bbc);
 
-def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, 1, 12, B, C, ukernel_n_bbc);
-
-
+#[allow(unused)]
 #[target_feature(enable="neon,sve,i8mm")]
-pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bbcold<F: UnaryFnC, const BUF: bool>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const f32, beta: *const f32,
     k: usize,

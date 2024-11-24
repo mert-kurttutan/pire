@@ -292,18 +292,8 @@ macro_rules! load_mask {
 
 // Dont use partial since partially (and efficiently at the same time) is hard instead copy to c buffer
 
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, B, C, ukernel_bbc);
+def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, B, C, ukernel_bbc);
 
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 4, 5, B, C, ukernel_3_bbp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 4, 5, B, C, ukernel_2_bbp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 4, 5, B, C, ukernel_1_bbp);
-
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, C, ukernel_n_bbc);
-
-def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, 1, 4, B, C, ukernel_3xn_bbp);
-def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, 1, 4, B, C, ukernel_2xn_bbp);
-def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, 1, 4, B, C, ukernel_1xn_bbp);
-
-
-
+def_ukernel_avx!(1, step_3x4, acc_3x4, store_3x4, 3, 4, B, C, ukernel_3_bbp);
+def_ukernel_avx!(1, step_2x6, acc_2x6, store_2x6, 2, 4, B, C, ukernel_2_bbp);
+def_ukernel_avx!(1, step_1x6, acc_1x6, store_1x6, 1, 4, B, C, ukernel_1_bbp);

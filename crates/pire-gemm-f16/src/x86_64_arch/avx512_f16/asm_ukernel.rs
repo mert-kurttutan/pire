@@ -496,25 +496,13 @@ macro_rules! load_mask {
     }
 }
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 15, 16, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, 15, 16, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 15, 16, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 15, 16, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, 15, 16, S, P, ukernel_1_bsp);
-
-
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 1, 15, B, C, ukernel_n_bbc);
-
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 1, 15, B, P, ukernel_2xn_bbp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, 1, 15, B, P, ukernel_1xn_bbp);
-
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 1, 15, S, C, ukernel_n_bsc);
-
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 1, 15, S, P, ukernel_2xn_bsp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, 1, 15, S, P, ukernel_1xn_bsp);
-
+def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, S, P, ukernel_1_bsp);
 
 
 pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
