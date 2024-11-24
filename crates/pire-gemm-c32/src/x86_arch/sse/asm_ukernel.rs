@@ -3,10 +3,7 @@ use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use crate::UnaryFnC;
 use pire_base::{c_mem, def_ukernel_sse};
-use super::VS;
 type TS = TC;
-
-const ZERO: TC = TC::ZERO;
 
 const ZERO_SCALAR: TC = TC::ZERO;
 const ONE_SCALAR: TC = TC::ONE;

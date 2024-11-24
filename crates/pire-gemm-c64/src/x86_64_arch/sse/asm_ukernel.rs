@@ -7,12 +7,10 @@ use pire_base::{
 };
 type TS = TC;
 
-const ZERO: TC = TC::ZERO;
 
 const ZERO_SCALAR: TC = TC::ZERO;
 const ONE_SCALAR: TC = TC::ONE;
 
-const VS: usize = 1;
 
 macro_rules! load_mask {
     ($is_partial:tt) => {

@@ -8,6 +8,11 @@ use asm_ukernel::*;
 use crate::{UnaryFnC, TA, TB, TC};
 
 const VS: usize = 32;
+// const VS_MAX: usize = VS;
+
+use half::f16;
+
+const ZERO: f16 = f16::ZERO;
 
 // const fn simd_vector_length() -> usize {
 //     VS
@@ -68,7 +73,7 @@ const VS: usize = 32;
 // }
 
 use pire_base::def_kernel_bb_pf1;
-def_kernel_bb_pf1!(TA, TB, TC, TC, F, 1, 2, 15, 128, 4);
+def_kernel_bb_pf1!(TA, TB, TC, TC, false, 1, 2, 15, 128, 4);
 
 use pire_base::def_kernel_bs;
 def_kernel_bs!(TA, TB, TC, TC, 2, 15);
@@ -76,4 +81,4 @@ def_kernel_bs!(TA, TB, TC, TC, 2, 15);
 use super::pack_avx::packa_panel_64_same;
 
 use pire_base::def_kernel_sb_pf1;
-def_kernel_sb_pf1!(TA, TA, TB, TC, TC, packa_panel_64_same, 1, 2, 15, 128, 8);
+def_kernel_sb_pf1!(TA, TA, TB, TC, TC, false, packa_panel_64_same, 1, 2, 15, 128, 8);

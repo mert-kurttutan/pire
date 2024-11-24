@@ -2,9 +2,6 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use pire_base::{c_mem, prefetch_0, def_ukernel_neon, mem};
-use super::VS;
-
-const ZERO: TC = 0f64;
 
 const ONE_SCALAR: TC = 1f64;
 const ZERO_SCALAR: TC = 0f64;

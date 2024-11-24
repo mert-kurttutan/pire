@@ -8,10 +8,12 @@ use axpy_kernel::*;
 use crate::{UnaryFnC, TA, TB, TC};
 
 const VS: usize = 4;
+const VS_MAX: usize = VS;
 
 const fn simd_vector_length() -> usize {
     VS
 }
+const ZERO: f32 = 0.0;
 
 #[target_feature(enable = "sse")]
 pub unsafe fn axpy<F: UnaryFnC>(
@@ -55,7 +57,7 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TA, TB, TC, TC, T, 1, 2, 4);
+def_kernel_bb_v0!(TA, TB, TC, TC, true, 1, 2, 4);
 
 use pire_base::def_kernel_bs;
 def_kernel_bs!(TA, TB, TC, TC, 2, 4);
@@ -63,4 +65,4 @@ def_kernel_bs!(TA, TB, TC, TC, 2, 4);
 use super::pack_sse::packa_panel_8;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(TA, TA, TB, TC, TC, T, packa_panel_8, 1, 2, 4);
+def_kernel_sb_v0!(TA, TA, TB, TC, TC, true, packa_panel_8, 1, 2, 4);

@@ -4,13 +4,11 @@ use super::VS;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use half::f16;
 use pire_base::{
-    load_buf, store_buf, c_mem, def_ukernel_avx512, cum_seq,
+    c_mem, def_ukernel_avx512, cum_seq,
     load_a_avx512, storep_avx512, acc_p_avx512,
 };
 
 type TS = TC;
-
-const ZERO: f16 = f16::ZERO;
 
 const ZERO_SCALAR: f16 = f16::ZERO;
 const ONE_SCALAR: f16 = f16::ONE;
@@ -505,25 +503,18 @@ def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, P, ukernel_2_b
 def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, S, P, ukernel_1_bsp);
 
 
-pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
+pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC>(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,
-    d_arr: [usize; 3], c_cs: usize,
+    _d_arr: [usize; 2], c_cs: usize,
     a_pft1_offset: usize, _n: usize,
     f: F,
 ) {
     let k_l0 = k % 16;
     let k_l = if k_l0 == 0 {16} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let mut dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
-    let mut cf = c;
-    let mut c_buf = [f16::ZERO; 64 * 15];
-    if BUF {
-        load_buf(c, d_arr[2], c_cs, &mut c_buf, 64, 15, 64);
-        dim_arr[0] = 64*TC_SIZE;
-        cf = c_buf.as_mut_ptr();
-    }
+    let dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
     asm!(
         vzero_kernel!(),
         "mov 8({dim_arrx}),{x0}",
@@ -599,7 +590,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         "7:",
         ax = inout(reg) a => _, 
         bx = inout(reg) b => _, 
-        cx = inout(reg) cf => _,
+        cx = inout(reg) c => _,
         dim_arrx = inout(reg) dim_arr.as_ptr() => _, 
         alphax = inout(reg) alpha => _, 
         betax = inout(reg) beta => _, 
@@ -615,14 +606,7 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC, const BUF: bool>(
         out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
         options(att_syntax)
     );
-    if BUF {
-        for j in 0..15 {
-            f.call(cf.add(j*64), 64);
-        }
-        store_buf(c, d_arr[2], c_cs, &c_buf, 64, 15, 64);
-    } else {
-        for j in 0..15 {
-            f.call(cf.add(j*c_cs), 64);
-        }
+    for j in 0..15 {
+        f.call(c.add(j*c_cs), 64);
     }
 }

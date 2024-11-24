@@ -1,7 +1,6 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
-use super::VS;
 use pire_base::{
     c_mem, def_ukernel_sse, 
     mem, c_reg_2x4, c_reg_1x4,
@@ -10,8 +9,6 @@ use pire_base::{
 };
 
 type TS = f32;
-
-const ZERO: i32 = 0;
 
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;

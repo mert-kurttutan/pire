@@ -1,6 +1,5 @@
 use seq_macro::seq;
 use std::arch::asm;
-use half::f16;
 use crate::{UnaryFnC, TC, TC_SIZE};
 use super::VS;
 use pire_base::{
@@ -12,8 +11,6 @@ use pire_base::{
 };
 
 type TS = f32;
-
-const ZERO: f16 = f16::ZERO;
 
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 0.0;

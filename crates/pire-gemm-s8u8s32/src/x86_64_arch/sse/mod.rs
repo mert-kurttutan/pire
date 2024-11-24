@@ -8,6 +8,10 @@ use asm_ukernel::*;
 use crate::{UnaryFnC, TA, TB, TC};
 
 const VS: usize = 4;
+const VS_MAX: usize = VS;
+
+const ZERO: i32 = 0;
+
 const fn simd_vector_length() -> usize {
     VS
 }
@@ -95,9 +99,9 @@ pub unsafe fn axpy2<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, T, 4, 2, 4);
+def_kernel_bb_v0!(i8, u8, i32, f32, true, 4, 2, 4);
 
 use super::pack_sse::packa_panel_8;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, i8, u8, i32, f32, T, packa_panel_8, 4, 2, 4);
+def_kernel_sb_v0!(i8, i8, u8, i32, f32, true, packa_panel_8, 4, 2, 4);
