@@ -5140,13 +5140,6 @@ macro_rules! def_ukernel_sve {
                 let _ = 'blk: {
                     seq!(ni in 1..$nr {
                         if n == ni{
-                            // // usingy dynamic n leads to bug due sve on windows
-                            // // see: https://github.com/llvm/llvm-project/issues/80009
-                            // if BUF {
-                            //     pire_base::load_buf(c, c_rs, c_cs, &mut c_buf, m, ni, mr);
-                            //     dim_arr[2] = mr*TC_SIZE;
-                            //     cf = c_buf.as_mut_ptr();
-                            // }
                             pire_base::asm_body_sve!(
                                 $step_macro, $acc_macro, $store_macro,
                                 $mr, ni, $b_layout, $is_partial,
@@ -5236,13 +5229,6 @@ macro_rules! def_ukernel_sve_i8mm {
             } else {
                 let _ = 'blk: {
                     seq!(ni in 1..$nr {
-                        // // usingy dynamic n leads to bug due to llvm bug sve on windows
-                        // // see: https://github.com/llvm/llvm-project/issues/80009
-                        // if BUF {
-                        //     pire_base::load_buf(c, c_rs, c_cs, &mut c_buf, m, ni, mr);
-                        //     dim_arr[2] = mr*TC_SIZE;
-                        //     cf = c_buf.as_mut_ptr();
-                        // }
                         if n == ni {
                             pire_base::asm_body_sve!(
                                 $step_macro, $acc_macro, $store_macro,

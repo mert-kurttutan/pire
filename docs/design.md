@@ -71,3 +71,13 @@ getting compiler to return right assembly for embedded broadcasting is harder in
 
 move dispatching of packbe trhough global (once_cell) hardware config object.
 This is beneficial since pack is also used outside main gemm loop (e.g. prepacking)  with no performance cost
+
+
+
+// // usingy dynamic n leads to bug due to llvm bug sve on windows
+// // see: https://github.com/llvm/llvm-project/issues/80009
+// if BUF {
+//     pire_base::load_buf(c, c_rs, c_cs, &mut c_buf, m, ni, mr);
+//     dim_arr[2] = mr*TC_SIZE;
+//     cf = c_buf.as_mut_ptr();
+// }
