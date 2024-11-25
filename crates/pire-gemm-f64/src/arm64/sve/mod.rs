@@ -56,9 +56,9 @@ pub unsafe fn axpy<F: UnaryFnC>(
     }
 }
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TC, TC, TC, TC, false, 1, 3, 8);
+def_kernel_bb_v0!(TC, TC, TC, TC, false, F, 1, 3, 8, 0, 0);
 
 use super::pack_sve::packa_panel;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(TC, TC, TC, TC, TC, false, packa_panel, 1, 3, 8);
+def_kernel_sb_v0!(TC, TC, TC, TC, TC, false, F, packa_panel, 1, 3, 8, 0, 0);

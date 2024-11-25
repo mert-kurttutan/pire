@@ -2182,7 +2182,7 @@ macro_rules! def_kernel_bb_v0 {
 
 
             seq_macro::seq!(mr_vs in 1..=$MR {
-                if (m_left+VS-1) / VS == mr_vs {
+                if (m_left+vs-1) / vs == mr_vs {
                     let mr_left = mr_vs * vs;
                     let c_cs_f = if STRIDED || $no_partial { mr_left } else { c_cs };
                     let c_cur0 = c.add(m_i * c_rs);
@@ -2291,7 +2291,7 @@ macro_rules! def_kernel_sb_v0 {
             }
 
             seq_macro::seq!(mr_vs in 1..=$MR {
-                if (m_left+VS-1) / VS == mr_vs {
+                if (m_left+vs-1) / vs == mr_vs {
                     let mr_left = mr_vs * vs;
                     let c_cs_f = if STRIDED || $no_partial { mr_left } else { c_cs };
                     let c_cur0 = c.add(m_i * c_rs);
