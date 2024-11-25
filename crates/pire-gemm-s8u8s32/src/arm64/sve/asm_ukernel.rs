@@ -1,6 +1,5 @@
 use seq_macro::seq;
-use std::arch::asm;
-use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{c_mem, prefetch_0, mem, def_ukernel_sve_i8mm};
 use super::super::sve_vs;
 

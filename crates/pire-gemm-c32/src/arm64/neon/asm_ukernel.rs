@@ -1,5 +1,4 @@
 use seq_macro::seq;
-use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{c_mem, prefetch_0, def_ukernel_neon_alt, mem};
 
@@ -579,8 +578,6 @@ macro_rules! step_1x3 {
         })
     };
 }
-
-use crate::UnaryFnC;
 
 macro_rules! prefetch_c {
     () => {

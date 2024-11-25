@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use crate::{TA, TB, TC, TC_SIZE};
 use half::f16;
 use pire_base::{
     c_mem, def_ukernel_avx512, cum_seq,
@@ -503,18 +503,17 @@ def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, P, ukernel_2_b
 def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, S, P, ukernel_1_bsp);
 
 
-pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC>(
+pub(crate) unsafe fn ukernel_bbc(
     a: *const TA, b: *const TB, c: *mut TC,
     alpha: *const TA, beta: *const TB,
     k: usize,
-    _d_arr: [usize; 2], c_cs: usize,
-    a_pft1_offset: usize, _n: usize,
-    f: F,
+    d_arr: [usize; 2], c_cs: usize,
+    _m: usize, _n: usize,
 ) {
     let k_l0 = k % 16;
     let k_l = if k_l0 == 0 {16} else {k_l0};
     let k_i = (k - k_l) / 4;
-    let dim_arr = [c_cs*TC_SIZE, k_i, k_l, a_pft1_offset];
+    let dim_arr = [c_cs*TC_SIZE, k_i, k_l, d_arr[0]];
     asm!(
         vzero_kernel!(),
         "mov 8({dim_arrx}),{x0}",
@@ -606,7 +605,4 @@ pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC>(
         out("xmm12") _, out("xmm13") _, out("xmm14") _, out("xmm15") _,
         options(att_syntax)
     );
-    for j in 0..15 {
-        f.call(c.add(j*c_cs), 64);
-    }
 }

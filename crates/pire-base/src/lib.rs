@@ -2170,7 +2170,10 @@ macro_rules! def_kernel_bb_v0 {
                     } else {
                         c_cur1
                     };
-                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, mr, nr, f);
+                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, mr, nr);
+                    for j in 0..nr {
+                        f.call(c_cur1_f.add(j*c_cs_f), mr);
+                    }
                     if STRIDED {
                         pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, mr, nr, mr);
                     }
@@ -2199,7 +2202,10 @@ macro_rules! def_kernel_bb_v0 {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr, f);
+                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
+                        }
+                        for j in 0..nr {
+                            f.call(c_cur1_f.add(j*c_cs_f), mr_left);
                         }
                         if STRIDED || $no_partial {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
@@ -2280,7 +2286,10 @@ macro_rules! def_kernel_sb_v0 {
                     } else {
                         c_cur1
                     };
-                    ukernel_bbc(ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, mr, nr, f);
+                    ukernel_bbc(ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, mr, nr);
+                    for j in 0..nr {
+                        f.call(c_cur1_f.add(j*c_cs_f), mr);
+                    }
                     if STRIDED {
                         pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, mr, nr, mr);
                     }
@@ -2309,7 +2318,10 @@ macro_rules! def_kernel_sb_v0 {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_vs _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, m_left, nr, f);
+                            [<ukernel_ mr_vs _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, m_left, nr);
+                        }
+                        for j in 0..nr {
+                            f.call(c_cur1_f.add(j*c_cs_f), mr_left);
                         }
                         if STRIDED || $no_partial {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
@@ -2384,7 +2396,10 @@ macro_rules! def_kernel_bs {
                     } else {
                         c_cur1
                     };
-                    ukernel_bsc(ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, MR, nr, f);
+                    ukernel_bsc(ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, MR, nr);
+                    for j in 0..nr {
+                        f.call(c_cur1_f.add(j*c_cs_f), MR);
+                    }
                     if STRIDED {
                         pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, MR, nr, MR);
                     }
@@ -2410,7 +2425,10 @@ macro_rules! def_kernel_bs {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_left _bsp>](ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr, f);
+                            [<ukernel_ mr_left _bsp>](ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
+                        }
+                        for j in 0..nr {
+                            f.call(c_cur1_f.add(j*c_cs_f), MR_LEFT);
                         }
                         if STRIDED {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, MR_LEFT);
@@ -3547,7 +3565,7 @@ macro_rules! asm_body_sse {
         $dim_arr:tt,
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             vzero_kernel!(),
 
             init_ab!($b_layout),
@@ -3621,7 +3639,7 @@ macro_rules! asm_body_avx {
         $dim_arr:tt, | $($mask_ptr:ident,)? |
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             vzero_kernel!(),
 
             init_ab_avx!($b_layout),
@@ -3703,7 +3721,7 @@ macro_rules! asm_body_avx_2 {
         $dim_arr:tt,
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             vzero_kernel!(),
             init_ab_2!(B),
             "test {x0},{x0}",
@@ -3811,7 +3829,7 @@ macro_rules! asm_body_avx512 {
         $dim_arr:tt, | $($mask_ptr:ident,)? |
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             vzero_kernel!(),
 
             init_ab!($b_layout),
@@ -3889,7 +3907,7 @@ macro_rules! asm_body_avx512_2 {
         $dim_arr:tt, $pf1_step:tt,
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             vzero_kernel!(),
             init_ab_2!(B),
             "test {x0},{x0}", "je 3f",
@@ -4001,13 +4019,12 @@ macro_rules! def_ukernel_sse {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
@@ -4059,9 +4076,6 @@ macro_rules! def_ukernel_sse {
                     });
                 };
             }
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4079,13 +4093,12 @@ macro_rules! def_ukernel_avx {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             mask_ptr!($is_partial, m, x, mask_ptr);
@@ -4138,9 +4151,6 @@ macro_rules! def_ukernel_avx {
                     });
                 };
             }
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4157,13 +4167,12 @@ macro_rules! def_ukernel_avx512 {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             mask_ptr!($is_partial, m, x, mask_ptr);
@@ -4226,9 +4235,6 @@ macro_rules! def_ukernel_avx512 {
                     });
                 };
             }
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4237,7 +4243,7 @@ macro_rules! def_ukernel_avx512 {
 #[macro_export]
 macro_rules! def_ukernel_avx_2 {
     ($k_unit:tt, $step_macro:tt, $acc_macro:tt, $store_macro:tt, $mr:tt, $nr:tt, $kl_pf:tt, $pf1_step:tt) => {
-        pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC>(
+        pub(crate) unsafe fn ukernel_bbc(
             a: *const TA,
             b: *const TB,
             c: *mut TC,
@@ -4248,7 +4254,6 @@ macro_rules! def_ukernel_avx_2 {
             c_cs: usize,
             _m: usize,
             n: usize,
-            f: F,
         ) {
             let k_l0 = k % $kl_pf;
             let k_l = if k_l0 == 0 { $kl_pf / $k_unit } else { k_l0 / $k_unit };
@@ -4311,9 +4316,6 @@ macro_rules! def_ukernel_avx_2 {
                     });
                 };
             }
-            for j in 0..n {
-                f.call(c.add(j*c_cs), $mr * VS);
-            }
         }
     };
 }
@@ -4322,7 +4324,7 @@ macro_rules! def_ukernel_avx_2 {
 #[macro_export]
 macro_rules! def_ukernel_avx512_2 {
     ($k_unit:tt, $step_macro:ident, $acc_macro:ident, $store_macro:ident, $mr:tt, $nr:tt, $kl_pf:tt, $pf1_step:tt) => {
-        pub(crate) unsafe fn ukernel_bbc<F: UnaryFnC>(
+        pub(crate) unsafe fn ukernel_bbc(
             a: *const TA,
             b: *const TB,
             c: *mut TC,
@@ -4333,7 +4335,6 @@ macro_rules! def_ukernel_avx512_2 {
             c_cs: usize,
             _m: usize,
             n: usize,
-            f: F,
         ) {
             let k_l0 = k % $kl_pf;
             let k_l = if k_l0 == 0 { $kl_pf / $k_unit } else { k_l0 / $k_unit };
@@ -4400,9 +4401,6 @@ macro_rules! def_ukernel_avx512_2 {
                     });
                 };
             }
-            for j in 0..n {
-                f.call(c.add(j*c_cs), $mr * VS);
-            }
         }
     };
 }
@@ -4420,13 +4418,12 @@ macro_rules! def_ukernel_sse {
         $is_partial:tt,
         $func_name:ident
     ) => {
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
@@ -4444,7 +4441,7 @@ macro_rules! def_ukernel_sse {
             let mut ptr_arr = [alpha, beta];
             if n == $nr {
                 pire_base::prefetch_c_sse!($mr,$nr,c,c_cs);
-                asm!(
+                core::arch::asm!(
                     vzero_kernel!(),
 
                     init_ab!($b_layout),
@@ -4512,7 +4509,7 @@ macro_rules! def_ukernel_sse {
                     seq!(ni in 1..$nr {
                         if n == ni {
                             pire_base::prefetch_c_sse!($mr,ni,c,c_cs);
-                            asm!(
+                            core::arch::asm!(
                                 vzero_kernel!(),
 
                                 init_ab!($b_layout),
@@ -4580,9 +4577,6 @@ macro_rules! def_ukernel_sse {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4597,7 +4591,7 @@ macro_rules! asm_body_neon {
         | $($xreg:ident,)* |,
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             prefetch_c!(),
             vzero_kernel!(),
 
@@ -4681,7 +4675,7 @@ macro_rules! asm_body_sve {
         | $($xreg:ident,)* |,
         [$($vreg:tt,)*]
     ) => {
-        asm!(
+        core::arch::asm!(
             "ptrue p0.h",
             "mov {m_s}, #0",
             "/* {m_e} */", "\n",
@@ -4778,13 +4772,12 @@ macro_rules! def_ukernel_neon {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
@@ -4842,9 +4835,6 @@ macro_rules! def_ukernel_neon {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4861,13 +4851,12 @@ macro_rules! def_ukernel_neon_alt {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             alt_arr!(alt);
             use core::mem::size_of;
@@ -4926,9 +4915,6 @@ macro_rules! def_ukernel_neon_alt {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -4945,13 +4931,12 @@ macro_rules! def_ukernel_neon_fp16 {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,fp16")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 4, k % 4];
@@ -5009,9 +4994,6 @@ macro_rules! def_ukernel_neon_fp16 {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -5028,13 +5010,12 @@ macro_rules! def_ukernel_neon_i8mm {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,i8mm")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / 32, (k % 32) / 8];
@@ -5094,9 +5075,6 @@ macro_rules! def_ukernel_neon_i8mm {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }
@@ -5113,13 +5091,12 @@ macro_rules! def_ukernel_sve {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,sve")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TA, beta: *const TB,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let vs = sve_vs();
@@ -5194,9 +5171,6 @@ macro_rules! def_ukernel_sve {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), mr);
-            }
         }
     };
 }
@@ -5214,13 +5188,12 @@ macro_rules! def_ukernel_sve_i8mm {
         $func_name:ident
     ) => {
         #[target_feature(enable="neon,sve,i8mm")]
-        pub(crate) unsafe fn $func_name<F: UnaryFnC>(
+        pub(crate) unsafe fn $func_name(
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
             d_arr: [usize; 2], c_cs: usize,
             m: usize, n: usize,
-            f: F,
         ) {
             use core::mem::size_of;
             let vs = sve_vs();
@@ -5295,9 +5268,6 @@ macro_rules! def_ukernel_sve_i8mm {
                     });
                 };
             };
-            for j in 0..n {
-                f.call(c.add(j*c_cs), m);
-            }
         }
     };
 }

@@ -1,11 +1,10 @@
 use seq_macro::seq;
-use std::arch::asm;
 use pire_base::{
     c_mem, def_ukernel_avx, mem,
     c_reg_3x4, c_reg_2x6, c_reg_1x6, acc_3x4, acc_2x6, acc_1x6,
     store_3x4, store_2x6, store_1x6, b_num_2x6, b_num_1x6, init_ab_avx, load_a_avx,
 };
-use crate::{UnaryFnC, TC, TC_SIZE};
+use crate::{TC, TC_SIZE};
 
 type TA = f32;
 type TB = f32;
