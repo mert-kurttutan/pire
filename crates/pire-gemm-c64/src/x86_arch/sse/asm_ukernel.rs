@@ -2,10 +2,7 @@ use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use pire_base::{c_mem, def_ukernel_sse};
-use super::VS;
 type TS = TC;
-
-const ZERO: TC = TC::ZERO;
 
 const ZERO_SCALAR: TC = TC::ZERO;
 const ONE_SCALAR: TC = TC::ONE;

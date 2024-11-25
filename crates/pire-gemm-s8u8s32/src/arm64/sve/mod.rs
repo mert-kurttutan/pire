@@ -11,6 +11,10 @@ unsafe fn simd_vector_length() -> usize {
     super::sve_vs()
 }
 
+const ZERO: TC = 0i32;
+
+const VS_MAX: usize = 2048 / (8 * core::mem::size_of::<TC>());
+
 #[target_feature(enable = "neon")]
 pub unsafe fn axpy<F: UnaryFnC>(
     m: usize,
@@ -93,9 +97,9 @@ pub unsafe fn axpy2<F: UnaryFnC>(
     }
 }
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, F, 8, 2, 12);
+def_kernel_bb_v0!(i8, u8, i32, f32, false, 8, 2, 12);
 
 use super::pack_sve::packa_panel;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, i8, u8, i32, f32, F, packa_panel, 8, 2, 12);
+def_kernel_sb_v0!(i8, i8, u8, i32, f32, false, packa_panel, 8, 2, 12);

@@ -4,8 +4,6 @@ use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
 use pire_base::{c_mem, prefetch_0, def_ukernel_sve,mem};
 use super::super::sve_vs;
 
-const ZERO: TC = 0.0;
-
 const ONE_SCALAR: TC = 1.0;
 const ZERO_SCALAR: TC = 0.0;
 

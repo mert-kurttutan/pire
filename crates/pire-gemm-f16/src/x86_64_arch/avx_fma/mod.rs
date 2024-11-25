@@ -8,12 +8,14 @@ use axpy_kernel::*;
 use crate::UnaryFnC;
 
 const VS: usize = 8;
+const VS_MAX: usize = VS;
 
 const fn simd_vector_length() -> usize {
     VS
 }
 
 use half::f16;
+const ZERO: f16 = f16::ZERO;
 
 #[target_feature(enable = "avx,fma")]
 pub unsafe fn axpy<F: UnaryFnC>(
@@ -59,4 +61,4 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(f32, f32, f16, f32, T, 1, 3, 4);
+def_kernel_bb_v0!(f32, f32, f16, f32, true, 1, 3, 4);

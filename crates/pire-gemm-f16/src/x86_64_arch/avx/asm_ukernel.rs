@@ -1,6 +1,5 @@
 use seq_macro::seq;
 use std::arch::asm;
-use half::f16;
 use crate::{UnaryFnC, TC, TC_SIZE};
 use pire_base::{
     c_mem, def_ukernel_avx, mem,
@@ -13,9 +12,6 @@ type TA = f32;
 type TB = f32;
 
 type TS = f32;
-
-const VS: usize = 8;
-const ZERO: f16 = f16::ZERO;
 
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;

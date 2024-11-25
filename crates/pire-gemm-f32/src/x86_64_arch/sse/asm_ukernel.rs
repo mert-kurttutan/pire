@@ -9,12 +9,8 @@ use pire_base::{
 
 type TS = TC;
 
-const ZERO: f32 = 0.0;
-
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;
-
-const VS: usize = 4;
 
 macro_rules! load_mask {
     ($is_partial:tt) => {

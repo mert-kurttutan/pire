@@ -1,10 +1,8 @@
 use seq_macro::seq;
 use std::arch::asm;
 use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
-use pire_base::{load_buf, store_buf, c_mem, prefetch_0, cum_seq, mem, def_ukernel_sve_i8mm};
+use pire_base::{c_mem, prefetch_0, mem, def_ukernel_sve_i8mm};
 use super::super::sve_vs;
-
-const ZERO: TC = 0i32;
 
 const ONE_SCALAR: f32 = 0f32;
 const ZERO_SCALAR: f32 = 0f32;
@@ -705,153 +703,7 @@ macro_rules! prefetch_c {
     };
 }
 
-const MAX_VS: usize = 64;
-
 def_ukernel_sve_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, B, M, ukernel_1_bbp);
 def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, M, ukernel_2_bbp);
 
 def_ukernel_sve_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, C, ukernel_bbc);
-
-#[allow(unused)]
-#[target_feature(enable="neon,sve,i8mm")]
-pub(crate) unsafe fn ukernel_bbcold<F: UnaryFnC, const BUF: bool>(
-    a: *const TA, b: *const TB, c: *mut TC,
-    alpha: *const f32, beta: *const f32,
-    k: usize,
-    d_arr: [usize; 3], c_cs: usize,
-    m: usize, _n: usize,
-    f: F,
-) {
-    let vs = sve_vs();
-    let inc_a = 2 * vs * 8;
-    let mut dim_arr = [d_arr[0]*4, d_arr[1]*4, c_cs*TC_SIZE, k / 32, (k % 32) / 8];
-    let mut cf = c;
-    let mr = vs * 2;
-    let mut c_buf = [0i32; MAX_VS * 2 * 6];
-    let alpha_st = if *alpha == 1f32 {
-        0i32
-    } else {
-        1i32
-    };
-    let beta_st = if *beta == 0f32 {
-        0i32
-    } else if *beta == 1f32 {
-        1i32
-    } else {
-        2i32
-    };
-    if BUF {
-        load_buf(c, d_arr[2], c_cs, &mut c_buf, m, 12, mr);
-        dim_arr[2] = mr*TC_SIZE;
-        cf = c_buf.as_mut_ptr();
-    }
-    asm!(
-        "ptrue p0.s",
-        "ptrue p1.s",
-        vzero_kernel!(),
-
-        prefetch_c!(),
-
-        init_ab!(B),
-        
-        // 3 -> CONSIDKLEFT
-        "cmp {x0}, #0", "BEQ 3f",
-        
-        // 2 -> KITER
-        "2:",
-        prefetch_0!(256, "{bx}"),
-        step_2x12!(12, B),
-        step_2x12!(12, B),
-        prefetch_0!(256, "{bx}"),
-        step_2x12!(12, B),
-        step_2x12!(12, B),
-
-        "sub {x0}, {x0}, #1",
-        // 2 -> KITER
-        "cmp {x0}, 0",
-        "BNE 2b",
-
-        // 3 -> CONSIDKLEFT
-        "3:",
-
-        "ldr {x0}, [{dim_arrx}, #32]",
-        "cmp {x0}, #0",
-
-        // 5 -> POSTACCUM
-        "BEQ 5f",
-        // 4 -> KLEFT
-        "4:",
-        step_2x12!(12, B),
-
-        "sub {x0}, {x0}, #1",
-
-        // 4 -> KLEFT
-        "cmp {x0}, 0",
-        "BNE 4b",
-
-        // 5 -> POSTACCUM
-        "5:",
-        c_load!(),
-        "cmp {alpha_st:w}, #0",
-        "BEQ 13f",
-        alpha_scale!(),
-        "13:",
-
-        "cmp {beta_st:w}, #0",
-        "BEQ 6f",
-
-        "cmp {beta_st:w}, #1",
-        "BEQ 9f",
-
-        // 6 -> BETAZERO
-        load_beta!(),
-        cum_seq!(acc_2x12,12,C,2),
-        "B 6f",
-
-        "9:",
-        // 9 -> BETAONE
-        cum_seq!(acc_2x12,12,C,1),
-
-        // 6 -> BETAZERO
-        "6:",
-        cum_seq!(store_2x12,12,C),
-        
-        // 7 -> DDONE
-        "7:",
-        ax = inout(reg) a => _,
-        bx = inout(reg) b => _,
-        cx = inout(reg) cf => _,
-        dim_arrx = inout(reg) dim_arr.as_ptr() => _,
-        alphax = inout(reg) alpha => _,
-        betax = inout(reg) beta => _,
-        incax = in(reg) inc_a as u64,
-        alpha_st = in(reg) alpha_st,
-        beta_st = in(reg) beta_st,
-        x0 = out(reg) _,
-        x1 = out(reg) _,
-        x2 = out(reg) _,
-        x3 = out(reg) _,
-        x4 = out(reg) _,
-        x5 = out(reg) _,
-        x6 = out(reg) _,
-        x7 = out(reg) _,
-        x8 = out(reg) _,
-        x9 = out(reg) _,
-        x10 = out(reg) _,
-        x11 = out(reg) _,
-        out("v0") _, out("v1") _, out("v2") _, out("v3") _, out("v4") _, out("v5") _, out("v6") _, out("v7") _,
-        out("v8") _, out("v9") _, out("v10") _, out("v11") _, out("v12") _, out("v13") _, out("v14") _, out("v15") _,
-        out("v16") _, out("v17") _, out("v18") _, out("v19") _, out("v20") _, out("v21") _, out("v22") _, out("v23") _,
-        out("v24") _, out("v25") _, out("v26") _, out("v27") _, out("v28") _, out("v29") _, out("v30") _, out("v31") _,
-    );
-    if BUF {
-        for j in 0..12 {
-            f.call(cf.add(j*mr), mr);
-        }
-        store_buf(c, d_arr[2], c_cs, &c_buf, m, 12, mr);
-    } else {
-        for j in 0..12 {
-            f.call(cf.add(j*c_cs), m);
-        }
-    }
-}

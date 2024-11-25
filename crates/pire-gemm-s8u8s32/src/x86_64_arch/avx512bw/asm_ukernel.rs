@@ -10,8 +10,6 @@ use pire_base::{
 
 type TS = f32;
 
-const ZERO: i32 = 0;
-
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;
 
