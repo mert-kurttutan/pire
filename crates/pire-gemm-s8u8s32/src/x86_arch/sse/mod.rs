@@ -101,8 +101,8 @@ pub unsafe fn axpy2<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, true, 4, 1, 4);
+def_kernel_bb_v0!(i8, u8, i32, f32, true, F, 4, 1, 4, 0, 0);
 
 use super::pack_sse::packa_panel_4;
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, i8, u8, i32, f32, true, packa_panel_4, 4, 1, 4);
+def_kernel_sb_v0!(i8, i8, u8, i32, f32, true, F, packa_panel_4, 4, 1, 4, 0, 0);

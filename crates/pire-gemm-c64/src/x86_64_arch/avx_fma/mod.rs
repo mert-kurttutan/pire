@@ -56,12 +56,12 @@ pub unsafe fn axpy<F: UnaryFnC>(
     }
 }
 
-use pire_base::def_kernel_bb_pf1;
-def_kernel_bb_pf1!(TA, TB, TC, TC, false, 1, 3, 2, 48, 4);
+use pire_base::def_kernel_bb_v0;
+def_kernel_bb_v0!(TA, TB, TC, TC, false, T, 1, 3, 2, 48, 4);
 
 use pire_base::def_kernel_bs;
 def_kernel_bs!(TA, TB, TC, TC, 3, 2);
 
 use super::pack_avx::packa_panel_6;
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, packa_panel_6, 1, 3, 2);
+def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, F, packa_panel_6, 1, 3, 2, 0, 0);
