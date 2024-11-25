@@ -99,7 +99,7 @@ pub unsafe fn axpy2<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(i8, u8, i32, f32, false, 4, 2, 4);
+def_kernel_bb_v0!(i8, u8, i32, f32, false, F, 4, 2, 4, 0, 0);
 // use pire_base::def_kernel_bb_pf1;
 // def_kernel_bb_pf1!(i8, u8, i32, f32, F, 4, 2, 4, 96, 4);
 

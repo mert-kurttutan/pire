@@ -8,15 +8,15 @@ use asm_ukernel::*;
 use crate::{UnaryFnC, TA, TB, TC};
 
 const VS: usize = 32;
-// const VS_MAX: usize = VS;
+const VS_MAX: usize = VS;
 
 use half::f16;
 
 const ZERO: f16 = f16::ZERO;
 
-// const fn simd_vector_length() -> usize {
-//     VS
-// }
+const fn simd_vector_length() -> usize {
+    VS
+}
 
 // #[target_feature(enable = "avx")]
 // pub unsafe fn axpy<F: UnaryFnC>(
@@ -72,8 +72,8 @@ const ZERO: f16 = f16::ZERO;
 //    }
 // }
 
-use pire_base::def_kernel_bb_pf1;
-def_kernel_bb_pf1!(TA, TB, TC, TC, false, 1, 2, 15, 128, 4);
+use pire_base::def_kernel_bb_v0;
+def_kernel_bb_v0!(TA, TB, TC, TC, false, T, 1, 2, 15, 128, 4);
 
 use pire_base::def_kernel_bs;
 def_kernel_bs!(TA, TB, TC, TC, 2, 15);

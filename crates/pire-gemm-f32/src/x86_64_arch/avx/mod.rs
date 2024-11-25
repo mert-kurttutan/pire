@@ -58,7 +58,7 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TA, TB, TC, TC, false, 1, 2, 4);
+def_kernel_bb_v0!(TA, TB, TC, TC, false, F, 1, 2, 4, 0, 0);
 
 use pire_base::def_kernel_bs;
 def_kernel_bs!(TA, TB, TC, TC, 2, 4);

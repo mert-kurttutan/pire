@@ -2120,10 +2120,18 @@ pub fn avx_vzeroupper() {
 }
 
 #[macro_export]
-macro_rules! def_kernel_bb_pf1 {
+macro_rules! put_statement {
+    (T,$st:stmt) => {
+        $st
+    };
+    (F,$st:stmt) => {};
+}
+
+#[macro_export]
+macro_rules! def_kernel_bb_v0 {
     (
         $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
-        $no_partial:tt,
+        $no_partial:tt, $l2_prefetch:tt,
         $RS:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt
     ) => {
@@ -2136,46 +2144,47 @@ macro_rules! def_kernel_bb_pf1 {
             ap: *const $t_ap, bp: *const $t_bp,
             f: F,
         ) {
-            const MR: usize = $MR * VS;
+            let vs = simd_vector_length();
+            let mr = $MR * vs;
             const NR: usize = $NR;
-            let m_rounded = m / MR * MR;
-            let m_left = m % MR;
+            let m_rounded = m / mr * mr;
+            let m_left = m % mr;
 
-            let c_cs_f = if STRIDED { MR } else { c_cs };
-            let mut c_buf = [ZERO;MR*NR];
+            let c_cs_f = if STRIDED { mr } else { c_cs };
+            let mut c_buf = [ZERO; $MR*VS_MAX*NR];
             let mut d_arr = [0, 0];
 
             let mut m_i = 0;
             while m_i < m_rounded {
                 let c_cur0 = c.add(m_i * c_rs);
                 let ap_cur = ap.add(m_i * k);
-                let mut a_pft1_offset = $pf1_0 * k;
+                pire_base::put_statement!($l2_prefetch, d_arr[0] += $pf1_0 * k);
                 let mut n_i = 0;
                 while n_i < n {
                     let bp_cur = bp.add(n_i * k);
                     let c_cur1 = c_cur0.add(n_i * c_cs);
                     let nr = NR.min(n - n_i);
                     let c_cur1_f = if STRIDED {
-                        pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, MR, nr, MR);
+                        pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, mr, nr, mr);
                         c_buf.as_mut_ptr()
                     } else {
                         c_cur1
                     };
-                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, a_pft1_offset, nr, f);
+                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, mr, nr, f);
                     if STRIDED {
-                        pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, MR, nr, MR);
+                        pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, mr, nr, mr);
                     }
                     n_i += NR;
-                    a_pft1_offset += $pf_step * k;
+                    pire_base::put_statement!($l2_prefetch, d_arr[0] += $pf_step * k);
                 }
-                m_i += MR;
+                m_i += mr;
             }
 
 
-            seq_macro::seq!(mr_left in 1..=$MR {
-                if (m_left+VS-1) / VS == mr_left {
-                    const MR_LEFT: usize = mr_left * VS;
-                    let c_cs_f = if STRIDED || $no_partial { MR_LEFT } else { c_cs };
+            seq_macro::seq!(mr_vs in 1..=$MR {
+                if (m_left+VS-1) / VS == mr_vs {
+                    let mr_left = mr_vs * vs;
+                    let c_cs_f = if STRIDED || $no_partial { mr_left } else { c_cs };
                     let c_cur0 = c.add(m_i * c_rs);
                     let ap_cur = ap.add(m_i * k);
                     let mut n_i = 0;
@@ -2184,16 +2193,16 @@ macro_rules! def_kernel_bb_pf1 {
                         let c_cur1 = c_cur0.add(n_i * c_cs);
                         let nr = NR.min(n - n_i);
                         let c_cur1_f = if STRIDED || $no_partial {
-                            pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, m_left, nr, MR_LEFT);
+                            pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, m_left, nr, mr_left);
                             c_buf.as_mut_ptr()
                         } else {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_left _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr, f);
+                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr, f);
                         }
                         if STRIDED || $no_partial {
-                            pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, MR_LEFT);
+                            pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
                         }
                         n_i += NR;
                     }
@@ -2226,7 +2235,7 @@ macro_rules! def_kernel_bb_pf1 {
     };
 }
 
-#[macro_export]
+// #[macro_export]
 macro_rules! def_kernel_bb_v0 {
     (
         $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
@@ -2243,7 +2252,6 @@ macro_rules! def_kernel_bb_v0 {
             f: F,
         ) {
             let vs = simd_vector_length();
-            const STRIDED_PARTIAL: bool = true;
             let mr = $MR * vs;
             const NR: usize = $NR;
             let m_rounded = m / mr * mr;
@@ -2457,7 +2465,6 @@ macro_rules! def_kernel_sb_v0 {
             f: F,
         ) {
             let k_eff = (k+$RS-1) / $RS * $RS;
-            const STRIDED_PARTIAL: bool = true;
             let vs = simd_vector_length();
             let mr = $MR * vs;
             const NR: usize = $NR;
@@ -4448,7 +4455,7 @@ macro_rules! def_ukernel_avx_2 {
             k: usize,
             d_arr: [usize; 2],
             c_cs: usize,
-            a_pft1_offset: usize,
+            _m: usize,
             n: usize,
             f: F,
         ) {
@@ -4456,7 +4463,7 @@ macro_rules! def_ukernel_avx_2 {
             let k_l = if k_l0 == 0 { $kl_pf / $k_unit } else { k_l0 / $k_unit };
             let k_i = (k - k_l * $k_unit) / (4 * $k_unit);
 
-            let dim_arr = [c_cs * TC_SIZE, k_i, k_l, a_pft1_offset];
+            let dim_arr = [c_cs * TC_SIZE, k_i, k_l, d_arr[0]];
             let alpha_st = if *alpha == ONE_SCALAR { 0i32 } else { 1i32 };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
@@ -4533,7 +4540,7 @@ macro_rules! def_ukernel_avx512_2 {
             k: usize,
             d_arr: [usize; 2],
             c_cs: usize,
-            a_pft1_offset: usize,
+            _m: usize,
             n: usize,
             f: F,
         ) {
@@ -4541,7 +4548,7 @@ macro_rules! def_ukernel_avx512_2 {
             let k_l = if k_l0 == 0 { $kl_pf / $k_unit } else { k_l0 / $k_unit };
             let k_i = (k - k_l * $k_unit) / (4 * $k_unit);
 
-            let dim_arr = [c_cs * TC_SIZE, k_i, k_l, a_pft1_offset];
+            let dim_arr = [c_cs * TC_SIZE, k_i, k_l, d_arr[0]];
             let alpha_st = if *alpha == ONE_SCALAR { 0i32 } else { 1i32 };
             let beta_st = if *beta == ZERO_SCALAR {
                 0i32
