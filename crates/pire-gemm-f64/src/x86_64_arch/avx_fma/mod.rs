@@ -66,4 +66,4 @@ def_kernel_bs!(TA, TB, TC, TC, 3, 4);
 use super::pack_avx::packa_panel_12;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, packa_panel_12, 1, 3, 4);
+def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, F, packa_panel_12, 1, 3, 4, 0, 0);

@@ -80,5 +80,5 @@ def_kernel_bs!(TA, TB, TC, TC, 2, 15);
 
 use super::pack_avx::packa_panel_64_same;
 
-use pire_base::def_kernel_sb_pf1;
-def_kernel_sb_pf1!(TA, TA, TB, TC, TC, false, packa_panel_64_same, 1, 2, 15, 128, 8);
+use pire_base::def_kernel_sb_v0;
+def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, T, packa_panel_64_same, 1, 2, 15, 128, 8);

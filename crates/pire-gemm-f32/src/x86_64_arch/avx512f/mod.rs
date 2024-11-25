@@ -21,5 +21,5 @@ def_kernel_bs!(TA, TB, TC, TC, 3, 8);
 
 use super::pack_avx::packa_panel_48;
 
-use pire_base::def_kernel_sb_pf1;
-def_kernel_sb_pf1!(TA, TA, TB, TC, TC, false, packa_panel_48, 1, 3, 8, 96, 8);
+use pire_base::def_kernel_sb_v0;
+def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, T, packa_panel_48, 1, 3, 8, 96, 8);

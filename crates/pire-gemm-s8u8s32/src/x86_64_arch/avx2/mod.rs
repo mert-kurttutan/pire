@@ -106,4 +106,4 @@ def_kernel_bb_v0!(i8, u8, i32, f32, false, F, 4, 2, 4, 0, 0);
 use super::pack_avx::packa_panel_16;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i8, i8, u8, i32, f32, false, packa_panel_16, 4, 2, 4);
+def_kernel_sb_v0!(i8, i8, u8, i32, f32, false, F, packa_panel_16, 4, 2, 4, 0, 0);

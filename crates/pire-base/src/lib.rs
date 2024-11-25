@@ -2158,7 +2158,7 @@ macro_rules! def_kernel_bb_v0 {
             while m_i < m_rounded {
                 let c_cur0 = c.add(m_i * c_rs);
                 let ap_cur = ap.add(m_i * k);
-                pire_base::put_statement!($l2_prefetch, d_arr[0] += $pf1_0 * k);
+                pire_base::put_statement!($l2_prefetch, d_arr[0] = $pf1_0 * k);
                 let mut n_i = 0;
                 while n_i < n {
                     let bp_cur = bp.add(n_i * k);
@@ -2235,112 +2235,11 @@ macro_rules! def_kernel_bb_v0 {
     };
 }
 
-// #[macro_export]
-macro_rules! def_kernel_bb_v0 {
-    (
-        $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
-        $no_partial:tt,
-        $RS:tt,
-        $MR:tt, $NR:tt
-    ) => {
-        pub unsafe fn kernel_bb<F: UnaryFnC, const STRIDED: bool>(
-            m: usize, n: usize, k: usize,
-            alpha: *const $t_s,
-            beta: *const $t_s,
-            c: *mut $t_c, c_rs: usize, c_cs: usize,
-            ap: *const $t_ap, bp: *const $t_bp,
-            f: F,
-        ) {
-            let vs = simd_vector_length();
-            let mr = $MR * vs;
-            const NR: usize = $NR;
-            let m_rounded = m / mr * mr;
-            let m_left = m % mr;
-            let c_cs_f = if STRIDED { mr } else { c_cs };
-            let mut c_buf = [ZERO; $MR*VS_MAX*NR];
-            let d_arr = [0, 0];
-
-            let mut m_i = 0;
-            while m_i < m_rounded {
-                let c_cur0 = c.add(m_i * c_rs);
-                let ap_cur = ap.add(m_i * k);
-                let mut n_i = 0;
-                while n_i < n {
-                    let bp_cur = bp.add(n_i * k);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    let nr = NR.min(n - n_i);
-                    let c_cur1_f = if STRIDED {
-                        pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, mr, nr, mr);
-                        c_buf.as_mut_ptr()
-                    } else {
-                        c_cur1
-                    };
-                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, mr, nr, f);
-                    if STRIDED {
-                        pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, mr, nr, mr);
-                    }
-                    n_i += NR;
-                }
-                m_i += mr;
-            }
-
-            seq_macro::seq!(mr_vs in 1..=$MR {
-                if (m_left+vs-1) / vs == mr_vs {
-                    let mr_left = mr_vs * vs;
-                    let c_cs_f = if STRIDED || $no_partial { mr_left } else { c_cs };
-                    let c_cur0 = c.add(m_i * c_rs);
-                    let ap_cur = ap.add(m_i * k);
-                    let mut n_i = 0;
-                    while n_i < n {
-                        let bp_cur = bp.add(n_i * k);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        let nr = NR.min(n - n_i);
-                        let c_cur1_f = if STRIDED || $no_partial {
-                            pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, m_left, nr, mr_left);
-                            c_buf.as_mut_ptr()
-                        } else {
-                            c_cur1
-                        };
-                        paste::paste! {
-                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr, f);
-                        }
-                        if STRIDED || $no_partial {
-                            pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
-                        }
-                        n_i += NR;
-                    }
-                }
-            });
-        }
-        pub(crate) unsafe fn kernel<F: UnaryFnC>(
-            m: usize,
-            n: usize,
-            k: usize,
-            alpha: *const $t_s,
-            beta: *const $t_s,
-            c: *mut $t_c,
-            c_rs: usize,
-            c_cs: usize,
-            ap: *const $t_ap,
-            bp: *const $t_bp,
-            f: F,
-        ) {
-            let k = (k + $RS - 1) / $RS * $RS;
-            if c_rs == 1 {
-                kernel_bb::<_, false>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-            } else {
-                kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
-            }
-            pire_base::avx_vzeroupper();
-        }
-    };
-}
-
 #[macro_export]
-macro_rules! def_kernel_sb_pf1 {
+macro_rules! def_kernel_sb_v0 {
     (
         $t_a:ty, $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
-        $no_partial:tt,
+        $no_partial:tt, $l2_prefetch:tt,
         $pack_fn:tt,
         $RS:tt,
         $MR:tt, $NR:tt, $pf1_0:tt, $pf_step:tt
@@ -2355,123 +2254,12 @@ macro_rules! def_kernel_sb_pf1 {
             f: F,
         ) {
             let k_eff = (k+$RS-1) / $RS * $RS;
-            const MR: usize = $MR * VS;
-            const NR: usize = $NR;
-            let m_rounded = m / MR * MR;
-            let m_left = m % MR;
-            let mut c_buf = [ZERO;MR*NR];
-            let mut d_arr = [0, 0];
-            let c_cs_f = if STRIDED { MR } else { c_cs };
-
-            let mut m_i = 0;
-            while m_i < m_rounded {
-                let c_cur0 = c.add(m_i * c_rs);
-                let a_cur = a.add(m_i * a_rs);
-                let a_pft1_offset = $pf1_0 * k;
-                $pack_fn(MR, k, a_cur, a_rs, a_cs, ap, VS);
-                let mut n_i = 0;
-                while n_i < n {
-                    let bp_cur = bp.add(n_i * k_eff);
-                    let c_cur1 = c_cur0.add(n_i * c_cs);
-                    let nr = NR.min(n - n_i);
-                    let c_cur1_f = if STRIDED {
-                        pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, MR, nr, MR);
-                        c_buf.as_mut_ptr()
-                    } else {
-                        c_cur1
-                    };
-                    ukernel_bbc(ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, a_pft1_offset, nr, f);
-                    if STRIDED {
-                        pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, MR, nr, MR);
-                    }
-                    n_i += NR;
-                }
-                m_i += MR;
-            }
-
-            seq_macro::seq!(mr_left in 1..=$MR {
-                if (m_left+VS-1) / VS == mr_left {
-                    const MR_LEFT: usize = mr_left * VS;
-                    let c_cs_f = if STRIDED || $no_partial { MR_LEFT } else { c_cs };
-                    let c_cur0 = c.add(m_i * c_rs);
-                    let a_cur = a.add(m_i * a_rs);
-                    $pack_fn(m_left, k, a_cur, a_rs, a_cs, ap, VS);
-                    let mut n_i = 0;
-                    while n_i < n {
-                        let bp_cur = bp.add(n_i * k_eff);
-                        let c_cur1 = c_cur0.add(n_i * c_cs);
-                        let nr = NR.min(n - n_i);
-                        let c_cur1_f = if STRIDED {
-                            pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, m_left, nr, MR_LEFT);
-                            c_buf.as_mut_ptr()
-                        } else {
-                            c_cur1
-                        };
-                        paste::paste! {
-                            [<ukernel_ mr_left _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, m_left, nr, f);
-                        }
-                        if STRIDED || $no_partial {
-                            pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, MR_LEFT);
-                        }
-                        n_i += NR;
-                    }
-                    return;
-                }
-            });
-        }
-
-        pub(crate) unsafe fn kernel_sb<F: UnaryFnC>(
-            m: usize,
-            n: usize,
-            k: usize,
-            alpha: *const $t_s,
-            beta: *const $t_s,
-            a: *const $t_a,
-            a_rs: usize,
-            a_cs: usize,
-            b: *const $t_bp,
-            c: *mut $t_c,
-            c_rs: usize,
-            c_cs: usize,
-            ap_buf: *mut $t_ap,
-            f: F,
-        ) {
-            if c_rs == 1 {
-                kernel_sb_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
-            } else {
-                kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
-            }
-            pire_base::avx_vzeroupper();
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! def_kernel_sb_v0 {
-    (
-        $t_a:ty, $t_ap:ty, $t_bp:ty, $t_c:ty, $t_s:ty,
-        $no_partial:tt,
-        $pack_fn:tt,
-        $RS:tt,
-        $MR:tt, $NR:tt
-    ) => {
-        pub unsafe fn kernel_sb_v0<F: UnaryFnC, const STRIDED: bool>(
-            m: usize, n: usize, k: usize,
-            alpha: *const $t_s, beta: *const $t_s,
-            a: *const $t_a, a_rs: usize, a_cs: usize,
-            bp: *const $t_bp,
-            c: *mut $t_c, c_rs: usize, c_cs: usize,
-            ap: *mut $t_ap,
-            f: F,
-        ) {
-            let k_eff = (k+$RS-1) / $RS * $RS;
             let vs = simd_vector_length();
             let mr = $MR * vs;
             const NR: usize = $NR;
             let m_rounded = m / mr * mr;
             let m_left = m % mr;
-
-            let mut c_buf = [ZERO;$MR*VS_MAX*NR];
+            let mut c_buf = [ZERO; $MR*VS_MAX*NR];
             let mut d_arr = [0, 0];
             let c_cs_f = if STRIDED { mr } else { c_cs };
 
@@ -2479,6 +2267,7 @@ macro_rules! def_kernel_sb_v0 {
             while m_i < m_rounded {
                 let c_cur0 = c.add(m_i * c_rs);
                 let a_cur = a.add(m_i * a_rs);
+                pire_base::put_statement!($l2_prefetch, d_arr[0] = $pf1_0 * k);
                 $pack_fn(mr, k, a_cur, a_rs, a_cs, ap, vs);
                 let mut n_i = 0;
                 while n_i < n {
@@ -2496,11 +2285,13 @@ macro_rules! def_kernel_sb_v0 {
                         pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, mr, nr, mr);
                     }
                     n_i += NR;
+                    pire_base::put_statement!($l2_prefetch, d_arr[0] += $pf_step * k);
                 }
                 m_i += mr;
             }
+
             seq_macro::seq!(mr_vs in 1..=$MR {
-                if (m_left+vs-1) / vs == mr_vs {
+                if (m_left+VS-1) / VS == mr_vs {
                     let mr_left = mr_vs * vs;
                     let c_cs_f = if STRIDED || $no_partial { mr_left } else { c_cs };
                     let c_cur0 = c.add(m_i * c_rs);

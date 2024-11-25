@@ -63,4 +63,4 @@ def_kernel_bb_v0!(i16, i16, i32, f32, true, F, 2, 2, 4, 0, 0);
 
 use super::pack_sse::packa_panel_8;
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(i16, i16, i16, i32, f32, true, packa_panel_8, 2, 2, 4);
+def_kernel_sb_v0!(i16, i16, i16, i32, f32, true, F, packa_panel_8, 2, 2, 4, 0, 0);
