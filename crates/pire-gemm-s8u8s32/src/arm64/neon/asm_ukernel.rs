@@ -1,6 +1,5 @@
 use seq_macro::seq;
-use std::arch::asm;
-use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{c_mem, prefetch_0, def_ukernel_neon_i8mm, mem};
 
 type TS = f32;

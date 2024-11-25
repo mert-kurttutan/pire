@@ -1,7 +1,6 @@
 use seq_macro::seq;
-use std::arch::asm;
 use super::VS;
-use crate::{TA, TB, TC, UnaryFnC, TC_SIZE};
+use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
     c_mem, def_ukernel_avx, 
     init_ab_avx, acc_p_avx, storep_avx, load_a_avx,

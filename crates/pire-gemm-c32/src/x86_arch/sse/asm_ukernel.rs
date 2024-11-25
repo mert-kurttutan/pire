@@ -1,7 +1,5 @@
 use seq_macro::seq;
-use std::arch::asm;
 use crate::{TA, TB, TC, TC_SIZE};
-use crate::UnaryFnC;
 use pire_base::{c_mem, def_ukernel_sse};
 type TS = TC;
 
