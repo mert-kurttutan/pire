@@ -128,7 +128,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut f16, n: usize, k: usize
     }
 }
 
-pub(crate) fn round_m_simd(m: usize) -> usize {
+pub(crate) fn round_mnk_simd(m: usize, n: usize, k: usize) -> (usize, usize, usize) {
     let vs = if has_f16_compute() {
         AVX512_F16_VS
     } else {
@@ -139,11 +139,8 @@ pub(crate) fn round_m_simd(m: usize) -> usize {
             AVX_VS
         }
     };
-    (m + vs - 1) / vs * vs
-}
-
-pub(crate) fn round_k_simd(k: usize) -> usize {
-    k
+    let (m, n, k) = { ((m + vs - 1) / vs * vs, n, k) };
+    (m, n, k)
 }
 
 pub(crate) enum RegDim {
@@ -227,6 +224,9 @@ impl<F: UnaryFnC> KernelDispatcherF32<F> {
     pub(crate) fn round_m(&self, m: usize) -> usize {
         (m + self.vs - 1) / self.vs * self.vs
     }
+    pub(crate) fn round_n(&self, n: usize) -> usize {
+        n
+    }
 }
 
 pub(crate) struct KernelDispatcher<T: UnaryFnC = IdentityFn> {
@@ -274,6 +274,9 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
 
     pub(crate) fn round_m(&self, m: usize) -> usize {
         (m + self.vs - 1) / self.vs * self.vs
+    }
+    pub(crate) fn round_n(&self, n: usize) -> usize {
+        n
     }
 }
 

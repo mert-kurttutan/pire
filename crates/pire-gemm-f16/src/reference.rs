@@ -124,12 +124,8 @@ pub(crate) unsafe fn packb_fn_ref(b: *const f16, bp: *mut f16, n: usize, k: usiz
     }
 }
 
-pub(crate) fn round_m_ref(m: usize) -> usize {
-    m
-}
-
-pub(crate) fn round_k_ref(k: usize) -> usize {
-    k
+pub(crate) fn round_mnk_ref(m: usize, n: usize, k: usize) -> (usize, usize, usize) {
+    (m, n, k)
 }
 
 pub(crate) struct RefGemm<T: UnaryFnC = IdentityFn> {
@@ -180,6 +176,9 @@ impl<F: UnaryFnC> RefGemm<F> {
     }
     pub(crate) fn round_m(&self, m: usize) -> usize {
         m
+    }
+    pub(crate) fn round_n(&self, n: usize) -> usize {
+        n
     }
 }
 

@@ -78,7 +78,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut TB, n: usize, k: usize,
     }
 }
 
-pub(crate) fn round_m_simd(m: usize) -> usize {
+pub(crate) fn round_mnk_simd(m: usize, n: usize, k: usize) -> (usize, usize, usize) {
     let hw_config = &*RUNTIME_HW_CONFIG;
     let vs = if hw_config.cpu_ft.avx512_vnni || hw_config.cpu_ft.avx512bw {
         AVX512F_VS
@@ -87,11 +87,8 @@ pub(crate) fn round_m_simd(m: usize) -> usize {
     } else {
         SSE_VS
     };
-    (m + vs - 1) / vs * vs
-}
-
-pub(crate) fn round_k_simd(k: usize) -> usize {
-    (k + 3) / 4 * 4
+    let (m, n, k) = { ((m + vs - 1) / vs * vs, n, (k + 3) / 4 * 4) };
+    (m, n, k)
 }
 
 pub(crate) enum RegDim {
@@ -165,6 +162,9 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
 
     pub(crate) fn round_m(&self, m: usize) -> usize {
         (m + self.vs - 1) / self.vs * self.vs
+    }
+    pub(crate) fn round_n(&self, n: usize) -> usize {
+        n
     }
 }
 

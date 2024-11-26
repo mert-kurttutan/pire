@@ -1421,17 +1421,13 @@ pub fn matrix_size_strided(m: usize, n: usize, rs: usize, cs: usize) -> usize {
 macro_rules! packing_api {
     ($ta:ty, $tb:ty) => {
         fn a_size_packed(m: usize, k: usize) -> usize {
-            let round_m_fn = dispatch_round_m();
-            let round_k_fn = dispatch_round_k();
-            let m_round = round_m_fn(m);
-            let k_round = round_k_fn(k);
-            return m_round * k_round;
+            let (mr, _, kr) = round_mnk(m, 1, k);
+            return mr * kr;
         }
 
         fn b_size_packed(n: usize, k: usize) -> usize {
-            let round_k_fn = dispatch_round_k();
-            let k_round = round_k_fn(k);
-            return n * k_round;
+            let (_, nr, kr) = round_mnk(1, n, k);
+            return nr * kr;
         }
         // block idx for packa and packb is s.t.
         // m dim for block idx is contiguous and n dim is contiguous
@@ -1458,17 +1454,15 @@ macro_rules! packing_api {
                 return Array::strided_matrix(ap, 1, m);
             }
             let pack_fn = dispatch_pack_a();
-            let round_m_fn = dispatch_round_m();
-            let round_k_fn = dispatch_round_k();
 
             let (mc, _, kc) = dispatch_get_mcnckc();
             let mut ap_cur = ap;
             for p in (0..k).step_by(kc) {
                 let kc_len = kc.min(k - p);
-                let kc_len_eff = round_k_fn(kc_len);
+                let kc_len_eff = round_mnk(1, 1, kc_len).2;
                 for i in (0..m).step_by(mc) {
                     let mc_len = mc.min(m - i);
-                    let mc_len_eff = round_m_fn(mc_len);
+                    let mc_len_eff = round_mnk(mc_len, 1, 1).0;
                     let a_cur = a.add(i * a_rs + p * a_cs);
                     pack_fn(a_cur, ap_cur, mc_len, kc_len, a_rs, a_cs);
                     ap_cur = ap_cur.add(mc_len_eff * kc_len_eff);
@@ -1496,17 +1490,17 @@ macro_rules! packing_api {
                 return Array::strided_matrix(bp, 1, k);
             }
             let pack_fn = dispatch_pack_b();
-            let round_k_fn = dispatch_round_k();
 
             let (_, nc, kc) = dispatch_get_mcnckc();
             let mut bp_cur = bp;
             for p in (0..k).step_by(kc) {
                 let kc_len = kc.min(k - p);
-                let kc_len_eff = round_k_fn(kc_len);
+                let kc_len_eff = round_mnk(1, 1, kc_len).2;
                 for i in (0..n).step_by(nc) {
                     let nc_len = nc.min(n - i);
+                    let nc_len_eff = round_mnk(1, nc_len, 1).1;
                     let b_cur = b.add(i * b_cs + p * b_rs);
-                    pack_fn(b_cur, bp_cur, nc_len, kc_len, b_rs, b_cs);
+                    pack_fn(b_cur, bp_cur, nc_len_eff, kc_len, b_rs, b_cs);
                     bp_cur = bp_cur.add(nc_len * kc_len_eff);
                 }
             }
@@ -2062,7 +2056,7 @@ macro_rules! def_pire_gemm {
                 }
                 $packb_ty::PackedMatrix(x_i) => {
                     let kc_len_ro = hw_cfg.round_k(kc_len);
-                    let n_ro = x_i.m();
+                    let n_ro = hw_cfg.round_n(x_i.m());
                     let res = is_mixed!(
                         $include_flag,
                         {
@@ -2070,12 +2064,13 @@ macro_rules! def_pire_gemm {
                             let nc_offset = nc_par * t_cfg.j_load_p_idx;
                             if nc_len > nc_offset {
                                 let nc_len_x = (nc_len - nc_offset).min(nc_par);
+                                let nc_len_x_ro = hw_cfg.round_n(nc_len_x);
                                 let nc_i = nc_i + nc_offset;
                                 let src_ptr = x_i.src().add(nc_i*kc_len_ro + kc_i*n_ro);
                                 let dst = x_i.dst_write(t_cfg.j_load_p_idx, kc_len_ro);
                                 let dst_ref = dst.get();
                                 let dst_ptr = dst_ref.as_mut_ptr();
-                                hw_cfg.cvt_mixed(src_ptr, dst_ptr, nc_len_x*kc_len_ro);
+                                hw_cfg.cvt_mixed(src_ptr, dst_ptr, nc_len_x_ro*kc_len_ro);
                             }
                             t_cfg.wait_packb();
                             PtrData::RefData(x_i.dst_read())

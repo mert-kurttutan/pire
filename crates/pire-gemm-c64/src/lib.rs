@@ -6,9 +6,7 @@ pub(crate) mod x86_64_arch;
 pub(crate) mod x86_arch;
 
 #[cfg(target_arch = "x86_64")]
-use x86_64_arch::{
-    get_mcnckc_simd, packa_fn_simd, packb_fn_simd, pire_gemm, round_k_simd, round_m_simd, KernelDispatcher,
-};
+use x86_64_arch::{get_mcnckc_simd, packa_fn_simd, packb_fn_simd, pire_gemm, round_mnk_simd, KernelDispatcher};
 
 #[cfg(target_arch = "x86")]
 use x86_arch::{
@@ -29,7 +27,7 @@ pub(crate) type TC = Complex<f64>;
 #[allow(unused)]
 const TC_SIZE: usize = size_of::<TC>();
 
-use reference::{packa_fn_ref, packb_fn_ref, round_k_ref, round_m_ref, RefGemm};
+use reference::{packa_fn_ref, packb_fn_ref, round_mnk_ref, RefGemm};
 
 use pire_base::{
     get_cache_params, has_c64_compute, Array, ArrayMut, GemmCache, IdentityFn, PirePar, UnaryFn, AB_ALIGN,
@@ -122,23 +120,14 @@ pub unsafe fn pire_zgemm_fn_ptr(
     pire_zgemm_fused(m, n, k, alpha, a, b, beta, c, unary);
 }
 
-fn dispatch_round_m() -> fn(usize) -> usize {
+fn round_mnk(m: usize, n: usize, k: usize) -> (usize, usize, usize) {
     #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64"))]
     {
         if has_c64_compute() {
-            return round_m_simd;
+            return round_mnk_simd(m, n, k);
         }
     }
-    round_m_ref
-}
-fn dispatch_round_k() -> fn(usize) -> usize {
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64"))]
-    {
-        if has_c64_compute() {
-            return round_k_simd;
-        }
-    }
-    round_k_ref
+    round_mnk_ref(m, n, k)
 }
 
 fn dispatch_pack_a() -> unsafe fn(*const TA, *mut TA, usize, usize, usize, usize) {
