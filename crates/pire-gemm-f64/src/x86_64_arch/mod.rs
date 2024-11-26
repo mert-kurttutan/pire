@@ -18,12 +18,12 @@ const AVX512F_VS: usize = 8;
 const AVX_VS: usize = 4;
 const SSE_VS: usize = 2;
 
-const AVX512F_MR: usize = 24;
+const AVX512F_MR: usize = 8;
 const AVXFMA_MR: usize = 12;
 const AVX_MR: usize = 8;
 const SSE_MR: usize = 4;
 
-const AVX512F_NR: usize = 8;
+const AVX512F_NR: usize = 24;
 const AVXFMA_NR: usize = 4;
 const AVX_NR: usize = 4;
 const SSE_NR: usize = 4;
@@ -45,7 +45,7 @@ pub fn get_mcnckc_simd() -> (usize, usize, usize) {
     // let kc = std::env::var("PIRE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Skylake => (4800, 512, 1024),
+        HWModel::Skylake => (4800, 384, 1024),
         HWModel::Haswell => (2400, 192, 192),
         _ => get_cache_params(),
     };
@@ -55,7 +55,8 @@ pub fn get_mcnckc_simd() -> (usize, usize, usize) {
 pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize, rs: usize, cs: usize) {
     let hw_config = &*RUNTIME_HW_CONFIG;
     if hw_config.cpu_ft.avx512f {
-        pack_avx::packa_panel_24(m, k, x, rs, cs, y, AVX512F_VS);
+        // pack_avx::packa_panel_24(m, k, x, rs, cs, y, AVX512F_VS);
+        pack_avx::packb_panel_8(m, k, x, rs, cs, y);
     } else if hw_config.cpu_ft.avx && hw_config.cpu_ft.fma {
         pack_avx::packa_panel_12(m, k, x, rs, cs, y, AVX_VS);
     } else if hw_config.cpu_ft.avx {
@@ -67,7 +68,8 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize,
 
 pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut TB, n: usize, k: usize, rs: usize, cs: usize) {
     if (*RUNTIME_HW_CONFIG).cpu_ft.avx512f {
-        pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+        // pack_avx::packb_panel_8(n, k, x, cs, rs, y);
+        pack_avx::packa_panel_24(n, k, x, cs, rs, y, AVX512F_VS);
     } else if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
         pack_avx::packb_panel_4(n, k, x, cs, rs, y);
     } else {
@@ -84,8 +86,11 @@ pub(crate) fn round_mnk_simd(m: usize, n: usize, k: usize) -> (usize, usize, usi
     } else {
         SSE_VS
     };
-    let (m, n, k) = { ((m + vs - 1) / vs * vs, n, k) };
-    (m, n, k)
+    if hw_config.cpu_ft.avx512f {
+        (m, (n + vs - 1) / vs * vs, k)
+    } else {
+        ((m + vs - 1) / vs * vs, n, k)
+    }
 }
 
 pub(crate) enum RegDim {
@@ -158,11 +163,17 @@ impl<F: UnaryFnC> KernelDispatcher<F> {
     }
 
     pub(crate) fn round_m(&self, m: usize) -> usize {
-        (m + self.vs - 1) / self.vs * self.vs
+        match self.reg_dim {
+            RegDim::Avx512f => m,
+            _ => (m + self.vs - 1) / self.vs * self.vs,
+        }
     }
 
     pub(crate) fn round_n(&self, n: usize) -> usize {
-        n
+        match self.reg_dim {
+            RegDim::Avx512f => (n + self.vs - 1) / self.vs * self.vs,
+            _ => n,
+        }
     }
 }
 
