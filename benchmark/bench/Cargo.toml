@@ -36,5 +36,6 @@ harness = false
 default = []
 mkl_check = []
 mkl = ["pire-dev/mkl"]
+blis = []
 pire = []
 rustgemm = ["dep:gemm"]

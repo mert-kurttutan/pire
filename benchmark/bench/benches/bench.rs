@@ -2,9 +2,6 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use num_traits::identities::{ConstOne, ConstZero};
 use std::time::Duration;
 
-#[cfg(feature = "blis")]
-use pire_dev::BLIS_NO_TRANSPOSE;
-
 use num_complex::{c32, Complex};
 
 use bench::{dispatch_gemm, GemmBackend, AS};
