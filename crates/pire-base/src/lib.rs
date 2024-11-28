@@ -105,6 +105,8 @@ pub struct HWConfig {
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
+    #[cfg(target_arch = "x86_64")]
+    model_id: u8,
 }
 
 impl HWConfig {
@@ -117,6 +119,11 @@ impl HWConfig {
 
     pub fn cpu_ft(&self) -> CpuFeatures {
         self.cpu_ft
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn model_id(&self) -> u8 {
+        self.model_id
     }
 }
 
@@ -209,7 +216,7 @@ fn detect_hw_config() -> HWConfig {
         let model_id = feature_info.model_id();
         let hw_model = HWModel::from_hw(family_id, model_id, cpu_ft);
         let (is_l1_shared, is_l2_shared, is_l3_shared) = hw_model.get_cache_info();
-        return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared };
+        return HWConfig { cpu_ft, hw_model, is_l1_shared, is_l2_shared, is_l3_shared, model_id };
     }
     #[cfg(target_arch = "x86")]
     {

@@ -83,19 +83,19 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
 // type TB = Complex<f32>;
 // type TC = Complex<f32>;
 
-type TA = f32;
-type TB = f32;
-type TC = f32;
+// type TA = f32;
+// type TB = f32;
+// type TC = f32;
 
-// type TA = f64;
-// type TB = f64;
-// type TC = f64;
+type TA = f64;
+type TB = f64;
+type TC = f64;
 
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
     let dim_triple = (DimSize::Big, DimSize::Big, DimSize::Big);
-    let m = 4800;
+    let m = 3623;
     let alpha = TA::ONE;
     let beta = TA::ONE;
     let mut a = vec![TA::ONE; m * m];
@@ -113,7 +113,7 @@ fn bench_bbb(c: &mut Criterion) {
         // 320, 640, 960, 2048,
         // 2400, 3200, 4000, 4800,
         // 5600, 6400,
-        4800,
+        m,
         // 7200, 8000,
     ];
     for dt in mnk_vec {
