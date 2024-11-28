@@ -105,6 +105,7 @@ pub struct HWConfig {
     is_l1_shared: bool,
     is_l2_shared: bool,
     is_l3_shared: bool,
+    #[cfg(target_arch = "x86_64")]
     model_id: u8,
 }
 
