@@ -1013,5 +1013,41 @@ pub unsafe fn dispatch_gemm<TA: AS, TB: 'static, TC: 'static>(
             c_rs,
             c_cs,
         )
+    } else if TypeId::of::<TA>() == TypeId::of::<i8>() {
+        dispatch_gemm_s8u8s32(
+            backend,
+            m,
+            n,
+            k,
+            *(&alpha as *const TA::ASType as *const f32),
+            a as *const i8,
+            a_rs,
+            a_cs,
+            b as *const u8,
+            b_rs,
+            b_cs,
+            *(&beta as *const TA::BSType as *const f32),
+            c as *mut i32,
+            c_rs,
+            c_cs,
+        )
+    } else if TypeId::of::<TA>() == TypeId::of::<i16>() {
+        dispatch_gemm_s16s16s32(
+            backend,
+            m,
+            n,
+            k,
+            *(&alpha as *const TA::ASType as *const f32),
+            a as *const i16,
+            a_rs,
+            a_cs,
+            b as *const i16,
+            b_rs,
+            b_cs,
+            *(&beta as *const TA::BSType as *const f32),
+            c as *mut i32,
+            c_rs,
+            c_cs,
+        )
     }
 }

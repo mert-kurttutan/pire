@@ -353,7 +353,7 @@ macro_rules! step_3x8 {
             fmadd_3v!(4),
 
             load_b!(B, 5, 3),
-            "prefetcht0 64({bx}) \n",
+            "prefetcht0 192({bx}) \n",
             fmadd_3v!(5),
 
             load_b!(B, 6, 4),
