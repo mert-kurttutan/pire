@@ -40,15 +40,12 @@ pub(crate) fn get_mcnckc_simd() -> (usize, usize, usize) {
     } else {
         (SSE_MR, SSE_NR)
     };
-    if (*RUNTIME_HW_CONFIG).model_id() == 106 {
-        return (4800 / mr * mr, 192 / nr * nr, 1440);
-    }
     // let mc = std::env::var("PIRE_MC").unwrap_or("5400".to_string()).parse::<usize>().unwrap();
     // let nc = std::env::var("PIRE_NC").unwrap_or("192".to_string()).parse::<usize>().unwrap();
     // let kc = std::env::var("PIRE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Skylake => (4800, 192, 512),
+        HWModel::Skylake => (4800, 192, 1440),
         HWModel::Haswell => (4800, 320, 768),
         _ => get_cache_params(),
     };
