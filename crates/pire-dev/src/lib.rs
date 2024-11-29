@@ -193,7 +193,7 @@ type GEMM_I16_FN_TYPE = unsafe extern "C" fn(
 const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
 // TODO: Add more reasonalble deafult paths for different os,s windows/unix
-pub static CBLAS_LIBRARY_MKL: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+pub static CBLAS_LIBRARY: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     #[cfg(target_os = "windows")]
     let default_mkl_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
     #[cfg(target_os = "linux")]
@@ -202,101 +202,101 @@ pub static CBLAS_LIBRARY_MKL: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     libloading::Library::new(mkl_path).unwrap()
 });
 
-pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
-    #[cfg(target_os = "windows")]
-    let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
-    #[cfg(target_os = "linux")]
-    let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/libopenblas.so");
-    let openblas_path = std::env::var("PIRE_OPENBLAS_PATH").unwrap_or(default_openblas_path);
-    libloading::Library::new(openblas_path).unwrap()
-});
+// pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+//     #[cfg(target_os = "windows")]
+//     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
+//     #[cfg(target_os = "linux")]
+//     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/libopenblas.so");
+//     let openblas_path = std::env::var("PIRE_OPENBLAS_PATH").unwrap_or(default_openblas_path);
+//     libloading::Library::new(openblas_path).unwrap()
+// });
 
-pub static CBLAS_LIBRARY_BLIS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
-    #[cfg(target_os = "windows")]
-    let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
-    #[cfg(target_os = "linux")]
-    let default_blis_path = format!("{PROJECT_DIR}/../../../blis/lib/haswell/libblis.so");
-    let blis_path = std::env::var("PIRE_BLIS_PATH").unwrap_or(default_blis_path);
-    libloading::Library::new(blis_path).unwrap()
-});
+// pub static CBLAS_LIBRARY_BLIS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
+//     #[cfg(target_os = "windows")]
+//     let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
+//     #[cfg(target_os = "linux")]
+//     let default_blis_path = format!("{PROJECT_DIR}/../../../blis/lib/haswell/libblis.so");
+//     let blis_path = std::env::var("PIRE_BLIS_PATH").unwrap_or(default_blis_path);
+//     libloading::Library::new(blis_path).unwrap()
+// });
 
-pub static CBLAS_SGEMM_MKL: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_sgemm").unwrap();
+pub static CBLAS_SGEMM: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_sgemm").unwrap();
     cblas_gemm
 });
 
-pub static CBLAS_SGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_sgemm").unwrap();
+// pub static CBLAS_SGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_sgemm").unwrap();
+//     cblas_gemm
+// });
+
+// pub static CBLAS_SGEMM_BLIS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_sgemm").unwrap();
+//     cblas_gemm
+// });
+
+pub static CBLAS_SGEMM_B: Lazy<libloading::Symbol<'static, SGEMM_B_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_sgemm_batch").unwrap();
     cblas_gemm
 });
 
-pub static CBLAS_SGEMM_BLIS: Lazy<libloading::Symbol<'static, SGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_sgemm").unwrap();
+pub static CBLAS_DGEMM: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_dgemm").unwrap();
     cblas_gemm
 });
 
-pub static CBLAS_SGEMM_B_MKL: Lazy<libloading::Symbol<'static, SGEMM_B_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_sgemm_batch").unwrap();
+// pub static CBLAS_DGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_dgemm").unwrap();
+//     cblas_gemm
+// });
+
+// pub static CBLAS_DGEMM_BLIS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_dgemm").unwrap();
+//     cblas_gemm
+// });
+
+pub static CBLAS_CGEMM: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_cgemm").unwrap();
     cblas_gemm
 });
 
-pub static CBLAS_DGEMM_MKL: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_dgemm").unwrap();
+// pub static CBLAS_CGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_cgemm").unwrap();
+//     cblas_gemm
+// });
+
+// pub static CBLAS_CGEMM_BLIS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_cgemm").unwrap();
+//     cblas_gemm
+// });
+
+pub static CBLAS_ZGEMM: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_zgemm").unwrap();
     cblas_gemm
 });
 
-pub static CBLAS_DGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_dgemm").unwrap();
-    cblas_gemm
-});
+// pub static CBLAS_ZGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_zgemm").unwrap();
+//     cblas_gemm
+// });
 
-pub static CBLAS_DGEMM_BLIS: Lazy<libloading::Symbol<'static, DGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_dgemm").unwrap();
-    cblas_gemm
-});
+// pub static CBLAS_ZGEMM_BLIS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+//     let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_zgemm").unwrap();
+//     cblas_gemm
+// });
 
-pub static CBLAS_CGEMM_MKL: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_cgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_CGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_cgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_CGEMM_BLIS: Lazy<libloading::Symbol<'static, CGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_cgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_ZGEMM_MKL: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_zgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_ZGEMM_OPENBLAS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_OPENBLAS.get(b"cblas_zgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_ZGEMM_BLIS: Lazy<libloading::Symbol<'static, ZGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_BLIS.get(b"cblas_zgemm").unwrap();
-    cblas_gemm
-});
-
-pub static CBLAS_HGEMM_MKL: Lazy<libloading::Symbol<'static, HGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_hgemm").unwrap();
+pub static CBLAS_HGEMM: Lazy<libloading::Symbol<'static, HGEMM_FN_TYPE>> = Lazy::new(|| unsafe {
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_hgemm").unwrap();
     cblas_gemm
 });
 
 pub static CBLAS_GEMM_I8: Lazy<libloading::Symbol<'static, GEMM_I8_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_gemm_s8u8s32").unwrap();
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_gemm_s8u8s32").unwrap();
     cblas_gemm
 });
 
 pub static CBLAS_GEMM_I16: Lazy<libloading::Symbol<'static, GEMM_I16_FN_TYPE>> = Lazy::new(|| unsafe {
-    let cblas_gemm = CBLAS_LIBRARY_MKL.get(b"cblas_gemm_s16s16s32").unwrap();
+    let cblas_gemm = CBLAS_LIBRARY.get(b"cblas_gemm_s16s16s32").unwrap();
     cblas_gemm
 });
 
@@ -323,17 +323,7 @@ pub unsafe fn cblas_sgemm(
     ldc: c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_SGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::Blis => {
-            CBLAS_SGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::OpenBlas => {
-            CBLAS_SGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-    }
+    CBLAS_SGEMM(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
 pub unsafe fn cblas_dgemm(
@@ -353,17 +343,7 @@ pub unsafe fn cblas_dgemm(
     ldc: c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_DGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::Blis => {
-            CBLAS_DGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::OpenBlas => {
-            CBLAS_DGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-    }
+    CBLAS_DGEMM(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
 pub unsafe fn cblas_cgemm(
@@ -383,17 +363,7 @@ pub unsafe fn cblas_cgemm(
     ldc: c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_CGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::Blis => {
-            CBLAS_CGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::OpenBlas => {
-            CBLAS_CGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-    }
+    CBLAS_CGEMM(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
 pub unsafe fn cblas_zgemm(
@@ -413,17 +383,7 @@ pub unsafe fn cblas_zgemm(
     ldc: c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_ZGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::Blis => {
-            CBLAS_ZGEMM_BLIS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::OpenBlas => {
-            CBLAS_ZGEMM_OPENBLAS(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-    }
+    CBLAS_ZGEMM(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 pub unsafe fn cblas_hgemm(
     layout: CBLAS_LAYOUT,
@@ -442,17 +402,7 @@ pub unsafe fn cblas_hgemm(
     ldc: c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_HGEMM_MKL(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-        }
-        CBlasBackend::Blis => {
-            // pass
-        }
-        CBlasBackend::OpenBlas => {
-            // pass
-        }
-    }
+    CBLAS_HGEMM(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
 pub unsafe fn cblas_gemm_s8u8s32(
@@ -476,17 +426,7 @@ pub unsafe fn cblas_gemm_s8u8s32(
     oc: *const c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_GEMM_I8(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
-        }
-        CBlasBackend::Blis => {
-            // pass
-        }
-        CBlasBackend::OpenBlas => {
-            // pass
-        }
-    }
+    CBLAS_GEMM_I8(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -511,17 +451,7 @@ pub unsafe fn cblas_gemm_s16s16s32(
     oc: *const c_int,
     backend: CBlasBackend,
 ) {
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_GEMM_I16(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
-        }
-        CBlasBackend::Blis => {
-            // pass
-        }
-        CBlasBackend::OpenBlas => {
-            // pass
-        }
-    }
+    CBLAS_GEMM_I16(layout, transa, transb, offsetc, m, n, k, alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
 }
 
 pub unsafe fn cblas_sgemm_batch(
@@ -543,57 +473,24 @@ pub unsafe fn cblas_sgemm_batch(
     group_size: *const c_int,
     backend: CBlasBackend,
 ) {
-    let lib = libloading::Library::new("C:/Users/I011745/Desktop/corenum/pire/.env/Library/bin/mkl_rt.2.dll").unwrap();
-    let cblas_sgemm_batch: libloading::Symbol<
-        unsafe extern "C" fn(
-            CBLAS_LAYOUT,
-            *const CBLAS_TRANSPOSE,
-            *const CBLAS_TRANSPOSE,
-            *const c_int,
-            *const c_int,
-            *const c_int,
-            *const c_float,
-            *const *const c_float,
-            *const c_int,
-            *const *const c_float,
-            *const c_int,
-            *const c_float,
-            *const *mut c_float,
-            *const c_int,
-            c_int,
-            *const c_int,
-        ),
-    > = lib.get(b"cblas_sgemm_batch").unwrap();
-    cblas_sgemm_batch(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, group_count, group_size);
-
-    match backend {
-        CBlasBackend::Mkl => {
-            CBLAS_SGEMM_B_MKL(
-                layout,
-                transa,
-                transb,
-                m,
-                n,
-                k,
-                alpha,
-                a,
-                lda,
-                b,
-                ldb,
-                beta,
-                c,
-                ldc,
-                group_count,
-                group_size,
-            );
-        }
-        CBlasBackend::Blis => {
-            // pass
-        }
-        CBlasBackend::OpenBlas => {
-            // pass
-        }
-    }
+    CBLAS_SGEMM_B(
+        layout,
+        transa,
+        transb,
+        m,
+        n,
+        k,
+        alpha,
+        a,
+        lda,
+        b,
+        ldb,
+        beta,
+        c,
+        ldc,
+        group_count,
+        group_size,
+    );
 }
 
 pub enum ABLayout {
