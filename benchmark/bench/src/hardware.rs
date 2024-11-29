@@ -39,6 +39,7 @@ pub struct HWConfig {
     pub f32mm: bool,
     pub fcma: bool,
     pub i8mm: bool,
+    pub model_name: String,
 }
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
@@ -108,6 +109,7 @@ pub fn detect_hw_config() -> HWConfig {
         let f32mm = is_aarch64_feature_detected!("f32mm");
         let fcma = is_aarch64_feature_detected!("fcma");
         let i8mm = is_aarch64_feature_detected!("i8mm");
+        let model_name = "Neoverse-V2".to_string();
         return HWConfig { sve, neon, fp16, f32mm, fcma, i8mm };
     }
 

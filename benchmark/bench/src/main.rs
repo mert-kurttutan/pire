@@ -908,7 +908,13 @@ fn main() {
         ("gemm_s16s16s32", "openblas"),
         ("gemm_s8u8s32", "openblas"),
     ];
-    let backend_arr = ["blis", "mkl", "pire"];
+    let mut backend_arr = vec![];
+    #[cfg(feature = "pire")]
+    backend_arr.push("pire");
+    #[cfg(feature = "blis")]
+    backend_arr.push("blis");
+    #[cfg(feature = "openblas")]
+    backend_arr.push("openblas");
     let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
     fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
     let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();
