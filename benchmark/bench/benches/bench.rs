@@ -1,10 +1,129 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use num_traits::identities::{ConstOne, ConstZero};
 use std::time::Duration;
 
-use num_complex::{c32, Complex};
+use half::f16;
+use num_complex::Complex;
 
 use bench::{dispatch_gemm, GemmBackend, AS};
+
+trait BenchmarkType {
+    type TA;
+    type TB;
+    type TC;
+    type TS;
+
+    const M: usize;
+    const TA_ONE: Self::TA;
+    const TB_ONE: Self::TB;
+    const TC_ONE: Self::TC;
+    const SCALAR_ONE: Self::TS;
+    const SCALAR_ZERO: Self::TS;
+}
+
+struct BenchmarkI8;
+impl BenchmarkType for BenchmarkI8 {
+    type TA = i8;
+    type TB = i8;
+    type TC = i32;
+    type TS = f32;
+
+    const M: usize = 8000;
+    const TA_ONE: Self::TA = 1;
+    const TB_ONE: Self::TB = 1;
+    const TC_ONE: Self::TC = 1;
+    const SCALAR_ONE: Self::TS = 1.0;
+    const SCALAR_ZERO: Self::TS = 0.0;
+}
+
+struct BenchmarkI16;
+impl BenchmarkType for BenchmarkI16 {
+    type TA = i16;
+    type TB = i16;
+    type TC = i32;
+    type TS = f32;
+
+    const M: usize = 6400;
+    const TA_ONE: Self::TA = 1;
+    const TB_ONE: Self::TB = 1;
+    const TC_ONE: Self::TC = 1;
+    const SCALAR_ONE: Self::TS = 1.0;
+    const SCALAR_ZERO: Self::TS = 0.0;
+}
+
+struct BenchmarkF32;
+impl BenchmarkType for BenchmarkF32 {
+    type TA = f32;
+    type TB = f32;
+    type TC = f32;
+    type TS = f32;
+
+    const M: usize = 4800;
+    const TA_ONE: Self::TA = 1.0;
+    const TB_ONE: Self::TB = 1.0;
+    const TC_ONE: Self::TC = 1.0;
+    const SCALAR_ONE: Self::TS = 1.0;
+    const SCALAR_ZERO: Self::TS = 0.0;
+}
+
+struct BenchmarkF64;
+impl BenchmarkType for BenchmarkF64 {
+    type TA = f64;
+    type TB = f64;
+    type TC = f64;
+    type TS = f64;
+
+    const M: usize = 3600;
+    const TA_ONE: Self::TA = 1.0;
+    const TB_ONE: Self::TB = 1.0;
+    const TC_ONE: Self::TC = 1.0;
+    const SCALAR_ONE: Self::TS = 1.0;
+    const SCALAR_ZERO: Self::TS = 0.0;
+}
+
+struct BenchmarkC32;
+impl BenchmarkType for BenchmarkC32 {
+    type TA = Complex<f32>;
+    type TB = Complex<f32>;
+    type TC = Complex<f32>;
+    type TS = Complex<f32>;
+
+    const M: usize = 3200;
+    const TA_ONE: Self::TA = Complex::new(1.0, 0.0);
+    const TB_ONE: Self::TB = Complex::new(1.0, 0.0);
+    const TC_ONE: Self::TC = Complex::new(1.0, 0.0);
+    const SCALAR_ONE: Self::TS = Complex::new(1.0, 0.0);
+    const SCALAR_ZERO: Self::TS = Complex::new(0.0, 0.0);
+}
+
+struct BenchmarkC64;
+impl BenchmarkType for BenchmarkC64 {
+    type TA = Complex<f64>;
+    type TB = Complex<f64>;
+    type TC = Complex<f64>;
+    type TS = Complex<f64>;
+
+    const M: usize = 2400;
+    const TA_ONE: Self::TA = Complex::new(1.0, 0.0);
+    const TB_ONE: Self::TB = Complex::new(1.0, 0.0);
+    const TC_ONE: Self::TC = Complex::new(1.0, 0.0);
+    const SCALAR_ONE: Self::TS = Complex::new(1.0, 0.0);
+    const SCALAR_ZERO: Self::TS = Complex::new(0.0, 0.0);
+}
+
+struct BenchmarkF16;
+impl BenchmarkType for BenchmarkF16 {
+    type TA = f16;
+    type TB = f16;
+    type TC = f16;
+    type TS = f16;
+
+    const M: usize = 4800;
+    const TA_ONE: Self::TA = f16::ONE;
+    const TB_ONE: Self::TB = f16::ONE;
+    const TC_ONE: Self::TC = f16::ONE;
+    const SCALAR_ONE: Self::TS = f16::ONE;
+    const SCALAR_ZERO: Self::TS = f16::ZERO;
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum DimSize {
@@ -79,36 +198,39 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
         })
     });
 }
-// type TA = Complex<f64>;
-// type TB = Complex<f64>;
-// type TC = Complex<f64>;
 
-type TA = Complex<f32>;
-type TB = Complex<f32>;
-type TC = Complex<f32>;
-
-// type TA = f32;
-// type TB = f32;
-// type TC = f32;
-
-// type TA = f64;
-// type TB = f64;
-// type TC = f64;
-
-// type TA = i16;
-// type TB = i16;
-// type TC = i32;
+#[cfg(not(any(
+    feature = "bench-f64",
+    feature = "bench-i8",
+    feature = "bench-i16",
+    feature = "bench-c32",
+    feature = "bench-c64",
+    feature = "bench-f16"
+)))]
+type MainBenchmarkType = BenchmarkF32;
+#[cfg(feature = "bench-f64")]
+type MainBenchmarkType = BenchmarkF64;
+#[cfg(feature = "bench-i8")]
+type MainBenchmarkType = BenchmarkI8;
+#[cfg(feature = "bench-i16")]
+type MainBenchmarkType = BenchmarkI16;
+#[cfg(feature = "bench-c32")]
+type MainBenchmarkType = BenchmarkC32;
+#[cfg(feature = "bench-c64")]
+type MainBenchmarkType = BenchmarkC64;
+#[cfg(feature = "bench-f16")]
+type MainBenchmarkType = BenchmarkF16;
 
 use criterion::BenchmarkGroup;
 fn bench_bbb(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbb");
     let dim_triple = (DimSize::Big, DimSize::Big, DimSize::Big);
-    let m = 3623;
-    let alpha = TC::ONE;
-    let beta = TC::ONE;
-    let mut a = vec![TA::ONE; m * m];
-    let mut b_vec = vec![TB::ONE; m * m];
-    let mut c_vec = vec![TC::ZERO; m * m];
+    let m = MainBenchmarkType::M;
+    let alpha = MainBenchmarkType::SCALAR_ONE;
+    let beta = MainBenchmarkType::SCALAR_ZERO;
+    let mut a = vec![MainBenchmarkType::TA_ONE; m * m];
+    let mut b_vec = vec![MainBenchmarkType::TB_ONE; m * m];
+    let mut c_vec = vec![MainBenchmarkType::TC_ONE; m * m];
     use pire_dev::random_matrix_uniform;
     random_matrix_uniform(&mut a);
     random_matrix_uniform(&mut b_vec);
