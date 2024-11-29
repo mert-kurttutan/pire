@@ -915,6 +915,8 @@ fn main() {
     backend_arr.push("blis");
     #[cfg(feature = "openblas")]
     backend_arr.push("openblas");
+    #[cfg(feature = "mkl")]
+    backend_arr.push("mkl");
     let benchmark_folder_path = Path::new(PROJECT_DIR).join(BENCHMARK_FOLDER);
     fs::create_dir_all(benchmark_folder_path.clone()).unwrap();
     let files = fs::read_dir(benchmark_folder_path.clone()).unwrap();

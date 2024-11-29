@@ -33,7 +33,7 @@ harness = false
 
 
 [features]
-default = ["pire"]
+default = []
 pire = []
 mkl_check = []
 mkl = ["pire-dev/mkl"]
