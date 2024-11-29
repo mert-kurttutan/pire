@@ -33,9 +33,10 @@ harness = false
 
 
 [features]
-default = []
+default = ["pire"]
+pire = []
 mkl_check = []
 mkl = ["pire-dev/mkl"]
 blis = []
-pire = []
+openblas = []
 rustgemm = ["dep:gemm"]

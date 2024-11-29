@@ -14,6 +14,13 @@ use libc::{c_int, c_ushort, c_void};
 
 use num_complex::{Complex32, Complex64};
 
+#[cfg(any(
+    all(feature = "blis", any(feature = "mkl", feature = "openblas")),
+    all(feature = "mkl", any(feature = "blis", feature = "openblas")),
+    all(feature = "openblas", any(feature = "mkl", feature = "blis"))
+))]
+compile_error!("Only one of the following features can be enabled: mkl, blis, openblas");
+
 #[derive(Copy, Clone, Debug)]
 pub enum BenchType {
     DGemm,
