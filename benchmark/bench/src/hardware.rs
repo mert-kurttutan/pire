@@ -109,7 +109,19 @@ pub fn detect_hw_config() -> HWConfig {
         let f32mm = is_aarch64_feature_detected!("f32mm");
         let fcma = is_aarch64_feature_detected!("fcma");
         let i8mm = is_aarch64_feature_detected!("i8mm");
-        let model_name = "Neoverse-V2".to_string();
+        // hack until sys-info gets updated
+        #[cfg(target_os = "linux")]
+        let model_name = std::fs::read_to_string("/proc/cpuinfo")
+            .unwrap()
+            .lines()
+            .find(|line| line.starts_with("CPU part"))
+            .unwrap()
+            .split(":")
+            .collect::<Vec<&str>>()[1]
+            .trim()
+            .to_string();
+        #[cfg(target_os = "windows")]
+        let model_name = "Unknown".to_string();
         return HWConfig { sve, neon, fp16, f32mm, fcma, i8mm };
     }
 
