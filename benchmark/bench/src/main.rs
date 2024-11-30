@@ -711,7 +711,7 @@ use clap::Parser;
 #[command(version, about, long_about = None)]
 struct Args {
     /// number of repeats
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, default_value_t = 10)]
     n_repeats: usize,
 
     /// batch dim
@@ -740,6 +740,10 @@ struct Args {
     // beta
     #[arg(long, default_value_t = 1.0)]
     beta: f32,
+
+    // number of threads
+    #[arg(long, default_value_t = 1)]
+    num_threads: usize,
 }
 use serde::{Deserialize, Serialize};
 
@@ -805,15 +809,14 @@ fn get_bench_file_path(run_folder_path: PathBuf) -> PathBuf {
     run_folder_path.join(filename)
 }
 
-fn prepare_num_threads() {
-    let default_num_threads = std::thread::available_parallelism().unwrap().get().to_string();
-    let n_threads_str = std::env::var("NUM_THREADS").unwrap_or(default_num_threads);
-    std::env::set_var("NUM_THREADS", n_threads_str.clone());
+fn prepare_num_threads(num_threads: usize) {
+    let n_threads_str = num_threads.to_string();
     std::env::set_var("PIRE_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("BLIS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("OPENBLAS_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("MKL_NUM_THREADS", n_threads_str.clone());
     std::env::set_var("OMP_NUM_THREADS", n_threads_str.clone());
+    std::env::set_var("RAYON_NUM_THREADS", n_threads_str.clone());
 }
 
 static LONG_DIMS: [usize; 16] = [1, 4, 13, 49, 128, 256, 512, 1024, 2400, 2800, 3200, 3600, 4000, 4400, 4800, 6400];
@@ -835,7 +838,7 @@ fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
 }
 
 fn run_bench(args: &Args, run_folder_path: PathBuf) {
-    prepare_num_threads();
+    prepare_num_threads(args.num_threads);
     let benchmark_result_path = get_bench_file_path(run_folder_path);
     let long_dims_vec = bench_type_to_long_dims(&args.bench_type);
     let dim_strategy = DimStrategy::Big(long_dims_vec);
@@ -880,16 +883,7 @@ fn run_bench(args: &Args, run_folder_path: PathBuf) {
 }
 
 fn main() {
-    let mut args = Args {
-        n_repeats: 10,
-        batch_dim: 5,
-        t_layout: String::from("nt"),
-        check: false,
-        backend: String::from("pire"),
-        bench_type: String::from("sgemm"),
-        alpha: 1.0,
-        beta: 1.0,
-    };
+    let mut args = Args::parse();
     let bench_type_arr = [
         // "cgemm",
         "sgemm",

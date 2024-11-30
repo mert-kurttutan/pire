@@ -143,6 +143,16 @@ pub fn get_benchmark_config() -> BenchmarkConfig {
     let os = std::env::consts::OS.to_string();
     let arch = std::env::consts::ARCH.to_string();
     let default_num_threads = std::thread::available_parallelism().unwrap().get();
-    let num_threads = std::env::var("NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let mkl_num_threads = std::env::var("MKL_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let openblas_num_threads =
+        std::env::var("OPENBLAS_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let blis_num_threads = std::env::var("BLIS_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let pire_num_threads = std::env::var("PIRE_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let rayon_num_threads = std::env::var("RAYON_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    assert_eq!(mkl_num_threads, openblas_num_threads);
+    assert_eq!(mkl_num_threads, blis_num_threads);
+    assert_eq!(mkl_num_threads, pire_num_threads);
+    assert_eq!(mkl_num_threads, rayon_num_threads);
+    let num_threads = std::env::var("PIRE_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
     return BenchmarkConfig { hw_config, os, arch, num_threads };
 }
