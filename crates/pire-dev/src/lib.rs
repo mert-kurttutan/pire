@@ -216,7 +216,7 @@ pub static CBLAS_LIBRARY: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     let default_blis_path = format!("{PROJECT_DIR}/../../blis/blis.dll");
     #[cfg(target_os = "linux")]
     let default_blis_path = format!("{PROJECT_DIR}/../../../blis/lib/skx/libblis.so");
-    let blis_path = std::env::var("PIRE_BLIS_PATH").unwrap_or(default_blis_path);
+    let blis_path = std::env::var("PIRE_CBLAS_PATH").unwrap_or(default_blis_path);
     libloading::Library::new(blis_path).unwrap()
 });
 
