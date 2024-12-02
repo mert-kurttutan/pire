@@ -473,24 +473,7 @@ pub unsafe fn cblas_sgemm_batch(
     group_size: *const c_int,
     backend: CBlasBackend,
 ) {
-    CBLAS_SGEMM_B(
-        layout,
-        transa,
-        transb,
-        m,
-        n,
-        k,
-        alpha,
-        a,
-        lda,
-        b,
-        ldb,
-        beta,
-        c,
-        ldc,
-        group_count,
-        group_size,
-    );
+    CBLAS_SGEMM_B(layout, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, group_count, group_size);
 }
 
 pub enum ABLayout {

@@ -4183,7 +4183,7 @@ macro_rules! def_ukernel_avx512 {
         ) {
             use core::mem::size_of;
             mask_ptr!($is_partial, m, x, mask_ptr);
-            let dim_arr = [d_arr[0]*size_of::<TA>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
+            let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
             } else {

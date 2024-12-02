@@ -54,11 +54,8 @@ pub(crate) fn get_mcnckc_simd_f32() -> (usize, usize, usize) {
 pub(crate) fn get_mcnckc_simd_f16() -> (usize, usize, usize) {
     let mr = AVX512_F16_MR;
     let nr = AVX512_F16_NR;
-    if (*RUNTIME_HW_CONFIG).model_id() == 106 {
-        return (4800 / mr * mr, 192 / nr * nr, 768);
-    }
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Skylake => (4800, 384, 1024),
+        HWModel::Skylake => (4800, 360, 1024),
         HWModel::Haswell => (4800, 320, 192),
         _ => get_cache_params(),
     };
@@ -568,8 +565,8 @@ def_pire_gemm!(
     packb0f16,
     packa_fn_simd_f16,
     packb_fn_simd_f16,
-    true,
-    true,
+    false,
+    false,
     into_pack_array,
     F,
 );
