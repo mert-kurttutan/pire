@@ -2212,7 +2212,7 @@ macro_rules! def_kernel_bb_v0 {
                             [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
-                            f.call(c_cur1_f.add(j*c_cs_f), mr_left);
+                            f.call(c_cur1_f.add(j*c_cs_f), m_left);
                         }
                         if STRIDED || $no_partial {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
@@ -2328,7 +2328,7 @@ macro_rules! def_kernel_sb_v0 {
                             [<ukernel_ mr_vs _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
-                            f.call(c_cur1_f.add(j*c_cs_f), mr_left);
+                            f.call(c_cur1_f.add(j*c_cs_f), m_left);
                         }
                         if STRIDED || $no_partial {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, mr_left);
@@ -2435,7 +2435,7 @@ macro_rules! def_kernel_bs {
                             [<ukernel_ mr_left _bsp>](ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
-                            f.call(c_cur1_f.add(j*c_cs_f), MR_LEFT);
+                            f.call(c_cur1_f.add(j*c_cs_f), m_left);
                         }
                         if STRIDED {
                             pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, MR_LEFT);

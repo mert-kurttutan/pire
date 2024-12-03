@@ -100,7 +100,6 @@ fn test_benchmark(mut f: impl FnMut(), n_repeats: usize) -> Vec<f64> {
         }
         times.push(end_time);
         rep += 1;
-        println!("time: {}", end_time);
     }
     times
 }
@@ -195,7 +194,6 @@ fn test_sgemm(
     c_rs: isize,
     c_cs: isize,
 ) -> Vec<f64> {
-    println!("backend: {:?}", gemm_backend);
     let mut a = vec![0.0; m * k];
     let mut b = vec![0.0; k * n];
     let mut c = vec![0.0; m * n];
@@ -500,7 +498,6 @@ fn test_hgemm(
     c_rs: isize,
     c_cs: isize,
 ) -> Vec<f64> {
-    println!("backend: {:?}", gemm_backend);
     let alpha = f16::from_f32(alpha);
     let beta = f16::from_f32(beta);
     let mut a = vec![f16::ONE; m * k];
@@ -822,8 +819,8 @@ fn prepare_num_threads(num_threads: usize) {
     std::env::set_var("RAYON_NUM_THREADS", n_threads_str.clone());
 }
 
-// static LONG_DIMS: [usize; 16] = [1, 4, 13, 49, 128, 256, 512, 1024, 2400, 2800, 3200, 3600, 4000, 4400, 4800, 6400];
-static LONG_DIMS: [usize; 1] = [4800];
+static LONG_DIMS: [usize; 16] = [1, 4, 13, 49, 128, 256, 512, 1024, 2400, 2800, 3200, 3600, 4000, 4400, 4800, 6400];
+// static LONG_DIMS: [usize; 1] = [4800];
 const SMALL_DIM: usize = 79;
 
 fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
