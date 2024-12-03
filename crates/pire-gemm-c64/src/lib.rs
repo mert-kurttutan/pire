@@ -255,27 +255,23 @@ mod tests {
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
         let unary_fn: unsafe fn(*mut TC, usize) = unary_fn_test;
-        let m_max = *m_dims.iter().max().unwrap();
-        let n_max = *n_dims.iter().max().unwrap();
-        let k_max = *k_dims.iter().max().unwrap();
-        let a_size = matrix_size(m_max, k_max) * a_stride_scale;
-        let b_size = matrix_size(k_max, n_max) * b_stride_scale;
-        let c_size = matrix_size(m_max, n_max) * c_stride_scale;
-        let mut a = vec![TA::ZERO; a_size];
-        let mut b = vec![TB::ZERO; b_size];
-        random_matrix_uniform(&mut a);
-        random_matrix_uniform(&mut b);
-        let mut c = vec![TC::ZERO; c_size];
-        let mut c_ref = vec![TC::ZERO; c_size];
-
-        let ap_size = if is_a_packed { a_size_packed(m_max, k_max) } else { 0 };
-        let mut ap = avec![[AB_ALIGN]| TA::ZERO; ap_size];
-
-        let bp_size = if is_b_packed { b_size_packed(n_max, k_max) } else { 0 };
-        let mut bp = avec![[AB_ALIGN]| TB::ZERO; bp_size];
         for &m in &m_dims {
             for &n in &n_dims {
+                let c_size = matrix_size(m, n) * c_stride_scale;
+                let mut c = vec![TC::ZERO; c_size];
+                let mut c_ref = vec![TC::ZERO; c_size];
                 for &k in &k_dims {
+                    let a_size = matrix_size(m, k) * a_stride_scale;
+                    let b_size = matrix_size(k, n) * b_stride_scale;
+                    let mut a = vec![TA::ZERO; a_size];
+                    let mut b = vec![TB::ZERO; b_size];
+                    random_matrix_uniform(&mut a);
+                    random_matrix_uniform(&mut b);
+                    let ap_size = if is_a_packed { a_size_packed(m, k) } else { 0 };
+                    let mut ap = avec![[AB_ALIGN]| TA::ZERO; ap_size];
+
+                    let bp_size = if is_b_packed { b_size_packed(n, k) } else { 0 };
+                    let mut bp = avec![[AB_ALIGN]| TB::ZERO; bp_size];
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = (
                         a_rs * a_stride_scale,

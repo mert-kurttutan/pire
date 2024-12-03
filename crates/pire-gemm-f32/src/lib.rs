@@ -253,31 +253,24 @@ mod tests {
         let n_dims = generate_n_dims(nc, nr);
         let k_dims = generate_k_dims(kc, kr);
         let unary_fn: unsafe fn(*mut TC, usize) = unary_fn_test;
-        let m_max = *m_dims.iter().max().unwrap();
-        let n_max = *n_dims.iter().max().unwrap();
-        let k_max = *k_dims.iter().max().unwrap();
-        let a_size = matrix_size(m_max, k_max) * a_stride_scale;
-        let b_size = matrix_size(k_max, n_max) * b_stride_scale;
-        let c_size = matrix_size(m_max, n_max) * c_stride_scale;
-        let mut a = vec![0f32; a_size];
-        let mut b = vec![0f32; b_size];
-        random_matrix_uniform(&mut a);
-        random_matrix_uniform(&mut b);
-        let mut c = vec![0f32; c_size];
-        let mut c_ref = vec![0f32; c_size];
 
-        let ap_size = if is_a_packed { a_size_packed(m_max, k_max) } else { 0 };
-        let mut ap = vec![0f32; ap_size + AB_ALIGN];
-        let ap_align_offset = ap.as_ptr().align_offset(AB_ALIGN);
-        let ap_mut_ref = &mut ap[ap_align_offset..];
-
-        let bp_size = if is_b_packed { b_size_packed(n_max, k_max) } else { 0 };
-        let mut bp = vec![0f32; bp_size + AB_ALIGN];
-        let bp_align_offset = bp.as_ptr().align_offset(AB_ALIGN);
-        let bp_mut_ref = &mut bp[bp_align_offset..];
         for &m in &m_dims {
             for &n in &n_dims {
+                let c_size = matrix_size(m, n) * c_stride_scale;
+                let mut c = vec![0f32; c_size];
+                let mut c_ref = vec![0f32; c_size];
                 for &k in &k_dims {
+                    let a_size = matrix_size(m, k) * a_stride_scale;
+                    let b_size = matrix_size(k, n) * b_stride_scale;
+                    let mut a = vec![0f32; a_size];
+                    let mut b = vec![0f32; b_size];
+                    random_matrix_uniform(&mut a);
+                    random_matrix_uniform(&mut b);
+                    let ap_size = if is_a_packed { a_size_packed(m, k) } else { 0 };
+                    let mut ap = avec![[AB_ALIGN]| 0f32; ap_size];
+
+                    let bp_size = if is_b_packed { b_size_packed(n, k) } else { 0 };
+                    let mut bp = avec![[AB_ALIGN]| 0f32; bp_size];
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = layout_to_strides(&layout, m, n, k);
                     let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = (
                         a_rs * a_stride_scale,
@@ -288,12 +281,12 @@ mod tests {
                         c_cs * c_stride_scale,
                     );
                     let a_matrix = if is_a_packed {
-                        pack_a(m, k, &a, a_rs, a_cs, ap_mut_ref)
+                        pack_a(m, k, &a, a_rs, a_cs, &mut ap)
                     } else {
                         Array::strided_matrix(a.as_ptr(), a_rs, a_cs)
                     };
                     let b_matrix = if is_b_packed {
-                        pack_b(n, k, &b, b_rs, b_cs, bp_mut_ref)
+                        pack_b(n, k, &b, b_rs, b_cs, &mut bp)
                     } else {
                         Array::strided_matrix(b.as_ptr(), b_rs, b_cs)
                     };
