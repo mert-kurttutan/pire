@@ -2111,21 +2111,6 @@ macro_rules! partial_strided {
     };
 }
 
-#[target_feature(enable = "avx")]
-#[cfg(target_arch = "x86_64")]
-unsafe fn vzeroupper_unchecked() {
-    core::arch::x86_64::_mm256_zeroupper();
-}
-
-pub fn avx_vzeroupper() {
-    #[cfg(target_arch = "x86_64")]
-    if (*RUNTIME_HW_CONFIG).cpu_ft.avx {
-        unsafe {
-            vzeroupper_unchecked();
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! put_statement {
     (T,$st:stmt) => {
@@ -2242,7 +2227,6 @@ macro_rules! def_kernel_bb_v0 {
             } else {
                 kernel_bb::<_, true>(m, n, k, alpha, beta, c, c_rs, c_cs, ap, bp, f)
             }
-            pire_base::avx_vzeroupper();
         }
 
     };
@@ -2361,7 +2345,6 @@ macro_rules! def_kernel_sb_v0 {
             } else {
                 kernel_sb_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, c, c_rs, c_cs, ap_buf, f);
             }
-            pire_base::avx_vzeroupper();
         }
     };
 }
@@ -2467,7 +2450,6 @@ macro_rules! def_kernel_bs {
             } else {
                 kernel_bs_v0::<_, true>(m, n, k, alpha, beta, b, b_rs, b_cs, c, c_rs, c_cs, ap, f);
             }
-            pire_base::avx_vzeroupper();
         }
     };
 }
@@ -3699,6 +3681,7 @@ macro_rules! asm_body_avx {
 
             "6:",
             pire_base::cum_seq!($store_macro,$nr,$is_partial),
+            "vzeroupper",
 
             ax = inout(reg) $a => _,
             bx = inout(reg) $b => _,
@@ -3806,6 +3789,7 @@ macro_rules! asm_body_avx_2 {
 
             "6:",
             pire_base::cum_seq!($store_macro,$nr,C),
+            "vzeroupper",
 
             ax = inout(reg) $a => _,
             bx = inout(reg) $b => _,
@@ -3883,6 +3867,7 @@ macro_rules! asm_body_avx512 {
 
             "6:",
             pire_base::cum_seq!($store_macro,$nr,$is_partial),
+            "vzeroupper",
 
             ax = inout(reg) $a => _,
             bx = inout(reg) $b => _,
@@ -3990,6 +3975,7 @@ macro_rules! asm_body_avx512_2 {
 
             "6:",
             pire_base::cum_seq!($store_macro,$nr,C),
+            "vzeroupper",
 
             ax = inout(reg) $a => _,
             bx = inout(reg) $b => _,
