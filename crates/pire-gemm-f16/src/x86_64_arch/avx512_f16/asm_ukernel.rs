@@ -2,9 +2,10 @@ use seq_macro::seq;
 use super::VS;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    c_mem, def_ukernel_avx512,def_ukernel_avx512_2,
+    def_ukernel_avx512,def_ukernel_avx512_2,
     init_ab_2,
-    load_a_avx512, storep_avx512, acc_p_avx512,
+    acc_2, store_2, acc_1, store_1,
+    step_2, step_1,
 };
 use half::f16;
 
@@ -12,6 +13,14 @@ type TS = TC;
 
 const ZERO_SCALAR: f16 = f16::ZERO;
 const ONE_SCALAR: f16 = f16::ONE;
+
+macro_rules! vs {
+    () => { "0x40" };
+}
+
+macro_rules! v_i {
+    ($m:tt, $i:tt) => { concat!($i, "*0x20+" , $m) };
+}
 
 #[macro_export]
 macro_rules! init_ab {
@@ -39,7 +48,7 @@ macro_rules! init_ab {
     };
 }
 
-macro_rules! c_reg_2x15 {
+macro_rules! cr_2 {
     (0,0) => { 2 }; (1,0) => { 3 };
     (0,1) => { 4 }; (1,1) => { 5 };
     (0,2) => { 6 }; (1,2) => { 7 };
@@ -57,7 +66,7 @@ macro_rules! c_reg_2x15 {
     (0,14) => { 30 }; (1,14) => { 31 };
 }
 
-macro_rules! c_reg_1x15 {
+macro_rules! cr_1 {
     (0,0) => { 17 };
     (0,1) => { 18 };
     (0,2) => { 19 };
@@ -135,9 +144,7 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vbroadcast {
-    () => {
-        "vpbroadcastw"
-    };
+    () => { "vpbroadcastw" };
 }
 
 macro_rules! vfmadd {
@@ -243,8 +250,6 @@ macro_rules! load_beta {
     () => {
         concat!(
             vbroadcast!(), " ({betax}), %zmm0\n",
-            "vxorps %ymm1,%ymm1,%ymm1\n",
-            "vucomish %xmm1,%xmm0\n",
         )
     }
 }
@@ -258,137 +263,115 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! inc_b {
-    (S,$nr:tt) => {
-        "add {x1},{bx} \n add {x1},{x3} \n add {x1},{x4} \n add {x1},{x5} \n"
-    };
+    (S,$nr:tt) => { "add {x1},{bx} \n add {x1},{x3} \n add {x1},{x4} \n add {x1},{x5} \n" };
     (B,$nr:tt) => {
+        concat!(
+            "add $2*", $nr, ", {bx}", "\n",
+        )
+    };
+    ($nr:tt) => {
         concat!(
             "add $2*", $nr, ", {bx}", "\n",
         )
     };
 }
 
-macro_rules! acc_2x15 {
-    ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p_avx512!($layout, c_mem!($ni), $q, c_reg_2x15!(0,$ni), c_reg_2x15!(1,$ni))
-    };
-}
-
-macro_rules! store_2x15 {
-    ($ni:tt, $layout:tt) => {
-        storep_avx512!($layout, c_mem!($ni), c_reg_2x15!(0,$ni), c_reg_2x15!(1,$ni))
-    };
-}
-
-macro_rules! acc_1x15 {
-    ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p_avx512!($layout, c_mem!($ni), $q, c_reg_1x15!(0,$ni))
-    };
-}
-
-macro_rules! store_1x15 {
-    ($ni:tt, $layout:tt) => {
-        storep_avx512!($layout, c_mem!($ni), c_reg_1x15!(0,$ni))
-    };
-}
-
-macro_rules! fmadd_2v {
-    ($ni:tt, $m:expr) => {
+macro_rules! fmadd_2 {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, $m, c_reg_2x15!(0,$ni)),
-            vfmadd!(1, $m, c_reg_2x15!(1,$ni)),
+            vfmadd!(0, bd!(B, $ni), cr_2!(0,$ni)),
+            vfmadd!(1, bd!(B, $ni), cr_2!(1,$ni)),
+        )
+    };
+    ($b_layout:tt, $ni:tt) => {
+        concat!(
+            vfmadd!(0, bd!($b_layout, $ni), cr_2!(0,$ni)),
+            vfmadd!(1, bd!($b_layout, $ni), cr_2!(1,$ni)),
         )
     };
 }
 
-macro_rules! fmadd_1v {
-    ($ni:tt, $m:expr) => {
+macro_rules! fmadd_1 {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, $m, c_reg_1x15!(0,$ni)),
+            vfmadd!(0, bd!(B, $ni), cr_1!(0,$ni)),
+        )
+    };
+    ($b_layout:tt, $ni:tt) => {
+        concat!(
+            vfmadd!(0, bd!($b_layout, $ni), cr_1!(0,$ni)),
         )
     };
 }
 
-// ***************************** 2x15 ******************************* //
-macro_rules! step_2x15 {
-    (15, B) => {
+// ***************************** 2 ******************************* //
+macro_rules! step_2 {
+    (B, 15) => {
         concat!(
-            load_a_avx512!(2),
-            "addq $128, {ax} \n",
-            fmadd_2v!(0, bd!(B, 0)),
-            fmadd_2v!(1, bd!(B, 1)),
+            fmadd_2!(0),
+            fmadd_2!(1),
             "prefetcht0 256({ax}) \n",
-            fmadd_2v!(2, bd!(B, 2)),
+            fmadd_2!(2),
             "prefetcht0 64({bx}) \n",
-            fmadd_2v!(3, bd!(B, 3)),
-            fmadd_2v!(4, bd!(B, 4)),
-            fmadd_2v!(5, bd!(B, 5)),
-            fmadd_2v!(6, bd!(B, 6)),
-            fmadd_2v!(7, bd!(B, 7)),
-            fmadd_2v!(8, bd!(B, 8)),
-            fmadd_2v!(9, bd!(B, 9)),
-            fmadd_2v!(10, bd!(B, 10)),
+            fmadd_2!(3),
+            fmadd_2!(4),
+            fmadd_2!(5),
+            fmadd_2!(6),
+            fmadd_2!(7),
+            fmadd_2!(8),
+            fmadd_2!(9),
+            fmadd_2!(10),
             "prefetcht0 320({ax}) \n",
-            fmadd_2v!(11, bd!(B, 11)),
-            fmadd_2v!(12, bd!(B, 12)),
-            fmadd_2v!(13, bd!(B, 13)),
-            fmadd_2v!(14, bd!(B, 14)),
-            "addq $30, {bx} \n",
+            fmadd_2!(11),
+            fmadd_2!(12),
+            fmadd_2!(13),
+            fmadd_2!(14),
         )
         
     };
-    ($nr:tt, $b_layout:tt) => {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a_avx512!(2),
-                "addq $128, {ax} \n",
                 "prefetcht0 64({bx}) \n",
                 #(
-                    fmadd_2v!(n, bd!($b_layout, n)),
+                    fmadd_2!($b_layout, n),
                 )*
-                inc_b!($b_layout,$nr), 
             )
         })
     };
 }
-// ***************************** 1x15 ******************************* //
-macro_rules! step_1x15 {
+// ***************************** 1 ******************************* //
+macro_rules! step_1 {
     (15, B) => {
         concat!(
-            load_a_avx512!(1),
-            "addq $64, {ax} \n",
-            fmadd_1v!(0, bd!(B, 0)),
-            fmadd_1v!(1, bd!(B, 1)),
+            fmadd_1!(0),
+            fmadd_1!(1),
             "prefetcht0 256({ax}) \n",
-            fmadd_1v!(2, bd!(B, 2)),
+            fmadd_1!(2),
             "prefetcht0 64({bx}) \n",
-            fmadd_1v!(3, bd!(B, 3)),
-            fmadd_1v!(4, bd!(B, 4)),
-            fmadd_1v!(5, bd!(B, 5)),
-            fmadd_1v!(6, bd!(B, 6)),
-            fmadd_1v!(7, bd!(B, 7)),
-            fmadd_1v!(8, bd!(B, 8)),
-            fmadd_1v!(9, bd!(B, 9)),
-            fmadd_1v!(10, bd!(B, 10)),
+            fmadd_1!(3),
+            fmadd_1!(4),
+            fmadd_1!(5),
+            fmadd_1!(6),
+            fmadd_1!(7),
+            fmadd_1!(8),
+            fmadd_1!(9),
+            fmadd_1!(10),
             "prefetcht0 320({ax}) \n",
-            fmadd_1v!(11, bd!(B, 11)),
-            fmadd_1v!(12, bd!(B, 12)),
-            fmadd_1v!(13, bd!(B, 13)),
-            fmadd_1v!(14, bd!(B, 14)),
-            "addq $30, {bx} \n",
+            fmadd_1!(11),
+            fmadd_1!(12),
+            fmadd_1!(13),
+            fmadd_1!(14),
         )
         
     };
-    ($nr:tt, $b_layout:tt) => {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a_avx512!(1),
-                "addq $64, {ax} \n",
                 "prefetcht0 64({bx}) \n",
                 #(
-                    fmadd_1v!(n, bd!($b_layout, n)),
+                    fmadd_1!($b_layout, n),
                 )*
-                inc_b!($b_layout,$nr), 
             )
         })
     };
@@ -405,13 +388,13 @@ macro_rules! mask_ptr {
     };
 }
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_2x15, acc_2x15, store_2x15, 2, 15, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, S, P, ukernel_1_bsp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, S, P, ukernel_1_bsp);
 
 
 // based on l1 prefetching scheme is from openblas impl for skylax
@@ -420,4 +403,4 @@ def_ukernel_avx512!(1, step_1x15, acc_1x15, store_1x15, 1, 15, S, P, ukernel_1_b
 // seems to stem from high bandwith of l1 cache (compared to other uarch e.g. haswell
 // where the same l1 prefetching does not benefit as much)
 
-def_ukernel_avx512_2!(1, step_2x15, acc_2x15, store_2x15, 2, 15, 16, 32);
+def_ukernel_avx512_2!(1, step_2, acc_2, store_2, 2, 15, 16, 32);

@@ -225,7 +225,7 @@ macro_rules! alpha_scale {
     };
 }
 
-macro_rules! c_reg_3x4 {
+macro_rules! c_reg_3 {
     (0,0) => { 8 };
     (1,0) => { 9 };
     (2,0) => { 10 };
@@ -255,7 +255,7 @@ macro_rules! c_reg_3x4 {
     (5,3) => { 31 };
 }
 
-macro_rules! c_reg_2x6 {
+macro_rules! c_reg_2 {
     (0,0) => { 8 };
     (1,0) => { 9 };
     (2,0) => { 10 };
@@ -287,7 +287,7 @@ macro_rules! c_reg_2x6 {
     (3,5) => { 31 };
 }
 
-macro_rules! c_reg_1x6 {
+macro_rules! c_reg_1 {
     (0,0) => { 8 };
     (1,0) => { 9 };
 
@@ -309,43 +309,43 @@ macro_rules! c_reg_1x6 {
 
 
 
-macro_rules! acc_3x4 {
-    ($ni:tt, $layout:tt, $q:tt) => {
+macro_rules! acc_3 {
+    ($layout:tt, $ni:tt, $q:tt) => {
         acc_p!(
-            $layout, c_mem!($ni), $q, c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni), c_reg_3x4!(3,$ni), c_reg_3x4!(4,$ni), c_reg_3x4!(5,$ni)
+            $layout, c_mem!($ni), $q, c_reg_3!(0,$ni), c_reg_3!(1,$ni), c_reg_3!(2,$ni), c_reg_3!(3,$ni), c_reg_3!(4,$ni), c_reg_3!(5,$ni)
         )
     };
 }
 
-macro_rules! store_3x4 {
-    ($ni:tt, $layout:tt) => {
+macro_rules! store_3 {
+    ($layout:tt, $ni:tt) => {
         storep!(
-            $layout, c_mem!($ni), c_reg_3x4!(0,$ni), c_reg_3x4!(1,$ni), c_reg_3x4!(2,$ni), c_reg_3x4!(3,$ni), c_reg_3x4!(4,$ni), c_reg_3x4!(5,$ni)
+            $layout, c_mem!($ni), c_reg_3!(0,$ni), c_reg_3!(1,$ni), c_reg_3!(2,$ni), c_reg_3!(3,$ni), c_reg_3!(4,$ni), c_reg_3!(5,$ni)
         )
     };
 }
 
-macro_rules! acc_2x6 {
-    ($ni:tt, $layout:tt,$q:tt) => {
-        acc_p!($layout, c_mem!($ni), $q, c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni), c_reg_2x6!(2,$ni), c_reg_2x6!(3,$ni))
+macro_rules! acc_2 {
+    ($layout:tt, $ni:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_2!(0,$ni), c_reg_2!(1,$ni), c_reg_2!(2,$ni), c_reg_2!(3,$ni))
     };
 }
 
-macro_rules! store_2x6 {
-    ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_2x6!(0,$ni), c_reg_2x6!(1,$ni), c_reg_2x6!(2,$ni), c_reg_2x6!(3,$ni))
+macro_rules! store_2 {
+    ($layout:tt, $ni:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_2!(0,$ni), c_reg_2!(1,$ni), c_reg_2!(2,$ni), c_reg_2!(3,$ni))
     };
 }
 
-macro_rules! acc_1x6 {
-    ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p!($layout, c_mem!($ni), $q, c_reg_1x6!(0,$ni), c_reg_1x6!(1,$ni))
+macro_rules! acc_1 {
+    ($layout:tt, $ni:tt, $q:tt) => {
+        acc_p!($layout, c_mem!($ni), $q, c_reg_1!(0,$ni), c_reg_1!(1,$ni))
     };
 }
 
-macro_rules! store_1x6 {
-    ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_1x6!(0,$ni), c_reg_1x6!(1,$ni))
+macro_rules! store_1 {
+    ($layout:tt, $ni:tt) => {
+        storep!($layout, c_mem!($ni), c_reg_1!(0,$ni), c_reg_1!(1,$ni))
     };
 }
 
@@ -499,9 +499,9 @@ macro_rules! fmadd_1v {
 }
 
 
-// ***************************** 3x4 ******************************* //
-macro_rules! step_3x4 {
-    ($nr:tt, $b_layout:tt) => {
+// ***************************** 3 ******************************* //
+macro_rules! step_3 {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(3),
@@ -516,9 +516,9 @@ macro_rules! step_3x4 {
     };
 }
 
-// ***************************** 2x6 ******************************* //
-macro_rules! step_2x6 {
-    ($nr:tt, $b_layout:tt) => {
+// ***************************** 2 ******************************* //
+macro_rules! step_2 {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(2),
@@ -533,9 +533,9 @@ macro_rules! step_2x6 {
     };
 }
 
-// ***************************** 1x6 ******************************* //
-macro_rules! step_1x6 {
-    ($nr:tt, $b_layout:tt) => {
+// ***************************** 1 ******************************* //
+macro_rules! step_1 {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
                 load_a!(1),
@@ -574,8 +574,8 @@ macro_rules! prefetch_c {
 }
 
 
-def_ukernel_neon_fp16!(step_3x4, acc_3x4, store_3x4, 3, 4, B, C, ukernel_bbc);
+def_ukernel_neon_fp16!(step_3, acc_3, store_3, 3, 4, B, C, ukernel_bbc);
 
-def_ukernel_neon_fp16!(step_3x4, acc_3x4, store_3x4, 3, 4, B, C, ukernel_3_bbp);
-def_ukernel_neon_fp16!(step_2x6, acc_2x6, store_2x6, 2, 4, B, C, ukernel_2_bbp);
-def_ukernel_neon_fp16!(step_1x6, acc_1x6, store_1x6, 1, 4, B, C, ukernel_1_bbp);
+def_ukernel_neon_fp16!(step_3, acc_3, store_3, 3, 4, B, C, ukernel_3_bbp);
+def_ukernel_neon_fp16!(step_2, acc_2, store_2, 2, 4, B, C, ukernel_2_bbp);
+def_ukernel_neon_fp16!(step_1, acc_1, store_1, 1, 4, B, C, ukernel_1_bbp);
