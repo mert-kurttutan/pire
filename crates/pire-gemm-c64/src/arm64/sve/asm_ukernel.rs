@@ -169,7 +169,7 @@ macro_rules! storep_unit {
 macro_rules! complex_mul {
     ($r0:tt, $rt:tt) => {
         concat!(
-            vzeroall!(4,4),
+            "dup z4.d, #0\n",
             "fcmla z4.d, p0/m, z", $r0, ".d, z7.d, #0\n",
             "fcmla z4.d, p0/m, z", $r0, ".d, z7.d, #90\n",
             // copy from z4 to $r0
