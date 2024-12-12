@@ -1,9 +1,10 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_sve,mem,
+    prefetch_0, def_ukernel_sve,
     acc_3, acc_2, acc_1,
     store_3, store_2, store_1,
+    fmadd_3, fmadd_2, fmadd_1,
 };
 use super::super::sve_vs;
 
@@ -14,6 +15,17 @@ macro_rules! v_i {
     ($m0:tt, $ni:tt) => {
         concat!("[", $m0, ", #", $ni, ", MUL VL]")
     }
+}
+
+macro_rules! set_predicate {
+    (M) => { "mov {m_s}, #0 \n whilelo p1.d, {m_s}, {m_e} \n" };
+    (C) => { "/* {m_s}, {m_e} */" }
+}
+
+macro_rules! inc_a {
+    ($mr:tt) => {
+        concat!("add {ax}, {ax}, {incax} \n")
+    };
 }
 
 macro_rules! beta_fmadd {
@@ -52,9 +64,9 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $i:expr) => {
+    ($r1:expr, $r2:expr, $r3:expr) => {
         concat!(
-            "fmla z", $r3, ".d", ", z", $r1,".d, z", $r2, ".d[", $i, "]\n",
+            "fmla z", $r3, ".d", ", z", $r1,".d, ", $r2, "\n",
         ) 
     };
 }
@@ -62,7 +74,7 @@ macro_rules! vfmadd {
 macro_rules! loadp_unit {
     ($m0:expr, $r1:expr) => {
         concat!(
-            "ld1d {{ z", $r1, ".d }}, p0/z, ", $m0, "\n",
+            "ld1d {{ z", $r1, ".d }}, p0/z, [", $m0, ", #", $r1, ", MUL VL]\n",
         )
     };
 }
@@ -97,44 +109,9 @@ macro_rules! load_beta {
     () => {
         concat!(
             "ld1rqd {{ z0.d }}, p0/z, [{betax}]", "\n",
-            "/* {betax} */", "\n",
-
-            "fcmp d0,#0.0", "\n",
         )
     }
 }
-
-
-macro_rules! loadp {
-    (3, $m0:expr) => {
-        concat!(
-            loadp_unit!(mem!($m0), 0),
-            loadp_unit!(mem!($m0, "1", "MUL VL"), 1),
-            loadp_unit!(mem!($m0, "2", "MUL VL"), 2),
-        )
-    };
-    (2, $m0:expr) => {
-        concat!(
-            loadp_unit!(mem!($m0), 0),
-            loadp_unit!(mem!($m0, "1", "MUL VL"), 1),
-        )
-    };
-    (1, $m0:expr) => {
-        concat!(
-            loadp_unit!(mem!($m0), 0),
-        )
-    };
-}
-
-// only non contigous along m and n direction which is not changed frequently during iteration along k direction
-/*
-
-x1 -> cs_a
-x2 -> cs_b
-x4 -> cx + 3*cs_b
-
-*/
-
 
 macro_rules! init_ab {
     (B) => {
@@ -195,7 +172,7 @@ macro_rules! alpha_scale {
         alpha_scale_0!(8,31)
     };
 }
-macro_rules! cr_3 {
+macro_rules! cr {
     (0,0) => { 8 };
     (1,0) => { 9 };
     (2,0) => { 10 };
@@ -228,48 +205,40 @@ macro_rules! cr_3 {
     (1,7) => { 30 };
     (2,7) => { 31 };
 }
-macro_rules! cr_2 {
-    (0,0) => { 8 };
-    (1,0) => { 9 };
 
-    (0,1) => { 11 };
-    (1,1) => { 12 };
-
-    (0,2) => { 14 };
-    (1,2) => { 15 };
-
-    (0,3) => { 17 };
-    (1,3) => { 18 };
-
-    (0,4) => { 20 };
-    (1,4) => { 21 };
-
-    (0,5) => { 23 };
-    (1,5) => { 24 };
-
-    (0,6) => { 26 };
-    (1,6) => { 27 };
-
-    (0,7) => { 29 };
-    (1,7) => { 30 };
+macro_rules! br_3 {
+    (0) => { "z3.d[0]" };
+    (1) => { "z3.d[1]" };
+    (2) => { "z4.d[0]" };
+    (3) => { "z4.d[1]" };
+    (4) => { "z5.d[0]" };
+    (5) => { "z5.d[1]" };
+    (6) => { "z6.d[0]" };
+    (7) => { "z6.d[1]" };
 }
-macro_rules! cr_1 {
-    (0,0) => { 8 };
 
-    (0,1) => { 11 };
-
-    (0,2) => { 14 };
-
-    (0,3) => { 17 };
-
-    (0,4) => { 20 };
-
-    (0,5) => { 23 };
-
-    (0,6) => { 26 };
-
-    (0,7) => { 29 };
+macro_rules! br_2 {
+    (0) => { "z3.d[0]" };
+    (1) => { "z3.d[1]" };
+    (2) => { "z4.d[0]" };
+    (3) => { "z4.d[1]" };
+    (4) => { "z5.d[0]" };
+    (5) => { "z5.d[1]" };
+    (6) => { "z6.d[0]" };
+    (7) => { "z6.d[1]" };
 }
+
+macro_rules! br_1 {
+    (0) => { "z3.d[0]" };
+    (1) => { "z3.d[1]" };
+    (2) => { "z4.d[0]" };
+    (3) => { "z4.d[1]" };
+    (4) => { "z5.d[0]" };
+    (5) => { "z5.d[1]" };
+    (6) => { "z6.d[0]" };
+    (7) => { "z6.d[1]" };
+}
+
 
 macro_rules! load_b {
     (B, 1) => {
@@ -346,62 +315,10 @@ macro_rules! load_b {
     };
 }
 
-
-macro_rules! load_a {
-    ($mr:tt) => {
-        loadp!($mr, "{ax}")
-    };
-}
-
-macro_rules! fmadd_1 {
-    (0) => {
-        concat!(
-            vfmadd!(0, 3, 8, 0),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 11, 1),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 4, 14, 0),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 17, 1),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 5, 20, 0),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 5, 23, 1),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 6, 26, 0),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 6, 29, 1),
-        )
-    };
-}
-
 macro_rules! step_1 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(1),
-                "add {ax}, {ax}, {incax} \n",
                 load_b!($b_layout, $nr),
                 #(
                     fmadd_1!(n),
@@ -412,63 +329,10 @@ macro_rules! step_1 {
     };
 }
 
-macro_rules! fmadd_2 {
-    (0) => {
-        concat!(
-            vfmadd!(0, 3, 8, 0),
-            vfmadd!(1, 3, 9, 0),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 11, 1),
-            vfmadd!(1, 3, 12, 1),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 4, 14, 0),
-            vfmadd!(1, 4, 15, 0),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 17, 1),
-            vfmadd!(1, 4, 18, 1),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 5, 20, 0),
-            vfmadd!(1, 5, 21, 0),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 5, 23, 1),
-            vfmadd!(1, 5, 24, 1),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 6, 26, 0),
-            vfmadd!(1, 6, 27, 0),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 6, 29, 1),
-            vfmadd!(1, 6, 30, 1),
-        )
-    };
-}
-
 macro_rules! step_2 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(2),
-                "add {ax}, {ax}, {incax} \n",
                 load_b!($b_layout, $nr),
                 #(
                     fmadd_2!(n),
@@ -479,74 +343,10 @@ macro_rules! step_2 {
     };
 }
 
-
-
-macro_rules! fmadd_3 {
-    (0) => {
-        concat!(
-            vfmadd!(0, 3, 8, 0),
-            vfmadd!(1, 3, 9, 0),
-            vfmadd!(2, 3, 10, 0),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 11, 1),
-            vfmadd!(1, 3, 12, 1),
-            vfmadd!(2, 3, 13, 1),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 4, 14, 0),
-            vfmadd!(1, 4, 15, 0),
-            vfmadd!(2, 4, 16, 0),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 17, 1),
-            vfmadd!(1, 4, 18, 1),
-            vfmadd!(2, 4, 19, 1),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 5, 20, 0),
-            vfmadd!(1, 5, 21, 0),
-            vfmadd!(2, 5, 22, 0),
-        )
-    };
-    (5) => {
-        concat!(
-            vfmadd!(0, 5, 23, 1),
-            vfmadd!(1, 5, 24, 1),
-            vfmadd!(2, 5, 25, 1),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 6, 26, 0),
-            vfmadd!(1, 6, 27, 0),
-            vfmadd!(2, 6, 28, 0),
-        )
-    };
-    (7) => {
-        concat!(
-            vfmadd!(0, 6, 29, 1),
-            vfmadd!(1, 6, 30, 1),
-            vfmadd!(2, 6, 31, 1),
-        )
-    };
-}
-
-
 macro_rules! step_3 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(3),
-                "add {ax}, {ax}, {incax} \n",
                 load_b!($b_layout, $nr),
                 #(
                     fmadd_3!(n),

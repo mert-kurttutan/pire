@@ -11,8 +11,8 @@ use pire_base::{
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
 
-const NEON_VS: usize = 4;
-const NEON_MR: usize = 12;
+const NEON_VS: usize = 2;
+const NEON_MR: usize = 6;
 const NEON_NR: usize = 4;
 
 const SVE_NR: usize = 8;
@@ -37,7 +37,7 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut TA, m: usize, k: usize,
         let vs = unsafe { sve_vs() };
         pack_sve::packa_panel(m, k, x, rs, cs, y, vs);
     } else {
-        pack_neon::packa_panel_12(m, k, x, rs, cs, y, NEON_VS);
+        pack_neon::packa_panel_6(m, k, x, rs, cs, y, NEON_VS);
     }
 }
 
@@ -46,7 +46,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut TB, n: usize, k: usize,
     if hw_config.cpu_ft.sve {
         pack_sve::packb_panel_8(n, k, x, cs, rs, y);
     } else {
-        pack_neon::packb_panel_4(n, k, x, cs, rs, y);
+        pack_neon::packb_panel_8(n, k, x, cs, rs, y);
     }
 }
 

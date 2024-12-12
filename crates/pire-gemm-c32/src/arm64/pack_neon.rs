@@ -120,7 +120,7 @@ macro_rules! def_packb {
     };
 }
 
-def_packb!(2);
+def_packb!(4);
 
 // def_packb!(6);
 
@@ -177,4 +177,4 @@ macro_rules! def_packa {
     };
 }
 
-def_packa!(12);
+def_packa!(6);

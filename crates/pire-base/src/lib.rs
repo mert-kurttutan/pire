@@ -2479,6 +2479,7 @@ macro_rules! inc_a_k_unroll {
     };
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]
 macro_rules! load_a {
     ($mr:tt, $K:tt) => {
@@ -2486,6 +2487,14 @@ macro_rules! load_a {
     };
     ($mr:tt) => {
         concat!(pire_base::loadp!($mr, "0({ax})"), pire_base::inc_a!($mr))
+    };
+}
+
+#[cfg(target_arch = "aarch64")]
+#[macro_export]
+macro_rules! load_a {
+    ($mr:tt) => {
+        concat!(pire_base::loadp!($mr, "{ax}"), inc_a!($mr))
     };
 }
 /*
@@ -2703,38 +2712,38 @@ macro_rules! c_mem {
 #[macro_export]
 macro_rules! acc_3 {
     ($layout:tt, $ni:tt, $q:tt) => {
-        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr_3!(0, $ni), cr_3!(1, $ni), cr_3!(2, $ni))
+        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr!(0, $ni), cr!(1, $ni), cr!(2, $ni))
     };
 }
 #[macro_export]
 macro_rules! store_3 {
     ($layout:tt, $ni:tt) => {
-        pire_base::storep!($layout, pire_base::c_mem!($ni), cr_3!(0, $ni), cr_3!(1, $ni), cr_3!(2, $ni))
+        pire_base::storep!($layout, pire_base::c_mem!($ni), cr!(0, $ni), cr!(1, $ni), cr!(2, $ni))
     };
 }
 
 #[macro_export]
 macro_rules! acc_2 {
     ($layout:tt, $ni:tt, $q:tt) => {
-        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr_2!(0, $ni), cr_2!(1, $ni))
+        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr!(0, $ni), cr!(1, $ni))
     };
 }
 #[macro_export]
 macro_rules! store_2 {
     ($layout:tt, $ni:tt) => {
-        pire_base::storep!($layout, pire_base::c_mem!($ni), cr_2!(0, $ni), cr_2!(1, $ni))
+        pire_base::storep!($layout, pire_base::c_mem!($ni), cr!(0, $ni), cr!(1, $ni))
     };
 }
 #[macro_export]
 macro_rules! acc_1 {
     ($layout:tt, $ni:tt, $q:tt) => {
-        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr_1!(0, $ni))
+        pire_base::acc_p!($layout, pire_base::c_mem!($ni), $q, cr!(0, $ni))
     };
 }
 #[macro_export]
 macro_rules! store_1 {
     ($layout:tt, $ni:tt) => {
-        pire_base::storep!($layout, pire_base::c_mem!($ni), cr_1!(0, $ni))
+        pire_base::storep!($layout, pire_base::c_mem!($ni), cr!(0, $ni))
     };
 }
 
@@ -2742,22 +2751,22 @@ macro_rules! store_1 {
 macro_rules! fmadd_3 {
     ($ni:tt) => {
         concat!(
-            vfmadd!(0, br_3!($ni), cr_3!(0, $ni)),
-            vfmadd!(1, br_3!($ni), cr_3!(1, $ni)),
-            vfmadd!(2, br_3!($ni), cr_3!(2, $ni)),
+            vfmadd!(0, br_3!($ni), cr!(0, $ni)),
+            vfmadd!(1, br_3!($ni), cr!(1, $ni)),
+            vfmadd!(2, br_3!($ni), cr!(2, $ni)),
         )
     };
 }
 #[macro_export]
 macro_rules! fmadd_2 {
     ($ni:tt) => {
-        concat!(vfmadd!(0, br_2!($ni), cr_2!(0, $ni)), vfmadd!(1, br_2!($ni), cr_2!(1, $ni)),)
+        concat!(vfmadd!(0, br_2!($ni), cr!(0, $ni)), vfmadd!(1, br_2!($ni), cr!(1, $ni)),)
     };
 }
 #[macro_export]
 macro_rules! fmadd_1 {
     ($ni:tt) => {
-        concat!(vfmadd!(0, br_1!($ni), cr_1!(0, $ni)),)
+        concat!(vfmadd!(0, br_1!($ni), cr!(0, $ni)),)
     };
 }
 
@@ -4105,9 +4114,13 @@ macro_rules! asm_body_neon {
             // 2 -> KITER
             "2:",
             prefetch_0!(128, "{bx}"),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
@@ -4124,6 +4137,7 @@ macro_rules! asm_body_neon {
             "BEQ 5f",
             // 4 -> KLEFT
             "4:",
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
@@ -4179,12 +4193,11 @@ macro_rules! asm_body_sve {
     ) => {
         core::arch::asm!(
             "ptrue p0.h",
-            "mov {m_s}, #0",
-            "/* {m_e} */", "\n",
             prefetch_c!(),
             vzero_kernel!(),
 
             init_ab!($b_layout),
+            set_predicate!($is_partial),
 
             // 3 -> CONSIDKLEFT
             "cmp {x0}, #0", "BEQ 3f",
@@ -4192,9 +4205,13 @@ macro_rules! asm_body_sve {
             // 2 -> KITER
             "2:",
             prefetch_0!(128, "{bx}"),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
@@ -4211,6 +4228,7 @@ macro_rules! asm_body_sve {
             "BEQ 5f",
             // 4 -> KLEFT
             "4:",
+            pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
@@ -4394,7 +4412,7 @@ macro_rules! def_ukernel_neon_alt {
             } else {
                 let _ = 'blk: {
                     seq!(ni in 1..$nr {
-                        if n == $nr {
+                        if n == ni {
                             pire_base::asm_body_neon!(
                                 $step_macro, $acc_macro, $store_macro,
                                 $mr, ni, $b_layout, $is_partial,
@@ -4458,7 +4476,7 @@ macro_rules! def_ukernel_neon_fp16 {
                     $mr, $nr, $b_layout, $is_partial,
                     a, b, c, alpha, beta, alpha_st, beta_st,
                     dim_arr, | |,
-                    | x0, x1, x2, x3, x4, x5, |,
+                    | x0, x1, x2, x3, x4, x5, x6, x7, |,
                     [
                         "v0", "v1", "v2", "v3",
                         "v4", "v5", "v6", "v7",
@@ -4479,7 +4497,7 @@ macro_rules! def_ukernel_neon_fp16 {
                                 $mr, ni, $b_layout, $is_partial,
                                 a, b, c, alpha, beta, alpha_st, beta_st,
                                 dim_arr, | |,
-                                | x0, x1, x2, x3, x4, x5, |,
+                                | x0, x1, x2, x3, x4, x5, x6, x7, |,
                                 [
                                     "v0", "v1", "v2", "v3",
                                     "v4", "v5", "v6", "v7",

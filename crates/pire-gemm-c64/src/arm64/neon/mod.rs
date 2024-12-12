@@ -7,7 +7,7 @@ use axpy_kernel::*;
 
 use crate::{UnaryFnC, TA, TB, TC};
 
-const VS: usize = 2;
+const VS: usize = 1;
 const VS_MAX: usize = VS;
 const ZERO: TC = TC::ZERO;
 
@@ -57,9 +57,9 @@ pub unsafe fn axpy<F: UnaryFnC>(
 }
 
 use pire_base::def_kernel_bb_v0;
-def_kernel_bb_v0!(TC, TC, TC, TC, true, F, 1, 3, 2, 0, 0);
+def_kernel_bb_v0!(TC, TC, TC, TC, true, F, 1, 3, 4, 0, 0);
 
-use super::pack_neon::packa_panel_6;
+use super::pack_neon::packa_panel_3;
 
 use pire_base::def_kernel_sb_v0;
-def_kernel_sb_v0!(TA, TB, TC, TA, TC, true, F, packa_panel_6, 1, 3, 2, 0, 0);
+def_kernel_sb_v0!(TA, TB, TC, TA, TC, true, F, packa_panel_3, 1, 3, 4, 0, 0);

@@ -256,8 +256,6 @@ mod tests {
 
         for &m in &m_dims {
             for &n in &n_dims {
-                let m = (m + 23) / 24 * 24;
-                let n = (n + 23) / 24 * 24;
                 let c_size = matrix_size(m, n) * c_stride_scale;
                 let mut c = vec![0f32; c_size];
                 let mut c_ref = vec![0f32; c_size];
