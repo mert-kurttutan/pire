@@ -231,7 +231,7 @@ macro_rules! alpha_scale {
     };
 }
 
-macro_rules! cr_3 {
+macro_rules! cr {
     (0,0) => { 4 };
     (1,0) => { 6 };
     (2,0) => { 8 };
@@ -239,19 +239,14 @@ macro_rules! cr_3 {
     (1,1) => { 12 };
     (2,1) => { 14 };
 }
-macro_rules! cr_2 {
-    (0,0) => { 4 };
-    (1,0) => { 6 };
-    (0,1) => { 8 };
-    (1,1) => { 10 };
-    (0,2) => { 12 };
-    (1,2) => { 14 };
-}
 
-macro_rules! cr_1 {
-    (0,0) => { 4 };
-    (0,1) => { 6 };
-    (0,2) => { 8 };
+macro_rules! dr {
+    (0,0) => { 5 };
+    (1,0) => { 7 };
+    (2,0) => { 9 };
+    (0,1) => { 11 };
+    (1,1) => { 13 };
+    (2,1) => { 15 };
 }
 
 macro_rules! load_b {
@@ -319,72 +314,35 @@ macro_rules! load_b2 {
 }
 
 macro_rules! fmadd_3 {
-    (0,0) => {
+    ($ni:tt,0) => {
         concat!(
-            vfmadd!(0, 3, 4),
-            vfmadd!(1, 3, 6),
-            vfmadd!(2, 3, 8),
+            vfmadd!(0, 3, cr!(0, $ni)),
+            vfmadd!(1, 3, cr!(1, $ni)),
+            vfmadd!(2, 3, cr!(2, $ni)),
         )
     };
-    (0,1) => {
+    ($ni:tt,1) => {
         concat!(
-            vfmadd!(0, 3, 5),
-            vfmadd!(1, 3, 7),
-            vfmadd!(2, 3, 9),
-        )
-    };
-    (1,0) => {
-        concat!(
-            vfmadd!(0, 3, 10),
-            vfmadd!(1, 3, 12),
-            vfmadd!(2, 3, 14),
-        )
-    };
-    (1,1) => {
-        concat!(
-            vfmadd!(0, 3, 11),
-            vfmadd!(1, 3, 13),
-            vfmadd!(2, 3, 15),
+            vfmadd!(0, 3, dr!(0, $ni)),
+            vfmadd!(1, 3, dr!(1, $ni)),
+            vfmadd!(2, 3, dr!(2, $ni)),
         )
     };
 }
 
 macro_rules! fmadd_2 {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 2, 3, 4, 5),
-            vfmadd!(1, 2, 3, 6, 7),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 2, 3, 8, 9),
-            vfmadd!(1, 2, 3, 10, 11),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 2, 3, 12, 13),
-            vfmadd!(1, 2, 3, 14, 15),
+            vfmadd!(0, 2, 3, cr!(0, $ni), dr!(0, $ni)),
+            vfmadd!(1, 2, 3, cr!(1, $ni), dr!(1, $ni)),
         )
     };
 }
 
 macro_rules! fmadd_1 {
-    (0) => {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 2, 3, 4, 5),
-        )
-
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 2, 3, 6, 7),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 2, 3, 8, 9),
+            vfmadd!(0, 2, 3, cr!(0, $ni), dr!(0, $ni)),
         )
     };
 }

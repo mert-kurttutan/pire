@@ -202,40 +202,34 @@ macro_rules! alpha_scale {
     };
 }
 
-macro_rules! c_reg_2x2 {
+macro_rules! cr {
     (0,0) => { 4 };
     (1,0) => { 5 };
     (0,1) => { 6 };
     (1,1) => { 7 };
 }
 
-macro_rules! c_reg_1x2 {
-    (0,0) => { 4 };
-    (0,1) => { 5 };
-}
-
-
 macro_rules! acc_2x2 {
     ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p!($layout, c_mem!($ni), $q, c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
+        acc_p!($layout, c_mem!($ni), $q, cr!(0,$ni), cr!(1,$ni))
     };
 }
 
 macro_rules! store_2x2 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_2x2!(0,$ni), c_reg_2x2!(1,$ni))
+        storep!($layout, c_mem!($ni), cr!(0,$ni), cr!(1,$ni))
     };
 }
 
 macro_rules! acc_1x2 {
     ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p!($layout, c_mem!($ni), $q, c_reg_1x2!(0,$ni))
+        acc_p!($layout, c_mem!($ni), $q, cr!(0,$ni))
     };
 }
 
 macro_rules! store_1x2 {
     ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_1x2!(0,$ni))
+        storep!($layout, c_mem!($ni), cr!(0,$ni))
     };
 }
 
@@ -268,7 +262,7 @@ macro_rules! load_a {
     };
 }
 
-macro_rules! fmadd_2v {
+macro_rules! fmadd_2 {
     (0) => {
         concat!(
             vfmadd!(0, 2, 4, 3),
@@ -283,7 +277,7 @@ macro_rules! fmadd_2v {
     };
 }
 
-macro_rules! fmadd_1v {
+macro_rules! fmadd_1 {
     (0) => {
         concat!(vfmadd!(0, 1, 4, 6))
     };
@@ -292,12 +286,12 @@ macro_rules! fmadd_1v {
     };
 }
 
-macro_rules! b_num_2x2 {
+macro_rules! br_2 {
     (0) => {2};
     (1) => {2};
 }
 
-macro_rules! b_num_1x2 {
+macro_rules! br_1 {
     (0) => {1};
     (1) => {2};
 }
@@ -309,8 +303,8 @@ macro_rules! step_2x2 {
             concat!(
                 load_a!(2, $K),
                 #(
-                    load_b!($b_layout, n, $K, $nr, b_num_2x2!(n)),
-                    fmadd_2v!(n),
+                    load_b!($b_layout, n, $K, $nr, br_2!(n)),
+                    fmadd_2!(n),
                 )*
                 inc_b!($b_layout,$nr), 
             )
@@ -325,8 +319,8 @@ macro_rules! step_1x2 {
             concat!(
                 load_a!(1, $K),
                 #(
-                    load_b!($b_layout, n, $K, $nr, b_num_1x2!(n)),
-                    fmadd_1v!(n),
+                    load_b!($b_layout, n, $K, $nr, br_1!(n)),
+                    fmadd_1!(n),
                 )*
                 inc_b!($b_layout,$nr), 
             )

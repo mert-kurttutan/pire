@@ -48,7 +48,7 @@ macro_rules! init_ab {
     };
 }
 
-macro_rules! cr_2 {
+macro_rules! cr {
     (0,0) => { 2 }; (1,0) => { 3 };
     (0,1) => { 4 }; (1,1) => { 5 };
     (0,2) => { 6 }; (1,2) => { 7 };
@@ -65,25 +65,6 @@ macro_rules! cr_2 {
     (0,13) => { 28 }; (1,13) => { 29 };
     (0,14) => { 30 }; (1,14) => { 31 };
 }
-
-macro_rules! cr_1 {
-    (0,0) => { 17 };
-    (0,1) => { 18 };
-    (0,2) => { 19 };
-    (0,3) => { 20 };
-    (0,4) => { 21 };
-    (0,5) => { 22 };
-    (0,6) => { 23 };
-    (0,7) => { 24 };
-    (0,8) => { 25 };
-    (0,9) => { 26 };
-    (0,10) => { 27 };
-    (0,11) => { 28 };
-    (0,12) => { 29 };
-    (0,13) => { 30 };
-    (0,14) => { 31 };
-}
-
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr, 2) => {
@@ -279,14 +260,14 @@ macro_rules! inc_b {
 macro_rules! fmadd_2 {
     ($ni:tt) => {
         concat!(
-            vfmadd!(0, bd!(B, $ni), cr_2!(0,$ni)),
-            vfmadd!(1, bd!(B, $ni), cr_2!(1,$ni)),
+            vfmadd!(0, bd!(B, $ni), cr!(0,$ni)),
+            vfmadd!(1, bd!(B, $ni), cr!(1,$ni)),
         )
     };
     ($b_layout:tt, $ni:tt) => {
         concat!(
-            vfmadd!(0, bd!($b_layout, $ni), cr_2!(0,$ni)),
-            vfmadd!(1, bd!($b_layout, $ni), cr_2!(1,$ni)),
+            vfmadd!(0, bd!($b_layout, $ni), cr!(0,$ni)),
+            vfmadd!(1, bd!($b_layout, $ni), cr!(1,$ni)),
         )
     };
 }
@@ -294,12 +275,12 @@ macro_rules! fmadd_2 {
 macro_rules! fmadd_1 {
     ($ni:tt) => {
         concat!(
-            vfmadd!(0, bd!(B, $ni), cr_1!(0,$ni)),
+            vfmadd!(0, bd!(B, $ni), cr!(0,$ni)),
         )
     };
     ($b_layout:tt, $ni:tt) => {
         concat!(
-            vfmadd!(0, bd!($b_layout, $ni), cr_1!(0,$ni)),
+            vfmadd!(0, bd!($b_layout, $ni), cr!(0,$ni)),
         )
     };
 }
