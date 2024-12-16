@@ -2609,7 +2609,7 @@ macro_rules! b_mem {
     };
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(target_arch = "x86_64")]
 #[macro_export]
 macro_rules! c_mem {
     (0) => {
@@ -2656,6 +2656,26 @@ macro_rules! c_mem {
     };
     (14) => {
         "0({x4}, {x0}, 2)"
+    };
+}
+
+#[cfg(target_arch = "x86")]
+#[macro_export]
+macro_rules! c_mem {
+    (0) => {
+        "0({cx})"
+    };
+    (1) => {
+        "0({cx}, {x0})"
+    };
+    (2) => {
+        "0({cx}, {x0}, 2)"
+    };
+    (3) => {
+        "0({bx})"
+    };
+    (4) => {
+        "0({x1}, {x0})"
     };
 }
 
@@ -3960,10 +3980,22 @@ macro_rules! def_ukernel_sse {
 
                     "2:", // KITER
                     pire_base::prefetch_b!($b_layout),
-                    $step_macro!($nr, $b_layout, 0),
-                    $step_macro!($nr, $b_layout, 1),
-                    $step_macro!($nr, $b_layout, 2),
-                    $step_macro!($nr, $b_layout, 3),
+
+                    pire_base::load_a!($mr, 0),
+                    $step_macro!($b_layout, $nr, 0),
+                    inc_b!($b_layout,$nr),
+
+                    pire_base::load_a!($mr, 1),
+                    $step_macro!($b_layout, $nr, 1),
+                    inc_b!($b_layout,$nr),
+
+                    pire_base::load_a!($mr, 2),
+                    $step_macro!($b_layout, $nr, 2),
+                    inc_b!($b_layout,$nr),
+
+                    pire_base::load_a!($mr, 3),
+                    $step_macro!($b_layout, $nr, 3),
+                    inc_b!($b_layout,$nr),
 
                     pire_base::inc_a_k_unroll!($mr, 4),
                     inc_b_k_unroll!($b_layout, $nr, 4),
@@ -3975,7 +4007,10 @@ macro_rules! def_ukernel_sse {
                     "test {x0},{x0}", "je 5f", // POSTACCUM
 
                     "4:", // KLEFT
-                    $step_macro!($nr, $b_layout, 0),
+                    pire_base::load_a!($mr, 0),
+                    $step_macro!($b_layout, $nr, 0),
+                    inc_b!($b_layout,$nr),
+
                     pire_base::inc_a_k_unroll!($mr, 1),
                     inc_b_k_unroll!($b_layout, $nr, 1),
 
@@ -3996,14 +4031,14 @@ macro_rules! def_ukernel_sse {
                     "je 15f",
 
                     load_beta!(),
-                    pire_base::cum_seq!($acc_macro,$nr,$is_partial,2),
+                    pire_base::cum_seq!($acc_macro,$is_partial,$nr,2),
                     "jmp 6f",
 
                     "15:",
-                    pire_base::cum_seq!($acc_macro,$nr,$is_partial,1),
+                    pire_base::cum_seq!($acc_macro,$is_partial,$nr,1),
 
                     "6:",
-                    pire_base::cum_seq!($store_macro,$nr,$is_partial),
+                    pire_base::cum_seq!($store_macro,$is_partial,$nr),
 
                     ax = inout(reg) a => _,
                     bx = inout(reg) b => _,
@@ -4028,10 +4063,18 @@ macro_rules! def_ukernel_sse {
 
                                 "2:", // KITER
                                 pire_base::prefetch_b!($b_layout),
-                                $step_macro!(ni, $b_layout, 0),
-                                $step_macro!(ni, $b_layout, 1),
-                                $step_macro!(ni, $b_layout, 2),
-                                $step_macro!(ni, $b_layout, 3),
+                                pire_base::load_a!($mr, 0),
+                                $step_macro!($b_layout, ni, 0),
+                                inc_b!($b_layout,ni),
+                                pire_base::load_a!($mr, 1),
+                                $step_macro!($b_layout, ni, 1),
+                                inc_b!($b_layout,ni),
+                                pire_base::load_a!($mr, 2),
+                                $step_macro!($b_layout, ni, 2),
+                                inc_b!($b_layout,ni),
+                                pire_base::load_a!($mr, 3),
+                                $step_macro!($b_layout, ni, 3),
+                                inc_b!($b_layout,ni),
 
                                 pire_base::inc_a_k_unroll!($mr, 4),
                                 inc_b_k_unroll!($b_layout, ni, 4),
@@ -4043,7 +4086,9 @@ macro_rules! def_ukernel_sse {
                                 "test {x0},{x0}", "je 5f", // POSTACCUM
 
                                 "4:", // KLEFT
-                                $step_macro!(ni, $b_layout, 0),
+                                pire_base::load_a!($mr, 0),
+                                $step_macro!($b_layout, ni, 0),
+                                inc_b!($b_layout,ni),
                                 pire_base::inc_a_k_unroll!($mr, 1),
                                 inc_b_k_unroll!($b_layout, ni, 1),
 
@@ -4064,14 +4109,14 @@ macro_rules! def_ukernel_sse {
                                 "je 15f",
 
                                 load_beta!(),
-                                pire_base::cum_seq!($acc_macro,ni,$is_partial,2),
+                                pire_base::cum_seq!($acc_macro,$is_partial,ni,2),
                                 "jmp 6f",
 
                                 "15:",
-                                pire_base::cum_seq!($acc_macro,ni,$is_partial,1),
+                                pire_base::cum_seq!($acc_macro,$is_partial,ni,1),
 
                                 "6:",
-                                pire_base::cum_seq!($store_macro,ni,$is_partial),
+                                pire_base::cum_seq!($store_macro,$is_partial,ni),
 
                                 ax = inout(reg) a => _,
                                 bx = inout(reg) b => _,
