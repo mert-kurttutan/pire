@@ -1,5 +1,5 @@
 #[rustfmt::skip]
-mod asm_ukernel;
+pub(crate) mod asm_ukernel;
 mod axpy_kernel;
 
 use asm_ukernel::*;

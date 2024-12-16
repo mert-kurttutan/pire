@@ -1,10 +1,21 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
-use pire_base::{c_mem, def_ukernel_sse};
+use pire_base::{
+    mem, def_ukernel_sse,
+    acc_1, store_1,
+};
 type TS = TC;
 
 const ZERO_SCALAR: TC = TC::ZERO;
 const ONE_SCALAR: TC = TC::ONE;
+
+macro_rules! vs {
+    () => { "0x10" };
+}
+
+macro_rules! v_i {
+    ($m:tt, $i:tt) => { concat!($i, "*0x10+" , $m) };
+}
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r1:expr,1) => {
@@ -44,22 +55,6 @@ macro_rules! vfmadd {
             "mulps %xmm", $r1, ", %xmm", $r4, "\n",
             "addps %xmm", $r4, ", %xmm", $r2, "\n",
         ) 
-    };
-}
-
-macro_rules! loadp_unit {
-    ($m0:expr, $r1:expr) => {
-        concat!(
-            "movaps ", $m0, ",%xmm", $r1, "\n",
-        )
-    };
-}
-
-macro_rules! storep_unit {
-    (C, $r1:expr, $m0:expr) => {
-        concat!(
-            "movups %xmm", $r1, ", ", $m0,  "\n",
-        )
     };
 }
 
@@ -110,34 +105,18 @@ macro_rules! permute_complex {
     }
 }
 
-macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $q:tt, $r1:expr) => {
+macro_rules! loadp_unit {
+    ($m0:expr, $r1:expr) => {
         concat!(
-            beta_fmadd!($layout, $m0, $r1, $q),
+            "movaps ", mem!($m0, concat!("0x10*", $r1)), ", %xmm", $r1, "\n",
         )
     };
 }
 
-
-macro_rules! loadp {
-    (2, $m0:expr) => {
+macro_rules! storep_unit {
+    (C, $r1:expr, $m0:expr) => {
         concat!(
-            loadp_unit!($m0, 0),
-        )
-    };
-}
-
-
-macro_rules! storep {
-    ($layout:tt, $m0:expr, $r1:expr, $r2:expr) => {
-        concat!(
-            storep_unit!(C, $r1, $m0),
-            storep_unit!($layout, $r2, mem!($m0, "0x10")),
-        )
-    };
-    ($layout:tt, $m0:expr, $r1:expr) => {
-        concat!(
-            storep_unit!($layout, $r1, $m0),
+            "movups %xmm", $r1, ", ", $m0,  "\n",
         )
     };
 }
@@ -189,22 +168,8 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! inc_b {
-    (S,2) => {
-        "add {x0},{bx} \n"
-    };
-    (S,1) => {
-        "add {x0},{bx} \n"
-    };
     (B,$nr:tt) => {
         ""
-    };
-}
-
-macro_rules! inc_a_k_unroll {
-    ($X:tt, $K:tt) => {
-        concat!(
-            "add $16*", $K, "*", $X, ",{ax}", "\n",
-        )
     };
 }
 
@@ -226,57 +191,24 @@ macro_rules! alpha_scale {
     };
 }
 
-macro_rules! c_reg_1x2 {
+macro_rules! cr {
     (0,0) => { 4 };
     (0,1) => { 6 };
 }
 
-macro_rules! acc_1x2 {
-    ($ni:tt, $layout:tt, $q:tt) => {
-        acc_p!($layout, c_mem!($ni), $q, c_reg_1x2!(0,$ni))
-    };
-}
-
-macro_rules! store_1x2 {
-    ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_1x2!(0,$ni))
-    };
-}
-
-
 macro_rules! load_b {
-    (S, 0, $K:tt, $X:tt, $r1:expr, $r2:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $r:expr, 0) => {
         concat!(
-            vbroadcast!(), " ({bx}),%xmm", $r1, "\n",
-            "shufps $0, %xmm", $r1, ", %xmm", $r1, "\n",
-        )
-    };
-    (S, 1, $K:tt, $X:tt, $r1:expr, $r2:expr) => {
-        concat!(
-            // "prefetcht0 64({bx},{x2},1) \n",
-            // vbroadcast!(), " ({bx},{x2},1),%xmm", $r1, "\n",
-            "shufps $0, %xmm", $r1, ", %xmm", $r1, "\n",
-        )
-    };
-    (B, $N:tt, $K:tt, $X:tt, $r1:expr, 0) => {
-        concat!(
-            vbroadcast!(), " ", $K, "*", $X, "*8+", $N, "*8({bx}), %xmm", $r1, "\n",
-            "shufps $0, %xmm", $r1, ", %xmm", $r1, "\n",
+            vbroadcast!(), " ", $K, "*", $nr, "*8+", $ni, "*8({bx}), %xmm", $r, "\n",
+            "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
         )
     };
 
-    (B, $N:tt, $K:tt, $X:tt, $r1:expr, 1) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $r:expr, 1) => {
         concat!(
-            vbroadcast!(), " ", $K, "*", $X, "*8+", $N, "*8+4({bx}), %xmm", $r1, "\n",
-            "shufps $0, %xmm", $r1, ", %xmm", $r1, "\n",
+            vbroadcast!(), " ", $K, "*", $nr, "*8+", $ni, "*8+4({bx}), %xmm", $r, "\n",
+            "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
         )
-    };
-}
-
-
-macro_rules! load_a {
-    ($mr:tt, $K:tt) => {
-        loadp!($mr, concat!($mr,"*8*",$K,"({ax})"))
     };
 }
 
@@ -303,26 +235,24 @@ macro_rules! fmadd_1v {
     };
 }
 
-// ***************************** 1x2 ******************************* //
-macro_rules! step_1x2 {
-    ($nr:tt, $b_layout:tt, $K:tt) => {
+// ***************************** 1 ******************************* //
+macro_rules! step_1 {
+    ($b_layout:tt, $nr:tt, $K:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(2, $K),
                 #(
-                    load_b!($b_layout, n, $K, $nr, 1, 0),
+                    load_b!($b_layout, $nr, n, $K, 1, 0),
                     fmadd_1v!(n, 0),
-                    load_b!($b_layout, n, $K, $nr, 1, 1),
+                    load_b!($b_layout, $nr, n, $K, 1, 1),
                     fmadd_1v!(n, 1),
                 )*
-                inc_b!($b_layout,$nr), 
             )
         })
     };
 }
 
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, B, C, ukernel_bbc);
+def_ukernel_sse!(1, step_1, acc_1, store_1, 1, 2, B, C, ukernel_bbc);
 
-def_ukernel_sse!(1, step_1x2, acc_1x2, store_1x2, 1, 2, B, C, ukernel_1_bbp);
+def_ukernel_sse!(1, step_1, acc_1, store_1, 1, 2, B, C, ukernel_1_bbp);
 
 

@@ -11,8 +11,8 @@ use pire_base::{
 
 use half::f16;
 
-const NEON_VS: usize = 16;
-const NEON_MR: usize = 48;
+const NEON_VS: usize = 8;
+const NEON_MR: usize = 24;
 const NEON_NR: usize = 4;
 
 const SVE_NR: usize = 8;
@@ -39,7 +39,7 @@ pub(crate) unsafe fn packa_fn_simd(x: *const TA, y: *mut f16, m: usize, k: usize
         let vs = unsafe { sve_vs() };
         pack_sve::packa_panel(m, k, x, rs, cs, y, vs);
     } else {
-        pack_neon::packa_panel_48(m, k, x, rs, cs, y, NEON_VS);
+        pack_neon::packa_panel_24(m, k, x, rs, cs, y, NEON_VS);
     }
 }
 pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut f16, n: usize, k: usize, rs: usize, cs: usize) {
@@ -47,7 +47,7 @@ pub(crate) unsafe fn packb_fn_simd(x: *const TB, y: *mut f16, n: usize, k: usize
     if features.sve {
         pack_sve::packb_panel_8(n, k, x, cs, rs, y);
     } else {
-        pack_neon::packb_panel_4(n, k, x, cs, rs, y);
+        pack_neon::packb_panel_8(n, k, x, cs, rs, y);
     }
 }
 

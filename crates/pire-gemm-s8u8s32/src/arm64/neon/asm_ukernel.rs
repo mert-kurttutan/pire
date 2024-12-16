@@ -1,6 +1,10 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
-use pire_base::{c_mem, prefetch_0, def_ukernel_neon_i8mm, mem};
+use pire_base::{
+    prefetch_0, def_ukernel_neon_i8mm,
+    acc_2, acc_1,
+    store_2, store_1,
+};
 
 type TS = f32;
 
@@ -17,6 +21,18 @@ macro_rules! unzip_tuple {
             "orr v", $r2, ".16b, v", $rt2, ".16b, v", $rt2, ".16b\n",
         )
     };
+}
+
+macro_rules! inc_a {
+    ($mr:tt) => {
+        concat!("add {ax}, {ax}, #32*", $mr, " \n")
+    };
+}
+
+macro_rules! v_i {
+    ($m0:tt, $ni:tt) => {
+        concat!("[", $m0, ", #", $ni, "*0x10]")
+    }
 }
 
 macro_rules! unzip_c {
@@ -94,9 +110,16 @@ macro_rules! vfmadd {
 }
 
 macro_rules! loadp_unit {
-    ($m0:expr, $r1:expr) => {
+    ($m0:expr, 0) => {
         concat!(
-            "ldr q", $r1, ", ", $m0, "\n",
+            "ldr q0, [", $m0, "]\n",
+            "ldr q1, [", $m0, ", #16]\n",
+        )
+    };
+    ($m0:expr, 1) => {
+        concat!(
+            "ldr q2, [", $m0, ", #32]\n",
+            "ldr q3, [", $m0, ", #48]\n",
         )
     };
 }
@@ -132,92 +155,6 @@ macro_rules! load_beta {
         )
     }
 }
-
-
-macro_rules! acc_p {
-    (C, $m0:expr, $r1:expr, $r2:expr, $idx:tt) => {
-        concat!(
-            beta_fmadd!(C, mem!($m0), $r1, $idx),
-            beta_fmadd!(C, mem!($m0, "0x10"), $r2, $idx),
-        )
-    };
-
-    (M, $m0:expr, $r1:expr, $r2:expr, $idx:tt) => {
-        concat!(
-            beta_fmadd!(M, mem!($m0), $r1, $idx),
-            beta_fmadd!(M, mem!($m0, "0x10"), $r2, $idx),
-        )
-    };
-
-    (C, $m0:expr, $r1:expr, $idx:tt) => {
-        concat!(
-            beta_fmadd!(C, mem!($m0), $r1, $idx),
-        )
-    };
-
-    (M, $m0:expr, $r1:expr, $idx:tt) => {
-        concat!(
-            beta_fmadd!(M, mem!($m0), $r1, $idx),
-        )
-    };
-}
-
-
-macro_rules! loadp {
-    (2, $m0:expr) => {
-        concat!(
-            loadp_unit!(mem!($m0), 0),
-            loadp_unit!(mem!($m0, "0x10"), 1),
-            loadp_unit!(mem!($m0, "0x20"), 2),
-            loadp_unit!(mem!($m0, "0x30"), 3),
-        )
-    };
-
-    (1, $m0:expr) => {
-        concat!(
-            loadp_unit!(mem!($m0), 0),
-            loadp_unit!(mem!($m0, "0x10"), 1),
-        )
-    };
-}
-
-macro_rules! storep {
-    (C, $m0:expr, $r1:expr, $r2:expr) => {
-        concat!(
-            storep_unit!(C, $r1, mem!($m0)),
-            storep_unit!(C, $r2, mem!($m0, "0x10")),
-        )
-    };
-
-    (M, $m0:expr, $r1:expr, $r2:expr) => {
-        concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-            storep_unit!(M, $r2, mem!($m0, "0x10")),
-        )
-    };
-
-    (C, $m0:expr, $r1:expr) => {
-        concat!(
-            storep_unit!(C, $r1, mem!($m0)),
-        )
-    };
-
-    (M, $m0:expr, $r1:expr) => {
-        concat!(
-            storep_unit!(M, $r1, mem!($m0)),
-        )
-    };
-}
-
-// only non contigous along m and n direction which is not changed frequently during iteration along k direction
-/*
-
-x1 -> cs_a
-x2 -> cs_b
-x4 -> cx + 3*cs_b
-
-*/
-
 
 macro_rules! init_ab {
     (B) => {
@@ -266,117 +203,6 @@ macro_rules! c_load {
             "add {x11}, {x10}, {x0} \n",
         )
     };
-    (11) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-            "add {x7}, {x6}, {x0} \n",
-            "add {x8}, {x7}, {x0} \n",
-            "add {x9}, {x8}, {x0} \n",
-            "add {x10}, {x9}, {x0} \n",
-        )
-    };
-    (10) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-            "add {x7}, {x6}, {x0} \n",
-            "add {x8}, {x7}, {x0} \n",
-            "add {x9}, {x8}, {x0} \n",
-        )
-    };
-    (9) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-            "add {x7}, {x6}, {x0} \n",
-            "add {x8}, {x7}, {x0} \n",
-        )
-    };
-    (8) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-            "add {x7}, {x6}, {x0} \n",
-        )
-    };
-    (7) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-            "add {x6}, {x5}, {x0} \n",
-        )
-    };
-    (6) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-            "add {x5}, {x4}, {x0} \n",
-        )
-    };
-    (5) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-            "add {x4}, {x3}, {x0} \n",
-        )
-    };
-    (4) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-            "add {x3}, {x2}, {x0} \n",
-        )
-    };
-    (3) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-            "add {x2}, {x1}, {x0} \n",
-        )
-    };
-    (2) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-        )
-    };
-    (1) => {
-        concat!(
-            "ldr {x0}, [{dim_arrx}, #16]\n",
-            "add {x1}, {cx}, {x0} \n",
-        )
-    };
 }
 
 
@@ -386,9 +212,6 @@ macro_rules! vzero_kernel {
 
 macro_rules! inc_b {
     (S,$nr:tt) => {
-        "add {x1},{cx} \n"
-    };
-    (S,1) => {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
@@ -403,7 +226,27 @@ macro_rules! alpha_scale {
     };
 }
 
-macro_rules! c_reg_2x12 {
+macro_rules! br_2 {
+    (0) => { 4 };
+    (2) => { 5 };
+    (4) => { 6 };
+    (6) => { 7 };
+    (8) => { 4 };
+    (10) => { 5 };
+    ($nr:tt) => { 4 };
+}
+
+macro_rules! br_1 {
+    (0) => { 4 };
+    (2) => { 5 };
+    (4) => { 6 };
+    (6) => { 7 };
+    (8) => { 4 };
+    (10) => { 5 };
+    ($nr:tt) => { 4 };
+}
+
+macro_rules! cr {
     (0,0) => { 8 };
     (0,1) => { 9 };
 
@@ -441,59 +284,36 @@ macro_rules! c_reg_2x12 {
     (1,11) => { 31 };
 }
 
-
-macro_rules! acc_2x12 {
-    ($ni:tt, $layout:tt, $idx:tt) => {
-        acc_p!(
-            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni), $idx
-        )
-    };
-}
-
-macro_rules! store_2x12 {
-    ($ni:tt, $layout:tt) => {
-        storep!(
-            $layout, c_mem!($ni), c_reg_2x12!(0,$ni), c_reg_2x12!(1,$ni)
-        )
-    };
-}
-
-
-macro_rules! c_reg_1x12 {
+macro_rules! dr {
     (0,0) => { 8 };
-    (0,1) => { 9 };
+    (1,0) => { 9 };
+    (2,0) => { 10 };
+    (3,0) => { 11 };
 
     (0,2) => { 12 };
-    (0,3) => { 13 };
+    (1,2) => { 13 };
+    (2,2) => { 14 };
+    (3,2) => { 15 };
 
     (0,4) => { 16 };
-    (0,5) => { 17 };
+    (1,4) => { 17 };
+    (2,4) => { 18 };
+    (3,4) => { 19 };
 
     (0,6) => { 20 };
-    (0,7) => { 21 };
+    (1,6) => { 21 };
+    (2,6) => { 22 };
+    (3,6) => { 23 };
 
     (0,8) => { 24 };
-    (0,9) => { 25 };
+    (1,8) => { 25 };
+    (2,8) => { 26 };
+    (3,8) => { 27 };
 
     (0,10) => { 28 };
-    (0,11) => { 29 };
-}
-
-
-macro_rules! acc_1x12 {
-    ($ni:tt, $layout:tt, $idx:tt) => {
-        acc_p!(
-            $layout, c_mem!($ni), c_reg_1x12!(0,$ni), $idx
-        )
-    };
-}
-
-macro_rules! store_1x12 {
-    ($ni:tt, $layout:tt) => {
-        storep!(
-            $layout, c_mem!($ni), c_reg_1x12!(0,$ni)
-        )
-    };
+    (1,10) => { 29 };
+    (2,10) => { 30 };
+    (3,10) => { 31 };
 }
 
 macro_rules! load_b {
@@ -539,76 +359,31 @@ macro_rules! load_b {
     };
 }
 
-
-macro_rules! load_a {
-    ($mr:tt) => {
-        loadp!($mr, "{ax}")
+macro_rules! fmadd_2 {
+    (1) => {""};
+    (3) => {""};
+    (5) => {""};
+    (7) => {""};
+    (9) => {""};
+    (11) => {""};
+    ($ni:tt) => {
+        concat!(
+            vfmadd!(0, br_2!($ni), dr!(0,$ni)),
+            vfmadd!(1, br_2!($ni), dr!(1,$ni)),
+            vfmadd!(2, br_2!($ni), dr!(2,$ni)),
+            vfmadd!(3, br_2!($ni), dr!(3,$ni)),
+        )
     };
 }
 
-macro_rules! fmadd_3v2 {
-    (0) => {
-        concat!(
-            vfmadd!(0, 4, 8),
-            vfmadd!(1, 4, 9),
-            vfmadd!(2, 4, 10),
-            vfmadd!(3, 4, 11),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 5, 12),
-            vfmadd!(1, 5, 13),
-            vfmadd!(2, 5, 14),
-            vfmadd!(3, 5, 15),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 6, 16),
-            vfmadd!(1, 6, 17),
-            vfmadd!(2, 6, 18),
-            vfmadd!(3, 6, 19),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 7, 20),
-            vfmadd!(1, 7, 21),
-            vfmadd!(2, 7, 22),
-            vfmadd!(3, 7, 23),
-        )
-    };
-    (8) => {
-        concat!(
-            vfmadd!(0, 4, 24),
-            vfmadd!(1, 4, 25),
-            vfmadd!(2, 4, 26),
-            vfmadd!(3, 4, 27),
-        )
-    };
-    (10) => {
-        concat!(
-            vfmadd!(0, 5, 28),
-            vfmadd!(1, 5, 29),
-            vfmadd!(2, 5, 30),
-            vfmadd!(3, 5, 31),
-        )
-    };
-    ($nr:tt) => {""};
-}
-
-macro_rules! step_2x12 {
-    ($nr:tt, $b_layout:tt) => {
+macro_rules! step_2 {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(2),
-                "add {ax}, {ax}, #64 \n",
                 #(
                     load_b!($b_layout, n),
-                    fmadd_3v2!(n),
+                    fmadd_2!(n),
                 )*
-                // "add {bx}, {bx}, #256 \n",
                 inc_b!($b_layout,$nr), 
             )
         })
@@ -616,57 +391,29 @@ macro_rules! step_2x12 {
 }
 
 
-macro_rules! fmadd_1v2 {
-    (0) => {
+macro_rules! fmadd_1 {
+    (1) => {""};
+    (3) => {""};
+    (5) => {""};
+    (7) => {""};
+    (9) => {""};
+    (11) => {""};
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 4, 8),
-            vfmadd!(1, 4, 9),
+            vfmadd!(0, br_1!($ni), dr!(0,$ni)),
+            vfmadd!(1, br_1!($ni), dr!(1,$ni)),
         )
     };
-    (2) => {
-        concat!(
-            vfmadd!(0, 5, 12),
-            vfmadd!(1, 5, 13),
-        )
-    };
-    (4) => {
-        concat!(
-            vfmadd!(0, 6, 16),
-            vfmadd!(1, 6, 17),
-        )
-    };
-    (6) => {
-        concat!(
-            vfmadd!(0, 7, 20),
-            vfmadd!(1, 7, 21),
-        )
-    };
-    (8) => {
-        concat!(
-            vfmadd!(0, 4, 24),
-            vfmadd!(1, 4, 25),
-        )
-    };
-    (10) => {
-        concat!(
-            vfmadd!(0, 5, 28),
-            vfmadd!(1, 5, 29),
-        )
-    };
-    ($nr:tt) => {""};
 }
 
-macro_rules! step_1x12 {
-    ($nr:tt, $b_layout:tt) => {
+macro_rules! step_1 {
+    ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                load_a!(1),
-                "add {ax}, {ax}, #32 \n",
                 #(
                     load_b!($b_layout, n),
-                    fmadd_1v2!(n),
+                    fmadd_1!(n),
                 )*
-                // "add {bx}, {bx}, #256 \n",
                 inc_b!($b_layout,$nr), 
             )
         })
@@ -717,8 +464,7 @@ macro_rules! prefetch_c {
 }
 
 
-def_ukernel_neon_i8mm!(step_1x12, acc_1x12, store_1x12, 1, 12, B, M, ukernel_1_bbp);
-def_ukernel_neon_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, M, ukernel_2_bbp);
+def_ukernel_neon_i8mm!(step_1, acc_1, store_1, 1, 12, B, M, ukernel_1_bbp);
+def_ukernel_neon_i8mm!(step_2, acc_2, store_2, 2, 12, B, M, ukernel_2_bbp);
 
-
-def_ukernel_neon_i8mm!(step_2x12, acc_2x12, store_2x12, 2, 12, B, C, ukernel_bbc);
+def_ukernel_neon_i8mm!(step_2, acc_2, store_2, 2, 12, B, C, ukernel_bbc);

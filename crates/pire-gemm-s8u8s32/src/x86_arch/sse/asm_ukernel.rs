@@ -1,27 +1,37 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
-use pire_base::def_ukernel_sse;
+use pire_base::{
+    def_ukernel_sse,
+    acc_1, store_1, step_1,
+    mem,
+};
+
+macro_rules! br_1 {
+    (0) => {1};
+    (1) => {1};
+    (2) => {1};
+    (3) => {1};
+}
+
+macro_rules! cr {
+    (0,0) => { 4 };
+    (0,1) => { 5 };
+    (0,2) => { 6 };
+    (0,3) => { 7 };
+}
 
 type TS = f32;
 
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;
 
-macro_rules! c_mem {
-    (0) => {
-        "0({cx})"
-    };
-    (1) => {
-        "0({cx}, {x0})"
-    };
-    (2) => {
-        "0({cx}, {x0}, 2)"
-    };
-    (3) => {
-        "0({bx})"
-    };
+macro_rules! vs {
+    () => { "0x10" };
 }
 
+macro_rules! v_i {
+    ($m:tt, $i:tt) => { concat!($i, "*0x10+" , $m) };
+}
 
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
@@ -71,7 +81,7 @@ macro_rules! vfmadd {
 macro_rules! loadp_unit {
     ($m0:expr, $r1:expr) => {
         concat!(
-            "movaps ", $m0, ",%xmm", $r1, "\n",
+            "movaps ", mem!($m0, concat!("0x10*", $r1)), ", %xmm", $r1, "\n",
         )
     };
 }
@@ -109,31 +119,6 @@ macro_rules! load_beta {
             "shufps $0, %xmm0, %xmm0\n",
         )
     }
-}
-
-macro_rules! acc_p {
-    ($layout:tt, $m0:expr, $r1:expr, $b:tt) => {
-        concat!(
-            beta_fmadd!($layout, $m0, $r1, $b),
-        )
-    };
-}
-
-
-macro_rules! loadp {
-    (1, $m0:expr) => {
-        concat!(
-            loadp_unit!($m0, 0),
-        )
-    };
-}
-
-macro_rules! storep {
-    ($layout:tt, $m0:expr, $r1:expr) => {
-        concat!(
-            storep_unit!($layout, $r1, $m0),
-        )
-    };
 }
 
 // only non contigous along m and n direction which is not changed frequently during iteration along k direction
@@ -175,11 +160,12 @@ macro_rules! vzero_kernel {
     () => { vzeroall!(4,7) };
 }
 
-macro_rules! inc_a_k_unroll {
-    ($X:tt, $K:tt) => {
-        concat!(
-            "add $16*", $K, "*", $X, ",{ax}", "\n",
-        )
+macro_rules! inc_b {
+    (S,$nr:tt) => {
+        "add {x0},{bx} \n"
+    };
+    (B,$nr:tt) => {
+        ""
     };
 }
 
@@ -199,87 +185,23 @@ macro_rules! alpha_scale {
     () => {alpha_scale_0!(4,7)};
 }
 
-macro_rules! c_reg_1x4 {
-    (0,0) => { 4 };
-    (0,1) => { 5 };
-    (0,2) => { 6 };
-    (0,3) => { 7 };
-}
-
-macro_rules! acc_1x4 {
-    ($ni:tt, $layout:tt, $b:tt) => {
-        acc_p!($layout, c_mem!($ni), c_reg_1x4!(0,$ni), $b)
-    };
-}
-
-macro_rules! store_1x4 {
-    ($ni:tt, $layout:tt) => {
-        storep!($layout, c_mem!($ni), c_reg_1x4!(0,$ni))
-    };
-}
-
 macro_rules! load_b {
-    (B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
         concat!(
-            vbroadcast!(), "  ", $K, "*", $X, "*4+", $N, "*4({bx}), %xmm", $r, "\n",
+            vbroadcast!(), " ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %xmm", $r, "\n",
             "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
         )
     };
 }
 
-
-macro_rules! load_a {
-    ($mr:tt, $K:tt) => {
-        loadp!($mr, concat!($mr,"*16*",$K,"({ax})"))
-    };
-}
-
-macro_rules! fmadd_1v {
-    (0) => {
+macro_rules! fmadd_1 {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 1, 4, 2),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 1, 5, 2),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 1, 6, 2),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 1, 7, 2),
+            vfmadd!(0, br_1!($ni), cr!(0,$ni), 2),
         )
     };
 }
 
+def_ukernel_sse!(4, step_1, acc_1, store_1, 1, 4, B, C, ukernel_bbc);
 
-macro_rules! b_num_1x4 {
-    (0) => {1};
-    (1) => {1};
-    (2) => {1};
-    (3) => {1};
-}
-
-// ***************************** 1x4 ******************************* //
-macro_rules! step_1x4 {
-    ($nr:tt, $b_layout:tt, $K:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_a!(1, $K),
-                #(
-                    load_b!($b_layout, n, $K, $nr, b_num_1x4!(n)),
-                    fmadd_1v!(n),
-                )*
-            )
-        })
-    };
-}
-
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, C, ukernel_bbc);
-
-def_ukernel_sse!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, C, ukernel_1_bbp);
+def_ukernel_sse!(4, step_1, acc_1, store_1, 1, 4, B, C, ukernel_1_bbp);

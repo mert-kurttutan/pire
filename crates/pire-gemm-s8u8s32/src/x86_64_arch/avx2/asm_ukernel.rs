@@ -2,10 +2,10 @@ use seq_macro::seq;
 use super::VS;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    c_mem, def_ukernel_avx, 
-    c_reg_2x4, c_reg_1x4,
-    b_num_2x4, b_num_1x4,
-    load_a_avx, storep_avx, acc_p_avx, 
+    def_ukernel_avx,
+    acc_2, acc_1, store_2, store_1,
+    mem,
+    step_2, step_1,
     // def_ukernel_avx_2,
     // prefetch_0,
 };
@@ -16,6 +16,49 @@ type TS = f32;
 const ZERO_SCALAR: f32 = 0.0;
 const ONE_SCALAR: f32 = 1.0;
 
+macro_rules! br_2 {
+    (0) => { 2 };
+    (1) => { 3 };
+    (2) => { 2 };
+    (3) => { 3 };
+}
+
+macro_rules! br_1 {
+    (0) => { 1 };
+    (1) => { 2 };
+    (2) => { 3 };
+    (3) => { 5 };
+}
+
+macro_rules! cr {
+    (0,0) => { 4 };
+    (1,0) => { 5 };
+    (0,1) => { 6 };
+    (1,1) => { 7 };
+    (0,2) => { 8 };
+    (1,2) => { 9 };
+    (0,3) => { 10 };
+    (1,3) => { 11 };
+}
+
+macro_rules! dr {
+    (0,0) => { 12 };
+    (1,0) => { 13 };
+    (0,1) => { 14 };
+    (1,1) => { 12 };
+    (0,2) => { 13 };
+    (1,2) => { 14 };
+    (0,3) => { 12 };
+    (1,3) => { 13 };
+}
+
+macro_rules! vs {
+    () => { "0x20" };
+}
+
+macro_rules! v_i {
+    ($m:tt, $i:tt) => { concat!($i, "*0x20+" , $m) };
+}
 macro_rules! beta_fmadd {
     (C, $m0:expr, $r:expr, 1) => {
         concat!(
@@ -69,9 +112,7 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vbroadcast {
-    () => {
-        "vbroadcastss"
-    };
+    () => { "vbroadcastss" };
 }
 macro_rules! vfmadd {
     ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
@@ -86,7 +127,7 @@ macro_rules! vfmadd {
 macro_rules! loadp_unit {
     ($m0:expr, $r1:expr) => {
         concat!(
-            "vmovaps ", $m0, ",%ymm", $r1, "\n",
+            "vmovaps ", mem!($m0, concat!("0x20*", $r1)), ", %ymm", $r1, "\n",
         )
     };
 }
@@ -123,8 +164,6 @@ macro_rules! load_beta {
     () => {
         concat!(
             vbroadcast!(), " ({betax}), %ymm0\n",
-            "vxorps %ymm3,%ymm3,%ymm3\n",
-            "vucomiss %xmm3,%xmm0\n",
         )
     }
 }
@@ -142,41 +181,11 @@ macro_rules! init_ab_avx {
             "mov 24({dim_arrx}),{x0}", "\n",
         )
     };
-    (S) => {
-        ""
-    };
-}
-
-// macro_rules! init_ab_2 {
-//     (B) => {
-//         concat!(
-//             // move 2 1_i16 to xmm15
-//             "mov $0x10001, {x3:e}", "\n",
-//             "movd {x3:e}, %xmm15", "\n",
-//             "vbroadcastss %xmm15, %ymm15", "\n",
-//             "/* {x3} */", "\n",
-//             "/* {x2} */", "\n",
-//             "/* {x1} */", "\n",
-//             "mov 8({dim_arrx}),{x0}", "\n",
-//         )
-//     };
-//     (S) => {
-//         ""
-//     };
-// }
-
-macro_rules! inc_a_k_unroll {
-    ($X:tt, $K:tt) => {
-        concat!(
-            "add $32*", $K, "*", $X, ",{ax}", "\n",
-        )
-    };
+    (S) => { "" };
 }
 
 macro_rules! inc_b_k_unroll {
-    (S, $X:tt, $K:tt) => {
-        ""
-    };
+    (S, $X:tt, $K:tt) => { "" };
     (B, $X:tt, $K:tt) => {
         concat!(
             "add $4*", $K, "*", $X, ", {bx}", "\n",
@@ -184,84 +193,32 @@ macro_rules! inc_b_k_unroll {
     };
 }
 
-macro_rules! acc_2x4 {
-    ($ni:tt, $layout:tt, $b:tt) => {
-        acc_p_avx!($layout, c_mem!($ni), $b, c_reg_2x4!(0,$ni), c_reg_2x4!(1,$ni))
-    };
-}
-
-macro_rules! store_2x4 {
-    ($ni:tt, $layout:tt) => {
-        storep_avx!($layout, c_mem!($ni), c_reg_2x4!(0,$ni), c_reg_2x4!(1,$ni))
-    };
-}
-
-macro_rules! acc_1x4 {
-    ($ni:tt, $layout:tt, $b:tt) => {
-        acc_p_avx!($layout, c_mem!($ni), $b, c_reg_1x4!(0,$ni))
-    };
-}
-
-macro_rules! store_1x4 {
-    ($ni:tt, $layout:tt) => {
-        storep_avx!($layout, c_mem!($ni), c_reg_1x4!(0,$ni))
-    };
+macro_rules! inc_b {
+    (S, $nr:tt) => { "" };
+    (B, $nr:tt) => { "" };
 }
 
 macro_rules! load_b {
-    (B, $N:tt, $K:tt, $X:tt, $r:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
         concat!(
-            "vbroadcastss ", $K, "*", $X, "*4+", $N, "*4({bx}), %ymm", $r, "\n",
+            "vbroadcastss ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $r, "\n",
         )
     };
 }
 
-macro_rules! fmadd_2v {
-    (0) => {
+macro_rules! fmadd_2 {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 2, 4, 12),
-            vfmadd!(1, 2, 5, 13),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 3, 6, 14),
-            vfmadd!(1, 3, 7, 12),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 2, 8, 13),
-            vfmadd!(1, 2, 9, 14),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 3, 10, 12),
-            vfmadd!(1, 3, 11, 13),
+            vfmadd!(0, br_2!($ni), cr!(0, $ni), dr!(0, $ni)),
+            vfmadd!(1, br_2!($ni), cr!(1, $ni), dr!(1, $ni)),
         )
     };
 }
 
-macro_rules! fmadd_1v {
-    (0) => {
+macro_rules! fmadd_1 {
+    ($ni:tt) => {
         concat!(
-            vfmadd!(0, 1, 7, 11),
-        )
-    };
-    (1) => {
-        concat!(
-            vfmadd!(0, 2, 8, 12),
-        )
-    };
-    (2) => {
-        concat!(
-            vfmadd!(0, 3, 9, 13),
-        )
-    };
-    (3) => {
-        concat!(
-            vfmadd!(0, 4, 10, 14),
+            vfmadd!(0, br_1!($ni), cr!(0, $ni), dr!(0, $ni)),
         )
     };
 }
@@ -274,36 +231,6 @@ macro_rules! alpha_scale {
     () => { alpha_scale_0!(4,11) };
 }
 
-// ***************************** 2x4 ******************************* //
-macro_rules! step_2x4 {
-    ($nr:tt, $b_layout:tt, $K:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_a_avx!(2, $K),
-                #(
-                    load_b!($b_layout, n, $K, $nr, b_num_2x4!(n)),
-                    fmadd_2v!(n),
-                )*
-            )
-        })
-    };
-}
-
-// ***************************** 1x4 ******************************* //
-macro_rules! step_1x4 {
-    ($nr:tt, $b_layout:tt, $K:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_a_avx!(1, $K),
-                #(
-                    load_b!($b_layout, n, $K, $nr, b_num_1x4!(n)),
-                    fmadd_1v!(n),
-                )*
-            )
-        })
-    };
-}
-
 #[inline(always)]
 fn mask_and_offset(m: usize) -> ([u32;16], usize) {
     let mask: [u32; 16] = [
@@ -314,8 +241,6 @@ fn mask_and_offset(m: usize) -> ([u32;16], usize) {
 
     (mask, mask_offset)
 }
-
-
 
 macro_rules! mask_ptr {
     (P, $m:tt, $nm:ident, $mask_ptr:ident) => {
@@ -331,16 +256,12 @@ macro_rules! mask_ptr {
 }
 
 macro_rules! load_mask {
-    (P) => {
-        "vmovdqu ({maskx}), %ymm1"
-    };
-    (C) => {
-        "/* {maskx} */"
-    }
+    (P) => { "vmovdqu ({maskx}), %ymm1" };
+    (C) => { "/* {maskx} */" }
 }
 
-def_ukernel_avx!(4, step_2x4, acc_2x4, store_2x4, 2, 4, B, P, ukernel_2_bbp);
-def_ukernel_avx!(4, step_1x4, acc_1x4, store_1x4, 1, 4, B, P, ukernel_1_bbp);
+def_ukernel_avx!(4, step_2, acc_2, store_2, 2, 4, B, P, ukernel_2_bbp);
+def_ukernel_avx!(4, step_1, acc_1, store_1, 1, 4, B, P, ukernel_1_bbp);
 
-// def_ukernel_avx_2!(4, step_2x4, acc_2x4, store_2x4, 2, 4, 16, 32);
-def_ukernel_avx!(4,step_2x4, acc_2x4, store_2x4, 2, 4, B, C, ukernel_bbc);
+// def_ukernel_avx_2!(4, step_2, acc_2, store_2, 2, 4, 16, 32);
+def_ukernel_avx!(4,step_2, acc_2, store_2, 2, 4, B, C, ukernel_bbc);
