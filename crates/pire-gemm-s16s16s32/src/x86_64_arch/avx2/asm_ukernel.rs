@@ -7,8 +7,6 @@ use pire_base::{
     acc_2, acc_1, store_2, store_1,
     mem,
     step_2, step_1,
-    // def_ukernel_avx_2, init_ab_2,
-    // prefetch_0,
 };
 
 type TS = f32;
@@ -116,10 +114,10 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vpmaddwd %ymm", $r1, ", %ymm", $r2, ", %ymm", $r4, "\n",
-            "vpaddd %ymm", $r4, ", %ymm", $r3, ", %ymm", $r3, "\n",
+            "vpmaddwd %ymm", $i, ", %ymm", $b_macro!($j), ", %ymm", dr!($i,$j), "\n",
+            "vpaddd %ymm", dr!($i,$j), ", %ymm", cr!($i,$j), ", %ymm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -184,26 +182,9 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), "  ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni), cr!(0, $ni), dr!(0, $ni)),
-            vfmadd!(1, br_2!($ni), cr!(1, $ni), dr!(1, $ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0, $ni), dr!(0, $ni)),
+            "vbroadcastss ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $b_macro!($ni), "\n",
         )
     };
 }

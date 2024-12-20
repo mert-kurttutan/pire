@@ -4,7 +4,6 @@ use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
     def_ukernel_avx512, def_ukernel_avx512_2,
     acc_3, store_3, acc_2, store_2, acc_1, store_1, init_ab, init_ab_2,
-    fmadd_3, fmadd_2, fmadd_1,
     step_3, step_2, step_1,
     mem,
 };
@@ -149,9 +148,9 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vpdpbusds %zmm", $r1, ", %zmm", $r2, ", %zmm", $r3, "\n",
+            "vpdpbusds %zmm", $i, ", %zmm", $b_macro!($j), ", %zmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -225,9 +224,9 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, $ni:tt, $r:expr) => {
+    (B, $ni:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $ni, "*4({bx}), %zmm", $r, "\n",
+            vbroadcast!(), " ", $ni, "*4({bx}), %zmm", $b_macro!($ni), "\n",
         )
     };
 }

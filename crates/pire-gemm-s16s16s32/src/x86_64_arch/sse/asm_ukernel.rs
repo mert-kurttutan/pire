@@ -105,11 +105,11 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "movups %xmm", $r2, ", %xmm", $r4, "\n",
-            "pmaddwd %xmm", $r1, ", %xmm", $r4, "\n",
-            "paddd %xmm", $r4, ", %xmm", $r3, "\n",
+            "movups %xmm", $b_macro!($j), ", %xmm", dr!($i,$j), "\n",
+            "pmaddwd %xmm", $i, ", %xmm", dr!($i,$j), "\n",
+            "paddd %xmm", dr!($i,$j), ", %xmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -171,27 +171,10 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), "  ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %xmm", $r, "\n",
-            "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni), cr!(0, $ni), dr!(0, $ni)),
-            vfmadd!(1, br_2!($ni), cr!(1, $ni), dr!(1, $ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0, $ni), dr!(0, $ni)),
+            "movss ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %xmm", $b_macro!($ni), "\n",
+            "shufps $0, %xmm", $b_macro!($ni), ", %xmm", $b_macro!($ni), "\n",
         )
     };
 }

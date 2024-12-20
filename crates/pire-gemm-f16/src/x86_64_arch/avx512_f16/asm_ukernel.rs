@@ -129,9 +129,9 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $m2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_layout:tt, $b_macro:tt) => {
         concat!(
-            "vfmadd231ph ", $m2, "{{1to32}}", ", %zmm", $r1,", %zmm", $r3, "\n",
+            "vfmadd231ph ", $b_macro!($b_layout,$j), "{{1to32}}", ", %zmm", $i,", %zmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -260,14 +260,14 @@ macro_rules! inc_b {
 macro_rules! fmadd_2 {
     ($ni:tt) => {
         concat!(
-            vfmadd!(0, bd!(B, $ni), cr!(0,$ni)),
-            vfmadd!(1, bd!(B, $ni), cr!(1,$ni)),
+            vfmadd!(0, $ni, B, bd),
+            vfmadd!(1, $ni, B, bd),
         )
     };
     ($b_layout:tt, $ni:tt) => {
         concat!(
-            vfmadd!(0, bd!($b_layout, $ni), cr!(0,$ni)),
-            vfmadd!(1, bd!($b_layout, $ni), cr!(1,$ni)),
+            vfmadd!(0, $ni, $b_layout, bd),
+            vfmadd!(1, $ni, $b_layout, bd),
         )
     };
 }
@@ -275,12 +275,12 @@ macro_rules! fmadd_2 {
 macro_rules! fmadd_1 {
     ($ni:tt) => {
         concat!(
-            vfmadd!(0, bd!(B, $ni), cr!(0,$ni)),
+            vfmadd!(0, $ni, B, bd),
         )
     };
     ($b_layout:tt, $ni:tt) => {
         concat!(
-            vfmadd!(0, bd!($b_layout, $ni), cr!(0,$ni)),
+            vfmadd!(0, $ni, $b_layout, bd),
         )
     };
 }

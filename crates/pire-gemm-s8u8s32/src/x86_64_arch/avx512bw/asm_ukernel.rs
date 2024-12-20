@@ -149,11 +149,11 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vpmaddubsw %zmm", $r1, ", %zmm", $r2, ", %zmm", $r4, "\n",
-            "vpmaddwd %zmm", $r4, ", %zmm31", ", %zmm", $r4, "\n",
-            "vpaddd %zmm", $r4, ", %zmm", $r3, ", %zmm", $r3, "\n",
+            "vpmaddubsw %zmm", $i, ", %zmm", $b_macro!($j), ", %zmm", dr!($i,$j), "\n",
+            "vpmaddwd %zmm", dr!($i,$j), ", %zmm31", ", %zmm", dr!($i,$j), "\n",
+            "vpaddd %zmm", dr!($i,$j), ", %zmm", cr!($i,$j), ", %zmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -266,26 +266,9 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, $N:tt, $r:expr) => {
+    (B, $ni:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), "  ", $N, "*4({bx}), %zmm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni), cr!(0,$ni), dr!(0,$ni)),
-            vfmadd!(1, br_2!($ni), cr!(1,$ni), dr!(1,$ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0,$ni), dr!(0,$ni)),
+            vbroadcast!(), "  ", $ni, "*4({bx}), %zmm", $b_macro!($ni), "\n",
         )
     };
 }

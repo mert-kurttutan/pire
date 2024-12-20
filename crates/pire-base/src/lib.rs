@@ -2571,41 +2571,45 @@ macro_rules! init_ab_avx {
 
 #[macro_export]
 macro_rules! b_mem {
-    (0) => {
+    (S,$nr:tt, 0, $K:tt) => {
         "({bx})"
     };
-    (1) => {
+    (S,$nr:tt, 1, $K:tt) => {
         "({bx},{x2},1)"
     };
-    (2) => {
+    (S,$nr:tt, 2, $K:tt) => {
         "({bx},{x2},2)"
     };
-    (3) => {
+    (S,$nr:tt, 3, $K:tt) => {
         "({x3})"
     };
-    (4) => {
+    (S,$nr:tt, 4, $K:tt) => {
         "({x3},{x2},1)"
     };
-    (5) => {
+    (S,$nr:tt, 5, $K:tt) => {
         "({x3},{x2},2)"
     };
-    (6) => {
+    (S,$nr:tt, 6, $K:tt) => {
         "({x4})"
     };
-    (7) => {
+    (S,$nr:tt, 7, $K:tt) => {
         "({x4},{x2},1)"
     };
-    (8) => {
+    (S,$nr:tt, 8, $K:tt) => {
         "({x4},{x2},2)"
     };
-    (9) => {
+    (S,$nr:tt, 9, $K:tt) => {
         "({x5})"
     };
-    (10) => {
+    (S,$nr:tt, 10, $K:tt) => {
         "({x5},{x2},1)"
     };
-    (11) => {
+    (S,$nr:tt, 11, $K:tt) => {
         "({x5},{x2},2)"
+    };
+
+    (B, $nr:tt, $ni:tt, $K:tt) => {
+        concat!($K, "*", $nr, "*", bs!(), "+", $ni, "*", bs!(), "({bx})")
     };
 }
 
@@ -2768,36 +2772,15 @@ macro_rules! store_1 {
 }
 
 #[macro_export]
-macro_rules! fmadd_3 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_3!($ni), cr!(0, $ni)),
-            vfmadd!(1, br_3!($ni), cr!(1, $ni)),
-            vfmadd!(2, br_3!($ni), cr!(2, $ni)),
-        )
-    };
-}
-#[macro_export]
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(vfmadd!(0, br_2!($ni), cr!(0, $ni)), vfmadd!(1, br_2!($ni), cr!(1, $ni)),)
-    };
-}
-#[macro_export]
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(vfmadd!(0, br_1!($ni), cr!(0, $ni)),)
-    };
-}
-
-#[macro_export]
 macro_rules! step_3 {
     ($b_layout:tt, $nr:tt, $K:tt) => {
         seq!(n in 0..$nr {
             concat!(
                 #(
-                    load_b!($b_layout, $nr, n, $K, br_3!(n)),
-                    fmadd_3!(n),
+                    load_b!($b_layout, $nr, n, $K, br_3),
+                    vfmadd!(0, n, br_3),
+                    vfmadd!(1, n, br_3),
+                    vfmadd!(2, n, br_3),
                 )*
             )
         })
@@ -2805,10 +2788,11 @@ macro_rules! step_3 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, br_3!(n)),
-                    fmadd_3!(n),
+                    load_b!($b_layout, n, br_3),
+                    vfmadd!(0, n, br_3),
+                    vfmadd!(1, n, br_3),
+                    vfmadd!(2, n, br_3),
                 )*
             )
         })
@@ -2821,8 +2805,9 @@ macro_rules! step_2 {
         seq!(n in 0..$nr {
             concat!(
                 #(
-                    load_b!($b_layout, $nr, n, $K, br_2!(n)),
-                    fmadd_2!(n),
+                    load_b!($b_layout, $nr, n, $K, br_2),
+                    vfmadd!(0, n, br_2),
+                    vfmadd!(1, n, br_2),
                 )*
             )
         })
@@ -2830,10 +2815,10 @@ macro_rules! step_2 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, br_2!(n)),
-                    fmadd_2!(n),
+                    load_b!($b_layout, n, br_2),
+                    vfmadd!(0, n, br_2),
+                    vfmadd!(1, n, br_2),
                 )*
             )
         })
@@ -2846,8 +2831,8 @@ macro_rules! step_1 {
         seq!(n in 0..$nr {
             concat!(
                 #(
-                    load_b!($b_layout, $nr, n, $K, br_1!(n)),
-                    fmadd_1!(n),
+                    load_b!($b_layout, $nr, n, $K, br_1),
+                    vfmadd!(0, n, br_1),
                 )*
             )
         })
@@ -2855,10 +2840,111 @@ macro_rules! step_1 {
     ($b_layout:tt, $nr:tt) => {
         seq!(n in 0..$nr {
             concat!(
-                "prefetcht0 64({bx}) \n",
                 #(
-                    load_b!($b_layout, n, br_1!(n)),
-                    fmadd_1!(n),
+                    load_b!($b_layout, n, br_1),
+                    vfmadd!(0, n, br_1),
+                )*
+            )
+        })
+    };
+}
+
+#[macro_export]
+macro_rules! step_3_c {
+    ($b_layout:tt, $nr:tt, $K:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, $nr, n, $K, br_3, 0),
+                    vfmadd!(0, n, br_3, 0),
+                    vfmadd!(1, n, br_3, 0),
+                    vfmadd!(2, n, br_3, 0),
+
+                    load_b!($b_layout, $nr, n, $K, br_3, 1),
+                    vfmadd!(0, n, br_3, 1),
+                    vfmadd!(1, n, br_3, 1),
+                    vfmadd!(2, n, br_3, 1),
+                )*
+            )
+        })
+    };
+    ($b_layout:tt, $nr:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, n, br_3, 0),
+                    vfmadd!(0, n, br_3, 0),
+                    vfmadd!(1, n, br_3, 0),
+                    vfmadd!(2, n, br_3, 0),
+
+                    load_b!($b_layout, n, br_3, 1),
+                    vfmadd!(0, n, br_3, 1),
+                    vfmadd!(1, n, br_3, 1),
+                    vfmadd!(2, n, br_3, 1),
+                )*
+            )
+        })
+    };
+}
+
+#[macro_export]
+macro_rules! step_2_c {
+    ($b_layout:tt, $nr:tt, $K:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, $nr, n, $K, br_2, 0),
+                    vfmadd!(0, n, br_2, 0),
+                    vfmadd!(1, n, br_2, 0),
+
+                    load_b!($b_layout, $nr, n, $K, br_2, 1),
+                    vfmadd!(0, n, br_2, 1),
+                    vfmadd!(1, n, br_2, 1),
+                )*
+            )
+        })
+    };
+    ($b_layout:tt, $nr:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, n, br_2, 0),
+                    vfmadd!(0, n, br_2, 0),
+                    vfmadd!(1, n, br_2, 0),
+
+                    load_b!($b_layout, n, br_2, 1),
+                    vfmadd!(0, n, br_2, 1),
+                    vfmadd!(1, n, br_2, 1),
+                )*
+            )
+        })
+    };
+}
+
+#[macro_export]
+macro_rules! step_1_c {
+    ($b_layout:tt, $nr:tt, $K:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, $nr, n, $K, br_1, 0),
+                    vfmadd!(0, n, br_1, 0),
+
+                    load_b!($b_layout, $nr, n, $K, br_1, 1),
+                    vfmadd!(0, n, br_1, 1),
+                )*
+            )
+        })
+    };
+    ($b_layout:tt, $nr:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    load_b!($b_layout, n, br_1, 0),
+                    vfmadd!(0, n, br_1, 0),
+
+                    load_b!($b_layout, n, br_1, 1),
+                    vfmadd!(0, n, br_1, 1),
                 )*
             )
         })
@@ -3017,22 +3103,6 @@ macro_rules! prefetch_c_sse {
             let c_u8 = $c.add(j*$ldc) as *const i8;
             _mm_prefetch(c_u8, 3);
         });
-    };
-}
-
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[macro_export]
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt) => {
-        concat!("prefetcht0 ", $dist, "(", $reg, ")\n",)
-    };
-}
-
-#[cfg(target_arch = "aarch64")]
-#[macro_export]
-macro_rules! prefetch_0 {
-    ($dist:tt, $reg:tt) => {
-        concat!("prfm pldl1keep, [", $reg, ", #", $dist, "] \n",)
     };
 }
 
@@ -3240,7 +3310,6 @@ macro_rules! asm_body_avx_2 {
             "add {x1}, {x5}",
             "mov ({dim_arrx}),{x1}",
             "2:",
-            prefetch_0!(256, "{bx}"),
             pire_base::load_a!($mr, 0),
             $step_macro!(B, $nr, 0),
             inc_b!($nr),
@@ -4158,7 +4227,6 @@ macro_rules! asm_body_neon {
 
             // 2 -> KITER
             "2:",
-            prefetch_0!(128, "{bx}"),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
             pire_base::load_a!($mr),
@@ -4249,7 +4317,6 @@ macro_rules! asm_body_sve {
 
             // 2 -> KITER
             "2:",
-            prefetch_0!(128, "{bx}"),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
             pire_base::load_a!($mr),

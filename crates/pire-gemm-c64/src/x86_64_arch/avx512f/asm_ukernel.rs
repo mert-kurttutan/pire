@@ -6,6 +6,7 @@ use pire_base::{
     def_ukernel_avx512_2, init_ab_2,
     mem,
     acc_3, store_3, acc_2, store_2, acc_1, store_1,
+    step_3_c, step_2_c, step_1_c,
 };
 
 type TS = TC;
@@ -91,10 +92,14 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $b1:expr, $b2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt, 0) => {
         concat!(
-            "vfmadd231pd ", "%zmm", $b1, ", %zmm", $r1,", %zmm", $r3, "\n",
-            "vfmadd231pd ", "%zmm", $b2, ", %zmm", $r1,", %zmm", $r4, "\n",
+            "vfmadd231pd %zmm", $i, ", %zmm", $b_macro!($j,0),", %zmm", cr!($i,$j), "\n",
+        ) 
+    };
+    ($i:tt, $j:tt, $b_macro:tt, 1) => {
+        concat!(
+            "vfmadd231pd %zmm", $i, ", %zmm", $b_macro!($j,1),", %zmm", cr!($i,$j,1), "\n",
         ) 
     };
 }
@@ -220,75 +225,40 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (S, 0, $r1:expr, $r2:expr) => {
+    (S, 0, $b_macro:tt, $i:tt) => {
         concat!(
-            "prefetcht0 64({bx},{x1},8) \n",
-            vbroadcast!(), " ({bx}),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({bx}),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({bx}),%zmm", $b_macro!(0,$i), "\n",
         )
     };
-    (S, 1, $r1:expr, $r2:expr) => {
+    (S, 1, $b_macro:tt, $i:tt) => {
         concat!(
-            vbroadcast!(), " ({bx},{x2},1),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({bx},{x2},1),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({bx},{x2}),%zmm", $b_macro!(1,$i), "\n",
         )
     };
-    (S, 2, $r1:expr, $r2:expr) => {
+    (S, 2, $b_macro:tt, $i:tt) => {
         concat!(
-            vbroadcast!(), " ({bx},{x2},2),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({bx},{x2},2),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({bx},{x2},2),%zmm", $b_macro!(2,$i), "\n",
         )
     };
-    (S, 3, $r1:expr, $r2:expr) => {
+    (S, 3, $b_macro:tt, $i:tt) => {
         concat!(
             "prefetcht0 64({x3},{x1},8) \n",
-            vbroadcast!(), " ({x3}),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({x3}),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({x3}),%zmm", $b_macro!(3,$i), "\n",
         )
     };
-    (S, 4, $r1:expr, $r2:expr) => {
+    (S, 4, $b_macro:tt, $i:tt) => {
         concat!(
-            vbroadcast!(), " ({x3},{x2},1),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({x3},{x2},1),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({x3},{x2},1),%zmm", $b_macro!(4,$i), "\n",
         )
     };
-    (S, 5, $r1:expr, $r2:expr) => {
+    (S, 5, $b_macro:tt, $i:tt) => {
         concat!(
-            vbroadcast!(), " ({x3},{x2},2),%zmm", $r1, "\n",
-            vbroadcast!(), " 8({x3},{x2},2),%zmm", $r2, "\n",
+            vbroadcast!(), " 8*", $i, "({x3},{x2},2),%zmm", $b_macro!(5,$i), "\n",
         )
     };
-    (B, $N:tt, $r1:expr, $r2:expr) => {
+    (B, $n:tt, $b_macro:tt, $i:tt) => {
         concat!(
-            vbroadcast!(), " ", $N, "*16({bx}), %zmm", $r1, "\n",
-            vbroadcast!(), " ", $N, "*16+8({bx}), %zmm", $r2, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_3 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_3!($ni,0), br_3!($ni,1), cr!(0,$ni), dr!(0,$ni)),
-            vfmadd!(1, br_3!($ni,0), br_3!($ni,1), cr!(1,$ni), dr!(1,$ni)),
-            vfmadd!(2, br_3!($ni,0), br_3!($ni,1), cr!(2,$ni), dr!(2,$ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni,0), br_2!($ni,1), cr!(0,$ni), dr!(0,$ni)),
-            vfmadd!(1, br_2!($ni,0), br_2!($ni,1), cr!(1,$ni), dr!(1,$ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni,0), br_1!($ni,1), cr!(0,$ni), dr!(0,$ni)),
+            vbroadcast!(), " ", $n, "*16+8*", $i, "({bx}), %zmm", $b_macro!($n,$i), "\n",
         )
     };
 }
@@ -331,100 +301,20 @@ macro_rules! cr {
     (0,3) => { 26 };
     (1,3) => { 28 };
     (2,3) => { 30 };
-}
 
-macro_rules! dr {
-    (0,0) => { 9 };
-    (1,0) => { 11 };
-    (2,0) => { 13 };
-    (0,1) => { 15 };
-    (1,1) => { 17 };
-    (2,1) => { 19 };
-    (0,2) => { 21 };
-    (1,2) => { 23 };
-    (2,2) => { 25 };
-    (0,3) => { 27 };
-    (1,3) => { 29 };
-    (2,3) => { 31 };
-}
 
-// ***************************** 3 ******************************* //
-macro_rules! step_3 {
-    (B,4) => {
-        concat!(
-            load_b!(B, 0, br_3!(0,0), br_3!(0,1)),
-            fmadd_3!(0),
-            load_b!(B, 1, br_3!(1,0), br_3!(1,1)),
-            fmadd_3!(1),
-            "prefetcht0 384({ax}) \n",
-            "prefetcht0 64({bx}) \n",
-            load_b!(B, 2, br_3!(2,0), br_3!(2,1)),
-            fmadd_3!(2),
-            load_b!(B, 3, br_3!(3,0), br_3!(3,1)),
-            fmadd_3!(3),
-            "prefetcht0 448({ax}) \n",
-        )
-    };
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                "prefetcht0 64({bx}) \n",
-                #(
-                    load_b!($b_layout, n, br_3!(n,0), br_3!(n,1)),
-                    fmadd_3!(n),
-                )*
-            )
-        })
-    };
-}
-
-// ***************************** 2 ******************************* //
-macro_rules! step_2 {
-    (B,6) => {
-        concat!(
-            load_b!(B, 0, br_2!(0,0), br_2!(0,1)),
-            fmadd_2!(0),
-            "prefetcht0 320({ax}) \n",
-            load_b!(B, 1, br_2!(1,0), br_2!(1,1)),
-            fmadd_2!(1),
-            "prefetcht0 64({bx}) \n",
-            load_b!(B, 2, br_2!(2,0), br_2!(2,1)),
-            fmadd_2!(2),
-            "prefetcht0 384({ax}) \n",
-            load_b!(B, 3, br_2!(3,0), br_2!(3,1)),
-            fmadd_2!(3),
-            load_b!(B, 4, br_2!(4,0), br_2!(4,1)),
-            fmadd_2!(4),
-            load_b!(B, 5, br_2!(5,0), br_2!(5,1)),
-            fmadd_2!(5),
-        )
-    };
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                "prefetcht0 64({bx}) \n",
-                #(
-                    load_b!($b_layout, n, br_2!(n,0), br_2!(n,1)),
-                    fmadd_2!(n),
-                )*
-            )
-        })
-    };
-}
-
-// ***************************** 1 ******************************* //
-macro_rules! step_1 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                "prefetcht0 64({bx}) \n",
-                #(
-                    load_b!($b_layout, n, br_1!(n,0), br_1!(n,1)),
-                    fmadd_1!(n),
-                )*
-            )
-        })
-    };
+    (0,0,1) => { 9 };
+    (1,0,1) => { 11 };
+    (2,0,1) => { 13 };
+    (0,1,1) => { 15 };
+    (1,1,1) => { 17 };
+    (2,1,1) => { 19 };
+    (0,2,1) => { 21 };
+    (1,2,1) => { 23 };
+    (2,2,1) => { 25 };
+    (0,3,1) => { 27 };
+    (1,3,1) => { 29 };
+    (2,3,1) => { 31 };
 }
 
 macro_rules! mask_ptr {
@@ -443,15 +333,15 @@ macro_rules! load_mask {
     (C) => { "/* {maskx} */" }
 }
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 4, B, P, ukernel_3_bbp);
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 4, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 4, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, B, P, ukernel_3_bbp);
+def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 4, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 4, S, P, ukernel_3_bsp);
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 4, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 4, S, P, ukernel_1_bsp);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, S, P, ukernel_3_bsp);
+def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, S, P, ukernel_1_bsp);
 
 
-def_ukernel_avx512_2!(1, step_3, acc_3, store_3, 3, 4, 4, 32);
+def_ukernel_avx512_2!(1, step_3_c, acc_3, store_3, 3, 4, 4, 32);

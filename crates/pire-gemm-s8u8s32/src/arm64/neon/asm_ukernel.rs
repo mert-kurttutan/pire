@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_neon_i8mm,
+    def_ukernel_neon_i8mm,
     acc_2, acc_1,
     store_2, store_1,
 };

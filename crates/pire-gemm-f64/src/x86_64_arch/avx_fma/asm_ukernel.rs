@@ -1,18 +1,17 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_avx, def_ukernel_avx_2,
+    def_ukernel_avx, def_ukernel_avx_2,
     init_ab_avx, init_ab_2, 
     acc_3, acc_2, acc_1,
     store_3, store_2, store_1, 
     step_3, step_2, step_1,
-    fmadd_3, fmadd_2, fmadd_1,
     mem, b_mem,
 };
 
 use super::super::avx::asm_ukernel::{
     mask_ptr, load_mask,
-    vs, v_i, mask_and_offset,
+    bs, vs, v_i, mask_and_offset,
     vzeroall, vbroadcast,
     loadp_unit, storep_unit,
     alpha_scale_0, load_beta,
@@ -78,10 +77,10 @@ macro_rules! c_load_2 {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vfmadd231pd %ymm", $r1, ", %ymm", $r2,", %ymm", $r3, "\n",
-        ) 
+            "vfmadd231pd %ymm", $i, ", %ymm", $b_macro!($j),", %ymm", cr!($i,$j), "\n",
+        )
     };
 }
 
@@ -116,15 +115,20 @@ macro_rules! alpha_scale {
     () => { alpha_scale_0!(4,15) };
 }
 
-macro_rules! load_b {
-    (S, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
-        concat!(
-            vbroadcast!(), " ", b_mem!($ni), ",%ymm", $r, "\n",
-        )
+macro_rules! prefetch {
+    (B, $nr:tt, 0, 0) => {
+        "prefetcht0 384({bx})\n"
     };
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt) => {
+        ""
+    };
+}
+
+macro_rules! load_b {
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $K, "*", $nr, "*8+", $ni, "*8({bx}), %ymm", $r, "\n",
+            prefetch!($b_layout, $nr, $ni, $K),
+            vbroadcast!(), " ", b_mem!($b_layout,$nr,$ni,$K), ",%ymm", $b_macro!($ni), "\n",
         )
     };
 }

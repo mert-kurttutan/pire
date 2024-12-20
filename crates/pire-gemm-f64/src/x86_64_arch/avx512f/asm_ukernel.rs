@@ -4,8 +4,7 @@ use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
     def_ukernel_avx512, def_ukernel_avx512_2,
     acc_3, acc_2, acc_1, store_3, store_2, store_1,
-    init_ab,
-    fmadd_3, fmadd_2, fmadd_1, b_mem,
+    init_ab, b_mem,
     step_3, step_2, step_1,
     init_ab_2, mem,
 };
@@ -17,6 +16,10 @@ const ONE_SCALAR: f64 = 1.0;
 
 macro_rules! vs {
     () => { "0x40" };
+}
+
+macro_rules! bs {
+    () => { "8" };
 }
 macro_rules! v_i {
     ($m:tt, $i:tt) => { concat!($i, "*0x40+" , $m) };
@@ -95,9 +98,9 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vfmadd231pd %zmm", $r1, ", %zmm", $r2,", %zmm", $r3, "\n",
+            "vfmadd231pd %zmm", $i, ", %zmm", $b_macro!($j),", %zmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -173,15 +176,20 @@ macro_rules! inc_b {
     };
 }
 
-macro_rules! load_b {
-    (S, $ni:tt, $r:expr) => {
-        concat!(
-            vbroadcast!(), " ", b_mem!($ni), ",%zmm", $r, "\n",
-        )
+macro_rules! prefetch {
+    (B, 0) => {
+        "prefetcht0 768({bx})\n"
     };
-    (B, $ni:tt, $r:expr) => {
+    ($b_layout:tt, $ni:tt) => {
+        ""
+    };
+}
+
+macro_rules! load_b {
+    ($b_layout:tt, $ni:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $ni, "*8({bx}), %zmm", $r, "\n",
+            prefetch!($b_layout, $ni),
+            vbroadcast!(), " ", b_mem!($b_layout,0,$ni,0), ",%zmm", $b_macro!($ni), "\n",
         )
     };
 }

@@ -1,10 +1,10 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_sve,
+    def_ukernel_sve,
     acc_3, acc_2, acc_1,
     store_3, store_2, store_1,
-    fmadd_3, fmadd_2, fmadd_1,
+    step_3, step_2, step_1,
 };
 use super::super::sve_vs;
 
@@ -66,10 +66,10 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "fcmla z", $r3, ".s", ", z", $r1,".s, ", $r2, ", #0 \n",
-            "fcmla z", $r3, ".s", ", z", $r1,".s, ", $r2, ", #90 \n",
+            "fcmla z", cr!($i,$j), ".s", ", z", $i,".s, ", $b_macro!($j), ", #0 \n",
+            "fcmla z", cr!($i,$j), ".s", ", z", $i,".s, ", $b_macro!($j), ", #90 \n",
         ) 
     };
 }
@@ -246,77 +246,20 @@ macro_rules! cr {
 }
 
 macro_rules! load_b {
-    (B, 1) => {
+    (B, 0, $b_macro:tt) => {
         concat!(
             "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*8 \n",
+            "add {bx}, {bx}, #1*4 \n",
         )
     };
-    (B, 2) => {
+    (B, 4, $b_macro:tt) => {
         concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
+            "ld1rqd {{ z4.d }}, p0/z, [{bx}, #0x10]", "\n",
+            // "add {bx}, {bx}, #4*4 \n",
         )
     };
-    (B, 3) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*8 \n",
-        )
-    };
-    (B, 4) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-        )
-    };
-    (B, 5) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*8 \n",
-        )
-    };
-    (B, 6) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-        )
-    };
-    (B, 7) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z6.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*8 \n",
-        )
-    };
-    (B, 8) => {
-        concat!(
-            "ld1rqd {{ z3.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-            "ld1rqd {{ z6.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*8 \n",
-        )
+    (B, $ni:tt, $b_macro:tt) => {
+        ""
     };
 }
 
@@ -351,48 +294,6 @@ macro_rules! br_1 {
     (5) => { "z5.s[1]" };
     (6) => { "z6.s[0]" };
     (7) => { "z6.s[1]" };
-}
-
-macro_rules! step_1 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_1!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-macro_rules! step_2 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_2!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-macro_rules! step_3 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_3!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
 }
 
 macro_rules! prefetch_c {
