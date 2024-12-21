@@ -63,7 +63,6 @@ macro_rules! cr {
     (1,3) => { 28 };
     (2,3) => { 30 };
 
-
     (0,0,1) => { 9 };
     (1,0,1) => { 11 };
     (2,0,1) => { 13 };
@@ -128,9 +127,14 @@ macro_rules! vzero_kernel {
 }
 
 macro_rules! vfmadd {
-    ($i:tt, $j:tt, $b_macro:tt, $il:tt) => {
+    ($i:tt, $j:tt, $b_macro:tt, 0) => {
         concat!(
-            "fmla v", cr!($i,$j), ".2d", ", v", $i,".2d, ", $b_macro!($j,$il), "\n",
+            "fmla v", cr!($i,$j), ".2d", ", v", $i,".2d, ", $b_macro!($j,0), "\n",
+        ) 
+    };
+    ($i:tt, $j:tt, $b_macro:tt, 1) => {
+        concat!(
+            "fmla v", cr!($i,$j,1), ".2d", ", v", $i,".2d, ", $b_macro!($j,1), "\n",
         ) 
     };
 }
@@ -271,14 +275,24 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, 0, $b_macro:tt, $i:tt) => {
+    (B, 0, $b_macro:tt, 0) => {
         concat!(
             "ldr q3, [{bx}]", "\n",
         )
     };
-    (B, 4, $b_macro:tt, $i:tt) => {
+    (B, 1, $b_macro:tt, 0) => {
         concat!(
             "ldr q4, [{bx}, #0x10]", "\n",
+        )
+    };
+    (B, 2, $b_macro:tt, 0) => {
+        concat!(
+            "ldr q5, [{bx}, #0x20]", "\n",
+        )
+    };
+    (B, 3, $b_macro:tt, 0) => {
+        concat!(
+            "ldr q6, [{bx}, #0x30]", "\n",
         )
     };
     (B, $ni:tt, $b_macro:tt, $i:tt) => {

@@ -4229,12 +4229,16 @@ macro_rules! asm_body_neon {
             "2:",
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
             // 2 -> KITER
@@ -4252,6 +4256,7 @@ macro_rules! asm_body_neon {
             "4:",
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
 
@@ -4319,12 +4324,16 @@ macro_rules! asm_body_sve {
             "2:",
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
             // 2 -> KITER
@@ -4342,6 +4351,7 @@ macro_rules! asm_body_sve {
             "4:",
             pire_base::load_a!($mr),
             $step_macro!($b_layout, $nr),
+            inc_b!($b_layout, $nr),
 
             "sub {x0}, {x0}, #1",
 

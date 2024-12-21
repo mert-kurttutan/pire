@@ -117,9 +117,14 @@ macro_rules! beta_fmadd {
 }
 
 macro_rules! vfmadd {
-    ($i:tt, $j:tt, $b_macro:tt, $il:tt) => {
+    ($i:tt, $j:tt, $b_macro:tt, 0) => {
         concat!(
-            "fmla v", cr!($i,$j), ".4s", ", v", $i,".4s, ", $b_macro!($j,$il), "\n",
+            "fmla v", cr!($i,$j), ".4s", ", v", $i,".4s, ", $b_macro!($j,0), "\n",
+        ) 
+    };
+    ($i:tt, $j:tt, $b_macro:tt, 1) => {
+        concat!(
+            "fmla v", cr!($i,$j,1), ".4s", ", v", $i,".4s, ", $b_macro!($j,1), "\n",
         ) 
     };
 }
@@ -258,12 +263,12 @@ macro_rules! inc_b {
 }
 
 macro_rules! load_b {
-    (B, 0, $b_macro:tt, $i:tt) => {
+    (B, 0, $b_macro:tt, 0) => {
         concat!(
             "ldr q3, [{bx}]", "\n",
         )
     };
-    (B, 4, $b_macro:tt, $i:tt) => {
+    (B, 1, $b_macro:tt, 0) => {
         concat!(
             "ldr q4, [{bx}, #0x10]", "\n",
         )

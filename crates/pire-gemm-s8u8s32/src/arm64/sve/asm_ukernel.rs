@@ -225,7 +225,9 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
+        concat!(
+            "add {bx}, {bx}, #", $nr, "*8 \n",
+        )
     };
 }
 
@@ -329,42 +331,36 @@ macro_rules! load_b {
     (B, 0) => {
         concat!(
             "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
         )
     };
     (B, 2) => {
         concat!(
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ld1rqd {{ z5.d }}, p0/z, [{bx}, #0x10]", "\n",
         )
     };
     (B, 4) => {
         concat!(
-            "ld1rqd {{ z6.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ld1rqd {{ z6.d }}, p0/z, [{bx}, #0x20]", "\n",
         )
     };
     (B, 6) => {
         concat!(
-            "ld1rqd {{ z7.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ld1rqd {{ z7.d }}, p0/z, [{bx}, #0x30]", "\n",
         )
     };
     (B, 8) => {
         concat!(
-            "ld1rqd {{ z4.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ld1rqd {{ z4.d }}, p0/z, [{bx}, #0x40]", "\n",
         )
     };
     (B, 10) => {
         concat!(
-            "ld1rqd {{ z5.d }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ld1rqd {{ z5.d }}, p0/z, [{bx}, #0x50]", "\n",
         )
     };
 
     (B, $nr:tt) => {
-        "add {bx}, {bx}, #8 \n"
+        ""
     };
 }
 
@@ -408,7 +404,6 @@ macro_rules! step_2 {
                     load_b!($b_layout, n),
                     fmadd_2!(n),
                 )*
-                inc_b!($b_layout,$nr), 
             )
         })
     };
@@ -422,7 +417,6 @@ macro_rules! step_1 {
                     load_b!($b_layout, n),
                     fmadd_1!(n),
                 )*
-                inc_b!($b_layout,$nr), 
             )
         })
     };

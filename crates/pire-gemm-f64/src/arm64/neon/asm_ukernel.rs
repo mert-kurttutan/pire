@@ -221,9 +221,19 @@ macro_rules! load_b {
             "ldr q3, [{bx}]", "\n",
         )
     };
-    (B, 4, $b_macro:tt) => {
+    (B, 2, $b_macro:tt) => {
         concat!(
             "ldr q4, [{bx}, #0x10]", "\n",
+        )
+    };
+    (B, 4, $b_macro:tt) => {
+        concat!(
+            "ldr q5, [{bx}, #0x20]", "\n",
+        )
+    };
+    (B, 6, $b_macro:tt) => {
+        concat!(
+            "ldr q6, [{bx}, #0x30]", "\n",
         )
     };
     (B, $ni:tt, $b_macro:tt) => {

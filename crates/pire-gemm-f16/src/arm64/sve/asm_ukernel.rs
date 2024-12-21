@@ -233,7 +233,9 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
+        concat!(
+            "add {bx}, {bx}, #", $nr, "*2 \n",
+        )
     };
 }
 
@@ -248,25 +250,6 @@ macro_rules! load_b {
     (B, 0, $b_macro:tt) => {
         concat!(
             "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*4 \n",
-        )
-    };
-    // (B, 2) => {
-    //     concat!(
-    //         "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
-    //         "add {bx}, {bx}, #2*4 \n",
-    //     )
-    // };
-    // (B, 3) => {
-    //     concat!(
-    //         "ld1rqw {{ z3.s }}, p0/z, [{bx}]", "\n",
-    //         "add {bx}, {bx}, #3*4 \n",
-    //     )
-    // };
-    (B, 4, $b_macro:tt) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}, #0x10]", "\n",
-            // "add {bx}, {bx}, #4*4 \n",
         )
     };
     (B, $ni:tt, $b_macro:tt) => {
