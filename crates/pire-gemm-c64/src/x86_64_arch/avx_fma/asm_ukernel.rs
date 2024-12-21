@@ -240,6 +240,18 @@ macro_rules! cr {
     (2,1,1) => { 15 };
 }
 
+macro_rules! prefetch {
+    (B, $nr:tt, 0, 0) => {
+        "prefetcht0 384({bx})\n"
+    };
+    (B, $nr:tt, 0, 2) => {
+        "prefetcht0 384+64({bx})\n"
+    };
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt) => {
+        ""
+    };
+}
+
 macro_rules! load_b {
     (S, $nr:tt, 0, $K:tt, $b_macro:tt, $i:tt) => {
         concat!(
@@ -264,6 +276,7 @@ macro_rules! load_b {
     };
     (B, $nr:tt, $ni:tt, $K:tt, $b_macro:tt, $i:tt) => {
         concat!(
+            prefetch!(B, $nr, $ni, $K),
             vbroadcast!(), " ", $K, "*", $nr, "*16+", $ni, "*16+8*", $i, "({bx}), %ymm", $b_macro!($ni,$i), "\n",
         )
     };

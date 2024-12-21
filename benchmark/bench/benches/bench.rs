@@ -27,7 +27,7 @@ impl BenchmarkType for BenchmarkI8 {
     type TC = i32;
     type TS = f32;
 
-    const M: usize = 8000;
+    const M: usize = 6000;
     const TA_ONE: Self::TA = 1;
     const TB_ONE: Self::TB = 1;
     const TC_ONE: Self::TC = 1;
@@ -42,7 +42,7 @@ impl BenchmarkType for BenchmarkI16 {
     type TC = i32;
     type TS = f32;
 
-    const M: usize = 6400;
+    const M: usize = 5400;
     const TA_ONE: Self::TA = 1;
     const TB_ONE: Self::TB = 1;
     const TC_ONE: Self::TC = 1;

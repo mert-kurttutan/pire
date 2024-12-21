@@ -115,9 +115,19 @@ macro_rules! alpha_scale {
     () => { alpha_scale_0!(4, 15) };
 }
 
+macro_rules! prefetch {
+    (B, $nr:tt, 0, 0) => {
+        "prefetcht0 384({bx})\n"
+    };
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt) => {
+        ""
+    };
+}
+
 macro_rules! load_b {
     ($b_layout:tt, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
+            prefetch!($b_layout, $nr, $ni, $K),
             vbroadcast!(), " ", b_mem!($b_layout,$nr,$ni,$K), ",%ymm", $b_macro!($ni), "\n",
         )
     };

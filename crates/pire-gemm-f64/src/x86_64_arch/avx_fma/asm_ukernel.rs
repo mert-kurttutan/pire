@@ -119,6 +119,9 @@ macro_rules! prefetch {
     (B, $nr:tt, 0, 0) => {
         "prefetcht0 384({bx})\n"
     };
+    (B, $nr:tt, 0, 2) => {
+        "prefetcht0 384+64({bx})\n"
+    };
     ($b_layout:tt, $nr:tt, $ni:tt, $K:tt) => {
         ""
     };
