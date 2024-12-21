@@ -2,10 +2,9 @@ use seq_macro::seq;
 use crate::{TC, TC_SIZE};
 use super::VS;
 use pire_base::{
-    def_ukernel_avx512, mem,
+    def_ukernel_avx512, mem, b_mem,
     acc_3, acc_2, acc_1, store_3, store_2, store_1,
     init_ab,
-    fmadd_3, fmadd_2, fmadd_1,
     step_3, step_2, step_1,
     init_ab_2, def_ukernel_avx512_2,
 };
@@ -20,6 +19,10 @@ type TB = f32;
 
 macro_rules! vs {
     () => { "0x40" };
+}
+
+macro_rules! bs {
+    () => { "4" }
 }
 
 macro_rules! v_i {
@@ -91,9 +94,9 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vfmadd231ps %zmm", $r1, ", %zmm", $r2,", %zmm", $r3, "\n",
+            "vfmadd231ps %zmm", $i, ", %zmm", $b_macro!($j),", %zmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -222,9 +225,9 @@ macro_rules! br_1 {
 }
 
 macro_rules! load_b {
-    (B, $N:tt, $r:expr) => {
+    (B, $ni:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $N, "*4({bx}), %zmm", $r, "\n",
+            vbroadcast!(), " ", b_mem!(B,0,$ni,0), ",%zmm", $b_macro!($ni), "\n",
         )
     };
 }

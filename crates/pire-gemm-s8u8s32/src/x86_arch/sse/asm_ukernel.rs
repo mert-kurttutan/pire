@@ -20,6 +20,10 @@ macro_rules! cr {
     (0,3) => { 7 };
 }
 
+macro_rules! dr {
+    ($i:tt, $j:tt) => { 2 };
+}
+
 type TS = f32;
 
 const ZERO_SCALAR: f32 = 0.0;
@@ -68,12 +72,12 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "movups %xmm", $r2, ", %xmm", $r4, "\n",
-            "pmaddubsw %xmm", $r1, ", %xmm", $r4, "\n",
-            "pmaddwd ", "%xmm3", ", %xmm", $r4, "\n",
-            "paddd %xmm", $r4, ", %xmm", $r3, "\n",
+            "movups %xmm", $b_macro!($j), ", %xmm", dr!($i,$j), "\n",
+            "pmaddubsw %xmm", $i, ", %xmm", dr!($i,$j), "\n",
+            "pmaddwd ", "%xmm3", ", %xmm", dr!($i,$j), "\n",
+            "paddd %xmm", dr!($i,$j), ", %xmm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -186,18 +190,10 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    (B, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %xmm", $r, "\n",
-            "shufps $0, %xmm", $r, ", %xmm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0,$ni), 2),
+            "movss ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %xmm", $b_macro!($ni), "\n",
+            "shufps $0, %xmm", $b_macro!($ni), ", %xmm", $b_macro!($ni), "\n",
         )
     };
 }

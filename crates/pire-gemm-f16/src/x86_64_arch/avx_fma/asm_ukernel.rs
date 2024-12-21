@@ -1,9 +1,8 @@
 use seq_macro::seq;
 use pire_base::{
-    def_ukernel_avx, mem,
+    def_ukernel_avx, mem, b_mem,
     init_ab_avx,
     acc_3, acc_2, acc_1, store_3, store_2, store_1,
-    fmadd_3, fmadd_2, fmadd_1,
     step_3, step_2, step_1,
 };
 use crate::{TC, TC_SIZE};
@@ -13,7 +12,7 @@ use super::super::avx::asm_ukernel::{
     vzeroall,
     mask_ptr, load_mask,
     load_beta,
-    vs, v_i,
+    vs, v_i, bs,
     loadp_unit, storep_unit,
 };
 
@@ -56,10 +55,10 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vfmadd231ps %ymm", $r1, ", %ymm", $r2,", %ymm", $r3, "\n",
-        ) 
+            "vfmadd231ps %ymm", $i, ", %ymm", $b_macro!($j),", %ymm", cr!($i,$j), "\n",
+        )  
     };
 }
 
@@ -117,9 +116,9 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $r, "\n",
+            vbroadcast!(), " ", b_mem!($b_layout,$nr,$ni,$K), ",%ymm", $b_macro!($ni), "\n",
         )
     };
 }

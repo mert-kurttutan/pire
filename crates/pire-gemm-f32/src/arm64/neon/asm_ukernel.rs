@@ -1,10 +1,10 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_neon,
+    def_ukernel_neon,
     acc_3, acc_2, acc_1,
     store_3, store_2, store_1,
-    fmadd_3, fmadd_2, fmadd_1,
+    step_3, step_2, step_1,
 };
 
 const ONE_SCALAR: TC = 1f32;
@@ -108,9 +108,9 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "fmla v", $r3, ".4s", ", v", $r1,".4s, ", $r2, "\n",
+            "fmla v", cr!($i,$j), ".4s", ", v", $i,".4s, ", $b_macro!($j), "\n",
         ) 
     };
 }
@@ -221,61 +221,18 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (B, $r:expr) => {
+    (B, 0, $b_macro:tt) => {
         concat!(
-            "ldr q", $r, ", [{bx}]", "\n",
+            "ldr q3, [{bx}]", "\n",
         )
     };
-    (B, $r1:expr, $r2:expr) => {
+    (B, 4, $b_macro:tt) => {
         concat!(
-            "ldr q", $r1, ", [{bx}]", "\n",
-            "ldr q", $r2, ", [{bx}, #0x10]", "\n",
+            "ldr q4, [{bx}, #0x10]", "\n",
         )
     };
-}
-
-// ***************************** 3 ******************************* //
-macro_rules! step_3 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, 3, 4),
-                #(
-                    fmadd_3!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-// ***************************** 2 ******************************* //
-macro_rules! step_2 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, 3, 4),
-                #(
-                    fmadd_2!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-// ***************************** 2 ******************************* //
-macro_rules! step_1 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, 3, 4),
-                #(
-                    fmadd_1!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
+    (B, $ni:tt, $b_macro:tt) => {
+        ""
     };
 }
 

@@ -1,10 +1,10 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_sve,
+    def_ukernel_sve,
     acc_3, acc_2, acc_1,
     store_3, store_2, store_1,
-    fmadd_3, fmadd_2, fmadd_1,
+    step_3, step_2, step_1,
 };
 use super::super::sve_vs;
 
@@ -126,9 +126,9 @@ macro_rules! vzeroall {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "fmla z", $r3, ".h", ", z", $r1,".h, ", $r2, "\n",
+            "fmla z", cr!($i,$j), ".h", ", z", $i,".h, ", $b_macro!($j), "\n",
         ) 
     };
 }
@@ -233,7 +233,9 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
+        concat!(
+            "add {bx}, {bx}, #", $nr, "*2 \n",
+        )
     };
 }
 
@@ -245,95 +247,13 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (B, 1) => {
+    (B, 0, $b_macro:tt) => {
         concat!(
             "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #1*2 \n",
         )
     };
-    (B, 2) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #2*2 \n",
-        )
-    };
-    (B, 3) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #3*2 \n",
-        )
-    };
-    (B, 4) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #4*2 \n",
-        )
-    };
-    (B, 5) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #5*2 \n",
-        )
-    };
-    (B, 6) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #6*2 \n",
-        )
-    };
-    (B, 7) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #7*2 \n",
-        )
-    };
-    (B, 8) => {
-        concat!(
-            "ld1rqh {{ z3.h }}, p0/z, [{bx}]", "\n",
-            "add {bx}, {bx}, #8*2 \n",
-        )
-    };
-}
-
-macro_rules! step_1 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_1!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-macro_rules! step_2 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_2!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
-    };
-}
-
-macro_rules! step_3 {
-    ($b_layout:tt, $nr:tt) => {
-        seq!(n in 0..$nr {
-            concat!(
-                load_b!($b_layout, $nr),
-                #(
-                    fmadd_3!(n),
-                )*
-                inc_b!($b_layout,$nr), 
-            )
-        })
+    (B, $ni:tt, $b_macro:tt) => {
+        ""
     };
 }
 

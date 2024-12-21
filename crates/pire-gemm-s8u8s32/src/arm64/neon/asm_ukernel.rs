@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use crate::{TA, TB, TC, TC_SIZE};
 use pire_base::{
-    prefetch_0, def_ukernel_neon_i8mm,
+    def_ukernel_neon_i8mm,
     acc_2, acc_1,
     store_2, store_1,
 };
@@ -215,7 +215,9 @@ macro_rules! inc_b {
         "add {x1},{cx} \n"
     };
     (B,$nr:tt) => {
-        ""
+        concat!(
+            "add {bx}, {bx}, #", $nr, "*4 \n",
+        )
     };
 }
 
@@ -233,7 +235,6 @@ macro_rules! br_2 {
     (6) => { 7 };
     (8) => { 4 };
     (10) => { 5 };
-    ($nr:tt) => { 4 };
 }
 
 macro_rules! br_1 {
@@ -243,7 +244,6 @@ macro_rules! br_1 {
     (6) => { 7 };
     (8) => { 4 };
     (10) => { 5 };
-    ($nr:tt) => { 4 };
 }
 
 macro_rules! cr {
@@ -319,43 +319,36 @@ macro_rules! dr {
 macro_rules! load_b {
     (B, 0) => {
         concat!(
-            "ld1 {{v4.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q4, [{bx}]", "\n",
         )
     };
     (B, 2) => {
         concat!(
-            "ld1 {{v5.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q5, [{bx}, #0x10]", "\n",
         )
     };
     (B, 4) => {
         concat!(
-            "ld1 {{v6.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q6, [{bx}, #0x20]", "\n",
         )
     };
     (B, 6) => {
         concat!(
-            "ld1 {{v7.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q7, [{bx}, #0x30]", "\n",
         )
     };
     (B, 8) => {
         concat!(
-            "ld1 {{v4.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q4, [{bx}, #0x40]", "\n",
         )
     };
     (B, 10) => {
         concat!(
-            "ld1 {{v5.2d}}, [{bx}]", "\n",
-            "add {bx}, {bx}, #8 \n",
+            "ldr q5, [{bx}, #0x50]", "\n",
         )
     };
-
     (B, $nr:tt) => {
-        "add {bx}, {bx}, #8 \n"
+        ""
     };
 }
 

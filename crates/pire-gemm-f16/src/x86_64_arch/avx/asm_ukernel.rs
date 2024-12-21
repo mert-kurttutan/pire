@@ -1,7 +1,7 @@
 use seq_macro::seq;
 use crate::{TC, TC_SIZE};
 use pire_base::{
-    def_ukernel_avx, mem,
+    def_ukernel_avx, mem, b_mem,
     init_ab_avx,
     acc_2, store_2, acc_1, store_1,
     step_2, step_1,
@@ -19,6 +19,11 @@ macro_rules! vs {
     () => { "0x20" };
 }
 pub(crate) use vs;
+
+macro_rules! bs {
+    () => { "4" }
+}
+pub(crate) use bs;
 
 macro_rules! v_i {
     ($m:tt, $i:tt) => { concat!($i, "*0x10+" , $m) };
@@ -67,10 +72,10 @@ macro_rules! vbroadcast {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vmulps %ymm", $r1, ", %ymm", $r2,", %ymm", $r4, "\n",
-            "vaddps %ymm", $r4, ", %ymm", $r3, ", %ymm", $r3, "\n",
+            "vmulps %ymm", $i, ", %ymm", $b_macro!($j),", %ymm", dr!($i,$j), "\n",
+            "vaddps %ymm", dr!($i,$j), ", %ymm", cr!($i,$j), ", %ymm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -177,26 +182,9 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni), cr!(0, $ni), dr!(0, $ni)),
-            vfmadd!(1, br_2!($ni), cr!(1, $ni), dr!(1, $ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0, $ni), dr!(0, $ni)),
+            vbroadcast!(), " ", b_mem!($b_layout,$nr,$ni,$K), ",%ymm", $b_macro!($ni), "\n",
         )
     };
 }

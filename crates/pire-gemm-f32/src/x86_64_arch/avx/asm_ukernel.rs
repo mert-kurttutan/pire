@@ -16,6 +16,9 @@ const ONE_SCALAR: f32 = 1.0;
 macro_rules! vs {
     () => { "0x20" };
 }
+macro_rules! bs {
+    () => { "4" };
+}
 pub(crate) use vs;
 
 macro_rules! v_i {
@@ -109,10 +112,10 @@ macro_rules! c_load {
 }
 
 macro_rules! vfmadd {
-    ($r1:expr, $r2:expr, $r3:expr, $r4:expr) => {
+    ($i:tt, $j:tt, $b_macro:tt) => {
         concat!(
-            "vmulps %ymm", $r1, ", %ymm", $r2,", %ymm", $r4, "\n",
-            "vaddps %ymm", $r4, ", %ymm", $r3, ", %ymm", $r3, "\n",
+            "vmulps %ymm", $i, ", %ymm", $b_macro!($j),", %ymm", dr!($i,$j), "\n",
+            "vaddps %ymm", dr!($i,$j), ", %ymm", cr!($i,$j), ", %ymm", cr!($i,$j), "\n",
         ) 
     };
 }
@@ -188,31 +191,9 @@ macro_rules! alpha_scale {
 }
 
 macro_rules! load_b {
-    (S, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
-            vbroadcast!(), " ", b_mem!($ni), ",%ymm", $r, "\n",
-        )
-    };
-    (B, $nr:tt, $ni:tt, $K:tt, $r:expr) => {
-        concat!(
-            vbroadcast!(), " ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $r, "\n",
-        )
-    };
-}
-
-macro_rules! fmadd_2 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_2!($ni), cr!(0, $ni), dr!(0, $ni)),
-            vfmadd!(1, br_2!($ni), cr!(1, $ni), dr!(1, $ni)),
-        )
-    };
-}
-
-macro_rules! fmadd_1 {
-    ($ni:tt) => {
-        concat!(
-            vfmadd!(0, br_1!($ni), cr!(0, $ni), dr!(0, $ni)),
+            vbroadcast!(), " ", b_mem!($b_layout,$nr,$ni,$K), ",%ymm", $b_macro!($ni), "\n",
         )
     };
 }
