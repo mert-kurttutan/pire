@@ -39,9 +39,6 @@ pub(crate) fn get_mcnckc_simd_f32() -> (usize, usize, usize) {
     } else {
         (AVX_MR, AVX_NR)
     };
-    if (*RUNTIME_HW_CONFIG).model_id() == 106 {
-        return (4800 / mr * mr, 192 / nr * nr, 768);
-    }
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
         HWModel::Skylake => (4800, 384, 1024),
         HWModel::Haswell => (4800, 320, 192),
