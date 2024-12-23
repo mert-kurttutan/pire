@@ -180,6 +180,15 @@ macro_rules! prefetch {
     (B, 0) => {
         "prefetcht0 768({bx})\n"
     };
+    (B, 1) => {
+        "prefetcht0 768({bx})\n"
+    };
+    (B, 2) => {
+        "prefetcht0 768+64({ax})\n"
+    };
+    (B, 3) => {
+        "prefetcht0 768+128({ax})\n"
+    };
     ($b_layout:tt, $ni:tt) => {
         ""
     };

@@ -45,7 +45,7 @@ pub fn get_mcnckc_simd() -> (usize, usize, usize) {
     // let kc = std::env::var("PIRE_KC").unwrap_or("512".to_string()).parse::<usize>().unwrap();
     // return (mc, nc, kc);
     let (mc, nc, kc) = match (*RUNTIME_HW_CONFIG).hw_model {
-        HWModel::Skylake => (4800, 192, 384),
+        HWModel::Skylake => (4800, 192, 1024),
         HWModel::Haswell => (2400, 192, 192),
         _ => get_cache_params(),
     };
