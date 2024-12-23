@@ -224,6 +224,24 @@ macro_rules! inc_b {
     };
 }
 
+macro_rules! prefetch {
+    (B, 0, 0) => {
+        "prefetcht0 768({bx})\n"
+    };
+    (B, 1, 0) => {
+        "prefetcht0 768({ax})\n"
+    };
+    (B, 2, 0) => {
+        "prefetcht0 768+64({ax})\n"
+    };
+    (B, 3, 0) => {
+        "prefetcht0 768+128({ax})\n"
+    };
+    ($b_layout:tt, $ni:tt, $i:tt) => {
+        ""
+    };
+}
+
 macro_rules! load_b {
     (S, 0, $b_macro:tt, $i:tt) => {
         concat!(
@@ -258,6 +276,7 @@ macro_rules! load_b {
     };
     (B, $n:tt, $b_macro:tt, $i:tt) => {
         concat!(
+            prefetch!(B, $n, $i),
             vbroadcast!(), " ", $n, "*16+8*", $i, "({bx}), %zmm", $b_macro!($n,$i), "\n",
         )
     };
