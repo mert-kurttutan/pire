@@ -220,9 +220,29 @@ macro_rules! inc_b {
     };
 }
 
+macro_rules! prefetch {
+    (B, 0) => {
+        "prefetcht0 768({bx})\n"
+    };
+    (B, 1) => {
+        "prefetcht0 768({bx})\n"
+    };
+    (B, 2) => {
+        "prefetcht0 768+64({ax})\n"
+    };
+    (B, 3) => {
+        "prefetcht0 768+128({ax})\n"
+    };
+    ($b_layout:tt, $ni:tt) => {
+        ""
+    };
+}
+
+
 macro_rules! load_b {
     (B, $ni:tt, $b_macro:tt) => {
         concat!(
+            prefetch!(B, $ni),
             vbroadcast!(), " ", $ni, "*4({bx}), %zmm", $b_macro!($ni), "\n",
         )
     };

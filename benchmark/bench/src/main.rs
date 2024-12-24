@@ -734,7 +734,8 @@ struct Args {
     bench_type: String,
 
     // dimension config for benchmakring
-    #
+    #[arg(long, default_value_t = String::from("sgemm"))]
+    dim_config: String,
 
     // alpha
     #[arg(short, long, default_value_t = 1.0)]
@@ -752,7 +753,7 @@ use serde::{Deserialize, Serialize};
 
 use bench::BenchmarkConfig;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DimStrategy {
     Big(Vec<usize>),
     SmallM(usize, Vec<usize>),
@@ -841,11 +842,11 @@ fn bench_type_to_long_dims(bench_type: &str) -> Vec<usize> {
     }
 }
 
-fn run_bench(args: &Args, run_folder_path: PathBuf) {
+fn run_bench(args: &Args, run_folder_path: PathBuf, dim_strategy: DimStrategy) {
     prepare_num_threads(args.num_threads);
     let benchmark_result_path = get_bench_file_path(run_folder_path);
-    let long_dims_vec = bench_type_to_long_dims(&args.bench_type);
-    let dim_strategy = DimStrategy::Big(long_dims_vec);
+    // let long_dims_vec = bench_type_to_long_dims(&args.bench_type);
+    // let dim_strategy = DimStrategy::Big(long_dims_vec);
     // let dim_strategy = DimStrategy::SmallM(SMALL_DIM, LONG_DIMS.to_vec());
     let hw = get_benchmark_config();
     let alpha = args.alpha;
@@ -922,13 +923,21 @@ fn main() {
     let run_folder_path = benchmark_folder_path.join(benchmark_run_folder.clone());
     for bench_type in bench_type_arr.iter() {
         args.bench_type = bench_type.to_string();
-        for backend in backend_arr.iter() {
-            let bench_pair = (*bench_type, *backend);
-            if bench_pair_to_pass.contains(&bench_pair) {
-                continue;
+        let dim_strategy_arr = [
+            DimStrategy::Big(bench_type_to_long_dims(bench_type)),
+            DimStrategy::SmallM(SMALL_DIM, bench_type_to_long_dims(bench_type)),
+            DimStrategy::SmallN(SMALL_DIM, bench_type_to_long_dims(bench_type)),
+            DimStrategy::SmallK(SMALL_DIM, bench_type_to_long_dims(bench_type)),
+        ];
+        for dim_strat in dim_strategy_arr.iter() {
+            for backend in backend_arr.iter() {
+                let bench_pair = (*bench_type, *backend);
+                if bench_pair_to_pass.contains(&bench_pair) {
+                    continue;
+                }
+                args.backend = backend.to_string();
+                run_bench(&args, run_folder_path.clone(), dim_strat.clone());
             }
-            args.backend = backend.to_string();
-            run_bench(&args, run_folder_path.clone());
         }
     }
 }

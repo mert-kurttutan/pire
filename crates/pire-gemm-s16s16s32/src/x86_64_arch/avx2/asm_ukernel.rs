@@ -181,9 +181,19 @@ macro_rules! inc_b {
     ($nr:tt) => { "" };
 }
 
+macro_rules! prefetch {
+    (B, $nr:tt, 0, 0) => {
+        "prefetcht0 384({bx})\n"
+    };
+    ($b_layout:tt, $nr:tt, $ni:tt, $K:tt) => {
+        ""
+    };
+}
+
 macro_rules! load_b {
     (B, $nr:tt, $ni:tt, $K:tt, $b_macro:tt) => {
         concat!(
+            prefetch!(B, $nr, $ni, $K),
             "vbroadcastss ", $K, "*", $nr, "*4+", $ni, "*4({bx}), %ymm", $b_macro!($ni), "\n",
         )
     };
