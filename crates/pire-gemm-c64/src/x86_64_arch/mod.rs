@@ -341,7 +341,7 @@ def_pire_gemm!(
     packb0,
     packa_fn_simd,
     packb_fn_simd,
-    false,
+    true,
     true,
     into_pack_array,
     F,
