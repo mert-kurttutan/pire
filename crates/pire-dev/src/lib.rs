@@ -192,25 +192,6 @@ type GEMM_I16_FN_TYPE = unsafe extern "C" fn(
 
 const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
-// TODO: Add more reasonalble deafult paths for different os,s windows/unix
-// pub static CBLAS_LIBRARY: Lazy<libloading::Library> = Lazy::new(|| unsafe {
-//     #[cfg(target_os = "windows")]
-//     let default_mkl_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
-//     #[cfg(target_os = "linux")]
-//     let default_mkl_path = format!("{PROJECT_DIR}/../../.env/lib/libmkl_rt.so.2");
-//     let mkl_path = std::env::var("PIRE_MKL_PATH").unwrap_or(default_mkl_path);
-//     libloading::Library::new(mkl_path).unwrap()
-// });
-
-// pub static CBLAS_LIBRARY_OPENBLAS: Lazy<libloading::Library> = Lazy::new(|| unsafe {
-//     #[cfg(target_os = "windows")]
-//     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/openblas.dll");
-//     #[cfg(target_os = "linux")]
-//     let default_openblas_path = format!("{PROJECT_DIR}/../../openblas/libopenblas.so");
-//     let openblas_path = std::env::var("PIRE_OPENBLAS_PATH").unwrap_or(default_openblas_path);
-//     libloading::Library::new(openblas_path).unwrap()
-// });
-
 pub static CBLAS_LIBRARY: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     #[cfg(target_os = "windows")]
     let default_cblas_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
