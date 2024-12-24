@@ -194,9 +194,9 @@ const PROJECT_DIR: &str = core::env!("CARGO_MANIFEST_DIR");
 
 pub static CBLAS_LIBRARY: Lazy<libloading::Library> = Lazy::new(|| unsafe {
     #[cfg(target_os = "windows")]
-    let default_cblas_path = format!("{PROJECT_DIR}/../../.env/Library/bin/mkl_rt.2.dll");
+    let default_cblas_path = format!("{PROJECT_DIR}/../../.venv/Library/bin/mkl_rt.2.dll");
     #[cfg(target_os = "linux")]
-    let default_cblas_path = format!("{PROJECT_DIR}/../../.env/lib/libmkl_rt.so.2");
+    let default_cblas_path = format!("{PROJECT_DIR}/../../.venv/lib/libmkl_rt.so.2");
     let cblas_path = std::env::var("PIRE_CBLAS_PATH").unwrap_or(default_cblas_path);
     libloading::Library::new(cblas_path).unwrap()
 });
