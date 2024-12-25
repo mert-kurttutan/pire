@@ -105,6 +105,21 @@ macro_rules! vfmadd {
 }
 
 macro_rules! loadp_unit {
+    ($m0:expr, $r1:expr, C) => {
+        concat!(
+            "vmovups ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
+        )
+    };
+    ($m0:expr, $r1:expr, B) => {
+        concat!(
+            "vmovaps ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
+        )
+    };
+    ($m0:expr, $r1:expr, P) => {
+        concat!(
+            "vmovups ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "{{%k1}}\n",
+        )
+    };
     ($m0:expr, $r1:expr) => {
         concat!(
             "vmovaps ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
@@ -161,7 +176,7 @@ macro_rules! alpha_scale {
 
 macro_rules! inc_b {
     (S,$nr:tt) => {
-        "add {x1},{bx} \n add {x1},{x3} \n add {x1},{x4} \n add {x1},{x5} \n"
+        "add {x1},{bx} \n add {x1},{x3} \n add {x1},{x4} \n"
     };
     (B,$nr:tt) => {
         concat!(
@@ -253,15 +268,15 @@ macro_rules! br_1 {
     (7) => { 1 };
 }
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, B, P, ukernel_3_bbp);
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 8, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, B, B, P, ukernel_3_bbp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 8, B, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, B, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, B, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, S, P, ukernel_3_bsp);
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 8, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, S, P, ukernel_1_bsp);
+def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, B, S, P, ukernel_3_bsp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 8, B, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, B, S, P, ukernel_1_bsp);
 
 
 // based on l1 prefetching scheme is from openblas impl for skylax
@@ -271,3 +286,10 @@ def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, S, P, ukernel_1_bsp);
 // where the same l1 prefetching does not benefit as much)
 
 def_ukernel_avx512_2!(1, step_3, acc_3, store_3, 3, 8, 8, 32);
+
+
+def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, C, S, C, ukernel_ssc);
+
+def_ukernel_avx512!(1, step_3, acc_3, store_3, 3, 8, P, S, P, ukernel_3_ssp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 8, P, S, P, ukernel_2_ssp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 8, P, S, P, ukernel_1_ssp);

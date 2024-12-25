@@ -805,6 +805,7 @@ impl PirePar {
             GemmPool::Goto => i_load_par,
             GemmPool::SmallM => i_load_par,
             GemmPool::SmallN => 1,
+            GemmPool::SmallMN => 1,
         };
         (i_load_par.max(1), j_load_par.max(1))
     }
@@ -1025,6 +1026,7 @@ pub enum GemmPool {
     Goto,
     SmallM,
     SmallN,
+    SmallMN,
 }
 
 #[derive(Clone, Copy)]
@@ -1571,10 +1573,11 @@ macro_rules! def_pire_gemm {
         $goto_name:ident, $goto_kernel:ident,
         $small_m_name:ident, $small_m_kernel:ident,
         $small_n_name:ident, $small_n_kernel:ident,
+        $small_mn_name:ident, $small_mn_kernel:ident,
         $gemv_name:ident, $gemv_name2:ident,
         $packa_name:ident, $packb_name:ident,
         $packa_name0:ident, $packb_name0:ident,
-        $run_small_m:expr, $run_small_n:expr,
+        $run_small_m:expr, $run_small_n:expr, $run_small_mn:expr,
         $pack_fn:tt, $include_flag:tt,
     ) => {
         def_pa!($packa_ty,$include_flag,$ta,$tap);
@@ -1617,7 +1620,10 @@ macro_rules! def_pire_gemm {
                 ),
                 PoolSize
             )
-             = if run_small_m(m) && $run_small_m && b.is_strided() {
+             = if run_small_m(m) && run_small_n(n) && $run_small_mn && a.is_strided() && b.is_strided() && a.rs() == 1 {
+                (GemmPool::SmallMN, $small_mn_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool, b_need_pool))
+             }
+            else if run_small_m(m) && $run_small_m && b.is_strided() {
                 (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool))
             } else if run_small_n(n) && $run_small_n && a.is_strided() {
                 (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, b_need_pool))
@@ -1696,11 +1702,13 @@ macro_rules! def_pire_gemm {
                         GemmPool::Goto => ic_id,
                         GemmPool::SmallM => ic_id,
                         GemmPool::SmallN => t_id,
+                        GemmPool::SmallMN => ic_id,
                     };
                     let bp_id = match gemm_mode {
                         GemmPool::Goto => jc_id,
                         GemmPool::SmallM => 0,
                         GemmPool::SmallN => jc_id,
+                        GemmPool::SmallMN => 0,
                     };
                     let ap_cur = a.$pack_fn(ap_pool, ap_id);
                     let bp_cur = b.$pack_fn(bp_pool, bp_id);
@@ -1986,6 +1994,78 @@ macro_rules! def_pire_gemm {
                 }
             }
         }
+        unsafe fn $small_mn_name<F:UnaryFnC>(
+            hw_cfg: &$t_dispatcher <F>,
+            m: usize, n: usize, k: usize,
+            alpha: *const $t_as,
+            a: $packa_ty,
+            b: $packb_ty,
+            beta: *const $t_bs,
+            c: ArrayMut<$tc>,
+            t_cfg: &PireThreadConfig
+        ) {
+            let par = &t_cfg.par;
+            let ic_id = t_cfg.ic_id;
+            let jc_id = t_cfg.jc_id;
+            let ir_id = t_cfg.ir_id;
+            let ir_par = par.ir_par;
+            let jr_id = t_cfg.jr_id;
+            let jr_par = par.jr_par;
+            let mc = t_cfg.mc_eff;
+            let nc = t_cfg.nc_eff;
+            let kc = t_cfg.kc_eff;
+            let mr = hw_cfg.mr;
+            let nr = hw_cfg.nr;
+            let (mc_start, mc_end, mc_left) = split_c_range(m, mc, mr, ic_id, par.ic_par);
+            let (nc_start, nc_end, _) = split_c_range(n, nc, nr, jc_id, par.jc_par);
+            let (kc_start, kc_end) = (0, k);
+            let one = $one;
+
+            let a_ptr = a.src();
+            let b_ptr = b.src();
+            let a_rs = a.rs();
+            let a_cs = a.cs();
+            let b_rs = b.rs();
+            let b_cs = b.cs();
+            let c_rs = c.rs();
+            let c_cs = c.cs();
+            let c_ptr = c.src();
+            let mut mc_i = mc_start;
+            while mc_i < mc_end {
+                let mc_len = mc.min(mc_end - mc_i);
+                let (mr_start, mr_end) = split_range(mc_len, mr, ir_id, ir_par);
+                let mr_len = mr_end - mr_start;
+                let c_i = c_ptr.add((mc_i+mr_start) * c_rs);
+                let a_i = a_ptr.add((mc_i+mr_start) * a.rs());
+                let mut kc_i = kc_start;
+                while kc_i < kc_end {
+                    let kc_len = kc.min(kc_end - kc_i);
+                    let kc_len_eff = hw_cfg.round_k(kc_len);
+                    let beta_t = if kc_i == kc_start { beta } else { &one as *const $t_bs};
+                    let kc_last = kc_i + kc_len == kc_end;
+                    let mut nc_i = nc_start;
+                    let a_cur = a_i.add(kc_i*a.cs());
+                    let b_j = b_ptr.add(kc_i * b_rs);
+                    while nc_i < nc_end {
+                        let nc_len = nc.min(nc_end - nc_i);
+                        let (nr_start, nr_end) = split_range(nc_len, nr, jr_id, jr_par);
+                        let nr_len = nr_end - nr_start;
+                        let c_ij = c_i.add((nc_i + nr_start) * c_cs);
+                        let b_cur = b_j.add((nc_i + nr_start) * b_cs);
+                        $small_mn_kernel(
+                            hw_cfg, mr_len, nr_len, kc_len, alpha, beta_t,
+                            a_cur, a_rs, a_cs,
+                            b_cur, b_rs, b_cs,
+                            c_ij, c_rs, c_cs,
+                            kc_last,
+                        );
+                        nc_i += nc;
+                    }
+                    kc_i += kc;
+                }
+                mc_i += mc;
+            }
+        }
         // for packed api mc_i(nc_i) should be multiple of mr (nr, which we ensure by the split_c_range
         // for packed api kc_i should be multiple of kc_eff, which is always true since we dont parallelize over kc
         // this is subject to change if we parallelize over kc, but this is not in the plan
@@ -2153,7 +2233,7 @@ macro_rules! def_kernel_bb_v0 {
                     } else {
                         c_cur1
                     };
-                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, mr, nr);
+                    ukernel_bbc(ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, 1, c_cs_f, mr, nr);
                     for j in 0..nr {
                         f.call(c_cur1_f.add(j*c_cs_f), mr);
                     }
@@ -2185,7 +2265,7 @@ macro_rules! def_kernel_bb_v0 {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
+                            [<ukernel_ mr_vs _bbp>](ap_cur, bp_cur, c_cur1_f, alpha, beta, k, d_arr, 1, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
                             f.call(c_cur1_f.add(j*c_cs_f), m_left);
@@ -2268,7 +2348,7 @@ macro_rules! def_kernel_sb_v0 {
                     } else {
                         c_cur1
                     };
-                    ukernel_bbc(ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, mr, nr);
+                    ukernel_bbc(ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, 1, c_cs_f, mr, nr);
                     for j in 0..nr {
                         f.call(c_cur1_f.add(j*c_cs_f), mr);
                     }
@@ -2300,7 +2380,7 @@ macro_rules! def_kernel_sb_v0 {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_vs _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, c_cs_f, m_left, nr);
+                            [<ukernel_ mr_vs _bbp>](ap, bp_cur, c_cur1_f, alpha, beta, k_eff, d_arr, 1, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
                             f.call(c_cur1_f.add(j*c_cs_f), m_left);
@@ -2377,7 +2457,7 @@ macro_rules! def_kernel_bs {
                     } else {
                         c_cur1
                     };
-                    ukernel_bsc(ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, MR, nr);
+                    ukernel_bsc(ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, 1, c_cs_f, MR, nr);
                     for j in 0..nr {
                         f.call(c_cur1_f.add(j*c_cs_f), MR);
                     }
@@ -2406,7 +2486,7 @@ macro_rules! def_kernel_bs {
                             c_cur1
                         };
                         paste::paste! {
-                            [<ukernel_ mr_left _bsp>](ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, c_cs_f, m_left, nr);
+                            [<ukernel_ mr_left _bsp>](ap_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, 1, c_cs_f, m_left, nr);
                         }
                         for j in 0..nr {
                             f.call(c_cur1_f.add(j*c_cs_f), m_left);
@@ -2445,6 +2525,114 @@ macro_rules! def_kernel_bs {
     };
 }
 
+
+#[macro_export]
+macro_rules! def_kernel_ss {
+    (
+        $t_a:ty, $t_b:ty, $t_c:ty, $t_s:ty,
+        $MR:tt, $NR:tt
+    ) => {
+        pub unsafe fn kernel_ss_v0<F: UnaryFnC, const STRIDED: bool>(
+            m: usize, n: usize, k: usize,
+            alpha: *const $t_s, beta: *const $t_s,
+            a: *const $t_a, a_rs: usize, a_cs: usize,
+            b: *const $t_b, b_rs: usize, b_cs: usize,
+            c: *mut $t_c, c_rs: usize, c_cs: usize,
+            f: F,
+        ) {
+            const MR: usize = $MR * VS;
+            const NR: usize = $NR;
+            let m_rounded = m / MR * MR;
+            let m_left = m % MR;
+            let mut c_buf = [ZERO;MR*NR];
+            let mut d_arr = [b_rs, b_cs];
+            let c_cs_f = if STRIDED { MR } else { c_cs };
+
+            let mut m_i = 0;
+            while m_i < m_rounded {
+                let c_cur0 = c.add(m_i * c_rs);
+                let a_cur = a.add(m_i * a_rs);
+                let mut n_i = 0;
+                while n_i < n {
+                    let b_cur = b.add(n_i * b_cs);
+                    let c_cur1 = c_cur0.add(n_i * c_cs);
+                    let nr = NR.min(n - n_i);
+                    let c_cur1_f = if STRIDED {
+                        pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, MR, nr, MR);
+                        c_buf.as_mut_ptr()
+                    } else {
+                        c_cur1
+                    };
+                    ukernel_ssc(a_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, a_cs, c_cs_f, MR, nr);
+                    for j in 0..nr {
+                        f.call(c_cur1_f.add(j*c_cs_f), MR);
+                    }
+                    if STRIDED {
+                        pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, MR, nr, MR);
+                    }
+                    n_i += NR;
+                }
+                m_i += MR;
+            }
+            seq_macro::seq!(mr_left in 1..=$MR {
+                if (m_left+VS-1) / VS == mr_left {
+                    const MR_LEFT: usize = mr_left * VS;
+                    let c_cs_f = if STRIDED { MR_LEFT } else { c_cs };
+                    let c_cur0 = c.add(m_i * c_rs);
+                    let a_cur = a.add(m_i * a_rs);
+                    let mut n_i = 0;
+                    while n_i < n {
+                        let b_cur = b.add(n_i * b_cs);
+                        let c_cur1 = c_cur0.add(n_i * c_cs);
+                        let nr = NR.min(n - n_i);
+                        let c_cur1_f = if STRIDED {
+                            pire_base::load_buf(c_cur1, c_rs, c_cs, &mut c_buf, m_left, nr, MR_LEFT);
+                            c_buf.as_mut_ptr()
+                        } else {
+                            c_cur1
+                        };
+                        paste::paste! {
+                            [<ukernel_ mr_left _ssp>](a_cur, b_cur, c_cur1_f, alpha, beta, k, d_arr, a_cs, c_cs_f, m_left, nr);
+                        }
+                        for j in 0..nr {
+                            f.call(c_cur1_f.add(j*c_cs_f), m_left);
+                        }
+                        if STRIDED {
+                            pire_base::store_buf(c_cur1, c_rs, c_cs, &c_buf, m_left, nr, MR_LEFT);
+                        }
+                        n_i += NR;
+                    }
+                    return;
+                }
+            });
+        }
+
+        pub(crate) unsafe fn kernel_ss<F: UnaryFnC>(
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: *const $t_s,
+            beta: *const $t_s,
+            a: *const $t_a,
+            a_rs: usize,
+            a_cs: usize,
+            b: *const $t_b,
+            b_rs: usize,
+            b_cs: usize,
+            c: *mut $t_c,
+            c_rs: usize,
+            c_cs: usize,
+            f: F,
+        ) {
+            if c_rs == 1 {
+                kernel_ss_v0::<_, false>(m, n, k, alpha, beta, a, a_rs, a_cs, b, b_rs, b_cs, c, c_rs, c_cs, f);
+            } else {
+                kernel_ss_v0::<_, true>(m, n, k, alpha, beta, a, a_rs, a_cs, b, b_rs, b_cs, c, c_rs, c_cs, f);
+            }
+        }
+    };
+}
+
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]
 macro_rules! mem {
@@ -2471,6 +2659,12 @@ macro_rules! inc_a {
     ($mr:tt) => {
         concat!("add $", vs!(), "*", $mr, ", {ax}", "\n",)
     };
+    (P, $mr:tt) => {
+        concat!("add {x5}, {ax}\n")
+    };
+    (C, $mr:tt) => {
+        concat!("add {x5}, {ax}\n")
+    };
 }
 #[macro_export]
 macro_rules! inc_a_k_unroll {
@@ -2482,11 +2676,20 @@ macro_rules! inc_a_k_unroll {
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_export]
 macro_rules! load_a {
-    ($mr:tt, $K:tt) => {
-        concat!(pire_base::loadp!($mr, concat!($mr, "*", vs!(), "*", $K, "({ax})")),)
-    };
     ($mr:tt) => {
-        concat!(pire_base::loadp!($mr, "0({ax})"), pire_base::inc_a!($mr))
+        concat!(pire_base::loadp!(B, $mr, "0({ax})"), pire_base::inc_a!($mr))
+    };
+    (B, $mr:tt) => {
+        concat!(pire_base::loadp!(B, $mr, "0({ax})"), pire_base::inc_a!($mr))
+    };
+    (C, $mr:tt) => {
+        concat!(pire_base::loadp!(C, $mr, "0({ax})"), pire_base::inc_a!(C,$mr))
+    };
+    (P, $mr:tt) => {
+        concat!(pire_base::loadp!(C, $mr, "0({ax})"), pire_base::inc_a!(P,$mr))
+    };
+    ($mr:tt, $K:tt) => {
+        concat!(pire_base::loadp!(B, $mr, concat!($mr, "*", vs!(), "*", $K, "({ax})")),)
     };
 }
 
@@ -2953,14 +3156,23 @@ macro_rules! step_1_c {
 
 #[macro_export]
 macro_rules! loadp {
-    (3, $m0:expr) => {
-        concat!(loadp_unit!($m0, 0), loadp_unit!($m0, 1), loadp_unit!($m0, 2),)
+    (P, 3, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, C), loadp_unit!($m0, 1, C), loadp_unit!($m0, 2, P),)
     };
-    (2, $m0:expr) => {
-        concat!(loadp_unit!($m0, 0), loadp_unit!($m0, 1),)
+    (P, 2, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, C), loadp_unit!($m0, 1, P),)
     };
-    (1, $m0:expr) => {
-        concat!(loadp_unit!($m0, 0),)
+    (P, 1, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, P),)
+    };
+    ($layout:tt, 3, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, $layout), loadp_unit!($m0, 1, $layout), loadp_unit!($m0, 2, $layout),)
+    };
+    ($layout:tt, 2, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, $layout), loadp_unit!($m0, 1, $layout),)
+    };
+    ($layout:tt, 1, $m0:expr) => {
+        concat!(loadp_unit!($m0, 0, $layout),)
     };
 }
 
@@ -3405,28 +3617,31 @@ macro_rules! asm_body_avx_2 {
 macro_rules! asm_body_avx512 {
     (
         $step_macro:tt, $acc_macro:tt, $store_macro:tt,
-        $mr:tt, $nr:tt, $b_layout:tt, $is_partial:tt,
+        $mr:tt, $nr:tt, $a_layout:tt, $b_layout:tt, $is_partial:tt,
         $a:tt, $b:tt, $c:tt, $alpha:tt, $beta:tt, $alpha_st:tt, $beta_st:tt,
         $dim_arr:tt, | $($mask_ptr:ident,)? |
         [$($vreg:tt,)*]
     ) => {
         core::arch::asm!(
             vzero_kernel!(),
+            load_mask!($is_partial),
+
 
             init_ab!($b_layout),
+            "mov 40({dim_arrx}), {x5}",
             "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
 
             "2:", // KITER
-            pire_base::load_a!($mr),
+            pire_base::load_a!($a_layout,$mr),
             $step_macro!($b_layout, $nr),
             inc_b!($b_layout,$nr),
-            pire_base::load_a!($mr),
+            pire_base::load_a!($a_layout,$mr),
             $step_macro!($b_layout, $nr),
             inc_b!($b_layout,$nr),
-            pire_base::load_a!($mr),
+            pire_base::load_a!($a_layout,$mr),
             $step_macro!($b_layout, $nr),
             inc_b!($b_layout,$nr),
-            pire_base::load_a!($mr),
+            pire_base::load_a!($a_layout,$mr),
             $step_macro!($b_layout, $nr),
             inc_b!($b_layout,$nr),
             "dec {x0}", "jne 2b", // KITER
@@ -3436,7 +3651,7 @@ macro_rules! asm_body_avx512 {
             "test {x0},{x0}", "je 5f", // POSTACCUM
 
             "4:", // KLEFT
-            pire_base::load_a!($mr),
+            pire_base::load_a!($a_layout,$mr),
             $step_macro!($b_layout, $nr),
             inc_b!($b_layout,$nr),
             "dec {x0}", "jne 4b", // KLEFT
@@ -3449,7 +3664,7 @@ macro_rules! asm_body_avx512 {
             alpha_scale!(),
             "9:",
 
-            load_mask!($is_partial),
+            // load_mask!($is_partial),
 
             "cmpw $0, ({beta_st})",
             "je 6f",
@@ -3623,7 +3838,7 @@ macro_rules! def_ukernel_sse {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
-            d_arr: [usize; 2], c_cs: usize,
+            d_arr: [usize; 2], a_cs: usize, c_cs: usize,
             m: usize, n: usize,
         ) {
             use core::mem::size_of;
@@ -3697,7 +3912,7 @@ macro_rules! def_ukernel_avx {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
-            d_arr: [usize; 2], c_cs: usize,
+            d_arr: [usize; 2], a_cs: usize, c_cs: usize,
             m: usize, n: usize,
         ) {
             use core::mem::size_of;
@@ -3763,6 +3978,7 @@ macro_rules! def_ukernel_avx512 {
         $acc_macro:tt,
         $store_macro:tt,
         $mr:tt, $nr:tt,
+        $a_layout:tt,
         $b_layout:tt,
         $is_partial:tt,
         $func_name:ident
@@ -3771,12 +3987,12 @@ macro_rules! def_ukernel_avx512 {
             a: *const TA, b: *const TB, c: *mut TC,
             alpha: *const TS, beta: *const TS,
             k: usize,
-            d_arr: [usize; 2], c_cs: usize,
+            d_arr: [usize; 2], a_cs: usize, c_cs: usize,
             m: usize, n: usize,
         ) {
             use core::mem::size_of;
             mask_ptr!($is_partial, m, x, mask_ptr);
-            let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit];
+            let dim_arr = [d_arr[0]*size_of::<TB>(), d_arr[1]*size_of::<TB>(), c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, a_cs*TC_SIZE];
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
             } else {
@@ -3793,7 +4009,7 @@ macro_rules! def_ukernel_avx512 {
                 pire_base::prefetch_c_avx512!($mr,$nr,c,c_cs);
                 pire_base::asm_body_avx512!(
                     $step_macro, $acc_macro, $store_macro,
-                    $mr, $nr, $b_layout, $is_partial,
+                    $mr, $nr, $a_layout, $b_layout, $is_partial,
                     a, b, c, alpha, beta, alpha_st, beta_st,
                     dim_arr, | mask_ptr, |
                     [
@@ -3815,7 +4031,7 @@ macro_rules! def_ukernel_avx512 {
                             pire_base::prefetch_c_avx512!($mr,ni,c,c_cs);
                             pire_base::asm_body_avx512!(
                                 $step_macro, $acc_macro, $store_macro,
-                                $mr, ni, $b_layout, $is_partial,
+                                $mr, ni, $a_layout, $b_layout, $is_partial,
                                 a, b, c, alpha, beta, alpha_st, beta_st,
                                 dim_arr, | mask_ptr, |
                                 [
@@ -3851,6 +4067,7 @@ macro_rules! def_ukernel_avx_2 {
             beta: *const TS,
             k: usize,
             d_arr: [usize; 2],
+            a_cs: usize,
             c_cs: usize,
             _m: usize,
             n: usize,
@@ -3932,6 +4149,7 @@ macro_rules! def_ukernel_avx512_2 {
             beta: *const TS,
             k: usize,
             d_arr: [usize; 2],
+            a_cs: usize,
             c_cs: usize,
             _m: usize,
             n: usize,
