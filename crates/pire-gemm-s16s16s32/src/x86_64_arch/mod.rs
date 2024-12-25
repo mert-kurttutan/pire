@@ -305,6 +305,27 @@ unsafe fn pire_gemv<F: UnaryFnC>(
     return;
 }
 
+#[allow(unused)]
+unsafe fn kernel_mn<F: UnaryFnC>(
+    hw_cfg: &KernelDispatcher<F>,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: *const f32,
+    beta: *const f32,
+    a: *const i16,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const i16,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut i32,
+    c_rs: usize,
+    c_cs: usize,
+    kc_last: bool,
+) {
+}
+
 def_pire_gemm!(
     KernelDispatcher,
     i16,
@@ -325,6 +346,8 @@ def_pire_gemm!(
     kernel_m,
     gemm_small_n_serial,
     kernel_n,
+    gemm_small_mn_serial,
+    kernel_mn,
     pire_gemv,
     pire_gemv,
     packa0,
@@ -333,6 +356,7 @@ def_pire_gemm!(
     packb_fn_simd,
     false,
     true,
+    false,
     into_pack_array,
     F,
 );

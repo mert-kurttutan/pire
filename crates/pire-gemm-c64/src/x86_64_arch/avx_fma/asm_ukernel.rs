@@ -114,14 +114,6 @@ macro_rules! vfmadd {
     };
 }
 
-macro_rules! loadp_unit {
-    ($m0:expr, $r1:expr) => {
-        concat!(
-            "vmovapd ", mem!($m0, concat!("0x20*", $r1)), ", %ymm", $r1, "\n",
-        )
-    };
-}
-
 macro_rules! storep_unit {
     (C, $r1:expr, $m0:expr) => {
         concat!(

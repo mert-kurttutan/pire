@@ -113,6 +113,11 @@ macro_rules! vfmadd {
 }
 
 macro_rules! loadp_unit {
+    ($m0:expr, $r1:expr, B) => {
+        concat!(
+            "movapd ", mem!($m0, concat!("0x10*", $r1)), ", %xmm", $r1, "\n",
+        )
+    };
     ($m0:expr, $r1:expr) => {
         concat!(
             "movapd ", mem!($m0, concat!("0x10*", $r1)), ", %xmm", $r1, "\n",

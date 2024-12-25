@@ -188,7 +188,7 @@ macro_rules! bd {
 }
 
 macro_rules! loadp_unit {
-    ($m0:expr, $r1:expr) => {
+    ($m0:expr, $r1:expr, B) => {
         concat!(
             "vmovaps ", $m0, ",%zmm", $r1, "\n",
         )
@@ -369,13 +369,13 @@ macro_rules! mask_ptr {
     };
 }
 
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, B, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, B, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, B, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, S, P, ukernel_1_bsp);
+def_ukernel_avx512!(1, step_2, acc_2, store_2, 2, 15, B, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1, acc_1, store_1, 1, 15, B, S, P, ukernel_1_bsp);
 
 
 // based on l1 prefetching scheme is from openblas impl for skylax
