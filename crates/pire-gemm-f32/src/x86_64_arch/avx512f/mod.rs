@@ -1,7 +1,7 @@
 #[rustfmt::skip]
 mod asm_ukernel;
 
-use asm_ukernel::*;
+pub(crate) use asm_ukernel::*;
 
 use crate::{UnaryFnC, TA, TB, TC};
 

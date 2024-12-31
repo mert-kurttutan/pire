@@ -86,7 +86,7 @@ pub unsafe fn dispatch_dgemm(
                 GemmBackend::OpenBlas => CBlasBackend::OpenBlas,
                 _ => panic!("Unsupported backend"),
             };
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -185,7 +185,7 @@ pub unsafe fn dispatch_sgemm(
                 GemmBackend::OpenBlas => CBlasBackend::OpenBlas,
                 _ => panic!("Unsupported backend"),
             };
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -290,7 +290,7 @@ pub unsafe fn dispatch_cgemm(
             let c = c as *mut c_void;
             let alpha_ptr = &alpha as *const Complex32 as *const c_void;
             let beta_ptr = &beta as *const Complex32 as *const c_void;
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -394,7 +394,7 @@ pub unsafe fn dispatch_zgemm(
             let c = c as *mut c_void;
             let alpha_ptr = &alpha as *const Complex64 as *const c_void;
             let beta_ptr = &beta as *const Complex64 as *const c_void;
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -497,7 +497,7 @@ pub unsafe fn dispatch_gemm_batch_f32(
                 GemmBackend::OpenBlas => CBlasBackend::OpenBlas,
                 _ => panic!("Unsupported backend"),
             };
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -619,7 +619,7 @@ pub unsafe fn dispatch_hgemm(
                 GemmBackend::OpenBlas => CBlasBackend::OpenBlas,
                 _ => panic!("Unsupported backend"),
             };
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -725,7 +725,7 @@ pub unsafe fn dispatch_gemm_s16s16s32(
             };
             let oc_val = 0;
             let oc = &oc_val as *const c_int;
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,
@@ -812,7 +812,7 @@ pub unsafe fn dispatch_gemm_s8u8s32(
             let oc = &oc_val as *const c_int;
             let a = a as *const c_void;
             let b = b as *const c_void;
-            let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
+            let (m, n, layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(
                 m,
                 n,
                 k,

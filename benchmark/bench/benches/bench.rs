@@ -161,9 +161,10 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
     c: *mut TC,
 ) {
     let (m, n, k) = get_mnk(dim_triple, d0, dt);
-    let (a_rs, a_cs) = (1, m as isize);
+    let (m, n, k) = (3, 51359, 384);
+    let (a_rs, a_cs) = (k as isize, 1);
     let (b_rs, b_cs) = (1, k as isize);
-    let (c_rs, c_cs) = (1, m as isize);
+    let (c_rs, c_cs) = (n as isize, 1);
     let type_name = type_name::<TA>();
     #[cfg(feature = "pire")]
     bench_c.bench_with_input(BenchmarkId::new(format!("{}-pire-gemm", type_name), dt), &dt, |bench_b, _x| {

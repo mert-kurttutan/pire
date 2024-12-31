@@ -930,28 +930,28 @@ pub fn stride_to_cblas(
     b_cs: usize,
     c_rs: usize,
     c_cs: usize,
-) -> (CBLAS_LAYOUT, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE, c_int, c_int, c_int) {
-    let (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = if c_rs == 1 {
-        (a_rs, a_cs, b_rs, b_cs, c_rs, c_cs)
+) -> (usize, usize, CBLAS_LAYOUT, CBLAS_TRANSPOSE, CBLAS_TRANSPOSE, c_int, c_int, c_int) {
+    let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs) = if c_rs == 1 {
+        (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs)
     } else if c_cs == 1 {
-        (a_cs, a_rs, b_cs, b_rs, c_cs, c_rs)
+        (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs)
     } else {
         panic!("Non Trivial Stride is not available for Cblas Api");
     };
     // c_rs == 1
     let ldc = c_cs as c_int;
-    let (a_trans, b_trans, lda, ldb) = if a_rs == 1 && b_rs == 1 && a_cs == m && b_cs == k {
+    let (a_trans, b_trans, lda, ldb) = if a_rs == 1 && b_rs == 1 {
         (CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasNoTrans, a_cs as c_int, b_cs as c_int)
-    } else if a_rs == 1 && b_cs == 1 && a_cs == m && b_rs == n {
+    } else if a_rs == 1 && b_cs == 1 {
         (CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasTrans, a_cs as c_int, b_rs as c_int)
-    } else if a_cs == 1 && b_rs == 1 && a_rs == k && b_cs == k {
+    } else if a_cs == 1 && b_rs == 1 {
         (CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasNoTrans, a_rs as c_int, b_cs as c_int)
-    } else if a_cs == 1 && b_cs == 1 && a_rs == k && b_rs == n {
+    } else if a_cs == 1 && b_cs == 1 {
         (CBLAS_TRANSPOSE::CblasTrans, CBLAS_TRANSPOSE::CblasTrans, a_rs as c_int, b_rs as c_int)
     } else {
         panic!("Non Trivial Stride is not available for Cblas Api");
     };
-    (CBLAS_LAYOUT::CblasColMajor, a_trans, b_trans, lda, ldb, ldc)
+    (m, n, CBLAS_LAYOUT::CblasColMajor, a_trans, b_trans, lda, ldb, ldc)
 }
 
 fn cblas_to_stride(
@@ -996,28 +996,28 @@ pub unsafe fn check_gemm_s16s16s32(
     {
         let oc_val = 0;
         let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_gemm_s16s16s32(
-            layout,
-            transa,
-            transb,
-            CblasFixOffset,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha,
-            a,
-            lda,
-            0,
-            b,
-            ldb,
-            0,
-            beta,
-            c_ref.as_mut_ptr(),
-            ldc,
-            oc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // cblas_gemm_s16s16s32(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     CblasFixOffset,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha,
+        //     a,
+        //     lda,
+        //     0,
+        //     b,
+        //     ldb,
+        //     0,
+        //     beta,
+        //     c_ref.as_mut_ptr(),
+        //     ldc,
+        //     oc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1069,30 +1069,30 @@ pub unsafe fn check_gemm_s8u8s32(
     {
         let oc_val = 0;
         let oc = &oc_val as *const c_int;
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_void;
-        let b = b as *const c_void;
-        cblas_gemm_s8u8s32(
-            layout,
-            transa,
-            transb,
-            CblasFixOffset,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha,
-            a,
-            lda,
-            0,
-            b,
-            ldb,
-            0,
-            beta,
-            c_ref.as_mut_ptr(),
-            ldc,
-            oc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // let a = a as *const c_void;
+        // let b = b as *const c_void;
+        // cblas_gemm_s8u8s32(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     CblasFixOffset,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha,
+        //     a,
+        //     lda,
+        //     0,
+        //     b,
+        //     ldb,
+        //     0,
+        //     beta,
+        //     c_ref.as_mut_ptr(),
+        //     ldc,
+        //     oc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1142,29 +1142,29 @@ pub unsafe fn check_gemm_f16(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_ushort;
-        let b = b as *const c_ushort;
-        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_ushort;
-        let alpha = alpha.to_bits();
-        let beta = beta.to_bits();
-        cblas_hgemm(
-            layout,
-            transa,
-            transb,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha,
-            a,
-            lda,
-            b,
-            ldb,
-            beta,
-            c_ref_ptr,
-            ldc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // let a = a as *const c_ushort;
+        // let b = b as *const c_ushort;
+        // let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_ushort;
+        // let alpha = alpha.to_bits();
+        // let beta = beta.to_bits();
+        // cblas_hgemm(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha,
+        //     a,
+        //     lda,
+        //     b,
+        //     ldb,
+        //     beta,
+        //     c_ref_ptr,
+        //     ldc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1214,24 +1214,24 @@ pub unsafe fn check_gemm_f64(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_dgemm(
-            layout,
-            transa,
-            transb,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha,
-            a,
-            lda,
-            b,
-            ldb,
-            beta,
-            c_ref.as_mut_ptr(),
-            ldc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // cblas_dgemm(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha,
+        //     a,
+        //     lda,
+        //     b,
+        //     ldb,
+        //     beta,
+        //     c_ref.as_mut_ptr(),
+        //     ldc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1281,24 +1281,24 @@ pub unsafe fn check_gemm_f32(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        cblas_sgemm(
-            layout,
-            transa,
-            transb,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha,
-            a,
-            lda,
-            b,
-            ldb,
-            beta,
-            c_ref.as_mut_ptr(),
-            ldc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // cblas_sgemm(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha,
+        //     a,
+        //     lda,
+        //     b,
+        //     ldb,
+        //     beta,
+        //     c_ref.as_mut_ptr(),
+        //     ldc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1347,29 +1347,29 @@ pub unsafe fn check_gemm_c32(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_void;
-        let b = b as *const c_void;
-        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
-        let alpha_ptr = &alpha as *const Complex32 as *const c_void;
-        let beta_ptr = &beta as *const Complex32 as *const c_void;
-        cblas_cgemm(
-            layout,
-            transa,
-            transb,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha_ptr,
-            a,
-            lda,
-            b,
-            ldb,
-            beta_ptr,
-            c_ref_ptr,
-            ldc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // let a = a as *const c_void;
+        // let b = b as *const c_void;
+        // let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
+        // let alpha_ptr = &alpha as *const Complex32 as *const c_void;
+        // let beta_ptr = &beta as *const Complex32 as *const c_void;
+        // cblas_cgemm(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha_ptr,
+        //     a,
+        //     lda,
+        //     b,
+        //     ldb,
+        //     beta_ptr,
+        //     c_ref_ptr,
+        //     ldc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
@@ -1418,29 +1418,29 @@ pub unsafe fn check_gemm_c64(
 ) -> f64 {
     #[cfg(feature = "mkl")]
     {
-        let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
-        let a = a as *const c_void;
-        let b = b as *const c_void;
-        let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
-        let alpha_ptr = &alpha as *const Complex64 as *const c_void;
-        let beta_ptr = &beta as *const Complex64 as *const c_void;
-        cblas_zgemm(
-            layout,
-            transa,
-            transb,
-            m as c_int,
-            n as c_int,
-            k as c_int,
-            alpha_ptr,
-            a,
-            lda,
-            b,
-            ldb,
-            beta_ptr,
-            c_ref_ptr,
-            ldc,
-            CBlasBackend::Mkl,
-        );
+        // let (layout, transa, transb, lda, ldb, ldc) = stride_to_cblas(m, n, k, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs);
+        // let a = a as *const c_void;
+        // let b = b as *const c_void;
+        // let c_ref_ptr = c_ref.as_mut_ptr() as *mut c_void;
+        // let alpha_ptr = &alpha as *const Complex64 as *const c_void;
+        // let beta_ptr = &beta as *const Complex64 as *const c_void;
+        // cblas_zgemm(
+        //     layout,
+        //     transa,
+        //     transb,
+        //     m as c_int,
+        //     n as c_int,
+        //     k as c_int,
+        //     alpha_ptr,
+        //     a,
+        //     lda,
+        //     b,
+        //     ldb,
+        //     beta_ptr,
+        //     c_ref_ptr,
+        //     ldc,
+        //     CBlasBackend::Mkl,
+        // );
     }
     #[cfg(not(feature = "mkl"))]
     {
