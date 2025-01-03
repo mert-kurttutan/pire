@@ -1,5 +1,3 @@
-#![feature(stdarch_x86_avx512)]
-#![feature(avx512_target_feature)]
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod arm64;
 #[cfg(target_arch = "x86_64")]
@@ -80,19 +78,44 @@ pub unsafe fn pire_sgemm(
     c_rs: usize,
     c_cs: usize,
 ) {
-    use x86_64_arch::avx512f::ukernel_rcc3;
+    use x86_64_arch::avx512f::{ukernel_rcc7, ukernel_rcc6, ukernel_rcc3, ukernel_rcc2, ukernel_rcc1};
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
         (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs, b, a)
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
-    let mut mi = 0;
-    while mi < m {
-        ukernel_rcc3(a.add(mi*a_rs), b, c.add(mi*c_rs), &alpha, &beta, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, m, n, k);
-        mi += 7;
-    }
-    return;
+    // let lda = if a_rs == 1 { a_cs } else { a_rs };
+    // let ldb = if b_rs == 1 { b_cs } else { b_rs };
+    // let mr = 3;
+    // let nr = 6;
+    // let ukernel_func = ukernel_rcc3;
+    // let mut mi = 0;
+    // while mi < m / mr * mr {
+    //     let mr_cur = mr.min(m - mi);
+    //     let mut ni = 0;
+    //     while ni < n {
+    //         let nr_cur = nr.min(n - ni);
+    //         ukernel_func(a.add(mi*lda), b.add(ni*ldb), c.add(mi*c_rs + ni*c_cs), &alpha, &beta, lda, ldb, c_rs, c_cs, mr_cur, nr_cur, k);
+    //         ni += nr;
+    //     }
+    //     mi += mr;
+    // }
+    // let mr_left = m - mi;
+    // let mr_left_ukernel_func = if mr_left == 2 {
+    //     ukernel_rcc2
+    // } else {
+    //     ukernel_rcc1
+    // };
+    // if mr_left > 0 {
+    //     let mut ni = 0;
+    //     while ni < n {
+    //         let nr_cur = nr.min(n - ni);
+    //         mr_left_ukernel_func(a.add(mi*lda), b.add(ni*ldb), c.add(mi*c_rs + ni*c_cs), &alpha, &beta, lda, ldb, c_rs, c_cs, mr_left, nr_cur, k);
+    //         ni += nr;
+    //     }
+    // }
+    // return;
     let a = Array::strided_matrix(a, a_rs, a_cs);
     let b = Array::strided_matrix(b, b_rs, b_cs);
     let c = ArrayMut::strided_matrix(c, c_rs, c_cs);
@@ -259,11 +282,8 @@ mod tests {
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (48, 8, 8);
         let m_dims = generate_m_dims(mc, mr);
-        let m_dims = [3];
         let n_dims = generate_n_dims(nc, nr);
-        let n_dims = [51359];
         let k_dims = generate_k_dims(kc, kr);
-        let k_dims = [384];
         let unary_fn: unsafe fn(*mut TC, usize) = unary_fn_test;
 
         for &m in &m_dims {

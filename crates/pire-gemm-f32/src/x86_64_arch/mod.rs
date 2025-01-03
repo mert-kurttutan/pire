@@ -384,7 +384,7 @@ def_pire_gemm!(
     packb_fn_simd,
     true,
     true,
-    true,
+    false,
     into_pack_array,
     F,
 );

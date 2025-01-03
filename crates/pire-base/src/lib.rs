@@ -3994,6 +3994,123 @@ macro_rules! asm_body_avx512 {
 }
 
 #[macro_export]
+macro_rules! asm_body_avx512_dot {
+    (
+        $step_macro:tt, $acc_macro:tt, $store_macro:tt,
+        $b_macro:tt, $c_macro:tt,
+        $mr:tt, $nr:tt,
+        $a:tt, $b:tt, $c:tt, $alpha:tt, $beta:tt, $alpha_st:tt, $beta_st:tt,
+        $dim_arr:tt, | $($mask_ptr:ident,)? |
+        [$($vreg:tt,)*]
+    ) => {
+        core::arch::asm!(
+            vzero_kernel!(),
+
+            init_ab_dot!(),
+            "test {x0}, {x0}", "je 3f", // CONSIDKLEFT
+
+            "2:", // KITER
+            load_a_dot!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            "add $64, {ax}",
+            "add $64, {x2}",
+            "add $64, {x3}",
+            "add $64, {bx}",
+            "add $64, {x4}",
+            load_a_dot!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            "add $64, {ax}",
+            "add $64, {x2}",
+            "add $64, {x3}",
+            "add $64, {bx}",
+            "add $64, {x4}",
+            load_a_dot!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            "add $64, {ax}",
+            "add $64, {x2}",
+            "add $64, {x3}",
+            "add $64, {bx}",
+            "add $64, {x4}",
+            load_a_dot!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            "add $64, {ax}",
+            "add $64, {x2}",
+            "add $64, {x3}",
+            "add $64, {bx}",
+            "add $64, {x4}",
+            "dec {x0}", "jne 2b", // KITER
+
+            "3:", // CONSIDKLEFT
+            "mov 40({dim_arrx}), {x0}",
+            "test {x0},{x0}", "je 23f", // POSTACCUM
+
+            "4:", // KLEFT
+            load_a_dot!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            "add $64, {ax}",
+            "add $64, {x2}",
+            "add $64, {x3}",
+            "add $64, {bx}",
+            "add $64, {x4}",
+            "dec {x0}", "jne 4b", // KLEFT
+
+            "23:", // CONSIDKLEFT
+            "mov 48({dim_arrx}), {x0}",
+            "test {x0},{x0}", "je 5f", // POSTACCUM
+
+            "24:", // KLEFT
+            load_mask!(P),
+            load_a_dot_partial!($mr),
+            $step_macro!($mr,$nr, $b_macro, $c_macro),
+
+            "5:", // POSTACCUM
+            c_load_dot!(),
+
+            "cmpw $0, ({alpha_st})",
+            "je 9f",
+            alpha_scale!(),
+            "9:",
+
+            "cmpw $0, ({beta_st})",
+            "je 6f",
+
+            "cmpw $1, ({beta_st})",
+            "je 15f",
+
+            load_beta!(),
+            acc_dot!($mr,$nr,2, $c_macro),
+            "jmp 6f",
+
+            "15:",
+            acc_dot!($mr,$nr,2, $c_macro),
+
+            "6:",
+            store_dot!($mr,$nr, $c_macro),
+            "vzeroupper",
+
+            ax = inout(reg) $a => _,
+            bx = inout(reg) $b => _,
+            cx = inout(reg) $c => _,
+            dim_arrx = inout(reg) $dim_arr.as_ptr() => _,
+            alphax = inout(reg) $alpha => _,
+            betax = inout(reg) $beta => _,
+            beta_st = in(reg) &$beta_st,
+            alpha_st = in(reg) &$alpha_st,
+            x0 = out(reg) _,
+            x1 = out(reg) _,
+            x2 = out(reg) _,
+            x3 = out(reg) _,
+            x4 = out(reg) _,
+            x5 = out(reg) _,
+            $(maskx = inout(reg) $mask_ptr => _,)?
+            $(out($vreg) _,)*
+            options(att_syntax)
+        );
+    }
+}
+
+
+#[macro_export]
 macro_rules! asm_body_avx512_2 {
     (
         $step_macro:tt, $acc_macro:tt, $store_macro:tt,
@@ -4248,6 +4365,90 @@ macro_rules! def_ukernel_avx {
                                     "ymm4", "ymm5", "ymm6", "ymm7",
                                     "ymm8", "ymm9", "ymm10", "ymm11",
                                     "ymm12", "ymm13", "ymm14", "ymm15",
+                                ]
+                            );
+                            break 'blk;
+                        }
+                    });
+                };
+            }
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! def_ukernel_avx512_dot {
+    (
+        $k_unit:tt,
+        $step_macro:tt,
+        $acc_macro:tt,
+        $store_macro:tt,
+        $b_macro:tt, $c_macro:tt,
+        $mr:tt, $nr:tt,
+        $func_name:ident
+    ) => {
+        pub(crate) unsafe fn $func_name(
+            a: *const TA, b: *const TB, c: *mut TC,
+            alpha: *const TS, beta: *const TS,
+            lda: usize, ldb: usize,
+            c_rs: usize, c_cs: usize,
+            m: usize, n: usize, k: usize,
+        ) {
+            use core::mem::size_of;
+            mask_ptr!(P, k, x, mask_ptr);
+            let dim_arr = [lda*TC_SIZE, ldb*TC_SIZE, c_rs*TC_SIZE, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, k % $k_unit];
+            let alpha_st = if *alpha == ONE_SCALAR {
+                0i32
+            } else {
+                1i32
+            };
+            let beta_st = if *beta == ZERO_SCALAR {
+                0i32
+            } else if *beta == ONE_SCALAR {
+                1i32
+            } else {
+                2i32
+            };
+            if n == $nr {
+                pire_base::asm_body_avx512_dot!(
+                    $step_macro, $acc_macro, $store_macro,
+                    $b_macro, $c_macro,
+                    $mr, $nr,
+                    a, b, c, alpha, beta, alpha_st, beta_st,
+                    dim_arr,| mask_ptr, |
+                    [
+                        "zmm0", "zmm1", "zmm2", "zmm3",
+                        "zmm4", "zmm5", "zmm6", "zmm7",
+                        "zmm8", "zmm9", "zmm10", "zmm11",
+                        "zmm12", "zmm13", "zmm14", "zmm15",
+                        "zmm16", "zmm17", "zmm18", "zmm19",
+                        "zmm20", "zmm21", "zmm22", "zmm23",
+                        "zmm24", "zmm25", "zmm26", "zmm27",
+                        "zmm28", "zmm29", "zmm30", "zmm31",
+                        "k1",
+                    ]
+                );
+            } else {
+                let _ = 'blk: {
+                    seq!(ni in 1..$nr {
+                        if n == ni {
+                            pire_base::asm_body_avx512_dot!(
+                                $step_macro, $acc_macro, $store_macro,
+                                $b_macro, $c_macro,
+                                $mr, ni,
+                                a, b, c, alpha, beta, alpha_st, beta_st,
+                                dim_arr,| mask_ptr, |
+                                [
+                                    "zmm0", "zmm1", "zmm2", "zmm3",
+                                    "zmm4", "zmm5", "zmm6", "zmm7",
+                                    "zmm8", "zmm9", "zmm10", "zmm11",
+                                    "zmm12", "zmm13", "zmm14", "zmm15",
+                                    "zmm16", "zmm17", "zmm18", "zmm19",
+                                    "zmm20", "zmm21", "zmm22", "zmm23",
+                                    "zmm24", "zmm25", "zmm26", "zmm27",
+                                    "zmm28", "zmm29", "zmm30", "zmm31",
+                                    "k1",
                                 ]
                             );
                             break 'blk;
