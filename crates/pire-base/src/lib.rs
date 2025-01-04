@@ -1007,21 +1007,6 @@ pub fn get_mem_pool_size_small_n<AP: BaseNum, BP: BaseNum, HWConfig: GemmCache>(
     }
 }
 
-// Choose ap_size, bp_size as arguments since they are specific to Gemm implementation,
-// It is determined by hardware, gemm implementation (e.g. f64, f32, f16),
-// Otherwise, this base crate would include code coupled with other gemm crates,
-// this would require either cyclic dep (Not allowed of course) or separate code for each specii hardware and gemm
-// imple inside this crate, which is not desirable. We want this crate to be as decoupled as possbile from
-// specific gemm implementation and hardware.
-
-pub fn run_small_m(m: usize) -> bool {
-    m < 144
-}
-
-pub fn run_small_n(n: usize) -> bool {
-    n < 144
-}
-
 pub enum GemmPool {
     Goto,
     SmallM,
@@ -1614,10 +1599,13 @@ macro_rules! def_pire_gemm {
                 return;
             }
             let is_dot_kernel = if a.is_strided() && b.is_strided() {
-                a.cs() == 1 && b.rs() == 1 && (m < 300 || n < 300)
+                a.cs() == 1 && b.rs() == 1 && (n < 4 || m < 4 || (m < 70 && n < 70))
             } else {
                 false
             };
+            let (is_small_m, is_small_n) = (m < 300, n < 300);
+            let m_bigger_than_n = m > (7*n);
+            let is_small_m = is_small_m && !m_bigger_than_n;
             let (gemm_mode, gemm_fun, pool_info)
             : (
                 GemmPool, unsafe fn(
@@ -1627,9 +1615,9 @@ macro_rules! def_pire_gemm {
             ) = if $run_small_mn && is_dot_kernel {
                 (GemmPool::SmallMN, $small_mn_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool, b_need_pool))
              }
-            else if run_small_m(m) && $run_small_m && b.is_strided() {
+            else if is_small_m && $run_small_m && b.is_strided() {
                 (GemmPool::SmallM, $small_m_name, get_mem_pool_size_small_m::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool))
-            } else if run_small_n(n) && $run_small_n && a.is_strided() {
+            } else if is_small_n && $run_small_n && a.is_strided() {
                 (GemmPool::SmallN, $small_n_name, get_mem_pool_size_small_n::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, b_need_pool))
             } else {
                 (GemmPool::Goto, $goto_name, get_mem_pool_size_goto::<$tap,$tbp,$t_dispatcher::<F>>(hw_config, par, a_need_pool, b_need_pool))

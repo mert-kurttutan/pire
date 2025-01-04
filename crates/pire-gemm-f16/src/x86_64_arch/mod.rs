@@ -22,9 +22,9 @@ const AVX512_F16_NR: usize = 15;
 
 use pire_base::{
     acquire, def_pa, def_pire_gemm, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
-    get_mem_pool_size_small_m, get_mem_pool_size_small_n, has_f16_compute, is_mixed, run_small_m, run_small_n,
-    split_c_range, split_range, Array, ArrayMut, GemmPool, HWModel, PArray, PArrayMixed, PirePar, PireThreadConfig,
-    PoolSize, PtrData, PACK_POOL, RUNTIME_HW_CONFIG,
+    get_mem_pool_size_small_m, get_mem_pool_size_small_n, has_f16_compute, is_mixed, split_c_range, split_range, Array,
+    ArrayMut, GemmPool, HWModel, PArray, PArrayMixed, PirePar, PireThreadConfig, PoolSize, PtrData, PACK_POOL,
+    RUNTIME_HW_CONFIG,
 };
 
 use crate::{GemmCache, IdentityFn, UnaryFnC, TA, TB, TC};
