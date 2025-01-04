@@ -889,15 +889,7 @@ fn run_bench(args: &Args, run_folder_path: PathBuf, dim_strategy: DimStrategy) {
 
 fn main() {
     let mut args = Args::parse();
-    let bench_type_arr = [
-        "sgemm",
-        "hgemm",
-        "dgemm",
-        "cgemm",
-        "zgemm",
-        "gemm_s16s16s32",
-        "gemm_s8u8s32",
-    ];
+    let bench_type_arr = ["sgemm", "hgemm", "dgemm", "cgemm", "zgemm", "gemm_s16s16s32", "gemm_s8u8s32"];
     let bench_pair_to_pass = [
         ("hgemm", "blis"),
         ("gemm_s16s16s32", "blis"),

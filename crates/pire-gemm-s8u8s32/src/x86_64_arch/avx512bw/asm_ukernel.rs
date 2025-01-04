@@ -164,6 +164,11 @@ macro_rules! loadp_unit {
             "vmovaps ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
         )
     };
+    ($m0:expr, $r1:expr, B) => {
+        concat!(
+            "vmovaps ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
+        )
+    };
 }
 
 macro_rules! storep_unit {
@@ -308,7 +313,7 @@ macro_rules! load_mask {
     (C) => { "/* {maskx} */" }
 }
 
-def_ukernel_avx512!(4, step_2, acc_2, store_2, 2, 8, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(4, step_1, acc_1, store_1, 1, 8, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(4, step_2, acc_2, store_2, 2, 8, B, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(4, step_1, acc_1, store_1, 1, 8, B, B, P, ukernel_1_bbp);
 
 def_ukernel_avx512_2!(4, step_2, acc_2, store_2, 2, 8, 32, 32);

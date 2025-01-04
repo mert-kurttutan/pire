@@ -104,7 +104,7 @@ macro_rules! vfmadd {
 }
 
 macro_rules! loadp_unit {
-    ($m0:expr, $r1:expr) => {
+    ($m0:expr, $r1:expr, B) => {
         concat!(
             "vmovaps ", mem!($m0, concat!("0x40*", $r1)), ", %zmm", $r1, "\n",
         )
@@ -352,15 +352,14 @@ macro_rules! load_mask {
     (C) => { "/* {maskx} */" }
 }
 
-def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, B, P, ukernel_3_bbp);
-def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, B, P, ukernel_2_bbp);
-def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, B, P, ukernel_1_bbp);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, B, B, P, ukernel_3_bbp);
+def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, B, B, P, ukernel_2_bbp);
+def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, B, B, P, ukernel_1_bbp);
 
-def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, S, C, ukernel_bsc);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, B, S, C, ukernel_bsc);
 
-def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, S, P, ukernel_3_bsp);
-def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, S, P, ukernel_2_bsp);
-def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, S, P, ukernel_1_bsp);
+def_ukernel_avx512!(1, step_3_c, acc_3, store_3, 3, 4, B, S, P, ukernel_3_bsp);
+def_ukernel_avx512!(1, step_2_c, acc_2, store_2, 2, 4, B, S, P, ukernel_2_bsp);
+def_ukernel_avx512!(1, step_1_c, acc_1, store_1, 1, 4, B, S, P, ukernel_1_bsp);
 
 def_ukernel_avx512_2!(1, step_3_c, acc_3, store_3, 3, 4, 4, 32);
-

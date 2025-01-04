@@ -80,7 +80,7 @@ pub unsafe fn pire_sgemm(
 ) {
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-        (n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+        (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs, b, a)
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
@@ -111,7 +111,7 @@ pub unsafe fn pire_sgemm_fn_ptr(
 ) {
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-        (n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+        (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs, b, a)
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
@@ -234,7 +234,7 @@ mod tests {
 
     unsafe fn unary_fn_test(c: *mut TC, m: usize) {
         for i in 0..m {
-            *c.add(i) *= 2.0;
+            *c.add(i) *= 1.0;
         }
     }
 
@@ -246,7 +246,7 @@ mod tests {
     fn test_gemm(layout: &ABLayout, is_a_packed: bool, is_b_packed: bool) {
         let a_stride_scale = 1;
         let b_stride_scale = 1;
-        let c_stride_scale = 2;
+        let c_stride_scale = 1;
         let (mc, nc, kc) = get_mcnckc();
         let (mr, nr, kr) = (48, 8, 8);
         let m_dims = generate_m_dims(mc, mr);

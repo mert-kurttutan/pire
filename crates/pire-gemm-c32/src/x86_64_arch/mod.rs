@@ -320,6 +320,44 @@ unsafe fn pire_gemv<F: UnaryFnC>(
     }
 }
 
+#[allow(unused)]
+unsafe fn kernel_mn<F: UnaryFnC>(
+    hw_cfg: &KernelDispatcher<F>,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    a: *const TB,
+    a_rs: usize,
+    a_cs: usize,
+    b: *const TB,
+    b_rs: usize,
+    b_cs: usize,
+    c: *mut TC,
+    c_rs: usize,
+    c_cs: usize,
+    kc_last: bool,
+) {
+    return;
+    // if kc_last {
+    //     match hw_cfg.reg_dim {
+    //         RegDim::Avx512f => avx512f::kernel_ss(m, n, k, alpha, beta, a, a_rs, a_cs, b, b_rs, b_cs, c, c_rs, c_cs, hw_cfg.func),
+    //         RegDim::AvxFma => return,
+    //         RegDim::Avx => return,
+    //         RegDim::Sse => return,
+    //     }
+    // } else {
+    //     let null_fn = IdentityFn {};
+    //     match hw_cfg.reg_dim {
+    //         RegDim::Avx512f => avx512f::kernel_ss(m, n, k, alpha, beta, a, a_rs, a_cs, b, b_rs, b_cs, c, c_rs, c_cs, null_fn),
+    //         RegDim::AvxFma => return,
+    //         RegDim::Avx => return,
+    //         RegDim::Sse => return,
+    //     }
+    // }
+}
+
 def_pire_gemm!(
     KernelDispatcher,
     TA,
@@ -340,6 +378,8 @@ def_pire_gemm!(
     kernel_m,
     gemm_small_n_serial,
     kernel_n,
+    gemm_small_mn_serial,
+    kernel_mn,
     pire_gemv,
     pire_gemv,
     packa,
@@ -348,6 +388,7 @@ def_pire_gemm!(
     packb_fn_simd,
     true,
     true,
+    false,
     into_pack_array,
     F,
 );

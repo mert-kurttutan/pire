@@ -148,7 +148,8 @@ pub fn get_benchmark_config() -> BenchmarkConfig {
         std::env::var("OPENBLAS_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
     let blis_num_threads = std::env::var("BLIS_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
     let pire_num_threads = std::env::var("PIRE_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
-    let rayon_num_threads = std::env::var("RAYON_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
+    let rayon_num_threads =
+        std::env::var("RAYON_NUM_THREADS").map(|s| s.parse().unwrap()).unwrap_or(default_num_threads);
     assert_eq!(mkl_num_threads, openblas_num_threads);
     assert_eq!(mkl_num_threads, blis_num_threads);
     assert_eq!(mkl_num_threads, pire_num_threads);
