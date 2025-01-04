@@ -26,7 +26,7 @@ macro_rules! v_i {
 }
 
 macro_rules! mask_ptr {
-    (P, $m:tt, $nm:ident, $mask_ptr:ident) => {
+    (P, $m:expr, $nm:ident, $mask_ptr:ident) => {
         let $nm = if $m % VS == 0 && $m > 0 { 0xFFFF } else { (1_u16 << ($m % VS)) - 1 };
         let $mask_ptr = &$nm as *const u16;
     };
@@ -552,6 +552,102 @@ macro_rules! step_dot {
     };
 }
 
+
+
+macro_rules! step_dot_partial {
+    (7, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                    "vfmadd231ps %zmm2, %zmm", $b_macro!(n), ", %zmm", $c_macro!(2,n), "\n",
+                    "vfmadd231ps %zmm3, %zmm", $b_macro!(n), ", %zmm", $c_macro!(3,n), "\n",
+                    "vfmadd231ps %zmm4, %zmm", $b_macro!(n), ", %zmm", $c_macro!(4,n), "\n",
+                    "vfmadd231ps %zmm5, %zmm", $b_macro!(n), ", %zmm", $c_macro!(5,n), "\n",
+                    "vfmadd231ps %zmm6, %zmm", $b_macro!(n), ", %zmm", $c_macro!(6,n), "\n",
+                )*
+            )
+        })
+    };
+    (6, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                    "vfmadd231ps %zmm2, %zmm", $b_macro!(n), ", %zmm", $c_macro!(2,n), "\n",
+                    "vfmadd231ps %zmm3, %zmm", $b_macro!(n), ", %zmm", $c_macro!(3,n), "\n",
+                    "vfmadd231ps %zmm4, %zmm", $b_macro!(n), ", %zmm", $c_macro!(4,n), "\n",
+                    "vfmadd231ps %zmm5, %zmm", $b_macro!(n), ", %zmm", $c_macro!(5,n), "\n",
+                )*
+            )
+        })
+    };
+    (5, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                    "vfmadd231ps %zmm2, %zmm", $b_macro!(n), ", %zmm", $c_macro!(2,n), "\n",
+                    "vfmadd231ps %zmm3, %zmm", $b_macro!(n), ", %zmm", $c_macro!(3,n), "\n",
+                    "vfmadd231ps %zmm4, %zmm", $b_macro!(n), ", %zmm", $c_macro!(4,n), "\n",
+                )*
+            )
+        })
+    };
+    (4, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                    "vfmadd231ps %zmm2, %zmm", $b_macro!(n), ", %zmm", $c_macro!(2,n), "\n",
+                    "vfmadd231ps %zmm3, %zmm", $b_macro!(n), ", %zmm", $c_macro!(3,n), "\n",
+                )*
+            )
+        })
+    };
+    (3, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                    "vfmadd231ps %zmm2, %zmm", $b_macro!(n), ", %zmm", $c_macro!(2,n), "\n",
+                )*
+            )
+        })
+    };
+    (2, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                    "vfmadd231ps %zmm1, %zmm", $b_macro!(n), ", %zmm", $c_macro!(1,n), "\n",
+                )*
+            )
+        })
+    };
+    (1, $nr:tt, $b_macro:tt, $c_macro:tt) => {
+        seq!(n in 0..$nr {
+            concat!(
+                #(
+                    "vmovups ", b_mem_dot!(n), ", %zmm", $b_macro!(n), " {{%k1}}\n",
+                    "vfmadd231ps %zmm0, %zmm", $b_macro!(n), ", %zmm", $c_macro!(0,n), "\n",
+                )*
+            )
+        })
+    };
+}
+
 macro_rules! c_load_dot {
     () => {
         concat!(
@@ -857,8 +953,8 @@ macro_rules! store_dot {
 }
 
 
-def_ukernel_avx512_dot!(16, step_dot, acc_dot, store_dot, b_macro_dot, c_macro_dot, 7, 3, ukernel_rcc7);
-def_ukernel_avx512_dot!(16, step_dot, acc_dot, store_dot, b_macro_dot, c_macro_dot, 6, 3, ukernel_rcc6);
-def_ukernel_avx512_dot!(16, step_dot, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 3, 8, ukernel_rcc3);
-def_ukernel_avx512_dot!(16, step_dot, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 2, 8, ukernel_rcc2);
-def_ukernel_avx512_dot!(16, step_dot, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 1, 8, ukernel_rcc1);
+def_ukernel_avx512_dot!(16, step_dot, step_dot_partial, acc_dot, store_dot, b_macro_dot, c_macro_dot, 7, 3, ukernel_rcc7);
+def_ukernel_avx512_dot!(16, step_dot, step_dot_partial, acc_dot, store_dot, b_macro_dot, c_macro_dot, 6, 3, ukernel_rcc6);
+def_ukernel_avx512_dot!(16, step_dot, step_dot_partial, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 3, 8, ukernel_rcc3);
+def_ukernel_avx512_dot!(16, step_dot, step_dot_partial, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 2, 8, ukernel_rcc2);
+def_ukernel_avx512_dot!(16, step_dot, step_dot_partial, acc_dot, store_dot, b_macro_dot_2, c_macro_dot_2, 1, 8, ukernel_rcc1);

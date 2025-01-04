@@ -3998,7 +3998,7 @@ macro_rules! asm_body_avx512 {
 #[macro_export]
 macro_rules! asm_body_avx512_dot {
     (
-        $step_macro:tt, $acc_macro:tt, $store_macro:tt,
+        $step_macro:tt, $step_macro_partial:tt, $acc_macro:tt, $store_macro:tt,
         $b_macro:tt, $c_macro:tt,
         $mr:tt, $nr:tt,
         $a:tt, $b:tt, $c:tt, $alpha:tt, $beta:tt, $alpha_st:tt, $beta_st:tt,
@@ -4063,7 +4063,7 @@ macro_rules! asm_body_avx512_dot {
             "24:", // KLEFT
             load_mask!(P),
             load_a_dot_partial!($mr),
-            $step_macro!($mr,$nr, $b_macro, $c_macro),
+            $step_macro_partial!($mr,$nr, $b_macro, $c_macro),
 
             "5:", // POSTACCUM
             c_load_dot!(),
@@ -4382,6 +4382,7 @@ macro_rules! def_ukernel_avx512_dot {
     (
         $k_unit:tt,
         $step_macro:tt,
+        $step_macro_partial:tt,
         $acc_macro:tt,
         $store_macro:tt,
         $b_macro:tt, $c_macro:tt,
@@ -4396,7 +4397,7 @@ macro_rules! def_ukernel_avx512_dot {
             m: usize, n: usize, k: usize,
         ) {
             use core::mem::size_of;
-            mask_ptr!(P, k, x, mask_ptr);
+            mask_ptr!(P, k%$k_unit, x, mask_ptr);
             let dim_arr = [lda*TC_SIZE, ldb*TC_SIZE, c_rs*TC_SIZE, c_cs*TC_SIZE, k / ($k_unit*4), (k % ($k_unit*4)) / $k_unit, k % $k_unit];
             let alpha_st = if *alpha == ONE_SCALAR {
                 0i32
@@ -4412,7 +4413,7 @@ macro_rules! def_ukernel_avx512_dot {
             };
             if n == $nr {
                 pire_base::asm_body_avx512_dot!(
-                    $step_macro, $acc_macro, $store_macro,
+                    $step_macro, $step_macro_partial, $acc_macro, $store_macro,
                     $b_macro, $c_macro,
                     $mr, $nr,
                     a, b, c, alpha, beta, alpha_st, beta_st,
@@ -4434,7 +4435,7 @@ macro_rules! def_ukernel_avx512_dot {
                     seq!(ni in 1..$nr {
                         if n == ni {
                             pire_base::asm_body_avx512_dot!(
-                                $step_macro, $acc_macro, $store_macro,
+                                $step_macro, $step_macro_partial, $acc_macro, $store_macro,
                                 $b_macro, $c_macro,
                                 $mr, ni,
                                 a, b, c, alpha, beta, alpha_st, beta_st,

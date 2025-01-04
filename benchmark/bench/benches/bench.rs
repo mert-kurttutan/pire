@@ -161,9 +161,9 @@ pub fn bench_blas_group3<M: criterion::measurement::Measurement, TA: AS, TB: 'st
     c: *mut TC,
 ) {
     let (m, n, k) = get_mnk(dim_triple, d0, dt);
-    let m = 53;
-    let n = 3;
-    let k = 1027;
+    let n = 51864;
+    let m = 1;
+    let k = 384;
     let (a_rs, a_cs) = (k as isize, 1);
     let (b_rs, b_cs) = (1, k as isize);
     let (c_rs, c_cs) = (1, m as isize);

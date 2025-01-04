@@ -48,11 +48,8 @@ pub(crate) unsafe fn dot_kernel<F: UnaryFnC>(
     let ldb = if b_rs == 1 { b_cs } else { b_rs };
     let mr = 3;
     let nr = 8;
-    let (m, n, lda, ldb, a, b, c_rs, c_cs) = if n < 4 {
-        (n, m, ldb, lda, b, a, c_cs, c_rs)
-    } else {
-        (m, n, lda, ldb, a, b, c_rs, c_cs)
-    };
+    let (m, n, lda, ldb, a, b, c_rs, c_cs) =
+        if n < 4 { (n, m, ldb, lda, b, a, c_cs, c_rs) } else { (m, n, lda, ldb, a, b, c_rs, c_cs) };
     // let (mr, nr) = if m == 3 {
     //     (nr, mr)
     // } else {
