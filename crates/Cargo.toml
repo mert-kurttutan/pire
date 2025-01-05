@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "pire-base", "pire-dev", "pire-gemm-f16", "pire-gemm-f32", "pire-gemm-f64", "pire-gemm-c32", "pire-gemm-c64", "pire-gemm-s16s16s32", "pire-gemm-s8u8s32"
-]
+, "pire-mathfun"]
 resolver = "2"
 
 

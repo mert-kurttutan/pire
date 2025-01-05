@@ -81,7 +81,7 @@ pub unsafe fn pire_cgemm(
 ) {
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-        (n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+        (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs, b, a)
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
@@ -112,7 +112,7 @@ pub unsafe fn pire_cgemm_fn_ptr(
 ) {
     // transpose if c is row strided i.e. c_cs == 1 and c_rs != 1
     let (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b) = if c_cs == 1 && c_rs != 1 {
-        (n, m, b_rs, b_cs, a_rs, a_cs, c_cs, c_rs, b, a)
+        (n, m, b_cs, b_rs, a_cs, a_rs, c_cs, c_rs, b, a)
     } else {
         (m, n, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, a, b)
     };
