@@ -27,6 +27,92 @@ use super::pack_avx::packa_panel_48;
 use pire_base::def_kernel_sb_v0;
 def_kernel_sb_v0!(TA, TA, TB, TC, TC, false, T, packa_panel_48, 1, 3, 8, 96, 8);
 
+pub(crate) unsafe fn dot_kernel2<F: UnaryFnC>(
+    m: usize,
+    n: usize,
+    k: usize,
+    a: *const TA,
+    b: *const TB,
+    c: *mut TC,
+    a_rs: usize,
+    a_cs: usize,
+    b_rs: usize,
+    b_cs: usize,
+    c_rs: usize,
+    c_cs: usize,
+    alpha: *const TA,
+    beta: *const TC,
+    f: F,
+) {
+    let mr = 3 * VS;
+    let nr = 8;
+    // let (m, n, lda, ldb, a, b, c_rs, c_cs) =
+    //     if n < 4 { (n, m, ldb, lda, b, a, c_cs, c_rs) } else { (m, n, lda, ldb, a, b, c_rs, c_cs) };
+    // // let (mr, nr) = if m == 3 {
+    // //     (nr, mr)
+    // // } else {
+    // //     (mr, nr)
+    // // };
+    let ukernel_func = ukernel_ssc;
+    let mut mi = 0;
+    while mi < m / mr * mr {
+        let mut ni = 0;
+        while ni < n {
+            let nr_cur = nr.min(n - ni);
+            ukernel_func(
+                a.add(mi * a_rs),
+                b.add(ni * b_cs),
+                c.add(mi * c_rs + ni * c_cs),
+                alpha,
+                beta,
+                k,
+                [b_rs, b_cs],
+                a_cs,
+                c_cs,
+                mr,
+                nr_cur,
+            );
+            ni += nr;
+        }
+        mi += mr;
+    }
+    let mr_left = m - mi;
+    let mr_left_vs = (mr_left + VS - 1) / VS;
+    let mr_left_ukernel_func = if mr_left_vs == 3 {
+        ukernel_3_ssp
+    } else if mr_left_vs == 2 {
+        ukernel_2_ssp
+    } else {
+        ukernel_1_ssp
+    };
+    if mr_left > 0 {
+        let mut ni = 0;
+        while ni < n {
+            let nr_cur = nr.min(n - ni);
+            mr_left_ukernel_func(
+                a.add(mi * a_rs),
+                b.add(ni * b_cs),
+                c.add(mi * c_rs + ni * c_cs),
+                alpha,
+                beta,
+                k,
+                [b_rs, b_cs],
+                a_cs,
+                c_cs,
+                mr_left,
+                nr_cur,
+            );
+            ni += nr;
+        }
+    }
+    for i in 0..m {
+        for j in 0..n {
+            let c_ij = c.add(i * c_rs + j * c_cs);
+            f.call(c_ij, 1);
+        }
+    }
+}
+
 pub(crate) unsafe fn dot_kernel<F: UnaryFnC>(
     m: usize,
     n: usize,

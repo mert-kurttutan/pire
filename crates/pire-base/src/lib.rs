@@ -1599,7 +1599,8 @@ macro_rules! def_pire_gemm {
                 return;
             }
             let is_dot_kernel = if a.is_strided() && b.is_strided() {
-                a.cs() == 1 && b.rs() == 1 && (n < 4 || m < 4 || (m < 70 && n < 70))
+                (a.cs() == 1 && b.rs() == 1 && (n < 4 || m < 4 || (m < 70 && n < 70)))
+                || (a.rs() == 1 && m < 300 && n < 300)
             } else {
                 false
             };

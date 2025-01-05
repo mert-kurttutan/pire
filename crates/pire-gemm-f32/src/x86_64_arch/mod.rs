@@ -5,6 +5,8 @@ pub(crate) mod pack_avx;
 pub(crate) mod pack_sse;
 pub(crate) mod sse;
 
+use core::panic;
+
 use pire_base::{
     acquire, def_pa, def_pire_gemm, extend, get_apbp_barrier, get_cache_params, get_mem_pool_size_goto,
     get_mem_pool_size_small_m, get_mem_pool_size_small_n, is_mixed, split_c_range, split_range, Array, ArrayMut,
@@ -314,7 +316,13 @@ unsafe fn kernel_mn<F: UnaryFnC>(
     if kc_last {
         match hw_cfg.reg_dim {
             RegDim::Avx512f => {
-                avx512f::dot_kernel(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, hw_cfg.func)
+                if a_cs == 1 && b_rs == 1 {
+                    avx512f::dot_kernel(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, hw_cfg.func)
+                } else if a_rs == 1 {
+                    avx512f::dot_kernel2(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, hw_cfg.func)
+                } else {
+                    panic!("Unsupported configuration");
+                }
             }
             RegDim::AvxFma => return,
             RegDim::Avx => return,
@@ -324,7 +332,13 @@ unsafe fn kernel_mn<F: UnaryFnC>(
         let null_fn = IdentityFn {};
         match hw_cfg.reg_dim {
             RegDim::Avx512f => {
-                avx512f::dot_kernel(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, null_fn)
+                if a_cs == 1 && b_rs == 1 {
+                    avx512f::dot_kernel(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, null_fn)
+                } else if a_rs == 1 {
+                    avx512f::dot_kernel2(m, n, k, a, b, c, a_rs, a_cs, b_rs, b_cs, c_rs, c_cs, alpha, beta, null_fn)
+                } else {
+                    panic!("Unsupported configuration");
+                }
             }
             RegDim::AvxFma => return,
             RegDim::Avx => return,
