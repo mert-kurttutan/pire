@@ -1,13 +1,11 @@
 
+State of the art gemm-like kernels for cpus (using inline assembly)
 
+Include quantized gemm, sgemm, hgemm, dgemm, integer gemm.
 
-# Developer
+Working on putting more kernels used in many LLMs.
 
+Features:
+- packed api for matrices
+- gemm+unary function fusion
 
-powershell:
-
-& .\scripts\prepare.ps1
-
-
-bash:
-./scripts/prepare.sh
